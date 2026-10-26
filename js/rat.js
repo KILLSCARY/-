@@ -192,12 +192,14 @@ export function createRat() {
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.02;
 
+    rig.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     rat.userData = { rig, body, legs, arms, head, hat, tailPivot, blob };
     return rat;
 }
 
 // pose: "run" | "jump" | "slide" | "idle" | "dead"; t — время, phase — фаза бега
-export function animateRat(rat, pose, t, phase) {
+export function animateRat(rat, pose, t, phase, dt = 0, speed = 1) {
+    if (rat.userData.model) return animateModel(rat, pose, dt, speed);
     const { rig, body, legs, arms, head, tailPivot } = rat.userData;
     const s = Math.sin(phase);
 
@@ -261,4 +263,70 @@ export function animateRat(rat, pose, t, phase) {
         arms[1].rotation.z = 0.7;
         head.rotation.z = 0.25;
     }
+}
+
+// ---- персонаж из .glb ----------------------------------------------------------------------
+
+// Заменяет крыса из примитивов на загруженную модель: масштаб, разворот, анимации.
+export function attachModel(rat, gltf, cfg) {
+    const model = gltf.scene;
+    model.rotation.y = cfg.rotateY;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const k = cfg.height / (size.y || 1);
+    model.scale.multiplyScalar(k);
+    model.updateMatrixWorld(true);
+    box.setFromObject(model);
+    const c = box.getCenter(new THREE.Vector3());
+    model.position.x -= c.x;
+    model.position.z -= c.z;
+    model.position.y -= box.min.y;
+    model.traverse((o) => {
+        if (o.isMesh) {
+            o.castShadow = true;
+            o.frustumCulled = false; // у скиннутых мешей bbox не обновляется при анимации
+        }
+    });
+
+    const { rig } = rat.userData;
+    rig.clear();
+    rig.add(model);
+
+    const mixer = new THREE.AnimationMixer(model);
+    const actions = {};
+    for (const [pose, re] of Object.entries(cfg.clips)) {
+        const clip = gltf.animations.find((a) => re.test(a.name));
+        if (clip) actions[pose] = mixer.clipAction(clip);
+    }
+    if (!actions.run && gltf.animations[0]) actions.run = mixer.clipAction(gltf.animations[0]);
+    rat.userData = { rig, blob: rat.userData.blob, model, mixer, actions, current: null };
+}
+
+function animateModel(rat, pose, dt, speed) {
+    const u = rat.userData;
+    const { rig, actions, mixer } = u;
+    rig.rotation.set(0, 0, 0);
+    rig.position.set(0, 0, 0);
+
+    // если отдельного клипа нет — играем бег и доворачиваем позу целиком
+    let clip = pose === "dead" || pose === "idle" ? (actions.idle ? "idle" : "run") : actions[pose] ? pose : "run";
+    if (!actions[clip]) clip = null;
+    if (clip !== u.current) {
+        const next = clip && actions[clip];
+        if (next) next.reset().fadeIn(0.15).play();
+        if (u.current && actions[u.current]) actions[u.current].fadeOut(0.15);
+        u.current = clip;
+    }
+    if (pose === "slide" && !actions.slide) {
+        rig.rotation.x = 0.9;
+        rig.position.set(0, -0.2, -0.4);
+    } else if (pose === "jump" && !actions.jump) {
+        rig.rotation.x = -0.2;
+    } else if (pose === "dead") {
+        rig.rotation.x = 0.5;
+        rig.position.y = -0.3;
+    }
+    const scale = pose === "run" ? Math.max(0.8, speed / 14) : pose === "dead" ? 0 : 1;
+    mixer.update(dt * scale);
 }

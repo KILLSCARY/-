@@ -34,3 +34,29 @@ export const TIPS = [
     "Тачки только объезжать — свайп влево/вправо",
     "Золотая монета «×2» удваивает профит на 8 секунд",
 ];
+
+// Текстуры из папки textures/. Для каждой картинки скрипт tools/maketex.py делает
+// карту нормалей (_nor), шероховатости (_rough, для земли) и свечения окон (_glow, для фасадов).
+export const TEXTURES = {
+    road: "ground2",
+    sidewalk: "ground4",
+    // rows — сколько этажей в одном тайле картинки (чтобы этаж был ~2.9 м)
+    facades: [
+        { name: "facade1", rows: 7 },
+        { name: "facade2", rows: 6 },
+        { name: "facade3", rows: 6 },
+        { name: "facade4", rows: 5 },
+    ],
+};
+
+// 3D-модель персонажа (.glb из Meshy/Tripo + анимация бега из Mixamo).
+// Если файла нет — бегает крыс, собранный из примитивов.
+export const MODEL = {
+    url: "models/rat.glb",
+    height: 1.75,     // во сколько метров отмасштабировать модель
+    rotateY: Math.PI, // Mixamo смотрит в +Z, а бежим мы в -Z
+    clips: { run: /run/i, idle: /idle/i, jump: /jump/i, slide: /slide|roll/i },
+};
+
+// Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
+export const QUALITY = "auto"; // "auto" | "high" | "low"

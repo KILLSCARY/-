@@ -1,14 +1,15 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS } from "./config.js";
-import { createRat, animateRat } from "./rat.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, MODEL, QUALITY } from "./config.js";
+import { createRat, animateRat, attachModel } from "./rat.js";
 import { World, SPAWN_Z, buildEnvironment } from "./world.js";
 import * as THREE from "./vendor/three.module.js";
 import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
+import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -35,6 +36,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 class Game {
     constructor() {
+        window.game = this; // удобно для отладки из консоли
         this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
@@ -45,11 +47,14 @@ class Game {
         this.world = new World(this.scene, BALANCE.laneWidth);
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
+        this.loadModel();
 
         this.setupInput();
         this.setupUI();
         this.resetRun();
         this.onResize();
+
+        this.setQuality(QUALITY === "low" ? "low" : "high");
 
         tg.init();
         tg.getBest().then((b) => { this.best = b; this.renderMenu(); });
@@ -64,16 +69,24 @@ class Game {
         this.renderer.outputEncoding = THREE.sRGBEncoding;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1c0508);
-        this.scene.fog = new THREE.Fog(0x1c0508, 14, 90);
+        // красный туман вдали
+        this.scene.background = new THREE.Color(0x2a070d);
+        this.scene.fog = new THREE.Fog(0x2a070d, 12, 85);
         this.scene.environment = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
 
-        this.scene.add(new THREE.HemisphereLight(0x8a6a72, 0x140608, 0.55));
-        const moon = new THREE.DirectionalLight(0xff9a8a, 0.6);
-        moon.position.set(-3, 8, -10);
-        this.scene.add(moon);
+        this.scene.add(new THREE.HemisphereLight(0xa08088, 0x1a0809, 1.15));
+        // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        const moon = new THREE.DirectionalLight(0xffa090, 0.9);
+        moon.castShadow = true;
+        moon.shadow.mapSize.set(1024, 1024);
+        Object.assign(moon.shadow.camera, { left: -6, right: 6, top: 10, bottom: -10, near: 1, far: 40 });
+        moon.shadow.bias = -0.0008;
+        this.scene.add(moon, moon.target);
+        this.moon = moon;
         // подсветка крыса, чтобы цепь «70» читалась
         this.rim = new THREE.PointLight(0xffe2d2, 1.0, 4, 2);
         this.scene.add(this.rim);
@@ -307,7 +320,9 @@ class Game {
             : this.jumping ? "jump"
             : this.state === "countdown" || this.state === "paused" ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
-        animateRat(this.rat, pose, this.t, this.phase);
+        animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
+        this.moon.position.set(this.x - 4, 12, -14);
+        this.moon.target.position.set(this.x, 0, -3);
 
         // в меню камера спереди (видно морду и цепь), в игре — сзади-сверху
         const cam = this.camera;
@@ -328,8 +343,45 @@ class Game {
         this.composer.render();
     }
 
+    // Графика: отражения на асфальте и тени — самое дорогое, на слабых телефонах выключаем
+    setQuality(level) {
+        this.quality = level;
+        if (level === "high") {
+            const w = Math.min(720, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.6));
+            this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
+        } else {
+            this.world.disableReflections();
+            this.renderer.shadowMap.enabled = false;
+            this.moon.castShadow = false;
+            this.bloom.strength = 0.6;
+        }
+    }
+
+    // В «auto» меряем fps на 1–4 секундах забега
+    measureFps(dt) {
+        if (QUALITY !== "auto" || this.quality === "low" || this.fpsChecked) return;
+        if (this.runTime < 1) return;
+        this.fpsFrames = (this.fpsFrames || 0) + 1;
+        this.fpsTime = (this.fpsTime || 0) + dt;
+        if (this.fpsTime >= 3) {
+            this.fpsChecked = true;
+            if (this.fpsFrames / this.fpsTime < 40) this.setQuality("low");
+        }
+    }
+
+    loadModel() {
+        if (!MODEL.url) return;
+        new GLTFLoader().load(
+            MODEL.url,
+            (gltf) => attachModel(this.rat, gltf, MODEL),
+            undefined,
+            () => console.info("[model] нет", MODEL.url, "— бегает крыс из примитивов")
+        );
+    }
+
     step(dt) {
         this.runTime += dt;
+        this.measureFps(dt);
         this.speed = Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         const move = this.speed * dt;
         this.distance += move;

@@ -1,30 +1,41 @@
 // Ночной район: мокрый асфальт, хрущёвки с окнами, рольставни, красные лампы у подъездов,
 // оранжевые фонари, дождь. Плюс препятствия и монеты, которые едут навстречу крысу.
-// Поверхности — фотограмметрия Poly Haven (CC0) из папки textures/.
+// Фасады и асфальт — текстуры из папки textures/ (см. TEXTURES в config.js),
+// гофрометалл и бетон цоколя — Poly Haven (CC0).
 
 import * as THREE from "./vendor/three.module.js";
+import { Reflector } from "./vendor/jsm/Reflector.js";
+import { TEXTURES } from "./config.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
 const STREET_LEN = 160;
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
-const ROAD_REPEAT = STREET_LEN / 4;
+const FLOOR_H = 2.9;
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const loader = new THREE.TextureLoader();
 
-function pbr(name, repeat, anisotropy = 8) {
-    const load = (suffix, srgb) => {
-        const t = loader.load(`textures/${name}_${suffix}.jpg`);
-        t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(...repeat);
-        t.anisotropy = anisotropy;
-        if (srgb) t.encoding = THREE.sRGBEncoding;
-        return t;
-    };
-    return { map: load("diff", true), normalMap: load("nor"), roughnessMap: load("rough") };
+const texCache = {};
+function loadTex(file, repeat, srgb) {
+    const t = (texCache[file] ||= loader.load(`textures/${file}`)).clone();
+    t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(...repeat);
+    t.anisotropy = 8;
+    if (srgb) t.encoding = THREE.sRGBEncoding;
+    return t;
+}
+
+// maps: какие карты есть у текстуры, кроме diff: "nor", "rough", "glow"
+function pbr(name, repeat, maps = ["nor", "rough"]) {
+    const out = { map: loadTex(`${name}_diff.jpg`, repeat, true) };
+    if (maps.includes("nor")) out.normalMap = loadTex(`${name}_nor.jpg`, repeat);
+    if (maps.includes("rough")) out.roughnessMap = loadTex(`${name}_rough.jpg`, repeat);
+    if (maps.includes("glow")) out.emissiveMap = loadTex(`${name}_glow.jpg`, repeat, true);
+    return out;
 }
 
 function canvasTex(w, h, draw) {
@@ -36,24 +47,6 @@ function canvasTex(w, h, draw) {
     tex.encoding = THREE.sRGBEncoding;
     tex.anisotropy = 4;
     return tex;
-}
-
-// свет в окне: тёплая комната, шторы по краям, иногда силуэт люстры
-function windowTexture() {
-    return canvasTex(64, 96, (g, w, h) => {
-        const grad = g.createRadialGradient(w / 2, h * 0.35, 4, w / 2, h * 0.4, h * 0.7);
-        grad.addColorStop(0, "#fff1c8");
-        grad.addColorStop(0.5, "#f0a24a");
-        grad.addColorStop(1, "#5a2a12");
-        g.fillStyle = grad;
-        g.fillRect(0, 0, w, h);
-        g.fillStyle = "rgba(90,30,20,0.75)";
-        g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(w * 0.35, h * 0.5, w * 0.12, h); g.lineTo(0, h); g.fill();
-        g.beginPath(); g.moveTo(w, 0); g.quadraticCurveTo(w * 0.65, h * 0.5, w * 0.88, h); g.lineTo(w, h); g.fill();
-        g.fillStyle = "rgba(40,20,10,0.9)"; // рама-крестовина
-        g.fillRect(w / 2 - 2, 0, 4, h);
-        g.fillRect(0, h * 0.32, w, 4);
-    });
 }
 
 function dashTexture() {
@@ -165,16 +158,12 @@ export class World {
         const iron = pbr("iron", [2, 1]);
         const std = (o) => new THREE.MeshStandardMaterial(o);
         this.mat = {
-            walls: [0x8a7d76, 0x6f6460, 0x7d7068, 0x857a72].map((c) => std({ ...wall, color: c, normalScale: new THREE.Vector2(1.2, 1.2) })),
+            facades: {}, // кэш материалов фасадов по (текстура, этажность) — см. facadeMaterial()
             trim: std({ ...wall, color: 0x4a403d }),
             plinth: std({ ...wall, color: 0x3a302d }),
-            winLit: new THREE.MeshBasicMaterial({ map: windowTexture(), color: 0xffffff }),
-            winDark: std({ color: 0x07080b, roughness: 0.08, metalness: 0.9, envMapIntensity: 1.4 }),
-            frame: std({ color: 0x2a2220, roughness: 0.8 }),
-            balcony: std({ ...wall, color: 0x5d524d }),
             shutter: std({ ...iron, color: 0x8a8580, metalness: 0.6, roughness: 1 }),
             door: std({ color: 0x3b2a22, roughness: 0.7 }),
-            ac: std({ color: 0xc2bcb2, roughness: 0.5, metalness: 0.2 }),
+            ac: std({ color: 0x6a6660, roughness: 0.5, metalness: 0.3 }),
             pipe: std({ color: 0x4b4340, roughness: 0.5, metalness: 0.6 }),
             redLamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.5, 0.4) }),
             sodium: new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 2.2, 0.7) }),
@@ -198,12 +187,10 @@ export class World {
             boost: std({ map: usdtTexture("×2", "#e9b730", "#3a2500"), metalness: 0.6, roughness: 0.3, emissive: 0x8a6000, emissiveIntensity: 0.8 }),
             boostEdge: std({ color: 0xb8860b, metalness: 1, roughness: 0.2 }),
             trash: std({ color: 0x0c0c0e, roughness: 0.25, metalness: 0.1 }),
-            puddle: std({ color: 0x3a1a1e, roughness: 0.06, metalness: 0.85, envMapIntensity: 1.8, transparent: true, opacity: 0.8, depthWrite: false }),
         };
         this.geo = {
             coin: new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24),
             box: new THREE.BoxGeometry(1, 1, 1),
-            window: new THREE.PlaneGeometry(1, 1),
         };
     }
 
@@ -213,19 +200,22 @@ export class World {
         const s = this.scene;
         const centerZ = BEHIND_Z - STREET_LEN / 2;
 
-        // мокрый асфальт: фото-текстура + низкая шероховатость → отражает зарево и фонари
-        const road = pbr("road", [1.5, ROAD_REPEAT]);
-        this.roadMap = road.map;
-        const roadMesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(6, STREET_LEN),
-            new THREE.MeshStandardMaterial({
-                ...road, color: 0x3c3536, roughness: 0.5, metalness: 0.1,
-                normalScale: new THREE.Vector2(0.8, 0.8), envMapIntensity: 0.7,
-            })
-        );
+        // мокрый асфальт. Под ним зеркало (Reflector), сам асфальт полупрозрачен там,
+        // где текстура «мокрая» (низкая шероховатость) — через эти места видно отражения.
+        const roadTex = pbr(TEXTURES.road, [1, STREET_LEN / 6]);
+        this.roadMap = roadTex.map;
+        this.roadRepeat = STREET_LEN / 6;
+        this.roadMat = new THREE.MeshStandardMaterial({
+            ...roadTex, alphaMap: roadTex.roughnessMap, transparent: true, opacity: 0.92,
+            color: 0xb0a4a4, roughness: 0.75, metalness: 0.2, normalScale: new THREE.Vector2(1, 1), envMapIntensity: 0.8,
+        });
+        const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN), this.roadMat);
         roadMesh.rotation.x = -Math.PI / 2;
-        roadMesh.position.z = centerZ;
+        roadMesh.position.set(0, 0.002, centerZ);
+        roadMesh.receiveShadow = true;
+        roadMesh.renderOrder = 1;
         s.add(roadMesh);
+        this.roadCenterZ = centerZ;
 
         // разметка между полосами
         this.dashMap = dashTexture();
@@ -235,20 +225,23 @@ export class World {
         for (const x of [-0.85, 0.85]) {
             const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.12, STREET_LEN), dashMat);
             dash.rotation.x = -Math.PI / 2;
-            dash.position.set(x * 1, 0.006, centerZ);
+            dash.position.set(x, 0.006, centerZ);
+            dash.renderOrder = 2;
             s.add(dash);
         }
 
-        // тротуары из плитки и бордюр
-        const walk = pbr("walk", [2, STREET_LEN / 2]);
-        this.walkMap = walk.map;
-        const walkMat = new THREE.MeshStandardMaterial({ ...walk, color: 0x8a7e7a, roughness: 0.8, envMapIntensity: 0.8 });
-        const curbMat = this.mat.trim;
+        // тротуары и бордюр
+        const walkTex = pbr(TEXTURES.sidewalk, [1.5, STREET_LEN / 3]);
+        this.walkMap = walkTex.map;
+        this.walkRepeat = STREET_LEN / 3;
+        const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, color: 0xc8bcb8, roughness: 0.9, envMapIntensity: 0.6 });
         for (const side of [-1, 1]) {
             const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, STREET_LEN), walkMat);
             w.position.set(side * 5, 0.09, centerZ);
-            const curb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, STREET_LEN), curbMat);
+            w.receiveShadow = true;
+            const curb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, STREET_LEN), this.mat.trim);
             curb.position.set(side * 3.05, 0.12, centerZ);
+            curb.receiveShadow = true;
             s.add(w, curb);
         }
 
@@ -309,17 +302,28 @@ export class World {
             s.add(bag);
             this.scenery.push(bag);
         }
-        // лужи-зеркала на дороге
-        for (let i = 0; i < 16; i++) {
-            const p = new THREE.Mesh(new THREE.CircleGeometry(1, 28), this.mat.puddle);
-            p.rotation.x = -Math.PI / 2;
-            p.rotation.z = rnd(0, Math.PI);
-            p.scale.set(rnd(0.6, 1.5), rnd(0.9, 2.4), 1);
-            p.position.set(rnd(-2.6, 2.6), 0.01, BEHIND_Z - rnd(0, STREET_LEN));
-            p.userData.loop = STREET_LEN;
-            s.add(p);
-            this.scenery.push(p);
-        }
+    }
+
+    // зеркало под дорогой: в нём дома, окна, фонари и фары — эффект мокрого асфальта
+    enableReflections(width, height) {
+        if (this.reflector) return;
+        this.reflector = new Reflector(new THREE.PlaneGeometry(6, STREET_LEN), {
+            textureWidth: width, textureHeight: height, color: new THREE.Color(0.42, 0.4, 0.4),
+        });
+        this.reflector.rotation.x = -Math.PI / 2;
+        this.reflector.position.set(0, 0, this.roadCenterZ);
+        this.reflector.renderOrder = 0;
+        this.scene.add(this.reflector);
+    }
+
+    disableReflections() {
+        if (!this.reflector) return;
+        this.scene.remove(this.reflector);
+        this.reflector.dispose();
+        this.reflector = null;
+        this.roadMat.transparent = false;
+        this.roadMat.alphaMap = null;
+        this.roadMat.needsUpdate = true;
     }
 
     makeStreetLamp(side) {
@@ -337,94 +341,75 @@ export class World {
         return g;
     }
 
-    // Хрущёвка: бетонные стены, ряды окон (часть горит), карнизы, балконы, кондиционеры;
-    // внизу подъезд с красной лампой, рольставни магазинов, иногда неоновая вывеска.
+    // Материал фасада: текстура повторяется так, чтобы этаж был ~2.9 м, а окна горели (bloom)
+    facadeMaterial(index, floors, len) {
+        const key = `${index}_${floors}`;
+        if (this.mat.facades[key]) return this.mat.facades[key];
+        const f = TEXTURES.facades[index];
+        const tile = f.rows * FLOOR_H;                 // высота (и ширина) одного тайла, м
+        const h = floors * FLOOR_H + 0.8;
+        const maps = pbr(f.name, [len / tile, h / tile], ["nor", "glow"]);
+        maps.map.offset.y = maps.normalMap.offset.y = maps.emissiveMap.offset.y = -0.8 / tile;
+        const m = new THREE.MeshStandardMaterial({
+            ...maps, color: 0xffffff, roughness: 0.92, emissive: 0xffffff, emissiveIntensity: 2.2,
+            normalScale: new THREE.Vector2(1.4, 1.4), envMapIntensity: 0.5,
+        });
+        this.mat.facades[key] = m;
+        return m;
+    }
+
+    // Панелька: фасад-текстура с окнами, карниз, водосток, кондиционеры;
+    // первый этаж — магазины: подъезд с красной лампой, рольставни, иногда неон.
     makeBuilding(side, z, slot) {
         const g = new THREE.Group();
-        const floors = 4 + Math.floor(Math.random() * 2);
-        const floorH = 2.9;
-        const h = floors * floorH + 0.8;
+        const floors = 5 + Math.floor(Math.random() * 3);
+        const h = floors * FLOOR_H + 0.8;
         const len = slot - 1.2;
         const depth = 8;
         const face = -side * depth / 2; // x фасада, смотрящего на дорогу (в координатах группы)
         const out = -side;              // направление «наружу», к дороге
 
-        const wall = new THREE.Mesh(this.geo.box, pick(this.mat.walls));
+        const wall = new THREE.Mesh(this.geo.box, this.facadeMaterial(Math.floor(Math.random() * TEXTURES.facades.length), floors, len));
         wall.scale.set(depth, h, len);
         wall.position.y = h / 2;
+        wall.receiveShadow = true;
         g.add(wall);
-        const plinth = new THREE.Mesh(this.geo.box, this.mat.plinth);
-        plinth.scale.set(0.15, 0.8, len);
-        plinth.position.set(face + out * 0.07, 0.4, 0);
+
+        // первый этаж: бетонный пояс магазинов поверх окон
+        const band = new THREE.Mesh(this.geo.box, this.mat.plinth);
+        band.scale.set(0.3, 3.2, len + 0.02);
+        band.position.set(face + out * 0.15, 1.6, 0);
         const roof = new THREE.Mesh(this.geo.box, this.mat.trim);
         roof.scale.set(depth + 0.4, 0.35, len + 0.4);
         roof.position.y = h + 0.17;
-        g.add(plinth, roof);
-        // межэтажные швы панелей
-        for (let f = 1; f < floors; f++) {
-            const seam = new THREE.Mesh(this.geo.box, this.mat.trim);
-            seam.scale.set(0.08, 0.1, len);
-            seam.position.set(face + out * 0.04, f * floorH + 0.4, 0);
-            g.add(seam);
-        }
+        g.add(band, roof);
 
-        // окна этажей 2+ (на первом — подъезд и магазины)
-        const cols = 5;
-        const step = len / cols;
-        const lit = [], dark = [];
-        for (let f = 1; f < floors; f++) {
-            for (let c = 0; c < cols; c++) {
-                const wz = -len / 2 + step * (c + 0.5);
-                const wy = f * floorH + 1.7;
-                (Math.random() < 0.3 ? lit : dark).push([wz, wy]);
-                if (Math.random() < 0.18) { // балкон
-                    const b = new THREE.Mesh(this.geo.box, this.mat.balcony);
-                    b.scale.set(0.9, 1.0, 1.9);
-                    b.position.set(face + out * 0.45, wy - 1.0, wz);
-                    g.add(b);
-                }
-                if (Math.random() < 0.12) { // кондиционер
-                    const ac = new THREE.Mesh(this.geo.box, this.mat.ac);
-                    ac.scale.set(0.35, 0.5, 0.75);
-                    ac.position.set(face + out * 0.2, wy - 0.9, wz + 0.9);
-                    g.add(ac);
-                }
-            }
+        for (let i = 0; i < 3; i++) { // кондиционеры
+            if (Math.random() < 0.4) continue;
+            const ac = new THREE.Mesh(this.geo.box, this.mat.ac);
+            ac.scale.set(0.35, 0.5, 0.75);
+            ac.position.set(face + out * 0.2, FLOOR_H * (1 + Math.floor(Math.random() * (floors - 1))) + 0.6, rnd(-len / 2 + 1, len / 2 - 1));
+            g.add(ac);
         }
-        const addWindows = (list, mat) => {
-            if (!list.length) return;
-            const inst = new THREE.InstancedMesh(this.geo.window, mat, list.length);
-            const frames = new THREE.InstancedMesh(this.geo.box, this.mat.frame, list.length);
-            const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), out * Math.PI / 2);
-            list.forEach(([wz, wy], i) => {
-                m.compose(new THREE.Vector3(face + out * 0.02, wy, wz), q, new THREE.Vector3(1.15, 1.45, 1));
-                inst.setMatrixAt(i, m);
-                // подоконник-отлив под окном
-                m.compose(new THREE.Vector3(face + out * 0.06, wy - 0.78, wz), new THREE.Quaternion(), new THREE.Vector3(0.12, 0.08, 1.35));
-                frames.setMatrixAt(i, m);
-            });
-            g.add(inst, frames);
-        };
-        addWindows(lit, this.mat.winLit);
-        addWindows(dark, this.mat.winDark);
 
         // водосточная труба
         const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, h, 6), this.mat.pipe);
         pipe.position.set(face + out * 0.12, h / 2, len / 2 - 0.4);
         g.add(pipe);
 
+        const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
         // подъезд: дверь, козырёк, красная лампа, ступеньки
         const door = new THREE.Mesh(this.geo.box, this.mat.door);
         door.scale.set(0.12, 2.1, 1.2);
-        door.position.set(face + out * 0.05, 1.05 + 0.3, 0);
+        door.position.set(front + out * 0.05, 1.05 + 0.3, 0);
         const canopy = new THREE.Mesh(this.geo.box, this.mat.trim);
         canopy.scale.set(1.0, 0.1, 2.0);
-        canopy.position.set(face + out * 0.5, 2.75, 0);
+        canopy.position.set(front + out * 0.5, 2.75, 0);
         const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), this.mat.redLamp);
-        lamp.position.set(face + out * 0.18, 2.55, 0);
-        const steps = new THREE.Mesh(this.geo.box, this.mat.plinth);
+        lamp.position.set(front + out * 0.18, 2.55, 0);
+        const steps = new THREE.Mesh(this.geo.box, this.mat.trim);
         steps.scale.set(1.0, 0.3, 1.8);
-        steps.position.set(face + out * 0.5, 0.33, 0);
+        steps.position.set(front + out * 0.5, 0.33, 0);
         g.add(door, canopy, lamp, steps);
 
         // рольставни магазинов по бокам от подъезда
@@ -432,17 +417,17 @@ export class World {
             if (Math.random() < 0.25) continue;
             const sh = new THREE.Mesh(this.geo.box, this.mat.shutter);
             sh.scale.set(0.12, 2.1, 2.8);
-            sh.position.set(face + out * 0.06, 1.25, dz);
+            sh.position.set(front + out * 0.06, 1.25, dz);
             const box = new THREE.Mesh(this.geo.box, this.mat.pipe);
             box.scale.set(0.3, 0.3, 2.9);
-            box.position.set(face + out * 0.15, 2.4, dz);
+            box.position.set(front + out * 0.15, 2.4, dz);
             g.add(sh, box);
         }
 
         if (Math.random() < 0.4) {
             const neon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), pick(this.mat.neon));
             neon.rotation.y = out * Math.PI / 2;
-            neon.position.set(face + out * 0.08, 3.25, pick([-len / 3.2, len / 3.2]));
+            neon.position.set(front + out * 0.08, 3.0, pick([-len / 3.2, len / 3.2]));
             g.add(neon);
         }
 
@@ -598,6 +583,7 @@ export class World {
         const o = kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier() : this.makeCar();
         o.position.set(this.lanes[lane], 0, z);
         o.userData.lane = lane;
+        o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
         this.scene.add(o);
         this.obstacles.push(o);
         return o;
@@ -643,9 +629,9 @@ export class World {
 
     update(dt, move, t) {
         // дорога, разметка и плитка «едут» через сдвиг текстуры
-        this.roadMap.offset.y += move * ROAD_REPEAT / STREET_LEN;
+        this.roadMap.offset.y += move * this.roadRepeat / STREET_LEN;
         this.dashMap.offset.y += move * (STREET_LEN / 8) / STREET_LEN;
-        this.walkMap.offset.y += move * (STREET_LEN / 2) / STREET_LEN;
+        this.walkMap.offset.y += move * this.walkRepeat / STREET_LEN;
 
         for (const o of this.scenery) {
             o.position.z += move;
