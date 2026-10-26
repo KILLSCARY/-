@@ -45,6 +45,7 @@ class Game {
 
         this.setupScene();
         this.world = new World(this.scene, BALANCE.laneWidth);
+        this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
         this.loadModel();
@@ -432,7 +433,8 @@ class Game {
             const d = o.userData;
             if (Math.abs(o.position.x - this.x) > 0.8) continue;
             if (Math.abs(o.position.z) > d.halfZ + 0.25) continue;
-            if (d.type === "dumpster" && this.y > d.top - 0.05) continue;
+            if (d.type === "decor") continue;
+            if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
             return this.gameOver(d.type);
         }

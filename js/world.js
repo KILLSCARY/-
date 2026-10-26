@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, OBSTACLE_MODELS } from "./config.js";
+import { TEXTURES, BANKS, ATMS, OBSTACLE_MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
 import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
@@ -152,6 +152,7 @@ export class World {
         this.buildStreet();
         this.buildRain();
         this.buildSplash();
+        this.buildStreetLife();
         this.loadObstacleModels();
     }
 
@@ -217,7 +218,16 @@ export class World {
         this.mat.atmBody = std({ ...iron, color: 0x3a3a3c, metalness: 0.8, roughness: 0.8 });
         this.mat.paint = new THREE.MeshPhysicalMaterial({ color: 0x9e0a12, metalness: 0.5, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.6 });
 
+        this.glowTex = canvasTex(64, 64, (g2, w, h) => {
+            const gr = g2.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+            gr.addColorStop(0, "rgba(255,255,255,1)");
+            gr.addColorStop(0.25, "rgba(255,255,255,0.5)");
+            gr.addColorStop(1, "rgba(255,255,255,0)");
+            g2.fillStyle = gr;
+            g2.fillRect(0, 0, w, h);
+        });
         this.geo = {
+            glow: new THREE.PlaneGeometry(1, 1),
             coin: new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24),
             box: new THREE.BoxGeometry(1, 1, 1),
         };
@@ -498,6 +508,101 @@ export class World {
         g.add(sign, spill);
     }
 
+    // ---- спрайты: вырезанные из концептов объекты (textures/sprites/*.webp) ------------------
+    // Плоскость с альфой, всегда развёрнута к камере по вертикальной оси (см. update).
+
+    spriteMaterial(name) {
+        this.spriteMats ||= {};
+        if (this.spriteMats[name]) return this.spriteMats[name];
+        const t = loader.load(`textures/sprites/${name}.webp`);
+        t.encoding = THREE.sRGBEncoding;
+        t.anisotropy = 4;
+        // лёгкое самосвечение, чтобы нарисованные объекты читались ночью
+        const m = new THREE.MeshStandardMaterial({
+            map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.32,
+            alphaTest: 0.45, roughness: 0.85, metalness: 0.1, envMapIntensity: 0.3,
+        });
+        this.spriteMats[name] = m;
+        return m;
+    }
+
+    makeSprite(group) {
+        const cfg = SPRITES[group];
+        const v = pick(cfg.variants);
+        const h = cfg.height, w = h * v.aspect;
+        const geo = new THREE.PlaneGeometry(w, h);
+        geo.translate(0, h / 2, 0);
+        const mesh = new THREE.Mesh(geo, this.spriteMaterial(v.name));
+        mesh.castShadow = true;
+        const g = new THREE.Group();
+        g.add(mesh);
+        g.userData = { billboard: true, sprite: v.name, width: w, height: h };
+        return g;
+    }
+
+    // Патрульная «пятёрка» у обочины: мигалка из двух светящихся пятен (красное/синее)
+    makePoliceCar() {
+        const g = this.makeSprite("police");
+        const { width: w, height: h } = g.userData;
+        for (const [k, color] of [[-1, 0xff2020], [1, 0x2050ff]]) {
+            const glow = new THREE.Mesh(this.geo.glow, new THREE.MeshBasicMaterial({
+                map: this.glowTex, color: new THREE.Color(color).multiplyScalar(3), transparent: true,
+                depthWrite: false, blending: THREE.AdditiveBlending,
+            }));
+            glow.scale.setScalar(h * 0.45);
+            glow.position.set(k * w * 0.1 + w * 0.08, h * 0.93, 0.05);
+            g.children[0].add(glow);
+            (g.userData.flashers ||= []).push(glow);
+        }
+        g.userData.police = true;
+        return g;
+    }
+
+    addScenery(o, loop = STREET_LEN) {
+        o.userData.loop = loop;
+        this.scene.add(o);
+        this.scenery.push(o);
+        return o;
+    }
+
+    // Прохожие, патрули, урны и банки на тротуарах и обочинах
+    buildStreetLife() {
+        // все спрайты грузим сразу, чтобы препятствия не появлялись «пустыми»
+        for (const cfg of Object.values(SPRITES)) for (const v of cfg.variants) this.spriteMaterial(v.name);
+        const sideX = () => pick([-1, 1]);
+        for (let i = 0; i < 6; i++) {
+            const girl = this.makeSprite("girl");
+            girl.position.set(sideX() * rnd(4.0, 6.2), 0.18, BEHIND_Z - rnd(10, STREET_LEN));
+            this.addScenery(girl);
+        }
+        for (let i = 0; i < 2; i++) {
+            const side = i % 2 ? 1 : -1;
+            const car = this.makePoliceCar();
+            car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
+            this.addScenery(car);
+            const cop = this.makeSprite("cop");
+            cop.position.set(side * 3.6, 0.18, car.position.z + 2.5);
+            this.addScenery(cop);
+        }
+        for (let i = 0; i < 10; i++) {
+            const bin = this.makeSprite("bin");
+            bin.position.set(sideX() * rnd(3.4, 3.7), 0.18, BEHIND_Z - rnd(0, STREET_LEN));
+            this.addScenery(bin);
+        }
+        for (let i = 0; i < 14; i++) { // банки валяются и на дороге — просто мусор, не мешают
+            const can = this.makeSprite("can");
+            const onRoad = Math.random() < 0.5;
+            can.position.set(onRoad ? rnd(-2.8, 2.8) : sideX() * rnd(3.3, 6.5), onRoad ? 0 : 0.18, BEHIND_Z - rnd(0, STREET_LEN));
+            this.addScenery(can);
+        }
+        // свет мигалок: одна пара реальных источников ездит за ближайшей патрульной машиной
+        this.policeLights = [0xff1a1a, 0x1a3aff].map((c) => {
+            const l = new THREE.PointLight(c, 0, 12, 1.6);
+            this.scene.add(l);
+            return l;
+        });
+    }
+
     buildRain() {
         const n = 700;
         const pos = new Float32Array(n * 6);
@@ -713,7 +818,16 @@ export class World {
         }
     }
 
+    // Препятствия-спрайты: инспектор ДПС и бетонный блок — объезжать, ограждение — перепрыгнуть
+    makeSpriteObstacle(kind) {
+        const g = this.makeSprite(kind);
+        const d = { cop: { halfZ: 0.3 }, block: { halfZ: 0.6 }, roadblock: { halfZ: 0.4, top: SPRITES.roadblock.top } }[kind];
+        Object.assign(g.userData, { type: kind, ...d });
+        return g;
+    }
+
     makeObstacle(kind) {
+        if (SPRITES[kind]?.obstacle) return this.makeSpriteObstacle(kind);
         const proc = kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
             : kind === "atm" ? this.makeAtm() : this.makeCar();
         const t = this.templates?.[kind];
@@ -734,6 +848,13 @@ export class World {
         return o;
     }
 
+    pickKind() {
+        const total = Object.values(OBSTACLE_MIX).reduce((a, b) => a + b, 0);
+        let r = Math.random() * total;
+        for (const [kind, w] of Object.entries(OBSTACLE_MIX)) if ((r -= w) < 0) return kind;
+        return "dumpster";
+    }
+
     // Ряд препятствий: всегда остаётся хотя бы одна проходимая полоса.
     spawnRow(z, difficulty) {
         const free = Math.floor(Math.random() * 3);
@@ -741,10 +862,17 @@ export class World {
         if (!blocked.length) blocked.push((free + 1 + Math.floor(Math.random() * 2)) % 3);
 
         for (const lane of blocked) {
-            const r = Math.random();
-            const kind = r < 0.38 ? "dumpster" : r < 0.64 ? "barrier" : r < 0.84 ? "car" : "atm";
+            const kind = this.pickKind();
             this.addObstacle(kind, lane, z);
-            if (kind === "dumpster" && Math.random() < 0.5) {
+            if (kind === "cop") { // пост ДПС: инспектор на полосе, патрульная машина у обочины
+                const car = this.makePoliceCar();
+                const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
+                car.position.set(side * 4.4, 0.18, z - 2);
+                car.userData.type = "decor";
+                this.scene.add(car);
+                this.obstacles.push(car);
+            }
+            if ((kind === "dumpster" || kind === "roadblock") && Math.random() < 0.5) {
                 // дуга монет над баком — награда за прыжок
                 for (let i = -2; i <= 2; i++) this.addCoin(lane, z + i * 1.1, 1.9 - Math.abs(i) * 0.3);
             }
@@ -771,6 +899,31 @@ export class World {
     }
 
     // ---- кадр --------------------------------------------------------------------------------
+
+    // Спрайты поворачиваются к камере; мигалки мигают; свет мигалок — у ближайшей патрульной
+    updateSprites(t) {
+        const cam = this.camera;
+        if (!cam) return;
+        const flashOn = Math.floor(t * 6) % 2 === 0;
+        let nearest = null, best = Infinity;
+        const visit = (o) => {
+            if (!o.userData.billboard) return;
+            o.rotation.y = Math.atan2(cam.position.x - o.position.x, cam.position.z - o.position.z);
+            if (o.userData.flashers) {
+                o.userData.flashers[0].visible = flashOn;
+                o.userData.flashers[1].visible = !flashOn;
+                const dz = -o.position.z;
+                if (dz > -4 && dz < best) { best = dz; nearest = o; }
+            }
+        };
+        for (const o of this.scenery) visit(o);
+        for (const o of this.obstacles) visit(o);
+        if (!this.policeLights) return;
+        this.policeLights.forEach((l, i) => {
+            l.intensity = nearest && best < 45 && (i === 0) === flashOn ? 6 : 0;
+            if (nearest) l.position.set(nearest.position.x * 0.8, 2.2, nearest.position.z + 1);
+        });
+    }
 
     update(dt, move, t) {
         // дорога, разметка и плитка «едут» через сдвиг текстуры
@@ -812,6 +965,8 @@ export class World {
             d.position.z += v.z * dt + move;
             if (d.position.y < 0) d.visible = false;
         }
+
+        this.updateSprites(t);
 
         // дождь
         const pos = this.rain.geometry.attributes.position.array;

@@ -23,6 +23,9 @@ export const BALANCE = {
 
 // Почему проиграл — шутки по поводу причины
 export const DEATH_TEXT = {
+    cop: ["Остановил ДПС: «Откуда USDT?»", "Инспектор попросил показать чеки", "Документики! Приехали"],
+    block: ["Влетел в бетонный блок", "Бетон не переспоришь", "Блок оказался крепче"],
+    roadblock: ["Не перепрыгнул ограждение", "Споткнулся о полосатую балку", "Ограждение — 1, Крыс — 0"],
     atm: ["Врезался в банкомат", "Банкомат зажевал карту", "Снял наличку лбом"],
     dumpster: ["Влетел в мусорный бак", "Бак оказался быстрее", "Мусорка — 1, Крыс — 0"],
     barrier: ["Карту заблокировали по 115-ФЗ", "Банк попросил пояснить происхождение средств", "Блокировка! Надо было пригнуться"],
@@ -33,6 +36,7 @@ export const TIPS = [
     "Свайп вверх — прыжок через баки",
     "Свайп вниз — подкат под «блокировку»",
     "Тачки только объезжать — свайп влево/вправо",
+    "Полосатое ограждение — перепрыгни, бетонный блок и ДПС — объезжай",
     "Золотая монета «×2» удваивает профит на 8 секунд",
 ];
 
@@ -94,4 +98,24 @@ export const OBSTACLE_MODELS = {
     atm: { url: "models/atm.glb", axis: "y", size: 2.3, rotateY: 0 },
     dumpster: { url: "models/dumpster.glb", axis: "x", size: 1.3, rotateY: 0 },
     barrier: { url: "models/barrier.glb", axis: "x", size: 1.75, rotateY: 0 },
+};
+
+// Объекты-спрайты, вырезанные из концептов (textures/sprites/*.webp, tools/cutout.py).
+// height — высота в метрах; obstacle — может стоять на полосе; top — высота, которую надо перепрыгнуть.
+export const SPRITES = {
+    cop: { height: 1.9, obstacle: true, variants: [
+        { name: "cop1", aspect: 0.436 }, { name: "cop2", aspect: 0.631 }, { name: "cop3", aspect: 0.539 }] },
+    block: { height: 1.15, obstacle: true, variants: [
+        { name: "block1", aspect: 1.213 }, { name: "block2", aspect: 1.076 }, { name: "block3", aspect: 1.107 }, { name: "block4", aspect: 1.309 }] },
+    roadblock: { height: 1.05, obstacle: true, top: 0.95, variants: [
+        { name: "roadblock1", aspect: 1.279 }, { name: "roadblock2", aspect: 1.465 }] },
+    police: { height: 1.95, variants: [{ name: "police1", aspect: 1.701 }, { name: "police2", aspect: 1.65 }] },
+    girl: { height: 1.7, variants: [{ name: "girl1", aspect: 0.436 }, { name: "girl2", aspect: 0.639 }] },
+    bin: { height: 0.95, variants: [{ name: "bin1", aspect: 0.764 }, { name: "bin2", aspect: 0.789 }] },
+    can: { height: 0.3, variants: [{ name: "can1", aspect: 1.26 }, { name: "can2", aspect: 1.25 }] },
+};
+
+// Частота препятствий (веса)
+export const OBSTACLE_MIX = {
+    dumpster: 22, roadblock: 14, barrier: 18, car: 14, atm: 10, block: 12, cop: 10,
 };
