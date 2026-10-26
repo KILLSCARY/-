@@ -4,6 +4,7 @@
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
 const STREET_LEN = 160;
+const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 
 function canvasTex(w, h, draw, repeat) {
     const c = document.createElement("canvas");
@@ -103,6 +104,33 @@ function sidewalkTexture() {
     }, [2, 40]);
 }
 
+function shutterTexture() {
+    return canvasTex(64, 128, (g, w, h) => {
+        g.fillStyle = "#4a4446";
+        g.fillRect(0, 0, w, h);
+        for (let y = 0; y < h; y += 6) {
+            g.fillStyle = "rgba(0,0,0,0.45)";
+            g.fillRect(0, y, w, 2);
+        }
+        for (let i = 0; i < 4; i++) { // граффити-пятна
+            g.fillStyle = `hsla(${rnd(0, 360)},60%,40%,0.5)`;
+            g.fillRect(rnd(0, w), rnd(h * 0.5, h), rnd(8, 24), rnd(4, 14));
+        }
+    });
+}
+
+function neonTexture() {
+    return canvasTex(256, 64, (g, w, h) => {
+        g.font = "bold 40px Arial Black, Arial, sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.shadowColor = "#ff2040";
+        g.shadowBlur = 18;
+        g.fillStyle = "#ff8090";
+        g.fillText(pick(["ОБМЕН 24/7", "P2P", "USDT", "КРИПТА"]), w / 2, h / 2);
+    });
+}
+
 function usdtTexture(label, bg, fg) {
     return canvasTex(128, 128, (g) => {
         g.fillStyle = bg;
@@ -148,6 +176,7 @@ export class World {
         this.buildMaterials();
         this.buildStreet();
         this.buildRain();
+        this.buildSplash();
     }
 
     buildMaterials() {
@@ -157,6 +186,10 @@ export class World {
             dumpsterLid: new THREE.MeshStandardMaterial({ color: 0x1d2620, roughness: 0.4, metalness: 0.7 }),
             post: new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.4, metalness: 0.8 }),
             sign: new THREE.MeshStandardMaterial({ map: signTexture("БЛОК"), roughness: 0.5, emissive: 0x330000 }),
+            rail: new THREE.MeshStandardMaterial({ color: 0x8c9096, roughness: 0.35, metalness: 0.85 }),
+            shutter: new THREE.MeshStandardMaterial({ map: shutterTexture(), roughness: 0.6, metalness: 0.4 }),
+            ac: new THREE.MeshStandardMaterial({ color: 0xb8b2aa, roughness: 0.6 }),
+            neon: new THREE.MeshBasicMaterial({ map: neonTexture(), transparent: true }),
             car: [0x5a1d1d, 0x2b2f3a, 0x8b8a83, 0x1f3326].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.25, metalness: 0.7 })),
             glass: new THREE.MeshStandardMaterial({ color: 0x0b0d12, roughness: 0.05, metalness: 0.9 }),
             tire: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.9 }),
@@ -188,7 +221,7 @@ export class World {
             new THREE.MeshStandardMaterial({ map: this.roadTex, roughness: 0.22, metalness: 0.55 })
         );
         road.rotation.x = -Math.PI / 2;
-        road.position.z = -STREET_LEN / 2 + 15;
+        road.position.z = -STREET_LEN / 2 + 45;
         s.add(road);
 
         this.walkTex = sidewalkTexture();
@@ -197,10 +230,10 @@ export class World {
                 new THREE.BoxGeometry(4, 0.18, STREET_LEN),
                 new THREE.MeshStandardMaterial({ map: this.walkTex, roughness: 0.5, metalness: 0.3 })
             );
-            walk.position.set(side * 5, 0.09, -STREET_LEN / 2 + 15);
+            walk.position.set(side * 5, 0.09, -STREET_LEN / 2 + 45);
             s.add(walk);
             const curb = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, STREET_LEN), new THREE.MeshStandardMaterial({ color: 0x4a3a3a, roughness: 0.6 }));
-            curb.position.set(side * 3.05, 0.11, -STREET_LEN / 2 + 15);
+            curb.position.set(side * 3.05, 0.11, -STREET_LEN / 2 + 45);
             s.add(curb);
         }
 
@@ -226,7 +259,7 @@ export class World {
         const slot = 16;
         for (const side of [-1, 1]) {
             for (let i = 0; i < STREET_LEN / slot; i++) {
-                this.scenery.push(this.makeBuilding(side, 10 - i * slot, slot));
+                this.scenery.push(this.makeBuilding(side, 40 - i * slot, slot));
             }
         }
 
@@ -291,6 +324,25 @@ export class World {
         step.position.set(-side * 3.4, 0.15, 0);
         g.add(door, canopy, lamp, step);
 
+        // рольставни магазинов на первом этаже, кондиционеры, иногда неон
+        for (const dz of [-4.2, 4.2]) {
+            if (Math.random() < 0.3) continue;
+            const sh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 2.6), this.mat.shutter);
+            sh.position.set(-side * 3.02, 1.1, dz + rnd(-0.4, 0.4));
+            g.add(sh);
+        }
+        for (let i = 0; i < 4; i++) {
+            const ac = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.7), this.mat.ac);
+            ac.position.set(-side * 3.2, rnd(3.5, h - 2), rnd(-6, 6));
+            g.add(ac);
+        }
+        if (Math.random() < 0.35) {
+            const neon = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.6), this.mat.neon);
+            neon.rotation.y = -side * Math.PI / 2;
+            neon.position.set(-side * 3.05, 3.2, rnd(-3, 3));
+            g.add(neon);
+        }
+
         g.position.set(side * 10, 0, z);
         g.userData.loop = STREET_LEN;
         this.scene.add(g);
@@ -310,6 +362,31 @@ export class World {
         geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
         this.rain = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xff9a9a, transparent: true, opacity: 0.35 }));
         this.scene.add(this.rain);
+    }
+
+    // брызги из луж: пул мелких капель
+    buildSplash() {
+        this.drops = [];
+        const geo = new THREE.SphereGeometry(0.045, 5, 4);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffd8d8, transparent: true, opacity: 0.8 });
+        for (let i = 0; i < 80; i++) {
+            const d = new THREE.Mesh(geo, mat);
+            d.visible = false;
+            d.userData.v = new THREE.Vector3();
+            this.scene.add(d);
+            this.drops.push(d);
+        }
+        this.nextDrop = 0;
+    }
+
+    splash(x, z, n = 14, power = 1) {
+        for (let i = 0; i < n; i++) {
+            const d = this.drops[this.nextDrop];
+            this.nextDrop = (this.nextDrop + 1) % this.drops.length;
+            d.visible = true;
+            d.position.set(x + rnd(-0.3, 0.3), 0.05, z + rnd(-0.2, 0.3));
+            d.userData.v.set(rnd(-2, 2) * power, rnd(2, 4.5) * power, rnd(0, 2));
+        }
     }
 
     // ---- препятствия -----------------------------------------------------------------------
@@ -334,18 +411,23 @@ export class World {
         return g;
     }
 
+    // металлический отбойник поперёк полосы с табличкой «БЛОК» — только подкатом
     makeBarrier() {
         const g = new THREE.Group();
-        for (const x of [-0.75, 0.75]) {
-            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 8), this.mat.post);
-            post.position.set(x, 0.8, 0);
+        for (const x of [-0.72, 0.72]) {
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.1), this.mat.post);
+            post.position.set(x, 0.65, 0.05);
             g.add(post);
         }
-        const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.06), [
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.34, 0.12), this.mat.rail);
+        rail.position.y = 1.05;
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.05, 0.2), this.mat.rail);
+        lip.position.y = 1.2;
+        const sign = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.03), [
             this.mat.post, this.mat.post, this.mat.post, this.mat.post, this.mat.sign, this.mat.sign,
         ]);
-        sign.position.y = 1.32;
-        g.add(sign);
+        sign.position.set(0, 1.05, 0.075);
+        g.add(rail, lip, sign);
         g.userData = { type: "barrier", halfZ: 0.3 };
         return g;
     }
@@ -449,7 +531,7 @@ export class World {
 
         for (const o of this.scenery) {
             o.position.z += move;
-            if (o.position.z > DESPAWN_Z + 8) o.position.z -= o.userData.loop;
+            if (o.position.z > BEHIND_Z) o.position.z -= o.userData.loop;
         }
         for (const l of this.lights) {
             l.position.z += move;
@@ -470,6 +552,16 @@ export class World {
             c.rotation.z = t * 3;
             c.position.y = c.userData.baseY + Math.sin(t * 4 + c.position.z) * 0.06;
             if (c.position.z > DESPAWN_Z) this.removeCoin(i);
+        }
+
+        for (const d of this.drops) {
+            if (!d.visible) continue;
+            const v = d.userData.v;
+            v.y -= 14 * dt;
+            d.position.x += v.x * dt;
+            d.position.y += v.y * dt;
+            d.position.z += v.z * dt + move;
+            if (d.position.y < 0) d.visible = false;
         }
 
         // дождь

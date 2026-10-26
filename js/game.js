@@ -15,6 +15,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 class Game {
     constructor() {
+        this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
         this.best = 0;
@@ -45,7 +46,7 @@ class Game {
         this.renderer.toneMappingExposure = 1.15;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a0508);
+        this.scene.background = new THREE.Color(0x24070b);
         this.scene.fog = new THREE.Fog(0x24070b, 18, 95);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
@@ -54,7 +55,7 @@ class Game {
         const moon = new THREE.DirectionalLight(0xff8f80, 0.7);
         moon.position.set(-3, 8, -10);
         this.scene.add(moon);
-        // подсветка спины крыса, чтобы «7.0» читалось
+        // подсветка крыса, чтобы цепь «70» читалась
         this.rim = new THREE.PointLight(0xffe2d2, 1.6, 5, 2);
         this.scene.add(this.rim);
 
@@ -182,6 +183,7 @@ class Game {
         if (this.state !== "playing") return;
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime;
+        this.world.splash(this.x, 0, 20, 1.2);
         this.audio.play("slide");
         tg.haptic("light");
     }
@@ -277,15 +279,21 @@ class Game {
         if (this.state === "menu") this.phase += dt * 6;
         animateRat(this.rat, pose, this.t, this.phase);
 
-        // камера сзади-сверху, мягко следует за полосой
+        // в меню камера спереди (видно морду и цепь), в игре — сзади-сверху
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
-        const camY = (portrait ? 3.3 : 2.5) + this.y * 0.35;
-        cam.position.x += (this.x * 0.6 - cam.position.x) * Math.min(1, dt * 8);
-        cam.position.y += (camY - cam.position.y) * Math.min(1, dt * 6);
-        cam.position.z = portrait ? 5.0 : 4.4;
-        cam.lookAt(this.x * 0.4, 0.9 + this.y * 0.3, -8);
-        this.rim.position.set(this.x, 1.6 + this.y, 1.6);
+        const behind = this.state === "menu" ? 0 : 1;
+        this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
+        const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
+        const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.y * 0.35, portrait ? 5.0 : 4.4);
+        const front = new THREE.Vector3(0.7, 1.5, portrait ? -3.6 : -3.0);
+        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.y * 0.3, -8)
+            .lerp(new THREE.Vector3(0, portrait ? 0.5 : 1.0, 0), 1 - k);
+        // по дуге сбоку, чтобы камера не проходила сквозь крыса
+        cam.position.lerpVectors(front, back, k);
+        cam.position.x += Math.sin(k * Math.PI) * 4;
+        cam.lookAt(target);
+        this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
 
         this.renderer.render(this.scene, cam);
     }
@@ -295,7 +303,12 @@ class Game {
         this.speed = Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         const move = this.speed * dt;
         this.distance += move;
+        const prevStep = Math.floor(this.phase / Math.PI);
         this.phase += dt * this.speed * 0.95;
+        // брызги из-под лап на каждом шаге
+        if (!this.jumping && this.slideLeft <= 0 && Math.floor(this.phase / Math.PI) !== prevStep) {
+            this.world.splash(this.x + (prevStep % 2 ? 0.13 : -0.13), 0, 3, 0.5);
+        }
 
         // спавн рядов: чем дальше — тем плотнее и злее
         const difficulty = Math.min(1, this.runTime / 90);
@@ -316,6 +329,7 @@ class Game {
             if (this.y <= 0) {
                 this.y = 0;
                 this.jumping = false;
+                this.world.splash(this.x, 0, 16);
             }
         }
         if (this.slideLeft > 0) this.slideLeft -= dt;

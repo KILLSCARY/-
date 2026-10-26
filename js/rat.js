@@ -1,5 +1,5 @@
-// Крыс: накачанный, в белом сомбреро, чёрных штанах и с цепью «7.0» на спине.
-// Собран из примитивов Three.js. Смотрит в -Z (камера сзади, как в роликах).
+// Крыс: накачанный, в белом сомбреро с красной лентой, белой бандане, чёрных штанах
+// и с золотой цепью «70». Собран из примитивов Three.js. Смотрит в -Z.
 
 const M = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...extra });
 
@@ -8,13 +8,13 @@ function pendantTexture() {
     c.width = c.height = 128;
     const g = c.getContext("2d");
     g.fillStyle = "#e9c25a";
-    g.font = "bold 78px Arial Black, Arial, sans-serif";
+    g.font = "bold 84px Arial Black, Arial, sans-serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
     g.strokeStyle = "#7a5a10";
     g.lineWidth = 6;
-    g.strokeText("7.0", 64, 68);
-    g.fillText("7.0", 64, 68);
+    g.strokeText("70", 64, 68);
+    g.fillText("70", 64, 68);
     const tex = new THREE.CanvasTexture(c);
     tex.encoding = THREE.sRGBEncoding;
     return tex;
@@ -22,63 +22,78 @@ function pendantTexture() {
 
 export function createRat() {
     const fur = M(0x7a4528, { roughness: 0.55 });
+    const furLight = M(0x9a6038, { roughness: 0.55 });
     const skin = M(0xe6a99a, { roughness: 0.5 });
     const pants = M(0x111114, { roughness: 0.8 });
     const white = M(0xf2efe8, { roughness: 0.75 });
+    const red = M(0x9c1420, { roughness: 0.6 });
     const gold = M(0xe9c25a, { metalness: 0.9, roughness: 0.25 });
     const silver = M(0xcfd3d8, { metalness: 0.9, roughness: 0.2 });
+    const black = M(0x0a0a0a, { roughness: 0.3 });
 
-    const rat = new THREE.Group();
-    const body = new THREE.Group();          // всё, кроме ног — качается при беге
-    rat.add(body);
+    const rat = new THREE.Group();   // позиция в мире (полоса, высота прыжка)
+    const rig = new THREE.Group();   // поза целиком: наклоны, подкат, падение
+    rat.add(rig);
+    const body = new THREE.Group();  // всё, кроме ног — качается при беге
+    rig.add(body);
 
     // --- ноги: штаны + босые лапы. Пивот в бедре
     const legs = [];
     for (const side of [-1, 1]) {
         const hip = new THREE.Group();
         hip.position.set(side * 0.13, 0.62, 0);
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.085, 0.56, 10), pants);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.56, 10), pants);
         leg.position.y = -0.28;
         const foot = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skin);
-        foot.scale.set(0.9, 0.55, 1.6);
-        foot.position.set(0, -0.58, -0.06);
+        foot.scale.set(0.9, 0.55, 1.7);
+        foot.position.set(0, -0.58, -0.07);
         hip.add(leg, foot);
-        rat.add(hip);
+        rig.add(hip);
         legs.push(hip);
     }
     const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.23, 0.16, 14), pants);
     belt.position.y = 0.66;
-    body.add(belt);
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.02), silver);
+    buckle.position.set(0, 0.7, -0.235);
+    body.add(belt, buckle);
 
-    // --- торс: широкая спина и плечи
+    // --- торс: широкая спина, грудь, пресс, плечи
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.28, 6, 14), fur);
-    torso.scale.set(1.25, 1, 0.85);
+    torso.scale.set(1.3, 1, 0.85);
     torso.position.y = 0.98;
     body.add(torso);
     for (const side of [-1, 1]) {
-        const delt = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), fur);
-        delt.position.set(side * 0.3, 1.16, 0);
-        body.add(delt);
+        const delt = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), fur);
+        delt.position.set(side * 0.31, 1.16, 0);
         const lat = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), fur);
         lat.scale.set(0.8, 1.3, 0.7);
         lat.position.set(side * 0.17, 1.0, 0.07);
-        body.add(lat);
+        const pec = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), furLight);
+        pec.scale.set(1.1, 0.75, 0.6);
+        pec.position.set(side * 0.12, 1.1, -0.13);
+        body.add(delt, lat, pec);
+        for (let r = 0; r < 3; r++) { // кубики пресса
+            const ab = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), furLight);
+            ab.scale.set(1, 0.8, 0.5);
+            ab.position.set(side * 0.055, 0.93 - r * 0.08, -0.17);
+            body.add(ab);
+        }
     }
 
     // --- руки с серебряными браслетами. Пивот в плече
     const arms = [];
     for (const side of [-1, 1]) {
         const shoulder = new THREE.Group();
-        shoulder.position.set(side * 0.34, 1.14, 0);
-        const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.2, 4, 10), fur);
+        shoulder.position.set(side * 0.35, 1.14, 0);
+        const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.2, 4, 10), fur);
         upper.position.y = -0.17;
-        const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.18, 4, 10), fur);
+        const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.18, 4, 10), fur);
         fore.position.set(0, -0.4, -0.06);
         fore.rotation.x = 0.5;
-        const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.022, 6, 14), silver);
+        const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.022, 6, 14), silver);
         cuff.rotation.x = Math.PI / 2 + 0.5;
         cuff.position.set(0, -0.48, -0.1);
-        const fist = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), skin);
+        const fist = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), skin);
         fist.position.set(0, -0.53, -0.14);
         shoulder.add(upper, fore, cuff, fist);
         shoulder.rotation.z = side * 0.25;
@@ -86,60 +101,76 @@ export function createRat() {
         arms.push(shoulder);
     }
 
-    // --- голова
+    // --- голова: злые брови, глаза, нос, резцы
     const head = new THREE.Group();
     head.position.y = 1.36;
     body.add(head);
     const skull = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), fur);
-    skull.scale.set(1, 0.95, 1.05);
-    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.24, 12), fur);
-    snout.rotation.x = -Math.PI / 2;
-    snout.position.set(0, -0.04, -0.2);
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), skin);
-    nose.position.set(0, -0.04, -0.32);
-    head.add(skull, snout, nose);
+    skull.scale.set(1.05, 0.95, 1.05);
+    const snout = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), furLight);
+    snout.scale.set(1, 0.8, 1.2);
+    snout.position.set(0, -0.06, -0.14);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), black);
+    nose.position.set(0, -0.03, -0.26);
+    const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), white);
+    teeth.position.set(0, -0.12, -0.24);
+    head.add(skull, snout, nose, teeth);
     for (const side of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), white);
+        eye.position.set(side * 0.07, 0.03, -0.14);
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), black);
+        pupil.position.set(side * 0.065, 0.025, -0.175);
+        const brow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025, 0.03), black);
+        brow.position.set(side * 0.07, 0.085, -0.16);
+        brow.rotation.z = side * 0.45; // сведены к переносице — злой взгляд
         const ear = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), skin);
         ear.scale.set(1, 1, 0.3);
-        ear.position.set(side * 0.16, 0.08, 0.02);
+        ear.position.set(side * 0.17, 0.08, 0.02);
         ear.rotation.y = side * 0.6;
-        head.add(ear);
+        head.add(eye, pupil, brow, ear);
     }
 
-    // белая бандана на шее
+    // белая бандана на шее с узлом впереди
     const bandana = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.055, 8, 16), white);
     bandana.rotation.x = Math.PI / 2;
     bandana.position.y = 1.22;
-    body.add(bandana);
+    const knot = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.14, 4), white);
+    knot.rotation.x = Math.PI;
+    knot.position.set(0, 1.15, -0.17);
+    body.add(bandana, knot);
 
-    // золотая цепь, кулон «7.0» висит на спине — его видно из камеры
-    const chain = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.014, 6, 24), gold);
-    chain.rotation.x = Math.PI / 2 - 0.35;
-    chain.position.set(0, 1.12, 0.03);
+    // золотая цепь с кулоном «70» на груди и на спине (сзади его видит камера)
+    const chain = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.016, 6, 24), gold);
+    chain.rotation.x = Math.PI / 2;
+    chain.scale.set(1, 1.15, 1);
+    chain.position.set(0, 1.12, 0);
     body.add(chain);
-    const pendant = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.24, 0.24),
-        new THREE.MeshStandardMaterial({ map: pendantTexture(), transparent: true, metalness: 0.6, roughness: 0.3, emissive: 0x332200 })
-    );
-    pendant.position.set(0, 1.03, 0.2);
-    body.add(pendant);
+    const pendantMat = new THREE.MeshStandardMaterial({ map: pendantTexture(), transparent: true, metalness: 0.6, roughness: 0.3, emissive: 0x332200 });
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), pendantMat);
+    front.position.set(0, 1.0, -0.22);
+    front.rotation.y = Math.PI;
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), pendantMat);
+    back.position.set(0, 1.03, 0.2);
+    body.add(front, back);
 
-    // --- белое сомбреро
+    // --- белое сомбреро с красной лентой
     const hat = new THREE.Group();
     hat.position.set(0, 0.13, 0);
-    hat.rotation.x = 0.12;
+    hat.rotation.x = 0.1;
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.6, 0.035, 32), white);
     const roll = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.035, 8, 32), white);
     roll.rotation.x = Math.PI / 2;
     roll.position.y = 0.025;
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.22, 0.36, 20), white);
-    crown.position.y = 0.19;
-    const top = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), white);
-    top.position.y = 0.37;
-    hat.add(brim, roll, crown, top);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 0.34, 20), white);
+    crown.position.y = 0.18;
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), white);
+    top.position.y = 0.35;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.222, 0.06, 20, 1, true), red);
+    band.position.y = 0.05;
+    hat.add(brim, roll, crown, top, band);
     head.add(hat);
 
-    // --- длинный розовый хвост, тянется назад к камере
+    // --- длинный розовый хвост
     const tailPivot = new THREE.Group();
     tailPivot.position.set(0, 0.62, 0.2);
     const curve = new THREE.CatmullRomCurve3([
@@ -148,11 +179,10 @@ export function createRat() {
         new THREE.Vector3(-0.1, -0.35, 0.75),
         new THREE.Vector3(0.12, -0.5, 1.15),
     ]);
-    const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.035, 6), skin);
-    tailPivot.add(tail);
-    rat.add(tailPivot);
+    tailPivot.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.035, 6), skin));
+    rig.add(tailPivot);
 
-    // мягкая «тень»-пятно под ногами
+    // мягкая «тень»-пятно под ногами (добавляется в сцену отдельно, чтобы не прыгала)
     const blob = new THREE.Mesh(
         new THREE.CircleGeometry(0.45, 20),
         new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false })
@@ -160,18 +190,23 @@ export function createRat() {
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.02;
 
-    rat.userData = { body, legs, arms, head, hat, tailPivot, blob };
+    rat.userData = { rig, body, legs, arms, head, hat, tailPivot, blob };
     return rat;
 }
 
 // pose: "run" | "jump" | "slide" | "idle" | "dead"; t — время, phase — фаза бега
 export function animateRat(rat, pose, t, phase) {
-    const { body, legs, arms, head, tailPivot } = rat.userData;
+    const { rig, body, legs, arms, head, tailPivot } = rat.userData;
     const s = Math.sin(phase);
 
+    rig.rotation.set(0, 0, 0);
+    rig.position.set(0, 0, 0);
     body.rotation.set(0, 0, 0);
     body.position.set(0, 0, 0);
-    rat.scale.set(1, 1, 1);
+    head.rotation.set(0, 0, 0);
+    for (const a of arms) a.rotation.x = 0;
+    arms[0].rotation.z = -0.25;
+    arms[1].rotation.z = 0.25;
 
     if (pose === "run") {
         legs[0].rotation.x = s * 0.95;
@@ -185,32 +220,43 @@ export function animateRat(rat, pose, t, phase) {
         tailPivot.rotation.y = Math.sin(phase * 0.5) * 0.35;
         tailPivot.rotation.x = Math.cos(phase) * 0.08;
     } else if (pose === "jump") {
-        legs[0].rotation.x = -1.1;
-        legs[1].rotation.x = 0.4;
-        arms[0].rotation.x = -2.4;
-        arms[1].rotation.x = 0.8;
-        body.rotation.x = -0.25;
-        tailPivot.rotation.x = 0.5;
+        // поджал обе ноги, руки в стороны — как в ролике с баком
+        legs[0].rotation.x = legs[1].rotation.x = -1.3;
+        rig.position.y = 0.25;
+        arms[0].rotation.z = -1.1;
+        arms[1].rotation.z = 1.1;
+        arms[0].rotation.x = arms[1].rotation.x = -0.3;
+        body.rotation.x = -0.15;
+        tailPivot.rotation.x = 0.6;
         tailPivot.rotation.y = Math.sin(t * 8) * 0.3;
     } else if (pose === "slide") {
-        // подкат: крыс сжимается и наклоняется вперёд, шляпу придерживает
-        rat.scale.set(1.1, 0.5, 1.1);
-        body.rotation.x = -0.5;
-        legs[0].rotation.x = -1.3;
-        legs[1].rotation.x = -1.3;
-        arms[0].rotation.x = -2.6;
-        arms[1].rotation.x = 0.6;
+        // подкат на спине по луже: ноги вперёд, одной рукой держит шляпу
+        rig.rotation.x = 0.95;
+        rig.position.set(0, -0.15, -0.4);
+        legs[0].rotation.x = -2.5;
+        legs[1].rotation.x = -2.3;
+        arms[0].rotation.x = -2.9;
+        arms[0].rotation.z = -0.6;
+        arms[1].rotation.x = 0.9;
+        arms[1].rotation.z = 0.7;
+        head.rotation.x = -1.0;
         tailPivot.rotation.y = Math.sin(t * 20) * 0.2;
     } else if (pose === "idle") {
         const b = Math.sin(t * 2);
-        for (const l of legs) l.rotation.x = 0;
+        legs[0].rotation.x = legs[1].rotation.x = 0;
         arms[0].rotation.x = arms[1].rotation.x = b * 0.05;
         body.position.y = b * 0.015;
         head.rotation.y = Math.sin(t * 0.7) * 0.4;
         tailPivot.rotation.y = Math.sin(t * 1.5) * 0.4;
     } else if (pose === "dead") {
-        body.rotation.x = 0.5;
-        legs[0].rotation.x = legs[1].rotation.x = 0.6;
-        arms[0].rotation.x = arms[1].rotation.x = -1.4;
+        // шлёпнулся на пятую точку
+        rig.rotation.x = 0.35;
+        rig.position.set(0, -0.48, 0.2);
+        legs[0].rotation.x = -1.5;
+        legs[1].rotation.x = -1.2;
+        arms[0].rotation.x = arms[1].rotation.x = 0.7;
+        arms[0].rotation.z = -0.7;
+        arms[1].rotation.z = 0.7;
+        head.rotation.z = 0.25;
     }
 }
