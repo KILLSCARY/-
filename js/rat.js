@@ -1,3 +1,5 @@
+import * as THREE from "./vendor/three.module.js";
+
 // Крыс: накачанный, в белом сомбреро с красной лентой, белой бандане, чёрных штанах
 // и с золотой цепью «70». Собран из примитивов Three.js. Смотрит в -Z.
 
@@ -25,7 +27,7 @@ export function createRat() {
     const furLight = M(0x9a6038, { roughness: 0.55 });
     const skin = M(0xe6a99a, { roughness: 0.5 });
     const pants = M(0x111114, { roughness: 0.8 });
-    const white = M(0xf2efe8, { roughness: 0.75 });
+    const white = M(0xd9d4cb, { roughness: 0.8 });
     const red = M(0x9c1420, { roughness: 0.6 });
     const gold = M(0xe9c25a, { metalness: 0.9, roughness: 0.25 });
     const silver = M(0xcfd3d8, { metalness: 0.9, roughness: 0.2 });

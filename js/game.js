@@ -3,12 +3,32 @@
 
 import { BALANCE, LINKS, DEATH_TEXT, TIPS } from "./config.js";
 import { createRat, animateRat } from "./rat.js";
-import { World, SPAWN_Z } from "./world.js";
+import { World, SPAWN_Z, buildEnvironment } from "./world.js";
+import * as THREE from "./vendor/three.module.js";
+import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
+import { RenderPass } from "./vendor/jsm/RenderPass.js";
+import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
+import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
 // hex-цвета материалов — в sRGB, как в дизайне
 THREE.ColorManagement.legacyMode = false;
+
+// Финальный проход после bloom: ACES-тонмаппинг, sRGB и лёгкая виньетка
+const OutputShader = {
+    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 } },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+        uniform sampler2D tDiffuse; uniform float exposure; varying vec2 vUv;
+        vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+        void main() {
+            vec3 c = aces(texture2D(tDiffuse, vUv).rgb * exposure);
+            c = mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+            float v = smoothstep(0.95, 0.35, length(vUv - 0.5));
+            gl_FragColor = vec4(c * mix(0.55, 1.0, v), 1.0);
+        }`,
+};
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -40,32 +60,42 @@ class Game {
 
     setupScene() {
         const canvas = $("game");
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.15;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x24070b);
-        this.scene.fog = new THREE.Fog(0x24070b, 18, 95);
+        this.scene.background = new THREE.Color(0x1c0508);
+        this.scene.fog = new THREE.Fog(0x1c0508, 14, 90);
+        this.scene.environment = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
 
-        this.scene.add(new THREE.HemisphereLight(0x9a7f86, 0x1a0a0c, 1.0));
-        const moon = new THREE.DirectionalLight(0xff8f80, 0.7);
+        this.scene.add(new THREE.HemisphereLight(0x8a6a72, 0x140608, 0.55));
+        const moon = new THREE.DirectionalLight(0xff9a8a, 0.6);
         moon.position.set(-3, 8, -10);
         this.scene.add(moon);
         // подсветка крыса, чтобы цепь «70» читалась
-        this.rim = new THREE.PointLight(0xffe2d2, 1.6, 5, 2);
+        this.rim = new THREE.PointLight(0xffe2d2, 1.0, 4, 2);
         this.scene.add(this.rim);
+
+        // постобработка: свечение окон, фонарей, фар и монет
+        this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
+        this.composer.addPass(new RenderPass(this.scene, this.camera));
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.5, 0.92);
+        this.composer.addPass(this.bloom);
+        this.composer.addPass(new ShaderPass(OutputShader));
 
         window.addEventListener("resize", () => this.onResize());
     }
 
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const ratio = Math.min(window.devicePixelRatio, 1.75);
+        this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
+        this.composer.setPixelRatio(ratio);
+        this.composer.setSize(w, h);
+        this.bloom.setSize(w * ratio / 2, h * ratio / 2);
         this.camera.aspect = w / h;
         this.camera.fov = w / h < 0.8 ? 72 : 58;
         this.camera.updateProjectionMatrix();
@@ -295,7 +325,7 @@ class Game {
         cam.lookAt(target);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
 
-        this.renderer.render(this.scene, cam);
+        this.composer.render();
     }
 
     step(dt) {
