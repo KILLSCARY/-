@@ -1,0 +1,147 @@
+:root {
+    --bg: #14060a;
+    --red: #ff2d3d;
+    --red-dark: #8f0f1c;
+    --gold: #e9c25a;
+    --usdt: #26a17b;
+    --text: #f6e9e4;
+    --muted: #b99a96;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+.screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    padding-top: calc(16px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
+    pointer-events: none;
+}
+[hidden] { display: none !important; }
+.screen > * { pointer-events: auto; }
+
+.panel {
+    width: min(360px, 100%);
+    padding: 28px 22px 22px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(40, 8, 14, 0.82), rgba(14, 3, 6, 0.9));
+    border: 1px solid rgba(255, 60, 70, 0.35);
+    border-radius: 22px;
+    box-shadow: 0 0 40px rgba(255, 30, 50, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+#menu { align-items: flex-end; padding-bottom: 7vh; }
+
+.kicker { font-size: 12px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); }
+h1 {
+    margin: 6px 0 10px;
+    font-size: 34px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 18px rgba(255, 40, 60, 0.7);
+}
+h1 span { color: var(--red); font-size: 46px; }
+h2 { margin: 0 0 18px; }
+.hello { margin: 0 0 18px; color: var(--muted); }
+.tip { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+.best { margin: 12px 0 0; color: var(--muted); }
+.best b { color: var(--gold); }
+
+.btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    font: 800 16px/1 inherit;
+    font-family: inherit;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+}
+.btn:active { transform: scale(0.97); }
+.btn-main {
+    border: 0;
+    padding: 18px;
+    font-size: 20px;
+    background: linear-gradient(180deg, var(--red), var(--red-dark));
+    box-shadow: 0 6px 24px rgba(255, 30, 50, 0.45);
+}
+.btn-ghost { background: none; border-color: transparent; font-weight: 600; font-size: 14px; color: var(--usdt); letter-spacing: 0; }
+
+/* HUD */
+#hud { align-items: flex-start; justify-content: stretch; }
+.hud-top { display: flex; gap: 8px; width: 100%; align-items: center; }
+.chip {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    font-weight: 800;
+    font-size: 18px;
+}
+.chip-usdt i { font-style: normal; color: #fff; background: var(--usdt); border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; font-size: 14px; }
+.chip-boost { color: #2a1a00; background: var(--gold); }
+.icon {
+    margin-left: auto;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 18px;
+}
+.icon + .icon { margin-left: 0; }
+
+#countdown {
+    position: fixed;
+    top: 38%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 72px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 24px var(--red);
+    pointer-events: none;
+}
+#countdown.pop { animation: pop 0.5s ease-out; }
+@keyframes pop { from { transform: scale(1.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Проигрыш */
+.cause { margin: 0 0 6px; font-weight: 700; color: var(--red); font-size: 18px; }
+.score-big { font-size: 64px; font-weight: 900; text-shadow: 0 0 20px rgba(255, 60, 70, 0.6); }
+.stats { display: flex; justify-content: center; gap: 18px; color: var(--muted); font-weight: 700; }
+
+body.shake #game { animation: shake 0.35s; }
+@keyframes shake {
+    20% { transform: translate(-8px, 4px); }
+    40% { transform: translate(7px, -5px); }
+    60% { transform: translate(-5px, 3px); }
+    80% { transform: translate(3px, -2px); }
+}

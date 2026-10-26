@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>Покоритель P2P 3.0</title>
+    <meta name="theme-color" content="#14060a">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="js/vendor/three.min.js"></script>
+</head>
+<body>
+    <canvas id="game"></canvas>
+
+    <!-- Главное меню -->
+    <section id="menu" class="screen">
+        <div class="panel">
+            <div class="kicker">курс</div>
+            <h1>ПОКОРИТЕЛЬ<br><span>P2P 3.0</span></h1>
+            <p id="menu-hello" class="hello"></p>
+            <button id="btn-play" class="btn btn-main">ИГРАТЬ</button>
+            <div class="best">Рекорд: <b id="menu-best">0</b></div>
+            <p id="menu-tip" class="tip"></p>
+        </div>
+    </section>
+
+    <!-- Во время игры -->
+    <section id="hud" class="screen" hidden>
+        <div class="hud-top">
+            <div class="chip chip-usdt"><i>₮</i><b id="hud-usdt">0</b></div>
+            <div class="chip"><b id="hud-score">0</b></div>
+            <div id="hud-boost" class="chip chip-boost" hidden></div>
+            <button id="btn-sound" class="icon" aria-label="Звук">🔊</button>
+            <button id="btn-pause" class="icon" aria-label="Пауза">⏸</button>
+        </div>
+        <div id="countdown" hidden></div>
+    </section>
+
+    <!-- Пауза -->
+    <section id="pause" class="screen" hidden>
+        <div class="panel">
+            <h2>Пауза</h2>
+            <button id="btn-resume" class="btn btn-main">ПРОДОЛЖИТЬ</button>
+            <button id="btn-menu" class="btn">В МЕНЮ</button>
+        </div>
+    </section>
+
+    <!-- Проигрыш -->
+    <section id="over" class="screen" hidden>
+        <div class="panel">
+            <p id="over-cause" class="cause"></p>
+            <div class="score-big" id="over-score">0</div>
+            <div class="stats">
+                <span id="over-usdt"></span>
+                <span id="over-dist"></span>
+            </div>
+            <p id="over-best" class="best"></p>
+            <button id="btn-again" class="btn btn-main">ЕЩЁ РАЗ</button>
+            <button id="btn-share" class="btn">ПОДЕЛИТЬСЯ</button>
+            <button id="btn-course" class="btn btn-ghost">Научиться P2P по-настоящему →</button>
+        </div>
+    </section>
+
+    <script type="module" src="js/game.js"></script>
+</body>
+</html>
