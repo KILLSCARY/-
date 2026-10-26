@@ -537,6 +537,16 @@ export class World {
         const g = new THREE.Group();
         g.add(mesh);
         g.userData = { billboard: true, sprite: v.name, width: w, height: h };
+        if (v.lamp) { // светящийся фонарь на объекте, пульсирует (см. updateSprites)
+            const glow = new THREE.Mesh(this.geo.glow, new THREE.MeshBasicMaterial({
+                map: this.glowTex, color: new THREE.Color(v.lamp.color).multiplyScalar(3), transparent: true,
+                depthWrite: false, blending: THREE.AdditiveBlending,
+            }));
+            glow.scale.setScalar(h * 0.35);
+            glow.position.set(v.lamp.x * w, v.lamp.y * h, 0.05);
+            mesh.add(glow);
+            g.userData.lamp = glow;
+        }
         return g;
     }
 
@@ -821,7 +831,7 @@ export class World {
     // Препятствия-спрайты: инспектор ДПС и бетонный блок — объезжать, ограждение — перепрыгнуть
     makeSpriteObstacle(kind) {
         const g = this.makeSprite(kind);
-        const d = { cop: { halfZ: 0.3 }, block: { halfZ: 0.6 }, roadblock: { halfZ: 0.4, top: SPRITES.roadblock.top } }[kind];
+        const d = { halfZ: kind === "cop" ? 0.3 : 0.5, top: SPRITES[kind].top };
         Object.assign(g.userData, { type: kind, ...d });
         return g;
     }
@@ -872,7 +882,7 @@ export class World {
                 this.scene.add(car);
                 this.obstacles.push(car);
             }
-            if ((kind === "dumpster" || kind === "roadblock") && Math.random() < 0.5) {
+            if ((kind === "dumpster" || SPRITES[kind]?.top) && Math.random() < 0.5) {
                 // дуга монет над баком — награда за прыжок
                 for (let i = -2; i <= 2; i++) this.addCoin(lane, z + i * 1.1, 1.9 - Math.abs(i) * 0.3);
             }
@@ -909,6 +919,7 @@ export class World {
         const visit = (o) => {
             if (!o.userData.billboard) return;
             o.rotation.y = Math.atan2(cam.position.x - o.position.x, cam.position.z - o.position.z);
+            if (o.userData.lamp) o.userData.lamp.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(t * 5));
             if (o.userData.flashers) {
                 o.userData.flashers[0].visible = flashOn;
                 o.userData.flashers[1].visible = !flashOn;

@@ -23,6 +23,9 @@ export const BALANCE = {
 
 // Почему проиграл — шутки по поводу причины
 export const DEATH_TEXT = {
+    hood: ["Споткнулся о ржавый капот", "Капот — 1, Крыс — 0", "Зацепился за тряпки на капоте"],
+    cart: ["Врезался в тележку", "Тележка с баулами победила", "Не перепрыгнул тележку"],
+    starbox: ["Влетел в ящик со звездой", "Сигналка мигала не зря", "Ящик оказался тяжелее"],
     cop: ["Остановил ДПС: «Откуда USDT?»", "Инспектор попросил показать чеки", "Документики! Приехали"],
     block: ["Влетел в бетонный блок", "Бетон не переспоришь", "Блок оказался крепче"],
     roadblock: ["Не перепрыгнул ограждение", "Споткнулся о полосатую балку", "Ограждение — 1, Крыс — 0"],
@@ -37,6 +40,7 @@ export const TIPS = [
     "Свайп вниз — подкат под «блокировку»",
     "Тачки только объезжать — свайп влево/вправо",
     "Полосатое ограждение — перепрыгни, бетонный блок и ДПС — объезжай",
+    "Капот и тележку можно перепрыгнуть, ящик со звездой — только объехать",
     "Золотая монета «×2» удваивает профит на 8 секунд",
 ];
 
@@ -106,7 +110,13 @@ export const SPRITES = {
     cop: { height: 1.9, obstacle: true, variants: [
         { name: "cop1", aspect: 0.436 }, { name: "cop2", aspect: 0.631 }, { name: "cop3", aspect: 0.539 }] },
     block: { height: 1.15, obstacle: true, variants: [
-        { name: "block1", aspect: 1.213 }, { name: "block2", aspect: 1.076 }, { name: "block3", aspect: 1.107 }, { name: "block4", aspect: 1.309 }] },
+        { name: "block1", aspect: 1.213 }, { name: "block2", aspect: 1.076 }, { name: "block3", aspect: 1.107 }, { name: "block4", aspect: 1.309 },
+        { name: "block5", aspect: 1.082 }] },
+    hood: { height: 0.8, obstacle: true, top: 0.72, variants: [{ name: "hood1", aspect: 1.537 }] },
+    cart: { height: 1.35, obstacle: true, top: 0.95, variants: [{ name: "cart1", aspect: 0.779 }] },
+    // lamp — где на картинке светится фонарь: доли ширины (от центра) и высоты (от низа)
+    starbox: { height: 1.45, obstacle: true, variants: [
+        { name: "starbox1", aspect: 0.742, lamp: { x: -0.2, y: 0.8, color: 0xff4010 } }] },
     roadblock: { height: 1.05, obstacle: true, top: 0.95, variants: [
         { name: "roadblock1", aspect: 1.279 }, { name: "roadblock2", aspect: 1.465 }] },
     police: { height: 1.95, variants: [{ name: "police1", aspect: 1.701 }, { name: "police2", aspect: 1.65 }] },
@@ -117,5 +127,5 @@ export const SPRITES = {
 
 // Частота препятствий (веса)
 export const OBSTACLE_MIX = {
-    dumpster: 22, roadblock: 14, barrier: 18, car: 14, atm: 10, block: 12, cop: 10,
+    dumpster: 18, roadblock: 12, barrier: 16, car: 12, atm: 9, block: 11, cop: 9, hood: 9, cart: 8, starbox: 8,
 };
