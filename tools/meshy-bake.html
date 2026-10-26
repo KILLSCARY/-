@@ -1,0 +1,120 @@
+<!-- Запекание модели Meshy (FBX без текстуры) в GLB с цветами вершин по картинке-референсу.
+     Положить models/_src.fbx и models/_ref.png, открыть через локальный сервер, забрать window.RESULT (base64 GLB),
+     затем ужать: npx gltfpack -i rat_full.glb -o models/rat.glb -si 0.06 -noq.
+     K/OX/OY — масштаб и сдвиг модели на картинке (подбирались наложением силуэта). -->
+<script type="module">
+// Запекание модели Meshy: склейка вершин, удаление брызг, раскраска по картинке → GLB
+import * as THREE from "../js/vendor/three.module.js";
+import { FBXLoader } from "../js/vendor/jsm/FBXLoader.js";
+import { mergeVertices } from "../js/vendor/jsm/BufferGeometryUtils.js";
+import { GLTFExporter } from "../js/vendor/jsm/GLTFExporter.js";
+
+const K = 5.2, OX = 1006, OY = 73;
+const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = "../models/_ref.png"; });
+const px = (blur) => {
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const g = c.getContext("2d"); if (blur) g.filter = `blur(${blur}px)`; g.drawImage(img, 0, 0);
+  return g.getImageData(0, 0, c.width, c.height).data;
+};
+const sharp = px(0), soft = px(18);
+const sample = (d, x, y) => {
+  x = Math.max(0, Math.min(img.width - 1, Math.round(x))); y = Math.max(0, Math.min(img.height - 1, Math.round(y)));
+  const k = (y * img.width + x) * 4; return [d[k], d[k + 1], d[k + 2]];
+};
+const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+
+const fbx = await new Promise((r) => new FBXLoader().load("../models/_src.fbx", r));
+let mesh; fbx.traverse((c) => { if (c.isMesh) mesh = c; });
+fbx.updateMatrixWorld(true);
+let geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); geo.deleteAttribute("normal");
+geo = mergeVertices(geo, 1e-4);
+const pos = geo.attributes.position, idx = geo.index.array, n = pos.count;
+geo.computeBoundingBox(); const bb = geo.boundingBox;
+
+// связные компоненты → выкинуть брызги у ног
+const parent = new Int32Array(n).map((_, i) => i);
+const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+for (let t = 0; t < idx.length; t += 3) { const a = find(idx[t]), b = find(idx[t + 1]), c = find(idx[t + 2]); parent[b] = a; parent[find(c)] = a; }
+const comp = new Map();
+for (let i = 0; i < n; i++) { const r = find(i); let s = comp.get(r); if (!s) comp.set(r, s = { count: 0, maxY: -1e9 }); s.count++; s.maxY = Math.max(s.maxY, pos.getY(i)); }
+const biggest = Math.max(...[...comp.values()].map((s) => s.count));
+const drop = new Set([...comp.entries()].filter(([, s]) => s.count < biggest * 0.1 && s.maxY < -60).map(([r]) => r));
+const keptIdx = [];
+for (let t = 0; t < idx.length; t += 3) if (!drop.has(find(idx[t]))) keptIdx.push(idx[t], idx[t + 1], idx[t + 2]);
+geo.setIndex(keptIdx);
+geo.computeVertexNormals();
+
+// z-буфер вида спереди: какие вершины видны на картинке
+const ZS = 2, ZW = Math.ceil((bb.max.x - bb.min.x) * ZS) + 2, ZH = Math.ceil((bb.max.y - bb.min.y) * ZS) + 2;
+const zb = new Float32Array(ZW * ZH).fill(-1e9);
+const P = (i) => [(pos.getX(i) - bb.min.x) * ZS, (bb.max.y - pos.getY(i)) * ZS, pos.getZ(i)];
+for (let t = 0; t < keptIdx.length; t += 3) {
+  const a = P(keptIdx[t]), b = P(keptIdx[t + 1]), c = P(keptIdx[t + 2]);
+  const x0 = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), x1 = Math.min(ZW - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
+  const y0 = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]))), y1 = Math.min(ZH - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
+  const z = Math.max(a[2], b[2], c[2]);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const k = y * ZW + x; if (z > zb[k]) zb[k] = z; }
+}
+const zAt = (x, y) => {
+  let m = -1e9; const cx = Math.round((x - bb.min.x) * ZS), cy = Math.round((bb.max.y - y) * ZS);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = cx + dx, yy = cy + dy; if (xx >= 0 && yy >= 0 && xx < ZW && yy < ZH) m = Math.max(m, zb[yy * ZW + xx]); }
+  return m;
+};
+
+// диагностика: компоненты подграфов «сзади-снизу» и «у самой земли»
+const subComps = (pred) => {
+  const par = new Int32Array(n).map((_, i) => i);
+  const f = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+  const ok = new Uint8Array(n); for (let i = 0; i < n; i++) ok[i] = pred(pos.getX(i), pos.getY(i), pos.getZ(i)) ? 1 : 0;
+  for (let t = 0; t < keptIdx.length; t += 3) {
+    const a = keptIdx[t], b = keptIdx[t + 1], c = keptIdx[t + 2];
+    if (ok[a] && ok[b]) par[f(b)] = f(a); if (ok[b] && ok[c]) par[f(c)] = f(b); if (ok[a] && ok[c]) par[f(c)] = f(a);
+  }
+  const m = new Map();
+  for (let i = 0; i < n; i++) if (ok[i]) { const r = f(i); let s = m.get(r); if (!s) m.set(r, s = { root: r, count: 0, min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }); s.count++;
+    [pos.getX(i), pos.getY(i), pos.getZ(i)].forEach((v, k) => { s.min[k] = Math.min(s.min[k], v); s.max[k] = Math.max(s.max[k], v); }); }
+  return { list: [...m.values()].sort((a, b) => b.count - a.count), f, ok };
+};
+const backComps = subComps((x, y, z) => z < -22 && y < 0);
+const tailRoots = new Set(backComps.list.filter((c) => c.count < backComps.list[0].count * 0.3 && c.min[1] > -60).map((c) => c.root));
+const isTail = (i) => backComps.ok[i] && tailRoots.has(backComps.f(i));
+// щиколотки: центры сечений ног чуть выше лап — от них отличаем ступню от брызг
+const ankles = [[0, 0, 0, 0], [0, 0, 0, 0]];
+for (let i = 0; i < n; i++) { const y = pos.getY(i); if (y > -76 && y < -70) { const a = ankles[pos.getZ(i) > 0 ? 0 : 1]; a[0] += pos.getX(i); a[1] += pos.getZ(i); a[3]++; } }
+ankles.forEach((a) => { a[0] /= a[3] || 1; a[1] /= a[3] || 1; });
+const isFoot = (x, z) => ankles.some(([ax, az]) => ((x - ax) / 9) ** 2 + ((z - az - 5) / 15) ** 2 < 1);
+console.log("ankles", JSON.stringify(ankles.map(a => a.map(Math.round))));
+window.STATS = {
+  back: subComps((x, y, z) => z < -22 && y < 0).list.slice(0, 6).map(s => ({ c: s.count, min: s.min.map(Math.round), max: s.max.map(Math.round) })),
+  low: subComps((x, y, z) => y < -76).list.slice(0, 8).map(s => ({ c: s.count, min: s.min.map(Math.round), max: s.max.map(Math.round) })),
+};
+console.log(JSON.stringify(window.STATS));
+// ось головы: середина тульи шляпы
+let hx = 0, hz = 0, hc = 0; for (let i = 0; i < n; i++) if (pos.getY(i) > 85) { hx += pos.getX(i); hz += pos.getZ(i); hc++; } hx /= hc; hz /= hc;
+const WATER = [205, 215, 225];
+const FUR = [150, 92, 52], PANTS = [24, 23, 27], FEET = [196, 128, 100], TAIL = [205, 135, 125], HAT = [222, 216, 204];
+const nrm = geo.attributes.normal, col = new Float32Array(n * 3);
+for (let i = 0; i < n; i++) {
+  const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+  const ix = OX + (x - bb.min.x) * K, iy = OY + (bb.max.y - y) * K;
+  const rh = Math.hypot(x - hx, z - hz);
+  const visible = z >= zAt(x, y) - 2.5 && nrm.getZ(i) > -0.1;
+  let c;
+  if (isTail(i)) c = TAIL;                                           // хвост тянется назад
+  else if (y < -74) c = isFoot(x, z) || y > -79 ? FEET : WATER;    // босые лапы и брызги
+  else if (y > 56 || (!visible && (y > 50 || (y > 44 && rh > 30) || (y > 34 && rh > 44) || (y > 38 && rh > 28 && nrm.getY(i) < -0.5)))) c = HAT; // сомбреро: тулья, поля, низ полей
+  else if (y < -20) c = PANTS;                                      // штаны (ниже ремня)
+  else if (visible && (y > 22 || Math.abs(x) < 30)) c = sample(sharp, ix, iy); // голова, шляпа, торс — по картинке
+  else if (visible) c = sample(soft, ix, iy);
+  else c = y > 22 ? sample(soft, ix, iy) : FUR;                     // спина: только «пятна» цвета
+  col[i * 3] = lin(c[0]); col[i * 3 + 1] = lin(c[1]); col[i * 3 + 2] = lin(c[2]);
+}
+geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+
+const out = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 }));
+out.name = "rat";
+new GLTFExporter().parse(out, (buf) => {
+  let s = ""; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  window.RESULT = { b64: btoa(s), verts: n, tris: keptIdx.length / 3, dropped: drop.size };
+}, (e) => { window.RESULT = { error: String(e) }; }, { binary: true });
+</script>

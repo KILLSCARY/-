@@ -340,6 +340,7 @@ class Game {
         cam.position.x += Math.sin(k * Math.PI) * 4;
         cam.lookAt(target);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
+        this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
         this.composer.render();
     }

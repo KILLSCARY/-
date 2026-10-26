@@ -62,7 +62,7 @@ export const TEXTURES = {
 // Если файла нет — бегает крыс, собранный из примитивов.
 export const MODEL = {
     url: "models/rat.glb",
-    height: 1.75,     // во сколько метров отмасштабировать модель
+    height: 1.9,      // во сколько метров отмасштабировать модель (вместе со шляпой)
     rotateY: Math.PI, // Mixamo смотрит в +Z, а бежим мы в -Z
     clips: { run: /run/i, idle: /idle/i, jump: /jump/i, slide: /slide|roll/i },
 };

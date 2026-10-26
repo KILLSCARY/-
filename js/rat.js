@@ -199,7 +199,7 @@ export function createRat() {
 
 // pose: "run" | "jump" | "slide" | "idle" | "dead"; t — время, phase — фаза бега
 export function animateRat(rat, pose, t, phase, dt = 0, speed = 1) {
-    if (rat.userData.model) return animateModel(rat, pose, dt, speed);
+    if (rat.userData.model) return animateModel(rat, pose, t, phase, dt, speed);
     const { rig, body, legs, arms, head, tailPivot } = rat.userData;
     const s = Math.sin(phase);
 
@@ -303,11 +303,13 @@ export function attachModel(rat, gltf, cfg) {
     rat.userData = { rig, blob: rat.userData.blob, model, mixer, actions, current: null };
 }
 
-function animateModel(rat, pose, dt, speed) {
+function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
     const { rig, actions, mixer } = u;
     rig.rotation.set(0, 0, 0);
     rig.position.set(0, 0, 0);
+    rig.scale.set(1, 1, 1);
+    if (!Object.keys(actions).length) return animateStatic(rig, pose, t, phase);
 
     // если отдельного клипа нет — играем бег и доворачиваем позу целиком
     let clip = pose === "dead" || pose === "idle" ? (actions.idle ? "idle" : "run") : actions[pose] ? pose : "run";
@@ -329,4 +331,32 @@ function animateModel(rat, pose, dt, speed) {
     }
     const scale = pose === "run" ? Math.max(0.8, speed / 14) : pose === "dead" ? 0 : 1;
     mixer.update(dt * scale);
+}
+
+// Модель без скелета (застывшая поза бега из Meshy): бег «покадровый» — на каждом шаге
+// модель отражается по X, и вперёд выходит то одна, то другая нога; плюс подпрыгивание и наклон.
+function animateStatic(rig, pose, t, phase) {
+    const step = Math.sin(phase);
+    if (pose === "run") {
+        rig.scale.x = step >= 0 ? 1 : -1;
+        const bounce = Math.abs(Math.cos(phase));
+        rig.position.y = bounce * 0.07;
+        rig.scale.y = 0.97 + bounce * 0.05;
+        rig.rotation.x = -0.06;
+        rig.rotation.z = step * 0.05;
+    } else if (pose === "jump") {
+        rig.rotation.x = -0.25;
+        rig.scale.y = 1.05;
+    } else if (pose === "slide") {
+        // подкат на спине, ногами вперёд
+        rig.rotation.x = 1.1;
+        rig.position.set(0, 0.15, -0.5);
+    } else if (pose === "idle") {
+        const b = Math.sin(t * 2);
+        rig.scale.y = 1 + b * 0.012;
+        rig.rotation.y = Math.sin(t * 0.7) * 0.15;
+    } else if (pose === "dead") {
+        rig.rotation.x = 1.35;
+        rig.position.set(0, 0.25, 0.6);
+    }
 }
