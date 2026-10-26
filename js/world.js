@@ -5,7 +5,8 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES } from "./config.js";
+import { TEXTURES, BANKS, ATMS, OBSTACLE_MODELS } from "./config.js";
+import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -151,6 +152,7 @@ export class World {
         this.buildStreet();
         this.buildRain();
         this.buildSplash();
+        this.loadObstacleModels();
     }
 
     buildMaterials() {
@@ -188,6 +190,33 @@ export class World {
             boostEdge: std({ color: 0xb8860b, metalness: 1, roughness: 0.2 }),
             trash: std({ color: 0x0c0c0e, roughness: 0.25, metalness: 0.1 }),
         };
+        const glowSpill = (color) => new THREE.MeshBasicMaterial({
+            map: canvasTex(64, 64, (g2, w, h) => {
+                const gr = g2.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+                gr.addColorStop(0, "rgba(255,255,255,0.55)");
+                gr.addColorStop(1, "rgba(255,255,255,0)");
+                g2.fillStyle = gr;
+                g2.fillRect(0, 0, w, h);
+            }),
+            color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        });
+        this.mat.banks = BANKS.list.map((b) => {
+            const maps = pbr(b.name, [1, 1], ["glow"]);
+            for (const t of [maps.map, maps.emissiveMap]) t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+            return {
+                aspect: b.aspect,
+                mat: new THREE.MeshStandardMaterial({ ...maps, emissive: 0xffffff, emissiveIntensity: 2.4, roughness: 0.6 }),
+                spill: glowSpill(new THREE.Color(b.light)),
+            };
+        });
+        this.mat.atms = ATMS.map((a) => {
+            const maps = pbr(a.name, [1, 1], ["glow"]);
+            for (const t of [maps.map, maps.emissiveMap]) t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+            return { aspect: a.aspect, light: a.light, front: new THREE.MeshStandardMaterial({ ...maps, emissive: 0xffffff, emissiveIntensity: 2.2, roughness: 0.4, metalness: 0.3 }) };
+        });
+        this.mat.atmBody = std({ ...iron, color: 0x3a3a3c, metalness: 0.8, roughness: 0.8 });
+        this.mat.paint = new THREE.MeshPhysicalMaterial({ color: 0x9e0a12, metalness: 0.5, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.6 });
+
         this.geo = {
             coin: new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24),
             box: new THREE.BoxGeometry(1, 1, 1),
@@ -269,6 +298,18 @@ export class World {
             for (let i = 0; i < STREET_LEN / slot; i++) {
                 this.scenery.push(this.makeBuilding(side, BEHIND_Z - 5 - i * slot, slot));
             }
+        }
+
+        // банкоматы на тротуарах
+        for (let i = 0; i < 5; i++) {
+            const atm = this.makeAtm();
+            const side = i % 2 ? 1 : -1;
+            atm.position.set(side * rnd(4.0, 4.6), 0.18, BEHIND_Z - 15 - i * 32);
+            atm.rotation.y = side * 0.35; // чуть развёрнут к дороге
+            atm.userData.loop = STREET_LEN;
+            atm.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+            s.add(atm);
+            this.scenery.push(atm);
         }
 
         // фонарные столбы с оранжевыми лампами
@@ -398,7 +439,17 @@ export class World {
         g.add(pipe);
 
         const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
-        // подъезд: дверь, козырёк, красная лампа, ступеньки
+        if (Math.random() < BANKS.chance) this.addBankFront(g, front, out);
+        else this.addEntrance(g, front, out, len);
+
+        g.position.set(side * 11, 0, z);
+        g.userData.loop = STREET_LEN;
+        this.scene.add(g);
+        return g;
+    }
+
+    // Обычный первый этаж: подъезд с красной лампой, рольставни, иногда неон
+    addEntrance(g, front, out, len) {
         const door = new THREE.Mesh(this.geo.box, this.mat.door);
         door.scale.set(0.12, 2.1, 1.2);
         door.position.set(front + out * 0.05, 1.05 + 0.3, 0);
@@ -412,7 +463,6 @@ export class World {
         steps.position.set(front + out * 0.5, 0.33, 0);
         g.add(door, canopy, lamp, steps);
 
-        // рольставни магазинов по бокам от подъезда
         for (const dz of [-len / 3.2, len / 3.2]) {
             if (Math.random() < 0.25) continue;
             const sh = new THREE.Mesh(this.geo.box, this.mat.shutter);
@@ -430,11 +480,22 @@ export class World {
             neon.position.set(front + out * 0.08, 3.0, pick([-len / 3.2, len / 3.2]));
             g.add(neon);
         }
+    }
 
-        g.position.set(side * 11, 0, z);
-        g.userData.loop = STREET_LEN;
-        this.scene.add(g);
-        return g;
+    // Отделение банка на первом этаже: фото-витрина со светящейся вывеской и банкоматом,
+    // плюс цветное пятно света на мокром тротуаре перед ним
+    addBankFront(g, front, out) {
+        const bank = pick(this.mat.banks);
+        const h = BANKS.height;
+        const w = h * bank.aspect;
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(w, h), bank.mat);
+        sign.rotation.y = out * Math.PI / 2;
+        sign.position.set(front + out * 0.03, h / 2 + 0.1, 0);
+        const spill = new THREE.Mesh(new THREE.PlaneGeometry(w * 1.1, 4), bank.spill);
+        spill.rotation.set(-Math.PI / 2, 0, out * Math.PI / 2);
+        spill.position.set(front + out * 2.1, 0.2, 0);
+        spill.renderOrder = 3;
+        g.add(sign, spill);
     }
 
     buildRain() {
@@ -520,43 +581,94 @@ export class World {
         return g;
     }
 
-    // «девятка» едет навстречу: кузов с капотом и багажником, стёкла, фары
+    // Уличный банкомат (фото-фасад из textures/atm*) — только объезжать
+    makeAtm(decor = false) {
+        const g = new THREE.Group();
+        const a = pick(this.mat.atms);
+        const h = 2.3, w = Math.min(1.3, h * a.aspect), d = 1.0;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [
+            this.mat.atmBody, this.mat.atmBody, this.mat.atmBody, this.mat.atmBody, a.front, this.mat.atmBody,
+        ]);
+        body.position.y = h / 2;
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.08, d + 0.1), this.mat.atmBody);
+        cap.position.y = h + 0.04;
+        // светящиеся боковые панели в цвет банкомата
+        const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(a.light).multiplyScalar(2.2) });
+        for (const sx of [-1, 1]) {
+            const panel = new THREE.Mesh(new THREE.PlaneGeometry(d * 0.7, h * 0.45), panelMat);
+            panel.rotation.y = sx * Math.PI / 2;
+            panel.position.set(sx * (w / 2 + 0.005), h * 0.62, 0);
+            g.add(panel);
+        }
+        g.add(body, cap);
+        g.userData = { type: "atm", halfZ: d / 2 + 0.05 };
+        return g;
+    }
+
+    // Красный спорткар в духе Corvette C2: профиль кузова выдавлен (ExtrudeGeometry),
+    // четыре круглые фары, хром, диски-«звёздочки», лак с бликами. Едет навстречу.
     makeCar() {
         const g = new THREE.Group();
-        const paint = pick(this.mat.car);
-        const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 3.6), paint);
-        body.position.y = 0.58;
-        const cabin = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.78, 1.7, 4, 1), paint);
-        cabin.rotation.y = Math.PI / 4;
-        cabin.scale.set(1.02, 0.55, 1.55);
-        cabin.position.set(0, 1.08, -0.05);
-        // стёкла поверх кабины
-        const glassMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.76, 1.6, 4, 1), this.mat.glass);
-        glassMesh.rotation.y = Math.PI / 4;
-        glassMesh.scale.set(1.04, 0.5, 1.5);
-        glassMesh.position.set(0, 1.07, -0.05);
-        g.add(body, cabin, glassMesh);
-        for (const x of [-0.72, 0.72]) for (const zz of [-1.15, 1.15]) {
-            const w = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.22, 14), this.mat.tire);
-            w.rotation.z = Math.PI / 2;
-            w.position.set(x, 0.3, zz);
-            const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.23, 10), this.mat.chrome);
-            hub.rotation.z = Math.PI / 2;
-            hub.position.copy(w.position);
-            g.add(w, hub);
+        const extrude = (pts, width, bevel) => {
+            const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: width, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 8,
+            });
+            geo.translate(0, 0, -width / 2);
+            geo.rotateY(-Math.PI / 2); // профиль X → ось машины Z (нос к +Z, к крысу)
+            return geo;
+        };
+        // боковой профиль: [вдоль машины, высота]
+        const body = new THREE.Mesh(extrude([
+            [-2.05, 0.28], [2.0, 0.28], [2.12, 0.46], [2.02, 0.62], [1.2, 0.7], [0.3, 0.78],
+            [-0.2, 0.8], [-1.85, 0.82], [-2.1, 0.7], [-2.12, 0.42],
+        ], 1.56, 0.1), this.mat.paint);
+        const cabin = new THREE.Mesh(extrude([
+            [0.3, 0.78], [-0.3, 1.18], [-0.95, 1.22], [-1.85, 0.86], [-1.85, 0.78],
+        ], 1.32, 0.06), this.mat.glass);
+        const roof = new THREE.Mesh(extrude([
+            [-0.32, 1.17], [-0.95, 1.21], [-1.5, 1.04], [-1.5, 1.0], [-0.95, 1.17], [-0.36, 1.13],
+        ], 1.36, 0.04), this.mat.paint);
+        g.add(body, cabin, roof);
+
+        // колёса: шина + хромированный диск с пятью спицами
+        const tireGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.28, 18);
+        const rimGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.02, 16);
+        const spokeGeo = new THREE.BoxGeometry(0.04, 0.03, 0.4);
+        for (const x of [-0.82, 0.82]) for (const zz of [-1.32, 1.32]) {
+            const tire = new THREE.Mesh(tireGeo, this.mat.tire);
+            tire.rotation.z = Math.PI / 2;
+            tire.position.set(x, 0.34, zz);
+            const rim = new THREE.Mesh(rimGeo, this.mat.chrome);
+            rim.rotation.z = Math.PI / 2;
+            rim.position.set(x + Math.sign(x) * 0.14, 0.34, zz);
+            g.add(tire, rim);
+            for (let k = 0; k < 5; k++) {
+                const spoke = new THREE.Mesh(spokeGeo, this.mat.chrome);
+                spoke.position.copy(rim.position);
+                spoke.position.x += Math.sign(x) * 0.012;
+                spoke.rotation.x = (k / 5) * Math.PI;
+                g.add(spoke);
+            }
         }
-        const bumper = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.14, 0.12), this.mat.chrome);
-        bumper.position.set(0, 0.38, 1.82);
-        g.add(bumper);
-        // фары смотрят на крыса (машина едет навстречу), сзади — стопы
-        for (const x of [-0.52, 0.52]) {
-            const hl = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.04), this.mat.headlight);
-            hl.position.set(x, 0.68, 1.81);
-            const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.04), this.mat.taillight);
-            tl.position.set(x, 0.68, -1.81);
-            g.add(hl, tl);
+        // четыре круглые фары и хромированный бампер спереди, стопы сзади
+        const lampGeo = new THREE.CircleGeometry(0.1, 16);
+        for (const x of [-0.62, -0.38, 0.38, 0.62]) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.018, 6, 16), this.mat.chrome);
+            ring.position.set(x, 0.58, 2.06);
+            const lamp = new THREE.Mesh(lampGeo, this.mat.headlight);
+            lamp.position.set(x, 0.58, 2.065);
+            g.add(ring, lamp);
         }
-        g.userData = { type: "car", halfZ: 1.85, oncoming: 6 };
+        for (const x of [-0.5, 0.5]) {
+            const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.07, 0.12), this.mat.chrome);
+            bumper.position.set(x, 0.4, 2.2);
+            const tl = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), this.mat.taillight);
+            tl.rotation.y = Math.PI;
+            tl.position.set(x, 0.6, -2.2);
+            g.add(bumper, tl);
+        }
+        g.userData = { type: "car", halfZ: 2.2, oncoming: 6 };
         return g;
     }
 
@@ -579,8 +691,41 @@ export class World {
         this.coins.push(c);
     }
 
+    // .glb-модели препятствий (OBSTACLE_MODELS в config.js) — если файл есть, подменяет процедурную
+    loadObstacleModels() {
+        this.templates = {};
+        const loader = new GLTFLoader();
+        for (const [kind, cfg] of Object.entries(OBSTACLE_MODELS)) {
+            loader.load(cfg.url, (gltf) => {
+                const m = gltf.scene;
+                m.rotation.y = cfg.rotateY || 0;
+                m.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(m);
+                const size = box.getSize(new THREE.Vector3());
+                const k = cfg.size / (cfg.axis === "y" ? size.y : cfg.axis === "x" ? size.x : size.z);
+                m.scale.multiplyScalar(k);
+                m.updateMatrixWorld(true);
+                box.setFromObject(m);
+                const c = box.getCenter(new THREE.Vector3());
+                m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
+                this.templates[kind] = m;
+            }, undefined, () => {});
+        }
+    }
+
+    makeObstacle(kind) {
+        const proc = kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
+            : kind === "atm" ? this.makeAtm() : this.makeCar();
+        const t = this.templates?.[kind];
+        if (!t) return proc;
+        const g = new THREE.Group(); // модель из .glb, а размеры для столкновений — от процедурной
+        g.add(t.clone());
+        g.userData = proc.userData;
+        return g;
+    }
+
     addObstacle(kind, lane, z) {
-        const o = kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier() : this.makeCar();
+        const o = this.makeObstacle(kind);
         o.position.set(this.lanes[lane], 0, z);
         o.userData.lane = lane;
         o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
@@ -597,7 +742,7 @@ export class World {
 
         for (const lane of blocked) {
             const r = Math.random();
-            const kind = r < 0.45 ? "dumpster" : r < 0.75 ? "barrier" : "car";
+            const kind = r < 0.38 ? "dumpster" : r < 0.64 ? "barrier" : r < 0.84 ? "car" : "atm";
             this.addObstacle(kind, lane, z);
             if (kind === "dumpster" && Math.random() < 0.5) {
                 // дуга монет над баком — награда за прыжок

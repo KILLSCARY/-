@@ -23,6 +23,7 @@ export const BALANCE = {
 
 // Почему проиграл — шутки по поводу причины
 export const DEATH_TEXT = {
+    atm: ["Врезался в банкомат", "Банкомат зажевал карту", "Снял наличку лбом"],
     dumpster: ["Влетел в мусорный бак", "Бак оказался быстрее", "Мусорка — 1, Крыс — 0"],
     barrier: ["Карту заблокировали по 115-ФЗ", "Банк попросил пояснить происхождение средств", "Блокировка! Надо было пригнуться"],
     car: ["Не успел увернуться от тачки", "Таксист на встречке", "Сбила «девятка»"],
@@ -60,3 +61,37 @@ export const MODEL = {
 
 // Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
 export const QUALITY = "auto"; // "auto" | "high" | "low"
+
+// Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.
+export const BANKS = {
+    chance: 0.35,  // доля домов с банком внизу
+    height: 3.3,   // высота витрины, м
+    list: [
+        { name: "bank_alfa1", aspect: 1.37, light: 0xff2030 },
+        { name: "bank_alfa2", aspect: 1.53, light: 0xff2030 },
+        { name: "bank_alfa3", aspect: 1.5, light: 0xff2030 },
+        { name: "bank_alfa4", aspect: 1.68, light: 0xff2030 },
+        { name: "bank_sber1", aspect: 1.28, light: 0x20ff50 },
+        { name: "bank_sber2", aspect: 1.65, light: 0x20ff50 },
+        { name: "bank_sber3", aspect: 1.79, light: 0x20ff50 },
+        { name: "bank_sber4", aspect: 1.36, light: 0x20ff50 },
+    ],
+};
+
+// Банкоматы: препятствие на дороге и декор на тротуарах (фото лицевой стороны из textures/atm*)
+export const ATMS = [
+    { name: "atm1", aspect: 0.59, light: 0x20ff60 },
+    { name: "atm2", aspect: 0.58, light: 0xff2030 },
+    { name: "atm3", aspect: 0.56, light: 0x20ff60 },
+    { name: "atm4", aspect: 0.51, light: 0xff2030 },
+    { name: "atm5", aspect: 0.36, light: 0xff2030 },
+];
+
+// .glb-модели препятствий (например, Corvette из Meshy по фото). Если файла нет — процедурная модель.
+// size — до какого размера по оси axis отмасштабировать; rotateY — довернуть, чтобы нос смотрел в +Z.
+export const OBSTACLE_MODELS = {
+    car: { url: "models/car.glb", axis: "z", size: 4.3, rotateY: 0 },
+    atm: { url: "models/atm.glb", axis: "y", size: 2.3, rotateY: 0 },
+    dumpster: { url: "models/dumpster.glb", axis: "x", size: 1.3, rotateY: 0 },
+    barrier: { url: "models/barrier.glb", axis: "x", size: 1.75, rotateY: 0 },
+};

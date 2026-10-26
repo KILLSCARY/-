@@ -25,6 +25,16 @@
 python3 tools/maketex.py картинка.jpg textures/facade5 facade   # или ground
 ```
 
+### Банки, банкоматы, машины
+
+- Отделения Альфа-Банка и Сбербанка на первых этажах домов: `textures/bank_*`, список и частота — `BANKS` в `js/config.js`.
+- Банкоматы — препятствие (только объезжать) и декор на тротуарах: `textures/atm*`, список — `ATMS`.
+- Машина — красный спорткар в духе Corvette C2, собранный в коде.
+- Любое препятствие можно заменить своей `.glb`-моделью: положите `models/car.glb`, `atm.glb`, `dumpster.glb` или `barrier.glb`
+  (например, Corvette из Meshy по фото). Масштаб и разворот — `OBSTACLE_MODELS` в `js/config.js`.
+
+Вырезать новую витрину/банкомат из картинки (с картой свечения): `python3 tools/crop.py src.jpg textures/имя x0 y0 x1 y1 1024`.
+
 ### Персонаж .glb
 
 Положите модель с анимацией бега в `models/rat.glb` (Meshy/Tripo → Mixamo → экспорт .glb), игра подхватит её сама.
