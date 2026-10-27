@@ -106,6 +106,10 @@ class Game {
         this.profile.ready.then(() => {
             if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
             this.hub.render();
+            for (const g of this.profile.granted || []) { // разовое начисление (GRANTS) — сказать, что пришло
+                const parts = [g.usdt && `+${fmt(g.usdt)} USDT`, g.trx && `+${fmt(g.trx)} TRX`, g.gems && `+${fmt(g.gems)} кристаллов`].filter(Boolean);
+                setTimeout(() => { this.hub.toast(`${g.text}: ${parts.join(", ")}`); this.audio.play("record"); }, 500);
+            }
             setTimeout(() => this.hub.showDaily(), 1200); // ежедневная награда — когда облако прочитано
         });
 

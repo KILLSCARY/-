@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT, TRX), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES, BOSS } from "./config.js";
+import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES, BOSS, GRANTS } from "./config.js";
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
@@ -33,7 +33,23 @@ export class Profile {
                 this.carry(start, mine);
             }
             if (this.data.t !== cloud?.t) this.save();
+            // разовые начисления — только после облака: отметка о выданном могла прийти оттуда (другой телефон)
+            this.granted = this.applyGrants();
         });
+    }
+
+    // разовые начисления из GRANTS, которых этот аккаунт ещё не получал; возвращает выданные
+    applyGrants() {
+        const got = (this.data.grants ||= []);
+        const fresh = GRANTS.filter((g) => !got.includes(g.id));
+        for (const g of fresh) {
+            this.data.usdt += g.usdt || 0;
+            this.data.trx += g.trx || 0;
+            this.data.gems = this.gems + (g.gems || 0);
+            got.push(g.id);
+        }
+        if (fresh.length) this.save();
+        return fresh;
     }
 
     load(saved) {
