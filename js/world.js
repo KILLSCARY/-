@@ -1588,61 +1588,117 @@ export class World {
             m.userData.own = true;
             return m;
         };
-        // арка: две опоры и щит с вопросом
+        const col = type.color;
+        // неоновая рамка: свечение наружу (поэтому в текстуре есть поле m под ореол), внутри — тёмное стекло
+        const neon = (g, x, y, w, h, r, lw) => {
+            g.save();
+            g.strokeStyle = col; g.lineWidth = lw;
+            g.shadowColor = col; g.shadowBlur = lw * 5;
+            roundRect(g, x, y, w, h, r); g.stroke(); g.stroke();
+            g.shadowBlur = 0; g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = Math.max(1.5, lw * 0.28);
+            roundRect(g, x, y, w, h, r); g.stroke(); // белая сердцевина трубки
+            g.restore();
+        };
+        const glass = (g, x, y, w, h, r) => {
+            const gr = g.createLinearGradient(0, y, 0, y + h);
+            gr.addColorStop(0, "rgba(34,34,40,.97)"); gr.addColorStop(1, "rgba(10,10,13,.97)");
+            g.fillStyle = gr; roundRect(g, x, y, w, h, r); g.fill();
+            g.save(); roundRect(g, x, y, w, h, r); g.clip(); // блик по верхней кромке и тонкие полосы «экрана»
+            const hl = g.createLinearGradient(0, y, 0, y + h * 0.45);
+            hl.addColorStop(0, "rgba(255,255,255,.10)"); hl.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = hl; g.fillRect(x, y, w, h * 0.45);
+            g.fillStyle = "rgba(255,255,255,.025)";
+            for (let yy = y; yy < y + h; yy += 6) g.fillRect(x, yy, w, 2);
+            g.restore();
+        };
+        const lightMat = (this.wallLight ||= {})[col] ||= new THREE.MeshBasicMaterial({ color: col, toneMapped: false });
+        const glowMat = (this.wallGlow ||= {})[col] ||= new THREE.MeshBasicMaterial({
+            map: this.laneGlowTex ||= canvasTex(64, 128, (g, w, h) => {
+                const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+                r.addColorStop(0, "rgba(255,255,255,.9)"); r.addColorStop(1, "rgba(255,255,255,0)");
+                g.setTransform(1, 0, 0, h / w, 0, 0); g.fillStyle = r; g.fillRect(0, 0, w, w);
+            }),
+            color: col, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending });
+        // арка: две опоры с неоновыми кольцами и щит с вопросом
         const arch = new THREE.Group();
         for (const x of [-3.4, 3.4]) {
             const post = new THREE.Mesh(this.geo.box, this.mat.pole);
             post.scale.set(0.16, 5.6, 0.16);
             post.position.set(x, 2.8, 0);
             arch.add(post);
+            for (const y of [1.2, 2.4, 3.6]) {
+                const ring = new THREE.Mesh(this.geo.box, lightMat);
+                ring.scale.set(0.2, 0.05, 0.2);
+                ring.position.set(x, y, 0);
+                arch.add(ring);
+            }
         }
-        const signGeo = new THREE.PlaneGeometry(6.6, 1.6);
+        const signGeo = new THREE.PlaneGeometry(7.2, 2.1);
         signGeo.userData.own = true;
-        const sign = new THREE.Mesh(signGeo, textMat(1024, 248, (g, w, h) => {
-            g.fillStyle = "rgba(20,20,20,.94)";
-            roundRect(g, 4, 4, w - 8, h - 8, 34); g.fill();
-            g.lineWidth = 6; g.strokeStyle = type.color; g.stroke();
-            g.fillStyle = type.color;
-            g.font = '700 34px "Inter Tight", Arial, sans-serif';
-            g.textAlign = "center";
-            g.fillText(type.name.toUpperCase(), w / 2, 62);
-            g.fillStyle = "#e6e6e6";
-            fitText(g, q.q.length < 14 ? q.q : `«${q.q}»`, w - 80, 76, '800 {s}px "Unbounded", "Arial Black", sans-serif');
-            g.fillText(g.__line, w / 2, 170);
+        const sign = new THREE.Mesh(signGeo, textMat(1024, 300, (g, w, h) => {
+            const m = 34, x = m, y = m + 18, bw = w - 2 * m, bh = h - 2 * m - 18;
+            glass(g, x, y, bw, bh, 30);
+            neon(g, x, y, bw, bh, 30, 7);
+            // плашка типа клиента на верхней кромке
+            g.font = '800 30px "Inter Tight", Arial, sans-serif';
+            const label = type.name.toUpperCase(), pw = g.measureText(label).width + 56;
+            g.save(); g.shadowColor = col; g.shadowBlur = 24; g.fillStyle = col;
+            roundRect(g, (w - pw) / 2, y - 22, pw, 44, 22); g.fill(); g.restore();
+            g.fillStyle = "#0d0d10"; g.textAlign = "center";
+            g.fillText(label, w / 2, y + 10);
+            g.save(); g.shadowColor = "rgba(255,255,255,.35)"; g.shadowBlur = 14; g.fillStyle = "#f4f4f4";
+            fitText(g, q.q.length < 14 ? q.q : `«${q.q}»`, bw - 80, 72, '800 {s}px "Unbounded", "Arial Black", sans-serif');
+            g.fillText(g.__line, w / 2, y + bh / 2 + 34);
+            g.restore();
         }));
-        sign.position.set(0, 5.2, 0);
+        sign.position.set(0, 5.1, 0);
         arch.add(sign);
         arch.position.z = z - 0.8;
         arch.userData = { type: "decor" };
         this.scene.add(arch);
         this.obstacles.push(arch);
-        // таблички на полосах
-        const plateGeo = new THREE.PlaneGeometry(1.62, 1.22);
+        // таблички на полосах: стекло в неоне, стрелка полосы, ответ; под ними светящаяся планка и пятно на асфальте
+        const plateGeo = new THREE.PlaneGeometry(1.86, 1.5);
         plateGeo.userData.own = true;
+        const arrows = ["◀", "▲", "▶"];
         answers.forEach((text, lane) => {
             const g = new THREE.Group();
-            const board = new THREE.Mesh(plateGeo, textMat(512, 380, (c, w, h) => {
-                c.fillStyle = "rgba(24,24,24,.96)";
-                roundRect(c, 4, 4, w - 8, h - 8, 36); c.fill();
-                c.lineWidth = 8; c.strokeStyle = type.color; c.stroke();
-                c.fillStyle = type.color;
-                roundRect(c, 4, 4, w - 8, 56, { tl: 36, tr: 36, bl: 0, br: 0 }); c.fill();
-                c.fillStyle = "#111";
-                c.font = '800 30px "Inter Tight", Arial, sans-serif';
-                c.textAlign = "center";
-                c.fillText(`${type.tag} · ${type.name.toUpperCase()}`, w / 2, 43);
-                c.fillStyle = "#e6e6e6";
-                wrapText(c, text, w / 2, 70, w - 56, h - 90, '700 {s}px "Inter Tight", Arial, sans-serif');
+            const board = new THREE.Mesh(plateGeo, textMat(512, 412, (c, w, h) => {
+                const m = 30, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m;
+                glass(c, x, y, bw, bh, 30);
+                neon(c, x, y, bw, bh, 30, 7);
+                // стрелка: куда свайпать за этим ответом
+                c.save(); c.shadowColor = col; c.shadowBlur = 16; c.fillStyle = col;
+                c.beginPath(); c.arc(w / 2, y + 2, 26, 0, Math.PI * 2); c.fill(); c.restore();
+                c.fillStyle = "#0d0d10"; c.font = '900 26px Arial, sans-serif'; c.textAlign = "center";
+                c.fillText(arrows[lane], w / 2, y + 11);
+                c.fillStyle = "#f4f4f4";
+                wrapText(c, text, w / 2, y + 36, bw - 44, bh - 82, '800 {s}px "Inter Tight", Arial, sans-serif');
+                // подпись типа внизу, разреженно
+                c.fillStyle = col; c.globalAlpha = 0.85;
+                c.font = '700 19px "Inter Tight", Arial, sans-serif';
+                if ("letterSpacing" in c) c.letterSpacing = "4px";
+                c.fillText(`${type.tag} · ${type.name.toUpperCase()}`, w / 2, y + bh - 16);
             }));
-            board.position.y = 1.2;
-            const legGeo = this.geo.box;
-            for (const x of [-0.6, 0.6]) {
-                const leg = new THREE.Mesh(legGeo, this.mat.pole);
-                leg.scale.set(0.06, 0.6, 0.06);
-                leg.position.set(x, 0.3, -0.02);
-                g.add(leg);
-            }
+            board.position.y = 1.32;
             g.add(board);
+            const bar = new THREE.Mesh(this.geo.box, lightMat); // неоновая планка под табличкой
+            bar.scale.set(1.3, 0.045, 0.05);
+            bar.position.set(0, 0.6, 0.02);
+            g.add(bar);
+            const pole = new THREE.Mesh(this.geo.box, this.mat.pole);
+            pole.scale.set(0.07, 0.62, 0.07);
+            pole.position.set(0, 0.31, -0.04);
+            g.add(pole);
+            const base = new THREE.Mesh(this.geo.box, this.mat.pole);
+            base.scale.set(0.5, 0.05, 0.3);
+            base.position.set(0, 0.025, -0.04);
+            g.add(base);
+            const glow = new THREE.Mesh(this.geo.glow, glowMat); // отсвет на мокром асфальте
+            glow.rotation.x = -Math.PI / 2;
+            glow.scale.set(1.9, 3.2, 1);
+            glow.position.set(0, 0.02, 0.9);
+            g.add(glow);
             g.position.set(this.lanes[lane], 0, z);
             g.userData = { type: "answer", halfZ: 0.35, wall, correct: lane === correct, lane, text };
             this.scene.add(g);
