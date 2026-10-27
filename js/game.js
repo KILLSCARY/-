@@ -462,8 +462,8 @@ class Game {
         const behind = this.state === "menu" ? 0 : 1;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
-        // в прыжке камера чуть поднимается, в полёте — вместе с героем
-        const lift = this.fx.fly > 0 || this.y > 2.6 ? this.y : this.y * 0.35;
+        // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
+        const lift = this.y * (this.fx.fly > 0 || this.y > 2.6 ? 0.5 : 0.35);
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
         const front = new THREE.Vector3(0.7, 1.5, portrait ? -3.6 : -3.0);
