@@ -1383,29 +1383,56 @@ export class World {
         return this.islam ? this.rig(this.islam, "swing", { islam: true }) : null;
     }
 
-    // порыв ветра: белые штрихи поперёк дороги (dir — куда дует: 1 вправо, −1 влево)
+    // поток ветра изо рта Ислама: штрихи и облачка летят конусом через дорогу
     buildWind() {
-        const n = 46, pos = new Float32Array(n * 6);
+        const n = 40, pos = new Float32Array(n * 6);
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-        this.windLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false }));
+        this.windLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xe8f4ff, transparent: true, opacity: 0.55, depthWrite: false }));
         this.windLines.visible = false;
         this.windLines.frustumCulled = false;
-        this.windSeed = Array.from({ length: n }, () => ({ x: rnd(-6, 6), y: rnd(0.3, 3.2), z: rnd(-14, 2), v: rnd(14, 26), l: rnd(0.6, 1.6) }));
         this.scene.add(this.windLines);
+        const puffTex = canvasTex(64, 64, (g, w, h) => {
+            const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+            r.addColorStop(0, "rgba(255,255,255,.9)"); r.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = r; g.fillRect(0, 0, w, h);
+        });
+        this.windPuffs = Array.from({ length: 12 }, () => {
+            const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0xdfefff, transparent: true, depthWrite: false, opacity: 0 }));
+            s.visible = false;
+            this.scene.add(s);
+            return s;
+        });
+        const seed = () => ({ t: Math.random(), v: rnd(1.6, 2.6), a: rnd(-1, 1), b: rnd(-1, 1), l: rnd(0.5, 1.2) });
+        this.windSeed = Array.from({ length: n }, seed);
+        this.puffSeed = this.windPuffs.map(seed);
+        this.windSeedFn = seed;
     }
 
-    blowWind(dir, dt) {
-        const w = this.windLines;
-        w.visible = dir !== 0;
-        if (!dir) return;
-        const pos = w.geometry.attributes.position.array;
+    // origin — рот Ислама (Vector3), dir — куда дует по X (±1); null — выключить. power 0…1 — сила (вдох → выдох)
+    blowWind(origin, dir = 1, dt = 0, power = 1) {
+        const on = !!origin && power > 0.02;
+        this.windLines.visible = on;
+        for (const p of this.windPuffs) p.visible = on;
+        if (!on) return;
+        const pos = this.windLines.geometry.attributes.position.array;
+        const at = (s, d) => [origin.x + dir * d, origin.y + s.a * d * 0.18 - d * 0.06, origin.z + s.b * d * 0.32];
         this.windSeed.forEach((s, i) => {
-            s.x += s.v * dir * dt;
-            if (s.x * dir > 7) { s.x = -7 * dir; s.y = rnd(0.3, 3.2); s.z = rnd(-14, 2); }
-            pos.set([s.x, s.y, s.z, s.x - s.l * dir, s.y, s.z], i * 6);
+            s.t += dt * s.v;
+            if (s.t > 1) Object.assign(s, this.windSeedFn(), { t: 0 });
+            const d = s.t * 9 * power, [x, y, z] = at(s, d);
+            pos.set([x, y, z, x - dir * s.l * (0.3 + s.t), y, z], i * 6);
         });
-        w.geometry.attributes.position.needsUpdate = true;
+        this.windLines.geometry.attributes.position.needsUpdate = true;
+        this.windLines.material.opacity = 0.55 * power;
+        this.puffSeed.forEach((s, i) => {
+            s.t += dt * s.v * 0.8;
+            if (s.t > 1) Object.assign(s, this.windSeedFn(), { t: 0 });
+            const p = this.windPuffs[i], d = s.t * 8 * power;
+            p.position.set(...at(s, d));
+            p.scale.setScalar(0.25 + s.t * 1.1);
+            p.material.opacity = Math.sin(s.t * Math.PI) * 0.35 * power;
+        });
     }
 
     makeOfficer(clipName) {
