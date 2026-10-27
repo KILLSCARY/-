@@ -197,6 +197,7 @@ class Game {
         this.speed = BALANCE.speedStart;
         this.runTime = 0;
         this.distance = 0;
+        this.hudScore = 0;
         this.usdt = 0;
         this.trx = 0;
         this.coinCount = 0;
@@ -274,13 +275,16 @@ class Game {
         const names = [];
         for (const b of this.profile.takeBoosts()) {
             names.push(b.name);
-            if (b.id === "magnet") this.fx.magnet = b.time;
-            if (b.id === "testo") this.fly(b.time);
-            if (b.id === "honey") this.fx.honey = b.time;
-            if (b.id === "shield") this.fx.shield = true;
-            if (b.id === "x2") this.boostLeft = b.time;
-            if (b.id === "dash") { this.distance = b.meters; this.runTime = 20; } // со старта — как будто уже разогнался
+            if (b.id === "fokus") { this.fx.magnet = b.time; this.fx.focus = b.walls; } // focus: подсветка — заглушка
+            if (b.id === "ryvok") this.fx.honey = b.time; // прыжок выше (скорость +15% — заглушка)
+            if (b.id === "ustoychivost") this.fx.windproof = true; // заглушка: в WIND пока не учитывается
+            if (b.id === "spokoystvie") this.wallForgive = Math.max(this.wallForgive || 0, 1); // замедление — заглушка
+            if (b.id === "shchit") this.fx.shield = true;
+            if (b.id === "berserk") { this.ram = Math.max(this.ram || 0, b.charges); this.fly(b.time); }
+            if (b.id === "magnit") this.fx.magnet = Math.max(this.fx.magnet, b.time);
         }
+        const d = this.profile.data;
+        if (d.x2runs > 0) { d.x2runs--; this.boostLeft = 600; names.push("×2 монеты"); this.profile.save(); } // «Финансовый Ебобо»
         if (names.length) this.hub.toast(`В забеге: ${names.join(", ")}`);
         this.updateHud();
     }
@@ -347,7 +351,7 @@ class Game {
         this.audio.music("menu");
         this.audio.play("hit");
         if (cause === "cop" || cause === "caught") this.audio.play("busted");
-        // поймала погоня — сцена задержания (герой лежит, Мизулина над ним, мигалки), потом экран проигрыша
+        // поймала погоня — сцена задержания (герой лежит, Инспекторша над ним, мигалки), потом экран проигрыша
         const arrest = cause === "caught" && this.chaser?.visible && this.chaser.userData.mixer;
         if (arrest) this.startArrest();
         else if (this.chaser) this.chaser.visible = false;
@@ -437,7 +441,7 @@ class Game {
         }
         this.jumping = true;
         this.slideLeft = 0;
-        this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
+        this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // «Рывок» — прыжок выше
         this.camKick.dip = -0.16; // камера на миг приседает и догоняет героя
         this.audio.play("swipe");
         tg.haptic("medium");
@@ -569,7 +573,8 @@ class Game {
         const c = (this.hudCache ||= {});
         const text = (id, value) => { if (c[id] !== value) $(id).textContent = c[id] = value; };
         text("hud-usdt", fmt(this.usdt));
-        text("hud-score", fmt(this.score()));
+        this.hudScore = Math.max(this.hudScore || 0, this.score()); // счёт на экране только растёт
+        text("hud-score", fmt(this.hudScore));
         const hurt = this.stumble > 0 && this.state === "playing";
         if (this.hudHurt !== hurt) document.body.classList.toggle("hurt", (this.hudHurt = hurt));
         // действующие добавки: плашка цвета добавки и полоска, сколько осталось (полное время — с момента, когда
@@ -580,7 +585,7 @@ class Game {
             { id: "fly", name: POWERUPS.testo.hud, left: this.flight ? this.fx.fly : 0, color: hex(POWERUPS.testo.color) },
             { id: "x2", name: "×2", left: this.boostLeft, color: "#e9c25a" },
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
-            { id: "honey", name: "Мёд", left: this.fx.honey, color: "#f0a33a" },
+            { id: "honey", name: "Рывок", left: this.fx.honey, color: "#f0a33a" },
             { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
             { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#3dd1ff" },
             { id: "ram", name: "Таран", left: this.ram > 0 ? Infinity : 0, color: "#ffffff" },
@@ -704,7 +709,7 @@ class Game {
             cam.updateProjectionMatrix();
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
-        if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
+        if (arr) { // задержание: камера медленно облетает героя и Инспекторшу сбоку, низко
             const a = this.arrest, k = Math.min(1, a.t / 0.6), ang = 0.5 + a.t * 0.3;
             cam.position.lerp((v.focus2 ||= new THREE.Vector3()).set(this.x - Math.sin(ang) * 3.4 * a.side, 1.4, 0.4 + Math.cos(ang) * 3.4), k);
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
@@ -961,7 +966,7 @@ class Game {
         tg.haptic("warning");
         this.kick(0.35, 7);
         this.world.splash(this.x, 0, 22, 1.3);
-        // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+        // бежит Инспекторша (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
         const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
         if (!this.chaser || better) {
             if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
@@ -1160,43 +1165,46 @@ class Game {
     // ---- задержание (поймала погоня) ----------------------------------------------------------
     startArrest() {
         const c = this.chaser;
-        const feet = [];
-        c.traverse((o) => { if (o.isBone && /(Foot|ToeBase)$/.test(o.name)) feet.push(o); });
-        this.arrest = { t: 0, c, side: c.userData.side || 1, from: c.position.clone(), arrived: false, feet };
+        this.arrest = { t: 0, c, side: c.userData.side || 1, from: c.position.clone(), arrived: false };
         $("arrest").hidden = false;
         document.body.classList.add("arresting");
         tg.haptic("heavy");
     }
 
     arrestStep(dt) {
-        const a = this.arrest, c = a.c;
+        const a = this.arrest, c = a.c, mixer = c.userData.mixer;
         a.t += dt;
         // подбегает и встаёт сбоку у пояса героя, лицом к нему
         const k = Math.min(1, a.t / 0.7), e = k * (2 - k);
         c.position.x = a.from.x + (this.x + a.side * 0.75 - a.from.x) * e;
         c.position.z = a.from.z + (-0.35 - a.from.z) * e;
-        c.rotation.y = Math.atan2(this.x - c.position.x, -0.5 - c.position.z);
-        const mixer = c.userData.mixer;
-        if (k < 1) { c.position.y = 0; mixer.update(dt * 1.3); return; }
-        if (a.arrived) return;
-        // встала: замираем в шаге, когда обе ноги на асфальте, и ставим ступни на землю
-        a.arrived = true;
-        mixer.timeScale = 0;
-        for (const act of mixer._actions) act.time = 0;
-        mixer.update(0);
         c.position.y = 0;
-        c.updateMatrixWorld(true);
-        let low = Infinity;
-        for (const f of a.feet) low = Math.min(low, f.getWorldPosition(new THREE.Vector3()).y);
-        if (low < Infinity) c.position.y = -Math.max(0, low - 0.04);
-        this.audio.play("whistle");
+        c.rotation.y = Math.atan2(this.x - c.position.x, -0.5 - c.position.z);
+        if (k >= 1 && !a.arrived) {
+            // встала — «выписывает протокол» (клип CHASER.arrest, без него — замирает в шаге)
+            a.arrived = true;
+            this.audio.play("whistle");
+            const clip = this.world.chaserModel?.gltf.animations.find((x) => x.name === CHASER.arrest);
+            if (clip) {
+                const act = mixer.clipAction(clip);
+                act.reset().setLoop(THREE.LoopOnce, 1);
+                act.clampWhenFinished = true;
+                for (const other of mixer._actions) if (other !== act) other.fadeOut(0.2);
+                act.fadeIn(0.2).play();
+                a.act = act;
+            } else mixer.timeScale = 0;
+        }
+        mixer.update(dt * (a.arrived ? 1 : 1.3));
     }
 
     endArrest() {
         if (!this.arrest) return;
-        const m = this.arrest.c.userData.mixer;
-        if (m) m.timeScale = 1;
-        this.arrest.c.visible = false;
+        const { c, act } = this.arrest, m = c.userData.mixer;
+        if (m) {
+            m.timeScale = 1;
+            if (act) { act.stop(); for (const other of m._actions) if (other !== act) other.reset().setEffectiveWeight(1).play(); }
+        }
+        c.visible = false;
         this.arrest = null;
         $("arrest").hidden = true;
         document.body.classList.remove("arresting");
@@ -1449,7 +1457,7 @@ class Game {
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
             if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
-            if (this.fx.shield) { // «Чистая карта» прощает одно столкновение
+            if (this.fx.shield) { // «Щит» прощает одно столкновение
                 this.fx.shield = false;
                 this.fx.safe = 1;
                 o.visible = false;

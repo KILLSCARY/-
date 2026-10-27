@@ -174,9 +174,9 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 /* Главная (вариант C «Клуб»): слово-логотип, под ним пронумерованные плитки. 3D-сцена видна сверху. */
 #view-run { gap: 10px; padding-bottom: 12px; position: relative; min-height: 0; }
 .hub[data-tab="run"] .chap { display: none; } /* глава — плитка 05 */
-#view-run .brand { padding-top: 6px; }
+#view-run .brand { padding-top: 14px; }
 #view-run .grow { flex: 1; min-height: 40px; }
-.word { margin: 4px 0 0; font: 800 clamp(32px, 10.6vw, 50px)/0.92 var(--font-display); text-transform: uppercase; letter-spacing: -0.02em; }
+.word { margin: 4px 0 0; font: 800 clamp(32px, 10.6vw, 50px)/1 var(--font-display); text-transform: uppercase; letter-spacing: -0.02em; }
 .word span { display: block; }
 .word .metal { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .word .outline { color: transparent; -webkit-text-stroke: 1.4px var(--red); font-size: 1.3em; }
@@ -465,7 +465,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .fx b { min-width: 1ch; color: var(--c); font-variant-numeric: tabular-nums; }
 .fx b:empty { display: none; }
 .fx i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--c); transform-origin: left; transition: transform .2s linear; }
-/* Мизулина на хвосте — тревога: плашка красная и пульсирует (вместе с рамкой по краям экрана) */
+/* Инспекторша на хвосте — тревога: плашка красная и пульсирует (вместе с рамкой по краям экрана) */
 .fx-danger { background: color-mix(in srgb, var(--red) 82%, #000); border-color: var(--red); animation: danger .9s ease-in-out infinite; }
 @keyframes danger { 50% { box-shadow: 0 0 0 3px rgba(227, 52, 58, .28), 0 0 18px rgba(227, 52, 58, .75); } } /* пульсирует свечение, текст читается */
 .fx-danger::before { background: #fff; box-shadow: 0 0 8px #fff; }
@@ -792,7 +792,8 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
 .wind-q .wind-taps { justify-content: flex-start; }
 .wind-q.inhale { animation: none; border-color: rgba(255, 255, 255, .2); }
 
-/* ---- задержание: красно-синие мигалки по краям экрана и штамп «Задержан» ---- */
+/* ---- задержание «Протокол скуки»: красно-синие мигалки по краям экрана и штамп ---- */
+.arrest-fx .stamp-line { position: absolute; bottom: 22%; left: 8%; right: 8%; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: #fff; text-shadow: 0 2px 8px #000; animation: stamp-in .35s 1.2s both; }
 .arrest-fx { position: fixed; inset: 0; z-index: 25; pointer-events: none; display: grid; place-items: center; }
 .arrest-fx::before, .arrest-fx::after { content: ""; position: absolute; inset: 0; opacity: 0; animation: siren .5s steps(1) 5; }
 .arrest-fx::before { box-shadow: inset 70px 0 90px -40px rgba(255, 30, 40, .85); }
@@ -800,10 +801,18 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
 @keyframes siren { 0% { opacity: 1; } 50% { opacity: 0; } }
 .stamp {
     position: relative; padding: 10px 22px; border: 5px solid #e3343a; border-radius: 14px; color: #e3343a;
-    font: 900 min(46px, 11vw) var(--font-display); letter-spacing: .04em; text-transform: uppercase;
+    font: 900 min(36px, 8.6vw)/1.05 var(--font-display); letter-spacing: .03em; text-transform: uppercase;
+    max-width: 84vw; text-align: center;
     background: rgba(0, 0, 0, .35); transform: rotate(-12deg); opacity: 0;
     animation: stamp-in .35s .9s cubic-bezier(.3, 1.6, .5, 1) both;
 }
 @keyframes stamp-in { from { opacity: 0; transform: rotate(-12deg) scale(2.4); } to { opacity: .95; transform: rotate(-12deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .arrest-fx::before, .arrest-fx::after, .stamp { animation: none; opacity: 1; } }
 body.arresting #hud-fx, body.arresting #btn-skill { opacity: 0; pointer-events: none; transition: opacity .2s; }
+
+/* NS Store: карточки бустов и наборов с иконкой Жупела и кнопкой «Заказать настоящие» */
+.card-store { align-items: center; }
+.card-store .store-art { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex: none; }
+.card-store .store-line { font-style: italic; color: var(--dim); }
+.store-acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; flex: none; }
+.btn-real { font-size: 11px; background: transparent; border: 1px solid var(--red); color: var(--red); }

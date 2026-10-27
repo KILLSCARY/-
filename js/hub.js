@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_GEM_PRICES, GEMS, DAILY } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_GEM_PRICES, GEMS, DAILY, SETS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -78,7 +78,7 @@ export class Hub {
         $("tile-cases-badge").hidden = !free;
         $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
         const next = Object.values(p.data.next || {}).reduce((a, b) => a + b, 0);
-        $("tile-shop-sub").textContent = next ? `Добавок в запасе: ${next}` : "Магнит, мёд, щит";
+        $("tile-shop-sub").textContent = next ? `Добавок в запасе: ${next}` : "Фокус, Рывок, Щит";
         const hero = CHARACTERS.find((c) => c.id === this.game.heroId);
         $("tile-heroes-sub").textContent = hero?.name ?? "";
         $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
@@ -199,7 +199,9 @@ export class Hub {
                     <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
                     <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div></div>`;
             }).join("");
-            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.scrollTo(el.dataset.id, true);
+            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => { this.setFocus(el.dataset.id); this.scrollTo(el.dataset.id, true); };
+            // колесо мыши на компьютере листает карусель вбок (иначе вертикальное колесо её не двигает)
+            box.onwheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); box.scrollBy({ left: e.deltaY, behavior: "smooth" }); } };
             box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
             // прокрутка встала (щелчок к карточке) — герой под каруселью сразу, без ожидания последнего scroll
             box.onscrollend = () => { this.layoutCarousel(); clearTimeout(this.snapTimer); this.setFocus(box.querySelector(".hcard.active")?.dataset.id); };
@@ -238,13 +240,15 @@ export class Hub {
         }
         for (const el of cards) el.classList.toggle("active", el === best);
         clearTimeout(this.snapTimer);
-        this.snapTimer = setTimeout(() => this.setFocus(best?.dataset.id), 90);
+        // панель под каруселью сразу следует за центральной карточкой (раньше — только через 90 мс
+        // тишины после последнего scroll, и при инерции/лагах она «застревала» на Спиди)
+        this.setFocus(best?.dataset.id, true);
     }
 
-    setFocus(id) {
+    setFocus(id, quiet) {
         if (!id || id === this.focus) return;
         this.focus = id;
-        this.game.audio.play("swipe");
+        if (!quiet) this.game.audio.play("swipe");
         this.renderDetail();
     }
 
@@ -326,16 +330,33 @@ export class Hub {
         const box = $("shop-list");
         box.innerHTML = "";
         if (this.seg === "boosts") {
+            const head = (t, p) => {
+                const n = document.createElement("div");
+                n.className = "card card-note";
+                n.innerHTML = `<div class="card-main"><h3>${t}</h3><p>${p}</p></div>`;
+                box.append(n);
+            };
+            head("Горилла-кладовщик", `«Бегать на голодный организм — это к Инспекторше. Затарься.» Бусты — за монеты, можно взять ${BOOST_LIMIT} буста на забег.`);
             for (const it of BOOSTS) {
                 const have = this.p.data.next[it.id] || 0;
-                const card = document.createElement("div");
-                card.className = "card";
-                card.innerHTML = `<div class="card-main"><h3>${it.name}</h3><p>${it.text}</p>${have ? `<span class="have">На следующие забеги: ${have}</span>` : ""}</div>`;
-                card.append(this.priceButton({ usdt: it.price }, () => {
+                box.append(this.storeCard(it, have ? `На следующие забеги: ${have}` : "", this.priceButton({ coins: it.price }, () => {
                     this.p.addBoost(it.id);
-                    this.toast(`${it.name} — сработает в следующем забеге`);
-                }));
-                box.append(card);
+                    this.toast("Взял! Буст ждёт в следующем забеге.");
+                })));
+            }
+            head("Наборы", "Паки бустов за кристаллы. Настоящий набор — в @Nesuschiystore.");
+            for (const st of SETS) {
+                const owned = st.skin && (this.p.data.skins || []).includes(st.skin);
+                const btn = owned ? Object.assign(document.createElement("button"), { className: "btn-small is-on", textContent: "Есть", disabled: true })
+                    : this.priceButton({ gems: st.gems }, () => {
+                        for (const [id, n] of Object.entries(st.give || {})) this.p.addBoost(id, n);
+                        if (st.x2runs) this.p.data.x2runs = (this.p.data.x2runs || 0) + st.x2runs;
+                        if (st.restore) this.p.data.restore = (this.p.data.restore || 0) + 1;
+                        if (st.skin) (this.p.data.skins ||= []).push(st.skin);
+                        this.p.save();
+                        this.toast(`${st.name} — в запасе`);
+                    });
+                box.append(this.storeCard(st, "", btn));
             }
             const appeal = document.createElement("div");
             appeal.className = "card card-note";
@@ -350,12 +371,13 @@ export class Hub {
                 if (pk.once && (this.p.data.packs || []).includes(pk.id)) continue;
                 const card = document.createElement("div");
                 card.className = `card gem-pack${pk.once ? " gem-starter" : ""}`;
-                card.innerHTML = `<div class="gem-ico">${ICON.gem}<b>${pk.gems}</b></div><div class="card-main">${pk.once ? '<span class="card-tag on">Один раз · выгодно</span>' : ""}<h3>${pk.name}</h3><p>${pk.gems} кристаллов</p></div>`;
-                card.append(this.priceButton({ usdt: pk.usdt }, () => {
-                    this.p.addGems(pk.gems);
-                    if (pk.once) { (this.p.data.packs ||= []).push(pk.id); this.p.save(); }
-                    this.toast(`+${pk.gems} кристаллов`);
-                }));
+                card.innerHTML = `<div class="gem-ico">${ICON.gem}<b>${pk.gems}</b></div><div class="card-main">${pk.once ? '<span class="card-tag on">Один раз · выгодно</span>' : ""}<h3>${pk.name}</h3><p>${pk.gems} кристаллов${pk.hero ? " + герой" : ""}</p></div>`;
+                // реальная оплата (Telegram Stars или кошелёк USDT) ещё не подключена — заглушка
+                const b = document.createElement("button");
+                b.className = "btn-small";
+                b.textContent = `${pk.price} USDT`;
+                b.onclick = () => this.toast("Оплата скоро: Telegram Stars или кошелёк USDT");
+                card.append(b);
                 box.append(card);
             }
         } else {
@@ -382,7 +404,55 @@ export class Hub {
         }
     }
 
+    // карточка NS Store: иконка, название, эффект, реплика, цена и «Заказать настоящие» → @Nesuschiystore
+    storeCard(it, have, priceBtn) {
+        const card = document.createElement("div");
+        card.className = "card card-store";
+        card.innerHTML = `${it.art ? `<img class="store-art" src="${it.art}" alt="" loading="lazy">` : ""}<div class="card-main"><h3>${it.name}</h3><p>${it.text}</p>${it.line ? `<p class="store-line">${it.line}</p>` : ""}${have ? `<span class="have">${have}</span>` : ""}</div>`;
+        const acts = document.createElement("div");
+        acts.className = "store-acts";
+        const real = document.createElement("button");
+        real.className = "btn-small btn-real";
+        real.textContent = "Заказать настоящие";
+        real.onclick = () => this.openStore();
+        acts.append(priceBtn, real);
+        card.append(acts);
+        return card;
+    }
+
+    openStore() {
+        const wa = window.Telegram?.WebApp;
+        if (wa?.openTelegramLink) wa.openTelegramLink(NS_STORE_URL);
+        else window.open(NS_STORE_URL, "_blank");
+    }
+
     priceButton(price, onBuy) {
+        if (price.coins) { // монеты — игровой кошелёк (в коде он p.usdt), не реальные USDT
+            const b = document.createElement("button");
+            b.className = "btn-small";
+            b.innerHTML = `🪙 ${fmt(price.coins)}`;
+            b.disabled = this.p.usdt < price.coins;
+            b.onclick = () => {
+                if (!this.p.pay({ usdt: price.coins })) return this.toast("Монет маловато. Пробеги ещё главу — Горилла подождёт.");
+                this.game.audio.play("buy");
+                onBuy();
+                this.render();
+            };
+            return b;
+        }
+        if (price.gems) {
+            const b = document.createElement("button");
+            b.className = "btn-small";
+            b.innerHTML = `${ICON.gem} ${fmt(price.gems)}`;
+            b.disabled = this.p.gems < price.gems;
+            b.onclick = () => {
+                if (!this.p.pay({ gems: price.gems })) return;
+                this.game.audio.play("buy");
+                onBuy();
+                this.render();
+            };
+            return b;
+        }
         const b = document.createElement("button");
         b.className = "btn-small" + (price.trx ? " btn-trx" : "");
         b.innerHTML = price.trx ? `${ICON.trx} ${price.trx}` : `${ICON.usdt} ${fmt(price.usdt)}`;

@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT, TRX), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, UPGRADES } from "./config.js";
+import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES } from "./config.js";
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
@@ -169,7 +169,7 @@ export class Profile {
     // забрать добавки на этот забег: по одной каждой купленной
     takeBoosts() {
         const taken = [];
-        for (const b of BOOSTS) if (this.data.next[b.id] > 0) { this.data.next[b.id]--; taken.push(b); }
+        for (const b of BOOSTS) if (taken.length < BOOST_LIMIT && this.data.next[b.id] > 0) { this.data.next[b.id]--; taken.push(b); }
         if (taken.length) this.save();
         return taken;
     }

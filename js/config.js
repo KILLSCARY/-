@@ -33,7 +33,7 @@ export const DEATH_TEXT = {
     cart: ["Врезался в тележку", "Тележка с баулами победила", "Не перепрыгнул тележку"],
     starbox: ["Влетел в ящик со звездой", "Сигналка мигала не зря", "Ящик оказался тяжелее"],
     cop: ["Остановил ДПС: «Откуда USDT?»", "Инспектор попросил показать чеки", "Документики! Приехали"],
-    caught: ["Споткнулся дважды — Мизулина догнала", "Второй удар — и Мизулина тут как тут", "Догнала. Пиши объяснительную!"],
+    caught: ["Споткнулся дважды — Инспекторша догнала", "Второй удар — и Инспекторша тут как тут", "Протокол: слишком много «подумаю». Бежим ещё раз?"],
     block: ["Влетел в бетонный блок", "Бетон не переспоришь", "Блок оказался крепче"],
     roadblock: ["Не перепрыгнул ограждение", "Споткнулся о полосатую балку", "Ограждение — 1, Крыс — 0"],
     atm: ["Врезался в банкомат", "Банкомат зажевал карту", "Снял наличку лбом"],
@@ -158,7 +158,8 @@ export const POLICE_OFFICER = { url: "models/obj/cop.glb?v=2", height: 1.85, idl
 
 // Кто бежит за героем после первого удара (BALANCE.stumbleTime секунд); hud — надпись в забеге.
 // Пока модель грузится — инспектор ДПС, а без него спрайт.
-export const CHASER = { url: "models/obj/mizulina.glb", height: 1.72, run: "run", hud: "МИЗУЛИНА" };
+// arrest — клип, когда догнала (жест «протокол»), stop/walk — запасные клипы модели
+export const CHASER = { url: "models/obj/inspector.glb?v=2", height: 1.72, run: "run", arrest: "cast", hud: "ИНСПЕКТОРША" };
 
 // Живые NPC на тротуарах (Meshy, со скелетом). Пока модели нет — девушки спрайтами, кошек и голубей просто нет.
 // girl: walkShare — доля гуляющих (остальные танцуют), speed — м/с вдоль тротуара;
@@ -183,8 +184,9 @@ export const CHARACTERS = [
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
         // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=3", height: 1.8, portrait: "img/heroes/pavel.webp",
+        // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle" }, flyClip: { loop: true, speed: 1.3 } },
     { id: "islam", name: "Ислам", url: "models/islam.glb?v=2", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
@@ -277,10 +279,11 @@ export const BOSS = { at: 900, gap: 70, pass: 2, reward: 100, gems: 10, portrait
 export const GEMS = {
     chapter: 15,
     packs: [
-        { id: "starter", name: "Стартовый набор", gems: 40, usdt: 2000, once: true },
-        { id: "p10", name: "Горсть кристаллов", gems: 10, usdt: 1000 },
-        { id: "p30", name: "Мешок кристаллов", gems: 30, usdt: 2700 },
-        { id: "p80", name: "Сундук кристаллов", gems: 80, usdt: 6400 },
+        // price — реальные USDT (Telegram Stars или кошелёк — ждёт решения), оплата пока не подключена
+        { id: "starter", name: "Стартовый пак + Денчик", gems: 120, price: 1.99, hero: "denchik", once: true },
+        { id: "p100", name: "Горсть кристаллов", gems: 100, price: 1.99 },
+        { id: "p550", name: "Мешок кристаллов", gems: 550, price: 8.99 },
+        { id: "p1200", name: "Сундук кристаллов", gems: 1200, price: 17.99 },
     ],
 };
 // Выкуп героя за кристаллы (вместо USDT)
@@ -347,14 +350,29 @@ export const HERO_SKILLS = {
     pavel: { name: "Связки", text: "8 с двойные USDT", kind: "x2", time: 8 },
 };
 
-// «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.
+// «НЕ СУЩИЙ STORE» (каталог shop_v4_bady): бусты на один забег — только за монеты (price, игровой кошелёк),
+// наборы — только за кристаллы (gems). За USDT (реальные деньги) — только паки кристаллов (GEMS.packs).
+// Купленные копятся и тратятся на старте забега, не больше BOOST_LIMIT за забег. Цены в рублях не показываем:
+// у каждой карточки кнопка «Заказать настоящие» → NS_STORE_URL. Тексты — сценарий v2.2 / shop_cards_texts_v1.
+export const NS_STORE_URL = "https://t.me/Nesuschiystore";
+export const BOOST_LIMIT = 2;
 export const BOOSTS = [
-    { id: "magnet", name: "Холин", text: "Первые 15 с концентрация на максимум: USDT сами тянутся к тебе", price: 300, time: 15 },
-    { id: "testo", name: "Тестобустер", text: "Старт с дикого пампа: 5 с летишь над дорогой", price: 800, time: 5 },
-    { id: "honey", name: "Мёд с пасеки", text: "15 с прыжки выше", price: 400, time: 15 },
-    { id: "shield", name: "Чистая карта", text: "Одно столкновение не считается", price: 600 },
-    { id: "x2", name: "Лимит ×2", text: "Двойные USDT первые 30 с", price: 700, time: 30 },
-    { id: "dash", name: "Рывок", text: "Старт сразу с 500 м", price: 900, meters: 500 },
+    { id: "fokus", name: "Фокус", text: "Подсветка верной полосы на 5 стенах. Холин внутри: 15 с монеты тянутся к тебе", line: "«Голова чистая — ответ очевидный.»", price: 350, walls: 5, time: 15, art: "img/shop/boost_fokus.png" },
+    { id: "ryvok", name: "Рывок", text: "+15% скорости и прыжок выше", line: "«Ноги помнят, куда бежать.»", price: 300, time: 15, art: "img/shop/boost_ryvok.png" },
+    { id: "ustoychivost", name: "Устойчивость", text: "Ветер Ислама не сносит с полосы", line: "Ислам: «Даже я не сдую.»", price: 250, art: "img/shop/boost_ustoychivost.png" },
+    { id: "spokoystvie", name: "Спокойствие", text: "Время перед стеной замедляется, 1 ошибка прощается", line: "Инспекторша: «Сегодня отпущу.»", price: 400, art: "img/shop/boost_spokoystvie.png" },
+    { id: "shchit", name: "Щит", text: "+1 жизнь: одно столкновение не считается", line: "«Запас прочности никогда не лишний.»", price: 450, art: "img/shop/boost_shchit.png" },
+    { id: "berserk", name: "Берсерк", text: "Таран через 3 стены. Тестобустер внутри: старт с пампа, 5 с летишь", line: "«Возражения? Не слышу.»", price: 600, charges: 3, time: 5, art: "img/shop/boost_berserk.png" },
+    { id: "magnit", name: "Магнит", text: "Монеты и буквы кодовых фраз летят к тебе (15 с)", line: "«Всё нужное — само в руки.»", price: 300, time: 15, art: "img/shop/boost_magnit.png" },
+];
+// Наборы за кристаллы. give — сколько бустов кладём в запас; x2runs — ×2 монеты на N забегов; restore, skin — флаги.
+// Состав настоящих наборов (Ебобо, Рама, Борода) в игре не показываем — только игровой эффект.
+export const SETS = [
+    { id: "ebobo", name: "Финансовый Ебобо", text: "×2 монеты на 3 забега + Магнит ×3", line: "Саша Белый: «Миллион сам себя не соберёт.»", gems: 120, give: { magnit: 3 }, x2runs: 3, art: "img/shop/set_finansovyy_ebobo.png" },
+    { id: "rama", name: "Рама Два Ван Дамма", text: "Рывок ×3 + Устойчивость ×3", line: "Ислам: «Крыши — это наш спортзал.»", gems: 100, give: { ryvok: 3, ustoychivost: 3 }, art: "img/shop/set_rama_dva_van_damma.png" },
+    { id: "gberserk", name: "Гормональный Берсерк", text: "Берсерк ×3 + Щит ×2. Награда за экзамен у Инакова", line: "Инаков: «Заслужил на экзамене? Забирай. Нет — докажи.»", gems: 150, give: { berserk: 3, shchit: 2 }, art: "img/shop/set_gormonalnyy_berserk.png" },
+    { id: "son", name: "Королевский Сон", text: "Спокойствие ×5 + полное восстановление жизней", line: "«Выспался — и Инспекторша не догонит.»", gems: 130, give: { spokoystvie: 5 }, restore: true, art: "img/shop/set_korolevskiy_son.png" },
+    { id: "boroda", name: "Бородатый Ублюдок", text: "Скин «Борода» для всех героев", line: "«Борода не делает мужчиной. Но выглядит мощно.»", gems: 200, skin: "beard", art: "img/shop/set_borodatyy_ublyudok.png" },
 ];
 // Баночки на дороге. Тестобустер — дикий памп: герой взлетает над препятствиями и собирает USDT в воздухе,
 // потом приземляется. Холин — ум притягивает умные мысли, а заодно и монеты (магнит).
