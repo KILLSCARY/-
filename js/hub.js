@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -92,6 +92,13 @@ export class Hub {
         if (this.current === "chapters") this.renderChapters();
     }
 
+    // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)
+    managerLink() {
+        const phrases = this.p.phrases(), weak = this.p.weakType();
+        const text = `Привет! Я из игры «Покоритель P2P 3.0».${phrases.length ? ` Мои кодовые фразы: ${phrases.join(", ")}.` : ""}${weak ? ` Код: ${CLIENT_TYPES[weak].tag}` : ""}`;
+        return `${LINKS.manager}?text=${encodeURIComponent(text)}`;
+    }
+
     // ---- главы: пройденные, текущая (прогресс), закрытые ----
     renderChapters() {
         const ch = this.p.chapter(), earned = this.p.data.earned || 0;
@@ -103,11 +110,16 @@ export class Hub {
             const line = st === "done" ? `Заработано ${fmt(c.goal)} USDT`
                 : st === "now" ? `${fmt(earned)} из ${fmt(c.goal)} USDT, осталось ${fmt(c.goal - earned)}`
                 : `Откроется на ${fmt(from)} USDT`;
+            const phrase = st === "done" ? `<p class="ch-phrase">Кодовая фраза <b>${c.phrase}</b></p>` : `<p class="ch-phrase">Кодовая фраза откроется после главы</p>`;
             return `<div class="card chapter st-${st}">
                 <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>
                 <div class="card-main"><span class="card-tag${st === "now" ? " on" : ""}">${tag}</span><h3>${c.name}</h3><p>${line}</p>
+                ${c.place ? `<p class="ch-place">${c.place}</p>` : ""}${phrase}
                 ${st === "locked" ? "" : `<div class="bar"><i style="width:${k * 100}%"></i></div>`}</div></div>`;
-        }).join("") + (ch.done ? `<div class="card card-note"><div class="card-main"><h3>Сезон 1 пройден</h3><p>Все главы открыты. Новые — в следующем сезоне.</p></div></div>` : "");
+        }).join("") + (this.p.phrases().length ? `<div class="card card-note"><div class="card-main"><h3>Кодовые фразы</h3>
+            <p>Назови их менеджеру отдела продаж — он подберёт, что тебе подойдёт.</p><button class="btn-small" id="btn-manager">Написать менеджеру →</button></div></div>` : "") + (ch.done ? `<div class="card card-note"><div class="card-main"><h3>Сезон 1 пройден</h3><p>Все главы открыты. Новые — в следующем сезоне.</p></div></div>` : "");
+        const mb = $("btn-manager");
+        if (mb) mb.onclick = () => tg.open(this.managerLink());
     }
 
     // ---- герои: карусель ----

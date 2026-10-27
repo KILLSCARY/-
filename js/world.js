@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CHASER, NPCS, SKY } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHASER, NPCS, SKY } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -97,6 +97,47 @@ function pbr(name, repeat, maps = ["nor", "rough"]) {
     if (maps.includes("rough")) out.roughnessMap = loadTex(`${name}_rough.jpg`, repeat);
     if (maps.includes("glow")) out.emissiveMap = loadTex(`${name}_glow.jpg`, repeat, true);
     return out;
+}
+
+function roundRect(g, x, y, w, h, r) {
+    const R = typeof r === "number" ? { tl: r, tr: r, br: r, bl: r } : r;
+    g.beginPath();
+    g.moveTo(x + R.tl, y);
+    g.lineTo(x + w - R.tr, y); g.quadraticCurveTo(x + w, y, x + w, y + R.tr);
+    g.lineTo(x + w, y + h - R.br); g.quadraticCurveTo(x + w, y + h, x + w - R.br, y + h);
+    g.lineTo(x + R.bl, y + h); g.quadraticCurveTo(x, y + h, x, y + h - R.bl);
+    g.lineTo(x, y + R.tl); g.quadraticCurveTo(x, y, x + R.tl, y);
+    g.closePath();
+}
+
+// одна строка: уменьшаем шрифт, пока не влезет в maxW (результат — в g.__line, шрифт уже выставлен)
+function fitText(g, text, maxW, size, font) {
+    for (let s = size; s >= 24; s -= 2) {
+        g.font = font.replace("{s}", s);
+        if (g.measureText(text).width <= maxW) break;
+    }
+    g.__line = text;
+}
+
+// несколько строк по центру блока: подбираем размер, чтобы влезло по ширине и высоте
+function wrapText(g, text, cx, top, maxW, maxH, font) {
+    for (let s = 64; s >= 26; s -= 2) {
+        g.font = font.replace("{s}", s);
+        const words = text.split(" "), lines = [];
+        let line = "";
+        for (const w of words) {
+            const t = line ? `${line} ${w}` : w;
+            if (g.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+        }
+        lines.push(line);
+        const lh = s * 1.15;
+        if (lines.length * lh <= maxH && lines.every((l) => g.measureText(l).width <= maxW)) {
+            const y0 = top + (maxH - lines.length * lh) / 2 + s * 0.9;
+            g.textAlign = "center";
+            lines.forEach((l, i) => g.fillText(l, cx, y0 + i * lh));
+            return;
+        }
+    }
 }
 
 function canvasTex(w, h, draw) {
@@ -1467,6 +1508,92 @@ export class World {
         return o;
     }
 
+    // ---- стена-возражение: арка с вопросом над дорогой и три таблички с ответами на полосах ----------
+    // answers — ответы по полосам, correct — номер полосы с правильным. Текст рисуется на холсте (свой у каждой стены,
+    // освобождается вместе с ней). Таблички — препятствия type "answer": правильная ломается, неправильная — удар.
+    addWall(q, answers, correct, z) {
+        const type = CLIENT_TYPES[q.type];
+        const wall = { q, answers, correct, answered: false, plates: [], type: q.type };
+        const textMat = (w, h, draw) => {
+            const map = canvasTex(w, h, draw);
+            map.anisotropy = 4;
+            const m = new THREE.MeshBasicMaterial({ map, transparent: true });
+            m.userData.own = true;
+            return m;
+        };
+        // арка: две опоры и щит с вопросом
+        const arch = new THREE.Group();
+        for (const x of [-3.4, 3.4]) {
+            const post = new THREE.Mesh(this.geo.box, this.mat.pole);
+            post.scale.set(0.16, 5.6, 0.16);
+            post.position.set(x, 2.8, 0);
+            arch.add(post);
+        }
+        const signGeo = new THREE.PlaneGeometry(6.6, 1.6);
+        signGeo.userData.own = true;
+        const sign = new THREE.Mesh(signGeo, textMat(1024, 248, (g, w, h) => {
+            g.fillStyle = "rgba(20,20,20,.94)";
+            roundRect(g, 4, 4, w - 8, h - 8, 34); g.fill();
+            g.lineWidth = 6; g.strokeStyle = type.color; g.stroke();
+            g.fillStyle = type.color;
+            g.font = '700 34px "Inter Tight", Arial, sans-serif';
+            g.textAlign = "center";
+            g.fillText(type.name.toUpperCase(), w / 2, 62);
+            g.fillStyle = "#e6e6e6";
+            fitText(g, q.q.length < 14 ? q.q : `«${q.q}»`, w - 80, 76, '800 {s}px "Unbounded", "Arial Black", sans-serif');
+            g.fillText(g.__line, w / 2, 170);
+        }));
+        sign.position.set(0, 5.2, 0);
+        arch.add(sign);
+        arch.position.z = z - 0.8;
+        arch.userData = { type: "decor" };
+        this.scene.add(arch);
+        this.obstacles.push(arch);
+        // таблички на полосах
+        const plateGeo = new THREE.PlaneGeometry(1.62, 1.22);
+        plateGeo.userData.own = true;
+        answers.forEach((text, lane) => {
+            const g = new THREE.Group();
+            const board = new THREE.Mesh(plateGeo, textMat(512, 380, (c, w, h) => {
+                c.fillStyle = "rgba(24,24,24,.96)";
+                roundRect(c, 4, 4, w - 8, h - 8, 36); c.fill();
+                c.lineWidth = 8; c.strokeStyle = type.color; c.stroke();
+                c.fillStyle = type.color;
+                roundRect(c, 4, 4, w - 8, 56, { tl: 36, tr: 36, bl: 0, br: 0 }); c.fill();
+                c.fillStyle = "#111";
+                c.font = '800 30px "Inter Tight", Arial, sans-serif';
+                c.textAlign = "center";
+                c.fillText(`${type.tag} · ${type.name.toUpperCase()}`, w / 2, 43);
+                c.fillStyle = "#e6e6e6";
+                wrapText(c, text, w / 2, 70, w - 56, h - 90, '700 {s}px "Inter Tight", Arial, sans-serif');
+            }));
+            board.position.y = 1.2;
+            const legGeo = this.geo.box;
+            for (const x of [-0.6, 0.6]) {
+                const leg = new THREE.Mesh(legGeo, this.mat.pole);
+                leg.scale.set(0.06, 0.6, 0.06);
+                leg.position.set(x, 0.3, -0.02);
+                g.add(leg);
+            }
+            g.add(board);
+            g.position.set(this.lanes[lane], 0, z);
+            g.userData = { type: "answer", halfZ: 0.35, wall, correct: lane === correct, lane, text };
+            this.scene.add(g);
+            this.obstacles.push(g);
+            wall.plates.push(g);
+        });
+        // ничего постороннего вплотную к стене: ряды препятствий и монеты в ±12 м убираем
+        for (const o of [...this.obstacles]) {
+            if (o.userData.type === "decor" || o.userData.type === "answer") continue;
+            if (Math.abs(o.position.z - z) < 12 || (o.userData.oncoming && o.position.z < z)) {
+                this.dropObstacle(o);
+                this.obstacles.splice(this.obstacles.indexOf(o), 1);
+            }
+        }
+        for (let i = this.coins.length - 1; i >= 0; i--) if (Math.abs(this.coins[i].position.z - z) < 6) this.removeCoin(i);
+        return wall;
+    }
+
     pickKind() {
         const total = Object.values(OBSTACLE_MIX).reduce((a, b) => a + b, 0);
         let r = Math.random() * total;
@@ -1489,7 +1616,8 @@ export class World {
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
         for (const lane of blocked) {
-            const kind = this.pickKind();
+            let kind = this.pickKind();
+            if (this.noCars && kind === "car") kind = "block"; // встречная тачка проехала бы сквозь стену-возражение
             const o = this.addObstacle(kind, lane, z);
             if (o.userData.oncoming) o.position.z = z * (1 + o.userData.oncoming / Math.max(1, speed));
             // пост ДПС: инспектор на полосе, патрульная машина у обочины — там, где на тротуаре свободно
@@ -1544,7 +1672,7 @@ export class World {
         o.traverse((m) => {
             m.skeleton?.dispose();
             if (m.geometry?.userData.own) m.geometry.dispose();
-            for (const mat of [].concat(m.material || [])) if (mat.userData?.own) mat.dispose();
+            for (const mat of [].concat(m.material || [])) if (mat.userData?.own) { mat.map?.dispose(); mat.dispose(); }
         });
     }
 

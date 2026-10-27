@@ -652,3 +652,38 @@ html.tg, html.tg body { background: #000; }
 @media (prefers-reduced-motion: reduce) {
     .co-rays, .case-art img, .case-art .case-ph, .co .co-case, .prize, .spark, .co-flash { animation: none !important; }
 }
+
+/* ---- стена-возражение: вопрос в HUD, пока стена впереди ---- */
+.wall-q {
+    position: absolute; left: 50%; top: calc(86px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
+    transform: translateX(-50%); width: min(340px, calc(100% - 32px)); padding: 12px 16px 11px; text-align: center;
+    border-radius: 20px; background: rgba(20, 20, 20, .9); border: 1px solid var(--tc, var(--red));
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .5); pointer-events: none;
+    animation: wq-in .35s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+.wall-q span { display: block; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--tc, var(--red)); }
+.wall-q b { display: block; margin: 4px 0 3px; font: 800 17px/1.15 var(--font-display); text-transform: uppercase; }
+.wall-q i { font-style: normal; font-size: 11px; color: var(--muted); }
+.wq-ans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 6px; }
+.wq-ans em {
+    display: grid; place-items: center; min-height: 46px; padding: 6px; border-radius: 12px; font-style: normal;
+    font-size: 11.5px; font-weight: 600; line-height: 1.2; color: #fff; background: rgba(255, 255, 255, .06);
+    border: 1px solid color-mix(in srgb, var(--tc, #e3343a) 45%, transparent);
+}
+@keyframes wq-in { from { opacity: 0; transform: translate(-50%, -12px) scale(.94); } }
+
+/* кодовая фраза за пройденную главу — на экране проигрыша */
+.phrase-card {
+    margin: 12px 0 0; padding: 14px; border-radius: 18px; text-align: center;
+    background: linear-gradient(180deg, rgba(227, 52, 58, .18), rgba(227, 52, 58, .05)); border: 1px solid rgba(227, 52, 58, .55);
+}
+.phrase-card .label { display: block; color: #ff8a8f; }
+.phrase-card p { margin: 6px 0 2px; font-size: 12px; color: var(--muted); }
+.phrase-card b { display: block; font: 800 22px/1.1 var(--font-display); letter-spacing: .02em; margin-bottom: 10px; }
+.phrase-card .btn-small { margin: 0 auto; }
+
+/* главы: место действия и кодовая фраза */
+.ch-place { margin: 0; font-size: 12px; color: var(--dim); }
+.ch-phrase { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.ch-phrase b { color: #fff; font-family: var(--font-display); letter-spacing: .02em; }
+@media (prefers-reduced-motion: reduce) { .wall-q { animation: none; } }

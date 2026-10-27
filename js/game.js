@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, POLICE_OFFICER, CHASER, SKY } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -206,6 +206,12 @@ class Game {
         if (this.rat.userData) this.rat.userData.clipT = null;
         this.phase = 0;
         this.nextRowZ = -40;
+        // стены-возражения: где следующая, серия правильных, ошибки по типам клиентов за забег
+        this.nextWallAt = WALLS.firstAt;
+        this.wall = null;
+        this.wallStreak = 0;
+        this.wallStats = {};
+        this.world.noCars = false;
         this.cause = null;
         this.rat.position.set(0, 0, 0);
         this.rat.rotation.set(0, 0, 0);
@@ -349,7 +355,19 @@ class Game {
         $("appeal-price").textContent = `${APPEAL_PRICE} TRX`;
         const counters = [["over-score", score, 0], ["over-usdt", this.usdt, 250], ["over-dist", this.distance, 320], ["over-trx", this.trx, 390]];
         for (const [id] of counters) $(id).textContent = "0";
+        // стены за забег — в профиль (по ним менеджер поймёт тип клиента)
+        this.profile.addWallStats(this.wallStats);
+        this.wallStats = {};
+        $("wall-q").hidden = true;
+        // пройдена глава — кодовая фраза на экране проигрыша
+        const phraseBox = $("over-phrase");
+        phraseBox.hidden = chapter === null;
         if (chapter !== null) {
+            const done = CHAPTERS[chapter - 1];
+            phraseBox.innerHTML = `<span class="label">Глава ${chapter} «${done.name}» пройдена</span>
+                <p>Кодовая фраза</p><b>${done.phrase}</b>
+                <button class="btn-small" id="btn-phrase">Назвать менеджеру →</button>`;
+            $("btn-phrase").onclick = () => tg.open(this.hub.managerLink());
             setTimeout(() => {
                 this.audio.play("record");
                 this.hub.toast(chapter < CHAPTERS.length ? `Глава ${chapter + 1} открыта: ${CHAPTERS[chapter].name}` : "Сезон 1 пройден!");
@@ -764,7 +782,9 @@ class Game {
             const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
+        if (this.distance - SPAWN_Z >= this.nextWallAt) this.spawnWall();
         this.world.update(dt, move, this.t);
+        this.watchWall();
         // инспектор свистит, когда пробегаешь мимо поста ДПС
         for (const o of this.world.obstacles) {
             if (!o.userData.police || o.userData.whistled || o.position.z < -5) continue;
@@ -958,6 +978,77 @@ class Game {
         this.rat.userData.clipT = clipT;
     }
 
+    // ---- стены-возражения -------------------------------------------------------------------
+    // Вопрос текущей главы (её общая стена) — с долей WALLS.chapterWall, иначе случайный из банка, не повторяя прошлый
+    spawnWall() {
+        const z = -(this.nextWallAt - this.distance);
+        const [a, b] = WALLS.every;
+        this.nextWallAt += a + Math.random() * (b - a);
+        const chWall = CHAPTERS[Math.min(this.profile.chapter().index, CHAPTERS.length - 1)].wall;
+        const pool = QUESTIONS.filter((q) => q !== this.lastQ);
+        const q = chWall && Math.random() < WALLS.chapterWall ? QUESTIONS.find((x) => x.id === chWall) : pick(pool);
+        this.lastQ = q;
+        const order = [0, 1, 2].sort(() => Math.random() - 0.5); // таблички перемешиваются: order[полоса] = номер ответа
+        this.wall = this.world.addWall(q, order.map((i) => q.a[i]), order.indexOf(0), z);
+        this.world.noCars = true;
+        this.nextRowZ = Math.min(this.nextRowZ, z - 16); // следующий ряд — не раньше чем через 16 м после стены
+    }
+
+    // вопрос — в HUD, пока стена впереди; прошёл мимо — стена убирается из памяти игры
+    watchWall() {
+        const w = this.wall, box = $("wall-q");
+        if (!w) { if (!box.hidden) box.hidden = true; return; }
+        const z = w.plates[0].position.z;
+        const show = !w.answered && z > -75 && z < 1;
+        if (show && box.hidden) {
+            $("wq-type").textContent = CLIENT_TYPES[w.type].name;
+            $("wq-text").textContent = w.q.q;
+            $("wq-ans").innerHTML = "<em></em><em></em><em></em>"; // ответы по полосам: слева, по центру, справа
+            [...$("wq-ans").children].forEach((el, i) => { el.textContent = w.answers[i]; });
+            box.style.setProperty("--tc", CLIENT_TYPES[w.type].color);
+            box.hidden = false;
+        } else if (!show && !box.hidden) box.hidden = true;
+        if (z > 3) {
+            if (!w.answered) this.answer(null); // проскочил (полёт) — ответ не засчитан, но и не ошибка
+            this.wall = null;
+            this.world.noCars = false;
+        }
+    }
+
+    // ответ: true — забег закончился (второй удар)
+    answer(o) {
+        const w = this.wall;
+        if (!w || w.answered) return false;
+        w.answered = true;
+        for (const p of w.plates) if (p !== o) p.userData.type = "decor";
+        if (!o) return false;
+        const st = (this.wallStats[w.type] ||= { ok: 0, fail: 0 });
+        if (o.userData.correct) {
+            st.ok++;
+            this.wallStreak++;
+            o.visible = false;
+            o.userData.type = "decor";
+            this.world.flash(o.position.clone().setY(1.2), true);
+            this.world.splash(this.x, 0, 18, 1.1);
+            this.usdt += WALLS.reward * (this.boostLeft > 0 ? 2 : 1);
+            this.audio.play("boost");
+            tg.haptic("success");
+            if (this.wallStreak % WALLS.streak === 0) {
+                this.boostLeft = Math.max(this.boostLeft, WALLS.streakTime);
+                this.hub.toast(`Серия ${this.wallStreak}! ×2 USDT на ${WALLS.streakTime} с`);
+            } else this.hub.toast(`Верно! +${WALLS.reward} USDT`);
+            return false;
+        }
+        st.fail++;
+        this.wallStreak = 0;
+        this.hub.toast(`Почти! Верно: «${w.q.a[0]}»`); // без «неправильно» — подсказываем верный ответ
+        o.userData.type = "decor";
+        if (this.fx.safe > 0) return false;
+        if (this.stumble > 0) { this.gameOver("wall"); return true; }
+        this.hitOnce(o);
+        return false;
+    }
+
     // Столкновения считаются по всему пути предмета за кадр (move — на сколько сдвинулась улица): при 20 кадрах
     // на скорости 30 м/с за кадр это 1,5 м — больше, чем монета или инспектор, и они проскакивали сквозь героя
     collide(dt, move = 0) {
@@ -969,6 +1060,10 @@ class Game {
             if (Math.abs(o.position.x - this.x) > 0.8) continue;
             const win = d.halfZ + 0.25, z = o.position.z;
             if (z < -win || z - move - (d.oncoming || 0) * dt > win) continue;
+            if (d.type === "answer") { // стена-возражение: ответ — та табличка, в которую вбежал
+                if (this.answer(o)) return;
+                continue;
+            }
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
             if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости

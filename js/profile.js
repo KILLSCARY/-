@@ -65,6 +65,33 @@ export class Profile {
         return after > before ? after : null;
     }
 
+    // стены-возражения: верные и неверные ответы по типам клиентов за всё время
+    addWallStats(run) {
+        const all = (this.data.walls ||= {});
+        for (const [type, s] of Object.entries(run)) {
+            const t = (all[type] ||= { ok: 0, fail: 0 });
+            t.ok += s.ok;
+            t.fail += s.fail;
+        }
+        if (Object.keys(run).length) this.save();
+    }
+
+    // тип клиента, на чьих стенах игрок ошибается чаще всего (доля ошибок); null — ошибок нет
+    weakType() {
+        let best = null, worst = 0;
+        for (const [type, s] of Object.entries(this.data.walls || {})) {
+            if (type === "common" || !s.fail) continue;
+            const k = s.fail / (s.ok + s.fail);
+            if (k > worst) { worst = k; best = type; }
+        }
+        return best;
+    }
+
+    // кодовые фразы пройденных глав
+    phrases() {
+        return CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean);
+    }
+
     // награда из кейса: в кошелёк, но не в «заработано» — главы двигают только забеги
     gift(usdt = 0, trx = 0) {
         this.data.usdt += usdt;
