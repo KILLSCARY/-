@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -634,9 +634,13 @@ class Game {
         document.body.classList.add("shake");
         setTimeout(() => document.body.classList.remove("shake"), 400);
         this.world.splash(this.x, 0, 22, 1.3);
-        if (!this.chaser) {
-            this.chaser = this.world.makeSprite("cop"); // инспектор из концепта, без поста и машины
-            this.chaser.scale.setScalar(0.9);
+        if (!this.chaser || (!this.chaser.userData.mixer && this.world.officer)) { // живой инспектор бежит; пока не загрузился — спрайт
+            if (this.chaser) this.scene.remove(this.chaser);
+            this.chaser = this.world.makeOfficer(POLICE_OFFICER.run);
+            if (!this.chaser) {
+                this.chaser = this.world.makeSprite("cop");
+                this.chaser.scale.setScalar(0.9);
+            }
             this.scene.add(this.chaser);
         }
         this.chaser.visible = true;
@@ -651,8 +655,13 @@ class Game {
         const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8; // в конце отстаёт
         c.position.z += (z - c.position.z) * Math.min(1, dt * 4);
         c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
-        c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
-        c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
+        if (c.userData.mixer) { // бежит туда же, куда герой
+            c.rotation.y = Math.PI;
+            c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14));
+        } else {
+            c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
+            c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
+        }
         if (this.stumble <= 0) { this.stumble = 0; c.visible = false; }
     }
 

@@ -5,7 +5,8 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER } from "./config.js";
+import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { loadModel, later } from "./models.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
@@ -176,12 +177,15 @@ export class World {
         this.scenery = [];   // всё, что едет и переставляется в конец улицы
 
         this.swaps = {};
+        this.officers = [];    // живые инспекторы у патрульных машин на обочине
+        this.officerPosts = []; // машины, к которым поставить инспектора, когда загрузится модель
         this.buildMaterials();
         this.buildStreet();
         this.buildRain();
         this.buildSplash();
         this.buildStreetLife();
         this.loadObstacleModels();
+        this.loadOfficer();
     }
 
     buildMaterials() {
@@ -651,6 +655,7 @@ export class World {
             car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
             car.userData.faceY = -side * 0.35; // пост у обочины: машина вдоль дороги, инспектор лицом к бегущему
             this.addScenery(this.registerSwap("police", car));
+            this.officerPosts.push({ car, side });
         }
         for (let i = 0; i < 10; i++) {
             const bin = this.makeSprite("bin");
@@ -925,6 +930,52 @@ export class World {
         }
     }
 
+    // Инспектор ДПС со скелетом: каждый — свой клон и свой микшер анимаций
+    loadOfficer() {
+        const cfg = POLICE_OFFICER;
+        const url = this.tier.lite ? cfg.url.replace("models/obj/", "models/obj/lite/") : cfg.url;
+        loadModel(url, (gltf) => {
+            const box = new THREE.Box3().setFromObject(gltf.scene);
+            const k = cfg.height / box.getSize(new THREE.Vector3()).y;
+            const c = box.getCenter(new THREE.Vector3());
+            this.officer = { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
+            for (const { car, side } of this.officerPosts) { // у постов на обочине — лицом к бегущему, вполоборота к дороге
+                const o = this.makeOfficer(pick(cfg.idle));
+                o.position.set(side * 3.5, 0.18, car.position.z + 1.6);
+                o.rotation.y = -side * 0.5;
+                this.addScenery(o, car.userData.loop);
+                this.officers.push(o);
+            }
+        }, () => {}, { deferred: true });
+    }
+
+    makeOfficer(clipName) {
+        if (!this.officer) return null;
+        const { gltf, k, offset } = this.officer;
+        const m = cloneSkinned(gltf.scene);
+        m.scale.setScalar(k);
+        m.position.copy(offset);
+        m.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; } });
+        const mixer = new THREE.AnimationMixer(m);
+        const clip = gltf.animations.find((a) => a.name === clipName) || gltf.animations[0];
+        const action = mixer.clipAction(clip).play();
+        action.time = Math.random() * clip.duration; // чтобы соседние не двигались синхронно
+        const g = new THREE.Group();
+        g.add(m);
+        g.userData = { mixer, officer: true };
+        return g;
+    }
+
+    // патрульная машина: 3D-модель, если загрузилась, иначе спрайт с мигалкой
+    makePatrol() {
+        const t = this.modelFor("police");
+        if (!t) return this.makePoliceCar();
+        const g = new THREE.Group();
+        g.add(t.clone());
+        g.userData = { police: true };
+        return g;
+    }
+
     modelFor(kind) {
         const list = this.templates?.[kind];
         return list?.length ? pick(list) : null;
@@ -958,6 +1009,11 @@ export class World {
     }
 
     makeObstacle(kind) {
+        if (kind === "cop" && this.officer) { // живой инспектор на полосе: кричит или объясняет руками
+            const g = this.makeOfficer(pick(POLICE_OFFICER.idle));
+            Object.assign(g.userData, { type: "cop", halfZ: 0.3, police: true });
+            return g;
+        }
         const proc = SPRITES[kind]?.obstacle ? this.makeSpriteObstacle(kind)
             : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
             : kind === "atm" ? this.makeAtm() : this.makeCar();
@@ -998,10 +1054,11 @@ export class World {
         for (const lane of blocked) {
             const kind = this.pickKind();
             this.addObstacle(kind, lane, z);
-            if (kind === "cop" && !this.modelFor("cop")) { // пост ДПС: инспектор на полосе, патрульная машина у обочины
-                const car = this.makePoliceCar();
+            if (kind === "cop") { // пост ДПС: инспектор на полосе, патрульная машина у обочины
+                const car = this.makePatrol();
                 const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
                 car.position.set(side * 4.4, 0.18, z - 2);
+                car.rotation.y = car.userData.billboard ? 0 : -side * 0.35;
                 car.userData.type = "decor";
                 this.scene.add(car);
                 this.obstacles.push(car);
@@ -1083,6 +1140,10 @@ export class World {
             l.position.z += move;
             if (l.position.z > DESPAWN_Z) l.position.z -= l.userData.loop;
         }
+
+        // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
+        for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
+        for (const o of this.obstacles) if (o.userData.mixer && o.position.z > -70) o.userData.mixer.update(dt);
 
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const o = this.obstacles[i];

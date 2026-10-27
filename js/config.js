@@ -109,13 +109,10 @@ export const MODELS = {
     car: [
         { url: "models/obj/car1.glb", axis: "z", size: 4.4, rotateY: R },
         { url: "models/obj/car2.glb", axis: "z", size: 4.4, rotateY: R }],
-    cop: [ // пост ДПС: инспектор с поднятой рукой перед патрульной машиной
-        { url: "models/obj/post1.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 },
-        { url: "models/obj/post2.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 },
-        { url: "models/obj/post3.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 }],
-    police: [
-        { url: "models/obj/post1.glb", axis: "z", size: 5.6, rotateY: R },
-        { url: "models/obj/post3.glb", axis: "z", size: 5.6, rotateY: R }],
+    police: [ // патрульные машины постов ДПС (инспектор рядом — живой, POLICE_OFFICER)
+        { url: "models/obj/patrol1.glb", axis: "z", size: 4.6, rotateY: R },
+        { url: "models/obj/patrol2.glb", axis: "z", size: 4.6, rotateY: R },
+        { url: "models/obj/patrol3.glb", axis: "z", size: 4.6, rotateY: R }],
     atm: [
         { url: "models/obj/atm_kiosk.glb", axis: "y", size: 2.4 },
         { url: "models/obj/atm_pair0.glb", axis: "y", size: 2.1 },
@@ -141,6 +138,10 @@ export const MODELS = {
         { url: "models/obj/bank_sber.glb", axis: "x", size: 9 },
         { url: "models/obj/bank_alfa.glb", axis: "x", size: 9 }],
 };
+
+// Инспектор ДПС (Meshy biped с анимациями): на постах и на полосе кричит или объясняет руками (idle — случайный),
+// за героем после первого удара — бежит (run). Пока модель грузится, вместо него спрайт.
+export const POLICE_OFFICER = { url: "models/obj/cop.glb", height: 1.85, idle: ["shout", "talk"], run: "run" };
 
 // Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой
 // (по сценарию его выкупают, пока выбирается свободно); Денчик в меню виден, но не играбелен — locked, текст на кнопке.
