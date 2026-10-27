@@ -9,7 +9,7 @@ export class Audio {
         this.enabled = true;
         this.buffers = {}; // url → AudioBuffer
         this.mode = "off"; // off | menu | run | pause
-        this.trackIndex = 0;
+        this.players = {}; // плейлист (menu / run) → { el, gain, index }
     }
 
     // браузеры дают включить звук только по клику
@@ -26,16 +26,20 @@ export class Audio {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.master = this.ctx.createGain();
         this.master.connect(this.ctx.destination);
-        this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.value = 0;
-        this.musicGain.connect(this.master);
 
-        // музыка идёт потоком через <audio>, чтобы не распаковывать два трека по 2 минуты в память
-        this.track = new window.Audio();
-        this.track.preload = "auto";
-        this.track.src = SOUNDS.music[0];
-        this.track.addEventListener("ended", () => this.nextTrack());
-        this.ctx.createMediaElementSource(this.track).connect(this.musicGain);
+        // музыка идёт потоком через <audio>, чтобы не распаковывать треки по 2 минуты в память;
+        // у меню и забега свой плеер, между ними — плавный переход громкостью
+        for (const [list, urls] of Object.entries(SOUNDS.music)) {
+            const el = new window.Audio();
+            el.preload = "auto";
+            el.src = urls[0];
+            const gain = this.ctx.createGain();
+            gain.gain.value = 0;
+            this.ctx.createMediaElementSource(el).connect(gain).connect(this.master);
+            const p = { el, gain, index: 0, urls };
+            el.addEventListener("ended", () => this.nextTrack(p));
+            this.players[list] = p;
+        }
 
         const urls = [SOUNDS.ambience.url, ...Object.values(SOUNDS.sfx).flatMap((s) => s.urls)];
         for (const url of urls) {
@@ -61,26 +65,41 @@ export class Audio {
         this.syncTrack();
     }
 
-    // музыка под экран: menu / run / pause (тише) / off
+    // музыка под экран: menu / run / pause (забег, тише) / off
     music(mode) {
+        const prev = this.mode;
         this.mode = mode;
         if (!this.ctx) return;
-        const vol = SOUNDS.musicVolume[mode] ?? 0;
-        this.musicGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.3);
+        const list = this.listFor(mode);
+        // новый забег — трек забега с начала
+        if (list === "run" && this.listFor(prev) !== "run") this.players.run.el.currentTime = 0;
+        for (const [name, p] of Object.entries(this.players)) {
+            const vol = name === list ? SOUNDS.musicVolume[mode] ?? 0 : 0;
+            p.gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.3);
+        }
         this.syncTrack();
         this.syncAmbience();
     }
 
-    nextTrack() {
-        this.trackIndex = (this.trackIndex + 1) % SOUNDS.music.length;
-        this.track.src = SOUNDS.music[this.trackIndex];
+    listFor(mode) {
+        return mode === "run" || mode === "pause" ? "run" : mode === "menu" ? "menu" : null;
+    }
+
+    nextTrack(p) {
+        p.index = (p.index + 1) % p.urls.length;
+        if (p.urls.length > 1) p.el.src = p.urls[p.index];
+        else p.el.currentTime = 0;
         this.syncTrack();
     }
 
+    // оба плеера крутятся всегда, слышно только нужный (громкость в music()): iOS не даст
+    // запустить второй трек позже, не по нажатию — поэтому оба стартуют с первого касания
     syncTrack() {
         const on = this.enabled && this.mode !== "off" && !document.hidden;
-        if (on && this.track.paused) this.track.play().catch(() => {});
-        else if (!on && !this.track.paused) this.track.pause();
+        for (const p of Object.values(this.players)) {
+            if (on && p.el.paused) p.el.play().catch(() => {});
+            else if (!on && !p.el.paused) p.el.pause();
+        }
     }
 
     syncAmbience() {
