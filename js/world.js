@@ -6,8 +6,7 @@
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
 import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
-import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
-import { MeshoptDecoder } from "./vendor/jsm/meshopt_decoder.module.js";
+import { loadModel } from "./models.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -842,10 +841,9 @@ export class World {
     // используется процедурная модель или спрайт, а загруженная подменяет их «на лету».
     loadObstacleModels() {
         this.templates = {};
-        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
         for (const [kind, list] of Object.entries(MODELS)) {
             for (const cfg of list) {
-                loader.load(cfg.url, (gltf) => {
+                loadModel(cfg.url, (gltf) => {
                     const m = gltf.scene;
                     m.rotation.y = cfg.rotateY || 0;
                     m.updateMatrixWorld(true);
@@ -863,7 +861,7 @@ export class World {
                     holder.userData = { cfg };
                     (this.templates[kind] ||= []).push(holder);
                     for (const g of this.swaps[kind] || []) if (!g.userData.swapped) this.swapIn(g, kind);
-                }, undefined, () => { if (kind === "bank") this.bankFallback(); });
+                }, () => { if (kind === "bank") this.bankFallback(); });
             }
         }
     }

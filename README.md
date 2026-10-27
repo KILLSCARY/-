@@ -56,7 +56,8 @@ python3 tools/maketex.py картинка.jpg textures/facade5 facade   # или
   Пока модель грузится (или если её нет), видна процедурная модель или спрайт.
 - Конвертация FBX из Meshy: `tools/meshy-convert.html` + `.cjs` (свои jpg-текстуры, склейка вершин, разрезание наборов
   на отдельные предметы, сбор анимаций из нескольких FBX в один GLB), затем
-  `npx gltfpack -i in.glb -o out.glb -si <доля> -cc` (упрощение сетки и сжатие meshopt).
+  `npx gltfpack -i in.glb -o out.glb -si <доля>` (упрощение сетки и квантование). Без `-cc`: meshopt-распаковщик
+  требует WebAssembly, а его запрещает CSP на claude.ai.
 
 ### Графика
 

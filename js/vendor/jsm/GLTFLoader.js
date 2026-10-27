@@ -2280,7 +2280,9 @@ class GLTFParser {
 
 		}
 
-		if ( typeof createImageBitmap === 'undefined' || isSafari || ( isFirefox && firefoxVersion < 98 ) ) {
+		// Патч проекта: всегда TextureLoader (картинка через <img>), т. к. ImageBitmapLoader делает fetch(blob:),
+		// который запрещён строгой CSP (connect-src).
+		if ( true || typeof createImageBitmap === 'undefined' || isSafari || ( isFirefox && firefoxVersion < 98 ) ) {
 
 			this.textureLoader = new TextureLoader( this.options.manager );
 

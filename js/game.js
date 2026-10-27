@@ -9,8 +9,7 @@ import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
-import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
-import { MeshoptDecoder } from "./vendor/jsm/meshopt_decoder.module.js";
+import { loadModel } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -143,7 +142,7 @@ class Game {
     }
 
     async start() {
-        if (this.state === "countdown") return;
+        if (this.state === "countdown" || $("btn-play").disabled) return;
         this.audio.unlock();
         this.resetRun();
         this.show("hud");
@@ -397,13 +396,25 @@ class Game {
         const cfg = CHARACTERS.find((c) => c.id === id);
         const air = (2 * BALANCE.jumpPower) / BALANCE.gravity;
         const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime + 0.2 } };
-        const apply = (gltf) => { if (this.heroId === id) attachModel(this.rat, gltf, opts); };
+        const play = $("btn-play");
+        const apply = (gltf) => {
+            if (this.heroId !== id) return;
+            attachModel(this.rat, gltf, opts);
+            play.disabled = false;
+            play.textContent = "ИГРАТЬ";
+        };
         if (this.heroes[id]) return apply(this.heroes[id]);
-        new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(
+        play.disabled = true; // не пускаем в забег, пока не загрузился выбранный герой
+        play.textContent = "ЗАГРУЗКА…";
+        loadModel(
             cfg.url,
             (gltf) => { this.heroes[id] = gltf; apply(gltf); },
-            undefined,
-            () => console.info("[hero] не загрузилась модель", cfg.url, "— бегает крыс из примитивов")
+            (e) => {
+                console.warn("[hero] не загрузилась модель", cfg.url, e);
+                if (this.heroId !== id) return;
+                play.disabled = false; // запасной вариант — крыс из примитивов
+                play.textContent = "ИГРАТЬ";
+            }
         );
     }
 
