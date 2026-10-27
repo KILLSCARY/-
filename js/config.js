@@ -128,7 +128,7 @@ export const MODELS = {
 // если позы нет — модель наклоняется (подкат) или играет бег.
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75,
-        clips: { run: "run", jump: "jump", dead: "dead" } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8,
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
 ];
