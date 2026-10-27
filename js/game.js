@@ -1283,7 +1283,7 @@ class Game {
         this.nextWindAt += a + Math.random() * (b - a);
         const side = Math.random() < 0.5 ? -1 : 1;
         npc.position.set(side * 3.7, 0.18, z);
-        npc.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; // лицом к дороге — дует поперёк
+        npc.rotation.y = (side < 0 ? Math.PI / 2 : -Math.PI / 2) - side * (WIND.npc.yaw || 0); // лицом к дороге — дует поперёк
         npc.userData.type = "decor";
         this.world.scene.add(npc);
         this.world.obstacles.push(npc);
@@ -1312,7 +1312,9 @@ class Game {
         }
         if (w.state === "inhale") {
             w.t -= dt;
-            this.windPose(w, -(1 - w.t / WIND.inhale)); // набирает воздух
+            const inh = 1 - w.t / WIND.inhale;
+            if (w.blow && w.idle) w.idle.time = WIND.npc.crouch * Math.min(1, inh * 1.4); // приседает, набирая воздух
+            else this.windPose(w, -inh); // набирает воздух
             if (w.t <= 0) {
                 w.state = "gust";
                 w.t = WIND.gust;
@@ -1328,7 +1330,11 @@ class Game {
         if (w.state === "gust") {
             w.t -= dt;
             const k = Math.min(1, (WIND.gust - w.t) / 0.25); // резкий выдох
-            this.windPose(w, k);
+            if (w.blow) { // клип: присел и выбросил руки вперёд, дальше держит и чуть толкает
+                w.idle?.setEffectiveWeight(0);
+                w.blow.setEffectiveWeight(1);
+                w.blow.time = WIND.npc.hold * k - (k >= 1 ? 0.025 * (1 + Math.sin((WIND.gust - w.t) * 14)) : 0);
+            } else this.windPose(w, k);
             const mouth = w.head.getWorldPosition(this.windMouth ||= new THREE.Vector3());
             this.world.blowWind(mouth, -w.side, dt, k);
             [...$("wind-taps").children].forEach((el, i) => el.classList.toggle("on", i < w.taps));
@@ -1350,7 +1356,10 @@ class Game {
                 }
             }
         }
-        if (w.state === "done") this.windPose(w, 0);
+        if (w.state === "done") {
+            if (w.blow && w.blow.getEffectiveWeight() > 0) { w.blow.setEffectiveWeight(0); w.idle?.setEffectiveWeight(1); }
+            this.windPose(w, 0);
+        }
         // камера: на вдохе и порыве — к Исламу, потом обратно
         const focus = w.state === "inhale" || w.state === "gust" ? 1 : 0;
         this.camFocus = (this.camFocus || 0) + (focus - (this.camFocus || 0)) * Math.min(1, dt * (focus ? 3 : 2));
@@ -1360,7 +1369,13 @@ class Game {
     // кости Ислама для позы «дует»: клип стоит на первом кадре (стойка), поверх — наклоны позвоночника, головы, рук
     windRig(w) {
         const mixer = w.npc.userData.mixer;
-        if (mixer) { mixer.timeScale = 0; for (const a of mixer._actions) a.time = 0; }
+        if (mixer) {
+            mixer.timeScale = 0;
+            for (const a of mixer._actions) a.time = 0;
+            w.idle = mixer._actions[0];
+            const clip = this.world.islam?.gltf.animations.find((c) => c.name === WIND.npc.blow);
+            if (clip) { w.blow = mixer.clipAction(clip); w.blow.play(); w.blow.setEffectiveWeight(0); }
+        }
         const bone = (name) => { let b = null; w.npc.traverse((o) => { if (!b && o.isBone && o.name.endsWith(name)) b = o; }); return b; };
         w.bones = { spine: ["Spine", "Spine1", "Spine2"].map(bone).filter(Boolean), head: bone("Head"), neck: bone("Neck"), l: bone("LeftArm"), r: bone("RightArm") };
         w.head = w.bones.head || w.npc;

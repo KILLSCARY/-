@@ -83,6 +83,8 @@ try {
       const src = file === job.fbx ? o : await fbx(file);
       const clip = src.animations[0].clone(); clip.name = name;
       clip.tracks = clip.tracks.filter((t) => !t.name.startsWith(job.rootName + ".") && !t.name.endsWith(".scale"));
+      // клип с другого героя (тот же риг Meshy): дорожки костей, которых у этой модели нет, выкидываем
+      if (src !== o) clip.tracks = clip.tracks.filter((t) => o.getObjectByName(t.name.slice(0, t.name.lastIndexOf("."))));
       // корневое смещение: бедро стоит на месте по X/Z (бежит «на дорожке»), высоту оставляем
       for (const t of clip.tracks) if (/Hips\.position$/.test(t.name)) {
         const v = t.values, x0 = v[0], z0 = v[2];

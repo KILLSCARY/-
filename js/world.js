@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY, WIND } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -1371,8 +1371,7 @@ export class World {
 
     // Ислам у обочины (препятствие «Ислам дует») — та же модель, что у героя, клип «swing»
     loadIslam() {
-        const cfg = CHARACTERS.find((c) => c.id === "islam");
-        if (!cfg) return;
+        const cfg = WIND.npc;
         loadModel(cfg.url, (gltf) => {
             this.islam = this.fitRig(gltf, cfg.height);
             this.warmQueue.push(this.makeIslam());
@@ -1380,7 +1379,7 @@ export class World {
     }
 
     makeIslam() {
-        return this.islam ? this.rig(this.islam, "swing", { islam: true }) : null;
+        return this.islam ? this.rig(this.islam, WIND.npc.idle, { islam: true }) : null;
     }
 
     // поток ветра изо рта Ислама: штрихи и облачка летят конусом через дорогу

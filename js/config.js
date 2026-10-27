@@ -267,7 +267,11 @@ export const CHAPTERS = [
 
 // «Ислам дует»: стоит у обочины, порыв ветра сносит героя на полосу в сторону от него. Удержаться — тапать
 // (taps раз за gust секунд), увернуться — подкатом или в прыжке. Выкуплен Ислам — не дует: «Своих не сдуваю».
-export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, push: 2.4, taps: 5, reward: 3 };
+// npc — Ислам у обочины (новая модель в чёрном): стоит в idle (первый кадр), на вдохе приседает (idle до кадра crouch),
+// дует клипом blow — до кадра hold (сек):
+// присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
+export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, push: 2.4, taps: 5, reward: 3,
+    npc: { url: "models/obj/islam_wind.glb", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»)
 
@@ -371,7 +375,7 @@ export const HERO_PRICES = { pavel: 50000, islam: 25000, sasha: 75000 };
 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
 export const HERO_PERKS = {
-    mouse: { text: "Связка: +4% USDT. Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
+    mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее, +4% USDT", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
     islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
     denchik: { text: "Мозг команды: +10% USDT", coinBonus: 10 },
@@ -381,11 +385,11 @@ export const HERO_PERKS = {
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
 // тянутся, x2 — двойные USDT, ram — столько стен подряд засчитываются без ответа (charges)
 export const HERO_SKILLS = {
-    mouse: { name: "Турбо", text: "4 с быстрее и неуязвим", kind: "turbo", time: 4 },
+    mouse: { name: "Связка 4%", text: "8 с двойные USDT", kind: "x2", time: 8 },
     denchik: { name: "Магнит", text: "8 с монеты тянутся к тебе", kind: "magnet", time: 8 },
     islam: { name: "Попутный ветер", text: "5 с ускорение и защита", kind: "turbo", time: 5 },
     sasha: { name: "Таран", text: "3 стены подряд — без ответа", kind: "ram", charges: 3 },
-    pavel: { name: "Связки", text: "8 с двойные USDT", kind: "x2", time: 8 },
+    pavel: { name: "Напор", text: "4 с быстрее и неуязвим", kind: "turbo", time: 4 },
 };
 
 // «НЕ СУЩИЙ STORE» (каталог shop_v4_bady): бусты на один забег — только за монеты (price, игровой кошелёк),
