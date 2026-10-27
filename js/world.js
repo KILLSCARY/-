@@ -1708,7 +1708,7 @@ export class World {
         // ничего постороннего вплотную к стене: ряды препятствий и монеты в ±12 м убираем
         for (const o of [...this.obstacles]) {
             if (o.userData.type === "decor" || o.userData.type === "answer") continue;
-            if (Math.abs(o.position.z - z) < 12 || (o.userData.oncoming && o.position.z < z)) {
+            if ((o.position.z > z - 34 && o.position.z < z + 28) || (o.userData.oncoming && o.position.z < z)) { // перед стеной (там замедление и выбор) и после неё — пусто
                 this.dropObstacle(o);
                 this.obstacles.splice(this.obstacles.indexOf(o), 1);
             }
@@ -1790,6 +1790,18 @@ export class World {
     // У каждого инспектора свой скелет, а у скелета — текстура костей в видеопамяти: освобождаем вместе с ним.
     // Свои (не общие) геометрии и материалы процедурных препятствий помечены userData.own — их тоже: без моделей
     // каждая тачка и банкомат оставляли в видеопамяти десяток буферов.
+    // убрать препятствия (не стены и не декор) между z0 и z1, монеты оставить
+    clearZone(z0, z1) {
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            const o = this.obstacles[i], t = o.userData.type;
+            if (t === "decor" || t === "answer" || o.userData.islam) continue;
+            if ((o.position.z > z0 && o.position.z < z1) || (o.userData.oncoming && o.position.z < z1)) {
+                this.dropObstacle(o);
+                this.obstacles.splice(i, 1);
+            }
+        }
+    }
+
     dropObstacle(o) {
         this.scene.remove(o);
         o.traverse((m) => {

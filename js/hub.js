@@ -337,12 +337,12 @@ export class Hub {
                 n.innerHTML = `<div class="card-main"><h3>${t}</h3><p>${p}</p></div>`;
                 box.append(n);
             };
-            head("Горилла-кладовщик", `«Бегать на голодный организм — это к Инспекторше. Затарься.» Бусты — за монеты, можно взять ${BOOST_LIMIT} буста на забег.`);
+            head("Горилла-кладовщик", `«Бегать на голодный организм — это к Инспекторше. Затарься.» Бусты — за монеты. В забеге они справа кнопками: нажал — сработал, до ${BOOST_LIMIT} за забег.`);
             for (const it of BOOSTS) {
                 const have = this.p.data.next[it.id] || 0;
                 box.append(this.storeCard(it, have ? `На следующие забеги: ${have}` : "", this.priceButton({ coins: it.price }, () => {
                     this.p.addBoost(it.id);
-                    this.toast("Взял! Буст ждёт в следующем забеге.");
+                    this.toast("Взял! В забеге нажми на буст справа.");
                 })));
             }
             head("Наборы", "Паки бустов за кристаллы. Настоящий набор — в @Nesuschiystore.");
