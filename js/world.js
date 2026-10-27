@@ -16,6 +16,13 @@ const STREET_LEN = 160;
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
+// размеры для столкновений процедурных препятствий: halfZ — полудлина, top — что перепрыгнуть, oncoming — едет навстречу (м/с)
+const OBSTACLE_STATS = {
+    dumpster: { halfZ: 0.55, top: 1.15 },
+    barrier: { halfZ: 0.3 },
+    atm: { halfZ: 0.55 },
+    car: { halfZ: 2.2, oncoming: 6 },
+};
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -720,6 +727,7 @@ export class World {
         const h = cfg.height, w = h * v.aspect;
         const geo = new THREE.PlaneGeometry(w, h);
         geo.translate(0, h / 2, 0);
+        geo.userData.own = true;
         const mesh = new THREE.Mesh(geo, this.spriteMaterial(v.name));
         mesh.castShadow = true;
         const g = new THREE.Group();
@@ -732,6 +740,7 @@ export class World {
             }));
             glow.scale.setScalar(h * 0.35);
             glow.position.set(v.lamp.x * w, v.lamp.y * h, 0.05);
+            glow.material.userData.own = true;
             mesh.add(glow);
             g.userData.lamp = glow;
         }
@@ -749,6 +758,7 @@ export class World {
             }));
             glow.scale.setScalar(h * 0.45);
             glow.position.set(k * w * 0.1 + w * 0.08, h * 0.93, 0.05);
+            glow.material.userData.own = true;
             g.children[0].add(glow);
             (g.userData.flashers ||= []).push(glow);
         }
@@ -973,6 +983,8 @@ export class World {
             g.add(panel);
         }
         g.add(body, cap);
+        g.traverse((m) => { if (m.geometry) m.geometry.userData.own = true; });
+        panelMat.userData.own = true;
         g.userData = { type: "atm", halfZ: d / 2 + 0.05 };
         return g;
     }
@@ -1040,7 +1052,8 @@ export class World {
             tl.position.set(x, 0.6, -2.2);
             g.add(bumper, tl);
         }
-        g.userData = { type: "car", halfZ: 2.2, oncoming: 6 };
+        g.traverse((m) => { if (m.geometry) m.geometry.userData.own = true; }); // фары (общие) добавятся потом
+        g.userData = { type: "car", ...OBSTACLE_STATS.car };
         return g;
     }
 
@@ -1075,6 +1088,7 @@ export class World {
         } else {
             body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 16),
                 new THREE.MeshStandardMaterial({ color: 0x151515, emissive: cfg.color, emissiveIntensity: 0.35, roughness: 0.4 }));
+            body.geometry.userData.own = body.material.userData.own = true;
         }
         g.add(body);
         g.position.set(this.lanes[lane], 0.95, z);
@@ -1122,7 +1136,7 @@ export class World {
                     });
                     const holder = new THREE.Group(); // оборачиваем, чтобы rotation/scale модели не сбивались при клонировании
                     holder.add(m);
-                    holder.userData = { cfg };
+                    holder.userData = { cfg, size: box.getSize(new THREE.Vector3()) }; // габариты — для столкновений (makeObstacle)
                     if (kind === "car") { // фары — по габаритам модели (или cfg.lights, если не попали)
                         const b = new THREE.Box3().setFromObject(holder), s = b.getSize(new THREE.Vector3());
                         holder.userData.front = cfg.lights || { x: s.x * 0.3, y: b.min.y + s.y * 0.42, z: b.max.z };
@@ -1158,16 +1172,35 @@ export class World {
     }
 
     // Живые NPC: девушки заменяют спрайты на тротуарах, кошки гуляют, голуби сидят стайками у бордюра
+    // сколько живых NPC из total на этом уровне графики (QUALITY_TIERS.npc — доля); хотя бы один
+    npcLimit(total) {
+        return Math.min(total, Math.max(1, Math.round(total * (this.tier.npc ?? 1))));
+    }
+
     loadNpcs() {
         for (const [kind, cfg] of Object.entries(NPCS)) {
             loadModel(this.lite(cfg.url), (gltf) => {
                 const m = this.npcModels[kind] = this.fitRig(gltf, cfg.height, cfg.length);
                 this.warmQueue.push(this.rig(m, null)); // шейдеры со скелетом — заранее (Game.warmUp)
-                if (kind === "girl") for (const g of this.swaps.girl || []) this.makeGirl(g, m, cfg);
-                if (kind === "cat") for (let i = 0; i < cfg.count; i++) this.makeCat(m, cfg);
-                if (kind === "pigeon") for (let i = 0; i < cfg.flocks; i++) this.makeFlock(m, cfg, i);
+                // на слабом уровне — меньше: остальные девушки остаются плоскими спрайтами, кошек и стаек меньше
+                const girls = this.swaps.girl || [];
+                if (kind === "girl") for (const g of girls.slice(0, this.npcLimit(girls.length))) this.makeGirl(g, m, cfg);
+                if (kind === "cat") for (let i = 0; i < this.npcLimit(cfg.count); i++) this.makeCat(m, cfg);
+                if (kind === "pigeon") for (let i = 0; i < this.npcLimit(cfg.flocks); i++) this.makeFlock(m, cfg, i);
             }, () => {}, { deferred: true });
         }
+    }
+
+    // Уровень графики сменился посреди игры (автоснижение, когда не хватает кадров): дождь короче, лишние живые NPC
+    // прячутся. Число фонарей не меняем: другое число источников света — пересборка всех шейдеров, рывок в забеге.
+    setTier(tier) {
+        this.tier = tier;
+        this.rainCount = Math.min(this.rainSpeed.length, tier.rain);
+        this.rain.geometry.setDrawRange(0, this.rainCount * 2);
+        const keep = (list, total) => { const n = this.npcLimit(total); list.forEach((o, i) => { o.visible = i < n; }); };
+        keep(this.critters.filter((o) => o.userData.npc === "girl"), this.swaps.girl?.length || 0);
+        keep(this.critters.filter((o) => o.userData.npc === "cat"), NPCS.cat.count);
+        keep(this.flocks, NPCS.pigeon.flocks);
     }
 
     // гуляет вдоль тротуара (walk — м/с по Z) или танцует на месте
@@ -1176,7 +1209,7 @@ export class World {
         const npc = this.rig(m, walking ? cfg.walk : cfg.idle);
         g.clear();
         g.add(npc);
-        Object.assign(g.userData, { billboard: false, swapped: true, mixer: npc.userData.mixer });
+        Object.assign(g.userData, { billboard: false, swapped: true, mixer: npc.userData.mixer, npc: "girl" });
         if (walking) { // гуляют своей дорожкой у стен — там ничего не стоит (банкоматы, урны, посты — ближе к дороге)
             const dir = pick([-1, 1]);
             g.position.x = Math.sign(g.position.x) * rnd(5.6, 6.0);
@@ -1194,6 +1227,7 @@ export class World {
         const cat = this.rig(m, cfg.walk);
         cat.position.set(side * rnd(5.6, 6.1), 0.18, BEHIND_Z - rnd(0, STREET_LEN)); // дорожка у стен, как у гуляющих
         cat.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
+        cat.userData.npc = "cat";
         cat.rotation.y = dir > 0 ? 0 : Math.PI;
         this.addScenery(cat);
         this.critters.push(cat);
@@ -1246,6 +1280,7 @@ export class World {
 
     updateFlocks(dt, t) {
         for (const f of this.flocks) {
+            if (!f.visible) continue; // спрятана на слабом уровне графики
             const u = f.userData;
             if (f.position.z < u.lastZ - 1) { // стайка переехала в конец улицы — снова сидят
                 u.state = "rest";
@@ -1300,7 +1335,20 @@ export class World {
         const m = cloneSkinned(gltf.scene);
         m.scale.setScalar(k);
         m.position.copy(offset);
-        m.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; } });
+        // Отсечение по кадру оставляем включённым: без него рисовались все ~28 NPC, и за камерой, и в тумане
+        // (на телефоне это 2/3 всех треугольников кадра). Сфера отсечения у скиннутой сетки — по позе покоя,
+        // а в анимации руки и ноги выходят за неё — берём её с запасом (геометрия общая у всех клонов).
+        m.traverse((o) => {
+            if (!o.isMesh) return;
+            o.castShadow = true;
+            if (!o.isSkinnedMesh) return;
+            const geo = o.geometry;
+            if (!geo.userData.cullGrown) {
+                if (!geo.boundingSphere) geo.computeBoundingSphere();
+                geo.boundingSphere.radius *= 1.6;
+                geo.userData.cullGrown = true;
+            }
+        });
         const g = new THREE.Group();
         g.add(m);
         g.userData = { ...data };
@@ -1356,26 +1404,36 @@ export class World {
         return g;
     }
 
+    // Размеры для столкновений у процедурных препятствий и спрайтов (те же, что ставят makeDumpster/makeBarrier/…)
+    obstacleStats(kind) {
+        if (SPRITES[kind]?.obstacle) return { type: kind, halfZ: kind === "cop" ? 0.3 : 0.5, top: SPRITES[kind].top };
+        return { type: kind, ...OBSTACLE_STATS[kind] };
+    }
+
     makeObstacle(kind) {
         if (kind === "cop" && this.officer) { // живой инспектор на полосе: кричит или объясняет руками
             const g = this.makeOfficer(pick(POLICE_OFFICER.idle));
             Object.assign(g.userData, { type: "cop", halfZ: 0.3, police: true });
             return g;
         }
-        const proc = SPRITES[kind]?.obstacle ? this.makeSpriteObstacle(kind)
-            : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
-            : kind === "atm" ? this.makeAtm() : this.makeCar();
         const t = this.modelFor(kind);
-        let g = proc;
-        if (t) { // модель из .glb, а размеры для столкновений — от процедурной (или из конфига)
-            g = new THREE.Group();
-            g.add(t.clone());
-            g.userData = { ...proc.userData, billboard: false, lamp: null, flashers: null };
-            if (t.userData.cfg.halfZ) g.userData.halfZ = t.userData.cfg.halfZ;
-            if (t.userData.cfg.top) g.userData.top = t.userData.cfg.top;
-            if (kind === "cop") g.userData.police = true;
+        if (!t) { // модели нет (грузится или не загрузилась) — процедурная или спрайт
+            const g = SPRITES[kind]?.obstacle ? this.makeSpriteObstacle(kind)
+                : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
+                : kind === "atm" ? this.makeAtm() : this.makeCar();
+            if (kind === "car") this.addHeadlights(g, CAR_FRONT);
+            return g;
         }
-        if (kind === "car") this.addHeadlights(g, t?.userData.front || CAR_FRONT);
+        // Модель из .glb. Столкновения — по её габаритам, чтобы не расходились с тем, что видно: тележку высотой 1,4 м
+        // перепрыгивали на 0,95, а блок длиной 1,7 м задевали только в середине. cfg.top / cfg.halfZ — переопределить.
+        const g = new THREE.Group();
+        g.add(t.clone());
+        const base = this.obstacleStats(kind), { cfg, size } = t.userData;
+        g.userData = { ...base, billboard: false, lamp: null, flashers: null };
+        if (base.top) g.userData.top = cfg.top ?? size.y;
+        g.userData.halfZ = cfg.halfZ ?? Math.max(base.halfZ, size.z * 0.45);
+        if (kind === "cop") g.userData.police = true;
+        if (kind === "car") this.addHeadlights(g, t.userData.front);
         return g;
     }
 
@@ -1416,15 +1474,24 @@ export class World {
         return "dumpster";
     }
 
-    // Ряд препятствий: всегда остаётся хотя бы одна проходимая полоса.
-    spawnRow(z, difficulty) {
-        const free = Math.floor(Math.random() * 3);
-        const blocked = [0, 1, 2].filter((l) => l !== free && Math.random() < 0.35 + difficulty * 0.45);
-        if (!blocked.length) blocked.push((free + 1 + Math.floor(Math.random() * 2)) % 3);
+    // Ряд препятствий: всегда остаётся хотя бы одна проходимая полоса. speed — скорость забега (м/с).
+    // Тачка едет навстречу быстрее ряда (oncoming), поэтому ставим её дальше — так, чтобы до героя она доехала
+    // вместе со своим рядом. Раньше она обгоняла соседние ряды и могла закрыть их свободную полосу — «стена»
+    // из трёх полос, которую не пройти. Пока тачка едет сзади, в её полосе новые ряды ничего не ставят.
+    spawnRow(z, difficulty, speed = 13) {
+        const transit = new Set(this.obstacles.filter((o) => o.userData.oncoming && o.position.z < z + 3).map((o) => o.userData.lane));
+        const open = [0, 1, 2].filter((l) => !transit.has(l));
+        if (!open.length) return; // по всем трём полосам едут тачки — ряд пустой
+        const free = pick(open);
+        const blocked = open.filter((l) => l !== free && Math.random() < 0.35 + difficulty * 0.45);
+        if (!blocked.length && open.length === 3) blocked.push((free + 1 + Math.floor(Math.random() * 2)) % 3);
+        // монета или баночка не должна оказаться внутри препятствия соседнего ряда в той же полосе
+        const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
         for (const lane of blocked) {
             const kind = this.pickKind();
-            this.addObstacle(kind, lane, z);
+            const o = this.addObstacle(kind, lane, z);
+            if (o.userData.oncoming) o.position.z = z * (1 + o.userData.oncoming / Math.max(1, speed));
             // пост ДПС: инспектор на полосе, патрульная машина у обочины — там, где на тротуаре свободно
             // (иначе она встаёт внутрь банкомата, урны или прохожей); места нет — инспектор без машины
             const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
@@ -1443,14 +1510,18 @@ export class World {
             }
         }
 
-        // дорожка монет по свободной полосе
+        // дорожка монет по свободной полосе — обрывается перед препятствием ближнего ряда (на скорости ряды ближе, чем длина дорожки)
         if (Math.random() < 0.75) {
             const n = 4 + Math.floor(Math.random() * 4);
             const boostAt = Math.random() < 0.12 ? Math.floor(n / 2) : -1;
-            for (let i = 0; i < n; i++) this.addCoin(free, z + 4 + i * 1.6, 0.7, i === boostAt);
+            for (let i = 0; i < n; i++) {
+                const cz = z + 4 + i * 1.6;
+                if (taken(free, cz)) break;
+                this.addCoin(free, cz, 0.7, i === boostAt);
+            }
         }
         // иногда — баночка из NS Store на свободной полосе
-        if (!this.noPickups && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
+        if (!this.noPickups && !taken(free, z + 1.5) && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
             this.sincePickup = 0;
             this.addPickup(pick(Object.keys(POWERUPS)), free, z + 1.5);
         }
@@ -1459,21 +1530,26 @@ export class World {
     clear() {
         this.noPickups = false;
         this.sincePickup = 0;
-        for (const o of this.obstacles) this.dropObstacle(o);
-        for (const c of this.coins) this.scene.remove(c);
+        for (const o of [...this.obstacles, ...this.coins]) this.dropObstacle(o);
         this.obstacles = [];
         this.coins = [];
         for (const o of [...this.rings, ...this.flashes]) o.visible = false;
     }
 
-    // у каждого инспектора свой скелет, а у скелета — текстура костей в видеопамяти: освобождаем вместе с ним
+    // У каждого инспектора свой скелет, а у скелета — текстура костей в видеопамяти: освобождаем вместе с ним.
+    // Свои (не общие) геометрии и материалы процедурных препятствий помечены userData.own — их тоже: без моделей
+    // каждая тачка и банкомат оставляли в видеопамяти десяток буферов.
     dropObstacle(o) {
         this.scene.remove(o);
-        o.traverse((m) => m.skeleton?.dispose());
+        o.traverse((m) => {
+            m.skeleton?.dispose();
+            if (m.geometry?.userData.own) m.geometry.dispose();
+            for (const mat of [].concat(m.material || [])) if (mat.userData?.own) mat.dispose();
+        });
     }
 
     removeCoin(i) {
-        this.scene.remove(this.coins[i]);
+        this.dropObstacle(this.coins[i]); // у баночки-заглушки свои геометрия и материал
         this.coins.splice(i, 1);
     }
 
@@ -1531,7 +1607,7 @@ export class World {
         for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
         for (const o of this.critters) {
             if (o.userData.walk) o.position.z += o.userData.walk * dt; // гуляют вдоль тротуара
-            if (o.position.z > -70 && o.position.z < 8) o.userData.mixer?.update(dt);
+            if (o.visible && o.position.z > -70 && o.position.z < 8) o.userData.mixer?.update(dt);
         }
         this.updateFlocks(dt, t);
         for (const o of this.obstacles) if (o.userData.mixer && o.position.z > -70) o.userData.mixer.update(dt);
@@ -1585,7 +1661,7 @@ export class World {
 
         // дождь
         const pos = this.rain.geometry.attributes.position.array;
-        for (let i = 0; i < this.rainSpeed.length; i++) {
+        for (let i = 0, n = this.rainCount ?? this.rainSpeed.length; i < n; i++) {
             const k = i * 6;
             const dy = this.rainSpeed[i] * dt;
             pos[k + 1] -= dy; pos[k + 4] -= dy;

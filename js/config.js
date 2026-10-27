@@ -11,7 +11,7 @@ export const LINKS = {
 export const BALANCE = {
     speedStart: 13,
     speedMax: 30,
-    speedRamp: 0.18,        // +м/с за каждые 10 секунд забега
+    speedRamp: 0.18,        // +м/с за каждую секунду забега (speedMax — примерно на 95-й секунде)
     laneWidth: 1.7,
     jumpPower: 9.2,
     gravity: 26,
@@ -73,11 +73,12 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // Уровни графики. auto: телефон — medium, компьютер — high; если в забеге fps проседает — уровень ниже.
 // ratio — потолок devicePixelRatio, bloom — во сколько раз уменьшен буфер свечения (0 — без свечения),
 // lights — сколько фонарей светят по-настоящему, rain — капель дождя, fps — потолок кадров в забеге / в меню,
-// lite — облегчённые модели из models/obj/lite (в ~3 раза меньше треугольников, текстуры 512 WebP).
+// lite — облегчённые модели из models/obj/lite (в ~3 раза меньше треугольников, текстуры 512 WebP);
+// npc — доля живых NPC со скелетом (девушки, кошки, стайки голубей): на слабом телефоне их меньше, остальные девушки — спрайты.
 export const QUALITY_TIERS = {
-    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], lite: false, far: 100 },
-    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], lite: true,  far: 80 },
-    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], lite: true,  far: 62 },
+    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], lite: false, far: 100, npc: 1 },
+    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], lite: true,  far: 80,  npc: 1 },
+    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], lite: true,  far: 62,  npc: 0.4 },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.
@@ -107,7 +108,8 @@ export const ATMS = [
 
 // 3D-модели из Meshy (models/obj/*.glb, сжаты gltfpack). Для каждого вида — список вариантов.
 // size — до какого размера в метрах отмасштабировать по оси axis; rotateY — разворот, чтобы «лицо» смотрело на игрока (+Z).
-// halfZ/top — переопределить размеры для столкновений. Пока модель грузится, видна процедурная модель или спрайт.
+// Столкновения считаются по габаритам модели (что перепрыгнуть — её верх, длина — по ней же); halfZ/top — переопределить.
+// Пока модель грузится, видна процедурная модель или спрайт.
 const R = Math.PI / 2;
 export const MODELS = {
     car: [
@@ -121,7 +123,7 @@ export const MODELS = {
         { url: "models/obj/atm_kiosk.glb", axis: "y", size: 2.4 },
         { url: "models/obj/atm_pair0.glb", axis: "y", size: 2.1 },
         { url: "models/obj/atm_pair1.glb", axis: "y", size: 2.1 }],
-    cart: [{ url: "models/obj/cart.glb", axis: "y", size: 1.4 }],
+    cart: [{ url: "models/obj/cart.glb", axis: "y", size: 1.1 }], // выше — не перепрыгнуть (прыжок ~1,6 м, бак — 1,15)
     starbox: [{ url: "models/obj/starbox.glb", axis: "y", size: 1.45 }],
     hood: [{ url: "models/obj/hood.glb", axis: "x", size: 1.6 }],
     block: [

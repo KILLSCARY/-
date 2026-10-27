@@ -46,7 +46,26 @@ const countUp = (el, to, delay = 0, ms = 900) => {
     };
     requestAnimationFrame(step);
 };
-const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
+const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Слабый телефон — сразу низкая графика, чтобы не грелся. Бюджетный Android обычно с 8 ядрами, поэтому
+// одних ядер мало: смотрим ещё память (Chrome отдаёт 0.5, 1, 2, 4, 8 ГБ) и название видеочипа.
+function weakDevice() {
+    const ios = /iPhone|iPad/.test(navigator.userAgent);
+    if (navigator.deviceMemory && navigator.deviceMemory <= 4) return true;
+    if (!ios && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) return true;
+    try {
+        const gl = document.createElement("canvas").getContext("webgl");
+        const info = gl?.getExtension("WEBGL_debug_renderer_info");
+        const gpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+        gl?.getExtension("WEBGL_lose_context")?.loseContext();
+        // Mali-400/T-серия/G31–G57, Adreno 3xx–5xx и 610–613, PowerVR — видеочипы бюджетных телефонов
+        return /Mali-(4|T\d|G(31|51|52|57)\b)|Adreno \(TM\) ([3-5]\d\d|61[0-3])\b|PowerVR/i.test(gpu);
+    } catch {
+        return false;
+    }
+}
 
 class Game {
     constructor() {
@@ -62,9 +81,7 @@ class Game {
 
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
-        // слабый телефон (мало памяти или ядер) — сразу низкая графика, чтобы не грелся
-        const weak = mobile && ((navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4 && !/iPhone|iPad/.test(navigator.userAgent)));
-        this.quality = QUALITY === "auto" ? (weak ? "low" : mobile ? "medium" : "high") : QUALITY;
+        this.quality = QUALITY === "auto" ? (mobile && weakDevice() ? "low" : mobile ? "medium" : "high") : QUALITY;
         this.resScale = 1; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
         this.tier = QUALITY_TIERS[this.quality];
 
@@ -143,6 +160,7 @@ class Game {
 
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
+        if (!w || !h) return; // окно ещё не развернулось (Telegram, фоновая вкладка): буферы нулевого размера — ошибки WebGL
         const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
@@ -194,28 +212,34 @@ class Game {
         this.updateHud();
     }
 
+    // Старт только из меню или с экрана проигрыша. Отсчёт можно прервать (ушли в меню) — тогда забег не начнётся:
+    // раньше он стартовал через 2,4 с всё равно, невидимо под меню
     async start() {
-        if (this.state === "countdown" || this.heroLoading) return;
+        if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
+        const run = this.runId = (this.runId || 0) + 1;
         this.audio.unlock();
         this.resetRun();
-        this.applyBoosts();
         this.show("hud");
         this.state = "countdown";
         const cd = $("countdown");
+        const live = () => this.runId === run && this.state === "countdown";
         cd.hidden = false;
         for (const n of ["3", "2", "1"]) {
             cd.textContent = n;
             cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop");
             this.audio.play("count");
-            await new Promise((r) => setTimeout(r, 600));
+            await wait(600);
+            if (!live()) { cd.hidden = true; return; }
         }
         cd.textContent = "ПОГНАЛИ!";
         cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop");
         this.audio.play("go");
-        setTimeout(() => { cd.hidden = true; }, 500);
+        setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 500);
+        this.applyBoosts(); // добавки тратятся, только когда забег точно начался
         this.state = "playing";
         this.audio.music("run");
         tg.guardClose(true);
+        if (document.hidden) this.pause(); // свернули приложение во время отсчёта
     }
 
     // добавки из NS Store, купленные на этот забег: по одной каждой
@@ -378,12 +402,15 @@ class Game {
     setupInput() {
         document.addEventListener("keydown", (e) => {
             const k = e.code;
+            if (e.repeat) return; // зажатая стрелка не должна перекидывать через полосы
+            // Enter на кнопке нажимает саму кнопку — второй раз её действие не повторяем (было: «В меню» + старт)
+            if (k === "Enter" && e.target.closest?.("button")) return;
             if (k === "ArrowLeft" || k === "KeyA") this.move(-1);
             else if (k === "ArrowRight" || k === "KeyD") this.move(1);
             else if (k === "ArrowUp" || k === "KeyW" || k === "Space") { e.preventDefault(); this.jump(); }
             else if (k === "ArrowDown" || k === "KeyS") this.slide();
             else if (k === "Escape" || k === "KeyP") this.state === "paused" ? this.resume() : this.pause();
-            else if (k === "Enter" && (this.state === "menu" || this.state === "over")) this.start();
+            else if (k === "Enter" && (this.state === "over" || (this.state === "menu" && this.hub.current === "run" && $("case-open").hidden))) this.start();
         });
 
         // свайпы: срабатывают ещё до отпускания пальца — так отзывчивее
@@ -429,6 +456,9 @@ class Game {
             `Я поднял ${this.usdt} USDT и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
             LINKS.bot
         );
+        // пока в LINKS.course заглушка — кнопку не показываем, а не ведём в несуществующий канал
+        const course = LINKS.course && !/your_course_channel/.test(LINKS.course);
+        $("btn-course").hidden = !course;
         $("btn-course").onclick = () => tg.open(LINKS.course);
         // иконки монет, летящих в счётчик (coinFx)
         this.flyPool = Array.from({ length: 8 }, () => {
@@ -438,37 +468,81 @@ class Game {
             document.body.append(el);
             return el;
         });
+        // звук выключили — так и остаётся при следующем запуске
+        let soundOff = false;
+        try { soundOff = localStorage.getItem("p2p_sound") === "off"; } catch {}
+        if (soundOff) this.audio.setEnabled(false);
+        const soundIcon = () => {
+            $("btn-sound").classList.toggle("off", !this.audio.enabled);
+            $("btn-sound").setAttribute("aria-pressed", String(this.audio.enabled));
+        };
+        soundIcon();
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
-            $("btn-sound").textContent = this.audio.enabled ? "🔊" : "🔇";
+            try { localStorage.setItem("p2p_sound", this.audio.enabled ? "on" : "off"); } catch {}
+            soundIcon();
         };
         this.renderMenu();
     }
 
     renderMenu() {
-        this.hub.render();
-        $("menu-best").textContent = this.best;
-
+        this.hub.render(); // и рекорд в шапке — там же, рядом с кошельком
     }
 
     show(screen) {
         for (const el of document.querySelectorAll(".screen")) el.hidden = el.id !== screen;
     }
 
+    // HUD обновляется каждый кадр, а в DOM пишем, только когда значение поменялось: на телефоне каждая запись
+    // в textContent — пересчёт вёрстки
     updateHud() {
-        $("hud-usdt").textContent = this.usdt;
-        $("hud-score").textContent = this.score();
-        $("hud-boost").hidden = this.boostLeft <= 0;
-        if (this.boostLeft > 0) $("hud-boost").textContent = `×2 ${Math.ceil(this.boostLeft)}с`;
-        const fx = [];
-        if (this.fx.shield) fx.push("ЩИТ");
-        if (this.stumble > 0) fx.push(`${CHASER.hud} ${Math.ceil(this.stumble)}с`);
-        document.body.classList.toggle("hurt", this.stumble > 0 && this.state === "playing");
-        if (this.flight && this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
-        if (this.fx.magnet > 0) fx.push(`${POWERUPS.choline.hud} ${Math.ceil(this.fx.magnet)}с`);
-        if (this.fx.honey > 0) fx.push(`МЁД ${Math.ceil(this.fx.honey)}с`);
-        $("hud-fx").hidden = !fx.length;
-        $("hud-fx").textContent = fx.join(" · ");
+        const c = (this.hudCache ||= {});
+        const text = (id, value) => { if (c[id] !== value) $(id).textContent = c[id] = value; };
+        text("hud-usdt", fmt(this.usdt));
+        text("hud-score", fmt(this.score()));
+        const hurt = this.stumble > 0 && this.state === "playing";
+        if (this.hudHurt !== hurt) document.body.classList.toggle("hurt", (this.hudHurt = hurt));
+        // действующие добавки: плашка цвета добавки и полоска, сколько осталось (полное время — с момента, когда
+        // таймер последний раз вырос: новая баночка или монета продлевает)
+        const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
+        this.renderFx([
+            { id: "chase", name: CHASER.hud, left: this.stumble, color: "#e3343a", danger: true },
+            { id: "fly", name: POWERUPS.testo.hud, left: this.flight ? this.fx.fly : 0, color: hex(POWERUPS.testo.color) },
+            { id: "x2", name: "×2", left: this.boostLeft, color: "#e9c25a" },
+            { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
+            { id: "honey", name: "Мёд", left: this.fx.honey, color: "#f0a33a" },
+            { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
+        ]);
+    }
+
+    renderFx(list) {
+        const box = $("hud-fx");
+        const els = (this.fxEls ||= {}), total = (this.fxTotal ||= {}), prev = (this.fxPrev ||= {});
+        for (const f of list) {
+            let el = els[f.id];
+            const on = f.left > 0;
+            if (!on) {
+                if (el && !el.hidden) el.hidden = true;
+                prev[f.id] = 0;
+                continue;
+            }
+            if (!el) {
+                el = els[f.id] = document.createElement("div");
+                el.className = `fx${f.danger ? " fx-danger" : ""}`;
+                el.style.setProperty("--c", f.color);
+                el.innerHTML = `<span class="fx-name">${f.name}</span><b></b><i></i>`;
+                box.append(el);
+            }
+            if (el.hidden) el.hidden = false;
+            if (f.left > (prev[f.id] || 0) + 0.01) total[f.id] = f.left; // таймер вырос — новое полное время
+            prev[f.id] = f.left;
+            const timed = Number.isFinite(f.left);
+            const secs = timed ? String(Math.ceil(f.left)) : "";
+            if (el.dataset.s !== secs) el.querySelector("b").textContent = el.dataset.s = secs;
+            const k = timed ? Math.max(0, Math.min(1, f.left / (total[f.id] || f.left))) : 1;
+            const kk = k.toFixed(2);
+            if (el.dataset.k !== kk) { el.dataset.k = kk; el.querySelector("i").style.transform = `scaleX(${kk})`; }
+        }
     }
 
     // ---- кадр ----------------------------------------------------------------------------
@@ -564,6 +638,7 @@ class Game {
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
         this.bloom.strength = this.tier.bloom ? 0.8 : 0;
+        this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         // дальше — туман: не рисуем то, чего всё равно не видно
         this.camera.far = this.tier.far;
         this.scene.fog.far = this.tier.far - 12;
@@ -621,9 +696,9 @@ class Game {
         return 1000 / 12;
     }
 
-    // сцену целиком закрывает затемнение раздела «Кейсы» / «NS Store» или экран открытия кейса
+    // сцену целиком закрывает фон разделов («Герои», «Кейсы», «NS Store», «Главы») или экран открытия кейса
     sceneCovered() {
-        return this.state === "menu" && (["cases", "shop"].includes(this.hub?.current) || !$("case-open").hidden);
+        return this.state === "menu" && ((this.hub?.current && this.hub.current !== "run") || !$("case-open").hidden);
     }
 
     // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
@@ -685,7 +760,7 @@ class Game {
         const difficulty = Math.min(1, this.runTime / 90);
         this.nextRowZ += move;
         while (this.nextRowZ > SPAWN_Z) {
-            this.world.spawnRow(this.nextRowZ, difficulty);
+            this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
             const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
@@ -726,7 +801,7 @@ class Game {
         if (this.stumble > 0) this.chase(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe"]) if (this.fx[k] > 0) this.fx[k] -= dt;
-        this.collide(dt);
+        this.collide(dt, move);
         this.updateHud();
     }
 
@@ -748,7 +823,7 @@ class Game {
         // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
         const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
         if (!this.chaser || better) {
-            if (this.chaser) this.scene.remove(this.chaser);
+            if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
             this.chaser = this.world.makeChaser() || this.world.makeOfficer(POLICE_OFFICER.run);
             if (!this.chaser) {
                 this.chaser = this.world.makeSprite("cop");
@@ -883,14 +958,17 @@ class Game {
         this.rat.userData.clipT = clipT;
     }
 
-    collide(dt) {
+    // Столкновения считаются по всему пути предмета за кадр (move — на сколько сдвинулась улица): при 20 кадрах
+    // на скорости 30 м/с за кадр это 1,5 м — больше, чем монета или инспектор, и они проскакивали сквозь героя
+    collide(dt, move = 0) {
         const sliding = this.slideLeft > 0;
         for (const o of this.world.obstacles) {
             if (this.fx.fly > 0) break; // в полёте препятствия внизу
             const d = o.userData;
-            if (Math.abs(o.position.x - this.x) > 0.8) continue;
-            if (Math.abs(o.position.z) > d.halfZ + 0.25) continue;
             if (d.type === "decor") continue;
+            if (Math.abs(o.position.x - this.x) > 0.8) continue;
+            const win = d.halfZ + 0.25, z = o.position.z;
+            if (z < -win || z - move - (d.oncoming || 0) * dt > win) continue;
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
             if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
@@ -912,21 +990,25 @@ class Game {
         const coins = this.world.coins;
         if (this.fx.magnet > 0) { // «Скупщик»: монеты впереди летят к игроку
             const k = Math.min(1, dt * 7);
+            const y = this.y + 0.8;
             for (const c of coins) {
                 if (c.position.z < -14 || c.position.z > 1) continue;
                 c.position.x += (this.x - c.position.x) * k;
-                c.position.y += (this.y + 0.8 - c.position.y) * k;
+                // высоту монеты мир каждый кадр ставит от baseY (покачивание) — тянем её, иначе монеты над баком висят
+                c.userData.baseY += (y - c.userData.baseY) * k;
+                c.position.y += (y - c.position.y) * k;
             }
         }
         const ratTop = sliding ? 0.9 : 1.6;
         for (let i = coins.length - 1; i >= 0; i--) {
             const c = coins[i];
-            if (Math.abs(c.position.x - this.x) > 0.7 || Math.abs(c.position.z) > 0.7) continue;
+            if (Math.abs(c.position.x - this.x) > 0.7 || c.position.z < -0.7 || c.position.z - move > 0.7) continue;
             if (c.position.y < this.y - 0.2 || c.position.y > this.y + ratTop) continue;
             if (c.userData.pickup) {
                 this.powerUp(c.userData.pickup);
             } else if (c.userData.boost) { // монета TRX: ×2 на время по уровню прокачки и +1 TRX в кошелёк
-                this.boostLeft = UPGRADES.x2.times[this.profile.level("x2") - 1];
+                // не меньше, чем уже осталось: купленный «Лимит ×2» на 30 с монета не обрезает
+                this.boostLeft = Math.max(this.boostLeft, UPGRADES.x2.times[this.profile.level("x2") - 1] || 0);
                 this.trx += 1;
                 this.world.flash(c.position, true);
                 this.audio.play("boost");

@@ -25,6 +25,7 @@ export class Audio {
     setup() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.master = this.ctx.createGain();
+        this.master.gain.value = this.enabled ? 1 : 0; // звук мог быть выключен ещё до первого касания (запомнен с прошлого раза)
         this.master.connect(this.ctx.destination);
 
         // музыка идёт потоком через <audio>, чтобы не распаковывать треки по 2 минуты в память;

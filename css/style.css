@@ -150,7 +150,8 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     font: 600 14px/1 var(--font-display); font-variant-numeric: tabular-nums;
 }
 .cur .ico-usdt { width: 20px; height: 20px; }
-.hub-best { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.cur b, .hub-best b { white-space: nowrap; }
+.hub-best { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .hub-best b { color: var(--text); font: 700 14px var(--font-display); letter-spacing: 0; margin-left: 4px; }
 .chap {
     padding: 10px 12px; border-radius: 16px; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line);
@@ -163,10 +164,15 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .bar.gold i { background: #fff; }
 
 .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* Фон под разделами — на .hub, он не анимируется. Раньше затемнение было внутри раздела и въезжало вместе с ним
+   с прозрачностью от нуля: первые доли секунды забег за ним был виден в полную яркость. На главной сцена видна
+   сверху; в разделах фон сплошной (сцена там не рисуется — Game.sceneCovered). */
+.hub::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(110% 55% at 50% -8%, rgba(227, 52, 58, .16), transparent 70%), #000; }
+.hub[data-tab="run"]::before {
+    background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 22%, rgba(0,0,0,.55) 48%, rgba(0,0,0,.95) 66%, #000 80%); }
 /* Главная (вариант C «Клуб»): слово-логотип, под ним пронумерованные плитки. 3D-сцена видна сверху. */
 #view-run { gap: 10px; padding-bottom: 12px; position: relative; min-height: 0; }
-#view-run::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 22%, rgba(0,0,0,.55) 48%, rgba(0,0,0,.95) 66%, #000 80%); }
 .hub[data-tab="run"] .chap { display: none; } /* глава — плитка 05 */
 #view-run .brand { padding-top: 6px; }
 #view-run .grow { flex: 1; min-height: 40px; }
@@ -176,8 +182,9 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .word .outline { color: transparent; -webkit-text-stroke: 1.4px var(--red); font-size: 1.3em; }
 
 /* Герои (вариант B): карусель со «щелчком» по карточкам */
-#view-heroes { gap: 8px; padding: 8px 0 12px; min-height: 0; }
-#view-heroes::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: rgba(0, 0, 0, 0.8); }
+/* на коротком экране (360×640 в полноэкранном Telegram) раздел прокручивается — кнопка «Выкупить» не уходит за край */
+#view-heroes { gap: 8px; padding: 8px 0 12px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+#view-heroes::-webkit-scrollbar { display: none; }
 .carousel {
     position: relative; flex: 1; min-height: 220px; display: flex; gap: 0; align-items: stretch;
     overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; touch-action: pan-x;
@@ -207,7 +214,12 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .hero-detail { position: relative; z-index: 1; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .hero-detail h3 { margin: 0; font-size: 20px; }
 .hero-detail .perk { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.4; }
-.hero-detail .btn-main { margin-top: 8px; font-size: 16px; padding: 16px; }
+.hero-detail .btn-main { margin-top: 8px; font-size: 16px; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.hero-detail .btn-main .ico-usdt { width: 18px; height: 18px; }
+@media (max-height: 700px) {
+    .carousel { min-height: 170px; padding: 36px 0; margin-top: -30px; margin-bottom: -30px; }
+    .hero-detail { padding: 12px 14px; } .hero-detail .btn-main { padding: 13px; margin-top: 4px; }
+}
 .hero-detail .btn-main:disabled { background: none; border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: default; opacity: 1; }
 
 /* плитки как пронумерованные блоки лендинга; 01 — красная кнопка «Забег» на всю ширину */
@@ -228,7 +240,6 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .tile .badge { position: absolute; top: 12px; right: 12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--red); font-size: 11px; display: grid; place-items: center; }
 .tile-heroes { padding-right: 64px; }
 .tile-heroes .thumb { position: absolute; right: -10px; bottom: -10px; width: 74px; height: 74px; border-radius: 50%; background: #222 center 18% / cover; border: 1px solid var(--line); }
-.tile-chap { cursor: default; }
 .tile-chap .bar { margin-top: 2px; }
 .tiles-note {
     grid-column: 1 / -1; margin: 2px 0 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--red);
@@ -257,11 +268,6 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 
 .sheet { overflow-y: auto; gap: 10px; padding: 8px 0 14px; scrollbar-width: none; }
 .sheet::-webkit-scrollbar { display: none; }
-/* затемнение под разделами — на .hub, а не на прокручиваемом .sheet: внутри него position: fixed
-   привязывается к разделу (у него transform от анимации въезда) и уезжает вместе со списком */
-.hub[data-tab="cases"]::before, .hub[data-tab="shop"]::before {
-    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: rgba(0, 0, 0, 0.78);
-}
 .sheet-title { margin: 2px 0 0; font-size: 26px; }
 .sheet-sub { margin: -2px 0 2px; color: var(--muted); font-size: 14px; line-height: 1.4; }
 
@@ -279,6 +285,13 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .card-tag.on { color: var(--red); }
 .card-off, .card-soon { opacity: 0.75; }
 .card-note { background: rgba(28, 28, 28, 0.7); border-left: 3px solid var(--red); }
+/* главы: номер крупно слева; пройденная — с красной полосой целиком, текущая — с прогрессом, закрытая — приглушена */
+.chapter { align-items: flex-start; gap: 14px; }
+.ch-n { flex: none; width: 34px; font: 700 22px/1 var(--font-display); color: var(--dim); font-variant-numeric: tabular-nums; }
+.chapter.st-now { border-color: rgba(227, 52, 58, .55); box-shadow: 0 10px 34px -12px rgba(227, 52, 58, .55); }
+.chapter.st-now .ch-n, .chapter.st-done .ch-n { color: var(--red); }
+.chapter.st-locked { opacity: .55; }
+.chapter .bar { margin-top: 4px; }
 .lock-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lock-row b { color: var(--text); }
 
@@ -411,22 +424,53 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     .st { padding: 9px; } .over-card .btn-ghost { display: none; }
 }
 
-/* ---- HUD ---- */
-#hud { align-items: flex-start; justify-content: stretch; }
-.hud-top { display: flex; gap: 8px; width: 100%; align-items: center; }
-.chip {
-    display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-radius: 999px;
-    background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line);
-    font: 700 16px/1 var(--font-display); font-variant-numeric: tabular-nums;
+/* ---- HUD: «котировка» USDT | очки, круглые кнопки как «назад» в разделах, под ними — действующие добавки ---- */
+#hud { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }
+/* пустое место в полосе HUD и плашки добавок пропускают касания к холсту — свайп можно начать и у верха экрана */
+.hud-top { display: flex; gap: 8px; width: 100%; align-items: flex-start; pointer-events: none !important; }
+.hud-top > * { pointer-events: auto; }
+.hud-fx { pointer-events: none !important; }
+.ticker {
+    display: flex; align-items: stretch; border-radius: 16px; overflow: hidden;
+    background: rgba(10, 10, 10, .74); border: 1px solid var(--line); box-shadow: 0 10px 30px -14px rgba(0, 0, 0, .8);
 }
-.chip-usdt .ico-usdt { width: 22px; height: 22px; }
-.chip-boost { color: #000; background: #fff; border-color: #fff; }
-.chip-fx { font: 600 12px var(--font-body); color: #fff; background: rgba(227, 52, 58, 0.85); border-color: transparent; }
+.tk { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 7px 14px 8px; min-width: 0; }
+.tk + .tk { border-left: 1px solid var(--line); }
+.tk-cap { font: 600 9px/1 var(--font-body); letter-spacing: .16em; text-transform: uppercase; color: var(--red); }
+.tk b { display: flex; align-items: center; gap: 6px; font: 700 18px/1 var(--font-display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-usdt .ico-usdt { width: 17px; height: 17px; }
+/* очки — «металлом», как слово-логотип и итог на экране проигрыша; на мелких цифрах перелив мягче, без тёмной полосы */
+.tk-score b { background: linear-gradient(180deg, #fff 0%, #f0f0f0 40%, #b9b9b9 58%, #f4f4f4 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .icon {
-    margin-left: auto; width: 42px; height: 42px; border-radius: 999px;
-    border: 1px solid var(--line); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 16px;
+    flex: none; margin-left: auto; width: 42px; height: 42px; padding: 0; display: grid; place-items: center; cursor: pointer;
+    border-radius: 50%; border: 1px solid rgba(255, 255, 255, .3); background: rgba(0, 0, 0, .5); color: #fff;
+    transition: transform .12s, background .2s;
 }
 .icon + .icon { margin-left: 0; }
+.icon:active { transform: scale(.9); background: rgba(255, 255, 255, .12); }
+.icon:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon .i-off, .icon.off .i-on { display: none; }
+.icon.off .i-off { display: inline; }
+.icon.off { color: var(--muted); }
+/* добавка: плашка в её цвете (--c), секунды и полоска оставшегося времени снизу */
+.hud-fx { display: flex; flex-wrap: wrap; gap: 6px; }
+.hud-fx:empty { display: none; }
+.fx {
+    position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px 9px; overflow: hidden;
+    border-radius: 12px; background: rgba(10, 10, 10, .74); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+    font: 700 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: .02em; color: #fff;
+}
+.fx::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.fx b { min-width: 1ch; color: var(--c); font-variant-numeric: tabular-nums; }
+.fx b:empty { display: none; }
+.fx i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--c); transform-origin: left; transition: transform .2s linear; }
+/* Мизулина на хвосте — тревога: плашка красная и пульсирует (вместе с рамкой по краям экрана) */
+.fx-danger { background: color-mix(in srgb, var(--red) 82%, #000); border-color: var(--red); animation: danger .9s ease-in-out infinite; }
+@keyframes danger { 50% { box-shadow: 0 0 0 3px rgba(227, 52, 58, .28), 0 0 18px rgba(227, 52, 58, .75); } } /* пульсирует свечение, текст читается */
+.fx-danger::before { background: #fff; box-shadow: 0 0 8px #fff; }
+.fx-danger b { color: #fff; }
+.fx-danger i { background: rgba(255, 255, 255, .7); }
 
 #countdown {
     position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: min(84px, 13vw); color: #fff;
@@ -447,7 +491,7 @@ body.hurt #hud::after {
 .ico-usdt { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
 
 @media (prefers-reduced-motion: reduce) {
-    #countdown.pop, #toast.show, body.hurt #hud::after, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
+    #countdown.pop, #toast.show, body.hurt #hud::after, .fx-danger, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
     #over, #over *, #over *::before, #over *::after { animation: none !important; }
 }
 
@@ -469,7 +513,8 @@ html.tg, html.tg body { background: #000; }
 .chap { animation: tile-in .4s cubic-bezier(.2, .8, .2, 1) both; }
 /* пауза, кейс — окно всплывает */
 #pause:not([hidden]) .panel, #case-open:not([hidden]) > * { animation: card-in .45s cubic-bezier(.2, .9, .25, 1.15) both; }
-#pause:not([hidden]), #case-open:not([hidden]) { animation: fade .25s ease-out both; }
+/* у экрана кейса фон появляется сразу (проявляется только содержимое) — иначе сквозь него мелькал забег */
+#pause:not([hidden]) { animation: fade .25s ease-out both; }
 .tile, .btn, .card, .hcard, .back { -webkit-tap-highlight-color: transparent; }
 .tile:active, .card:active { transition: transform .1s; }
 @media (prefers-reduced-motion: reduce) {

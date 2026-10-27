@@ -1,10 +1,12 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
+const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
+// в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
+const short = (n) => n < 1e5 ? fmt(n) : n < 1e6 ? `${Math.floor(n / 1000)} тыс` : `${(Math.floor(n / 1e5) / 10).toLocaleString("ru-RU")} млн`;
 const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', trx: '<svg class="ico-usdt"><use href="#ico-trx"/></svg>' };
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -52,13 +54,19 @@ export class Hub {
     }
 
     back() {
+        // поверх открыт кейс: «назад» (Telegram, Esc) — как «Забрать», когда приз уже показан; до этого — ничего
+        if (!$("case-open").hidden) {
+            if (!$("btn-case-ok").disabled) $("btn-case-ok").click();
+            return;
+        }
         if (this.current !== "run") this.tab("run");
     }
 
     render() {
         const p = this.p;
-        $("w-usdt").textContent = fmt(p.usdt);
-        $("w-trx").textContent = fmt(p.trx);
+        $("w-usdt").textContent = short(p.usdt);
+        $("w-trx").textContent = short(p.trx);
+        $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
         $("chap-num").textContent = ch.done ? fmt(ch.earned) : `${fmt(ch.earned)} / ${fmt(ch.goal)}`;
@@ -81,6 +89,25 @@ export class Hub {
         if (this.current === "heroes") this.renderCarousel();
         if (this.current === "cases") this.renderCases();
         if (this.current === "shop") this.renderShop();
+        if (this.current === "chapters") this.renderChapters();
+    }
+
+    // ---- главы: пройденные, текущая (прогресс), закрытые ----
+    renderChapters() {
+        const ch = this.p.chapter(), earned = this.p.data.earned || 0;
+        $("chapter-list").innerHTML = CHAPTERS.map((c, i) => {
+            const st = i < ch.index ? "done" : i === ch.index ? "now" : "locked";
+            const from = i ? CHAPTERS[i - 1].goal : 0;
+            const k = st === "done" ? 1 : st === "now" ? Math.min(1, earned / c.goal) : 0; // как на плитке 05: заработано / цель
+            const tag = st === "done" ? "Пройдена" : st === "now" ? "Сейчас" : "Закрыта";
+            const line = st === "done" ? `Заработано ${fmt(c.goal)} USDT`
+                : st === "now" ? `${fmt(earned)} из ${fmt(c.goal)} USDT, осталось ${fmt(c.goal - earned)}`
+                : `Откроется на ${fmt(from)} USDT`;
+            return `<div class="card chapter st-${st}">
+                <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>
+                <div class="card-main"><span class="card-tag${st === "now" ? " on" : ""}">${tag}</span><h3>${c.name}</h3><p>${line}</p>
+                ${st === "locked" ? "" : `<div class="bar"><i style="width:${k * 100}%"></i></div>`}</div></div>`;
+        }).join("") + (ch.done ? `<div class="card card-note"><div class="card-main"><h3>Сезон 1 пройден</h3><p>Все главы открыты. Новые — в следующем сезоне.</p></div></div>` : "");
     }
 
     // ---- герои: карусель ----
@@ -111,6 +138,8 @@ export class Hub {
             }).join("");
             for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.scrollTo(el.dataset.id, true);
             box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
+            // прокрутка встала (щелчок к карточке) — герой под каруселью сразу, без ожидания последнего scroll
+            box.onscrollend = () => { this.layoutCarousel(); clearTimeout(this.snapTimer); this.setFocus(box.querySelector(".hcard.active")?.dataset.id); };
             requestAnimationFrame(() => this.scrollTo(this.focus ?? this.game.heroId, false));
         } else if (!this.focus) {
             requestAnimationFrame(() => this.scrollTo(this.game.heroId, false));
@@ -176,7 +205,7 @@ export class Hub {
             b.disabled = on;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); };
         } else if (st === "buy") {
-            b.textContent = share >= 1 ? `Выкупить · ${fmt(price)} USDT` : `Ещё ${fmt(price - this.p.usdt)} USDT`;
+            b.innerHTML = share >= 1 ? `Выкупить за ${ICON.usdt} ${fmt(price)}` : `Ещё ${ICON.usdt} ${fmt(price - this.p.usdt)}`;
             b.disabled = share < 1;
             b.onclick = () => {
                 if (!this.p.buyHero(c.id)) return;
@@ -319,7 +348,8 @@ export class Hub {
 
     // тип награды → иконка (картинка из CASE_ITEM_ART или заглушка)
     kind(d) {
-        return d.level ? "level" : d.all ? "all" : d.boosts ? "boost" : d.trx && !d.amount ? "trx" : "usdt";
+        // d.amount есть только у выпавшей награды, у награды из списка — d.usdt (иначе «легенда» на витрине — с иконкой TRX)
+        return d.level ? "level" : d.all ? "all" : d.boosts ? "boost" : d.trx && !d.amount && !d.usdt ? "trx" : "usdt";
     }
 
     itemIcon(k) {
