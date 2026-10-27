@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -168,7 +168,8 @@ class Game {
         this.credited = { usdt: 0, trx: 0 }; // сколько из этого забега уже зачислено в кошелёк
         this.appealUsed = false;
         this.boostLeft = 0;
-        this.fx = { magnet: 0, honey: 0, shield: false, safe: 0 }; // добавки: секунды магнита и мёда, щит, неуязвимость
+        this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
+        if (this.aura) this.aura.visible = false;
         this.phase = 0;
         this.nextRowZ = -40;
         this.cause = null;
@@ -207,6 +208,7 @@ class Game {
         for (const b of this.profile.takeBoosts()) {
             names.push(b.name);
             if (b.id === "magnet") this.fx.magnet = b.time;
+            if (b.id === "testo") this.fly(b.time);
             if (b.id === "honey") this.fx.honey = b.time;
             if (b.id === "shield") this.fx.shield = true;
             if (b.id === "x2") this.boostLeft = b.time;
@@ -316,7 +318,7 @@ class Game {
     }
 
     jump() {
-        if (this.state !== "playing" || this.jumping) return;
+        if (this.state !== "playing" || this.jumping || this.fx.fly > 0) return;
         this.jumping = true;
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
@@ -325,7 +327,7 @@ class Game {
     }
 
     slide() {
-        if (this.state !== "playing") return;
+        if (this.state !== "playing" || this.fx.fly > 0) return;
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
@@ -414,7 +416,8 @@ class Game {
         if (this.boostLeft > 0) $("hud-boost").textContent = `×2 ${Math.ceil(this.boostLeft)}с`;
         const fx = [];
         if (this.fx.shield) fx.push("ЩИТ");
-        if (this.fx.magnet > 0) fx.push(`МАГНИТ ${Math.ceil(this.fx.magnet)}с`);
+        if (this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
+        if (this.fx.magnet > 0) fx.push(`${POWERUPS.choline.hud} ${Math.ceil(this.fx.magnet)}с`);
         if (this.fx.honey > 0) fx.push(`МЁД ${Math.ceil(this.fx.honey)}с`);
         $("hud-fx").hidden = !fx.length;
         $("hud-fx").textContent = fx.join(" · ");
@@ -449,9 +452,12 @@ class Game {
         const behind = this.state === "menu" ? 0 : 1;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
-        const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.y * 0.35, portrait ? 5.0 : 4.4);
+        // в прыжке камера чуть поднимается, в полёте — вместе с героем
+        const lift = this.fx.fly > 0 || this.y > 2.6 ? this.y : this.y * 0.35;
+        this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
+        const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
         const front = new THREE.Vector3(0.7, 1.5, portrait ? -3.6 : -3.0);
-        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.y * 0.3, -8)
+        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.camY * 0.85, -8)
             .lerp(new THREE.Vector3(0, portrait ? 0.5 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
@@ -573,6 +579,7 @@ class Game {
         // движение крыса
         const targetX = this.world.lanes[this.lane];
         this.x += (targetX - this.x) * Math.min(1, dt * 18 * (this.perk.lane || 1));
+        if (this.fx.fly > 0) this.flyStep(dt);
         if (this.jumping) {
             this.vy -= BALANCE.gravity * dt;
             this.y += this.vy * dt;
@@ -584,6 +591,10 @@ class Game {
         }
         if (this.slideLeft > 0) this.slideLeft -= dt;
         this.rat.position.set(this.x, this.y, 0);
+        if (this.aura?.visible) {
+            this.aura.position.set(this.x, this.y + 0.1, 0.15); // зелёный «выхлоп» под ногами
+            this.aura.scale.setScalar(1.3 + Math.sin(this.t * 16) * 0.18);
+        }
         this.rat.rotation.z = (this.x - targetX) * 0.25; // наклон при перестроении
         const blob = this.rat.userData.blob;
         blob.position.x = this.x;
@@ -595,9 +606,56 @@ class Game {
         this.updateHud();
     }
 
+    // ---- баночки: тестобустер (полёт) и холин (магнит) ----
+    powerUp(kind) {
+        const p = POWERUPS[kind];
+        this.audio.play("boost");
+        tg.haptic("success");
+        this.hub.toast(`${p.name}: ${p.text}`);
+        if (kind === "choline") this.fx.magnet = Math.max(this.fx.magnet, p.time);
+        if (kind === "testo") this.fly(p.time);
+    }
+
+    // взлёт: над дорогой — дорожка USDT, полоса иногда меняется, чтобы было что ловить
+    fly(time) {
+        const first = !(this.fx.fly > 0);
+        this.fx.fly = time;
+        this.world.noPickups = true;
+        if (!this.aura) {
+            this.aura = this.world.makeHalo(POWERUPS.testo.color, 1.3);
+            this.scene.add(this.aura);
+        }
+        this.aura.visible = true;
+        if (!first) return;
+        const h = POWERUPS.testo.height + 0.5;
+        const len = Math.max(this.speed || 0, BALANCE.speedStart) * time;
+        let lane = this.lane;
+        for (let z = -9, i = 0; z > -len + 4; z -= 2.2, i++) {
+            if (i && i % 8 === 0) lane = Math.max(0, Math.min(2, lane + (Math.random() < 0.5 ? -1 : 1)));
+            this.world.addCoin(lane, z, h);
+        }
+    }
+
+    flyStep(dt) {
+        this.fx.fly -= dt;
+        this.jumping = false;
+        this.slideLeft = 0;
+        this.y += (POWERUPS.testo.height - this.y) * Math.min(1, dt * 3);
+        this.world.splash(this.x, 0.3, 1, 0.35, this.y + 0.2); // след из капель под героем
+        if (this.fx.fly > 0) return;
+        // приземление обычным падением и секунда-полторы форы, чтобы не сесть на препятствие
+        this.fx.fly = 0;
+        this.jumping = true;
+        this.vy = 0;
+        this.fx.safe = Math.max(this.fx.safe, 1.6);
+        this.world.noPickups = false;
+        this.aura.visible = false;
+    }
+
     collide(dt) {
         const sliding = this.slideLeft > 0;
         for (const o of this.world.obstacles) {
+            if (this.fx.fly > 0) break; // в полёте препятствия внизу
             const d = o.userData;
             if (Math.abs(o.position.x - this.x) > 0.8) continue;
             if (Math.abs(o.position.z) > d.halfZ + 0.25) continue;
@@ -631,7 +689,9 @@ class Game {
             const c = coins[i];
             if (Math.abs(c.position.x - this.x) > 0.7 || Math.abs(c.position.z) > 0.7) continue;
             if (c.position.y < this.y - 0.2 || c.position.y > this.y + ratTop) continue;
-            if (c.userData.boost) { // монета TRX: ×2 на время по уровню прокачки и +1 TRX в кошелёк
+            if (c.userData.pickup) {
+                this.powerUp(c.userData.pickup);
+            } else if (c.userData.boost) { // монета TRX: ×2 на время по уровню прокачки и +1 TRX в кошелёк
                 this.boostLeft = UPGRADES.x2.times[this.profile.level("x2") - 1];
                 this.trx += 1;
                 this.audio.play("boost");

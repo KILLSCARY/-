@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN } from "./config.js";
 import { loadModel, later } from "./models.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
@@ -170,7 +170,9 @@ export class World {
         this.tier = tier;
         this.lanes = [-laneWidth, 0, laneWidth];
         this.obstacles = [];
-        this.coins = [];
+        this.coins = [];        // и монеты, и баночки (userData.pickup)
+        this.noPickups = false; // во время полёта новых баночек не нужно
+        this.sincePickup = 0;
         this.scenery = [];   // всё, что едет и переставляется в конец улицы
 
         this.swaps = {};
@@ -702,12 +704,12 @@ export class World {
         this.nextDrop = 0;
     }
 
-    splash(x, z, n = 14, power = 1) {
+    splash(x, z, n = 14, power = 1, y = 0.05) {
         for (let i = 0; i < n; i++) {
             const d = this.drops[this.nextDrop];
             this.nextDrop = (this.nextDrop + 1) % this.drops.length;
             d.visible = true;
-            d.position.set(x + rnd(-0.3, 0.3), 0.05, z + rnd(-0.2, 0.3));
+            d.position.set(x + rnd(-0.3, 0.3), y, z + rnd(-0.2, 0.3));
             d.userData.v.set(rnd(-2, 2) * power, rnd(2, 4.5) * power, rnd(0, 2));
         }
     }
@@ -865,6 +867,43 @@ export class World {
         return coin;
     }
 
+    // мягкое цветное свечение (спрайт всегда к камере): ореол баночки и «памп» вокруг героя
+    makeHalo(color, size) {
+        this.haloTex ||= canvasTex(128, 128, (g, w, h) => {
+            const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+            r.addColorStop(0, "rgba(255,255,255,1)");
+            r.addColorStop(0.35, "rgba(255,255,255,.45)");
+            r.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = r;
+            g.fillRect(0, 0, w, h);
+        });
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: this.haloTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+        }));
+        s.scale.setScalar(size);
+        return s;
+    }
+
+    // баночка на дороге: модель из Meshy (пока не загрузилась — простая банка своего цвета) + ореол
+    addPickup(kind, lane, z) {
+        const cfg = POWERUPS[kind];
+        const g = new THREE.Group();
+        const t = this.modelFor(kind);
+        let body;
+        if (t) {
+            body = t.clone();
+            body.position.y -= t.userData.cfg.size / 2;
+        } else {
+            body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 16),
+                new THREE.MeshStandardMaterial({ color: 0x151515, emissive: cfg.color, emissiveIntensity: 0.35, roughness: 0.4 }));
+        }
+        g.add(body, this.makeHalo(cfg.color, 1.7));
+        g.position.set(this.lanes[lane], 0.95, z);
+        g.userData = { pickup: kind, model: true, baseY: 0.95 };
+        this.scene.add(g);
+        this.coins.push(g);
+    }
+
     addCoin(lane, z, y = 0.7, boost = false) {
         const c = this.makeCoin(boost);
         c.position.set(this.lanes[lane], y, z);
@@ -996,9 +1035,16 @@ export class World {
             const boostAt = Math.random() < 0.12 ? Math.floor(n / 2) : -1;
             for (let i = 0; i < n; i++) this.addCoin(free, z + 4 + i * 1.6, 0.7, i === boostAt);
         }
+        // иногда — баночка из NS Store на свободной полосе
+        if (!this.noPickups && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
+            this.sincePickup = 0;
+            this.addPickup(pick(Object.keys(POWERUPS)), free, z + 1.5);
+        }
     }
 
     clear() {
+        this.noPickups = false;
+        this.sincePickup = 0;
         for (const o of this.obstacles) this.scene.remove(o);
         for (const c of this.coins) this.scene.remove(c);
         this.obstacles = [];

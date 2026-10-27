@@ -128,6 +128,8 @@ export const MODELS = {
         { url: "models/obj/blockset_a0.glb", axis: "x", size: 1.6, rotateY: R },
         { url: "models/obj/blockset_b0.glb", axis: "x", size: 1.6, rotateY: R }],
     coin: [{ url: "models/obj/coin_usdt.glb", axis: "x", size: 0.62 }],
+    testo: [{ url: "models/obj/testo.glb", axis: "y", size: 0.8 }],     // баночка тестобустера — полёт
+    choline: [{ url: "models/obj/choline.glb", axis: "y", size: 0.8 }], // баночка холина — магнит
     boost: [{ url: "models/obj/coin_trx.glb", axis: "x", size: 0.85 }],
     girl: [{ url: "models/obj/girl.glb", axis: "y", size: 1.7, rotateY: R / 2 }], // девушка в красном пальто (Meshy Red Coat Getaway)
     bin: [{ url: "models/obj/trash1.glb", axis: "y", size: 0.95 }],
@@ -226,12 +228,22 @@ export const HERO_PERKS = {
 
 // «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.
 export const BOOSTS = [
-    { id: "magnet", name: "Скупщик", text: "Магнит первые 15 с: USDT летят к тебе", price: 300, time: 15 },
+    { id: "magnet", name: "Холин", text: "Первые 15 с концентрация на максимум: USDT сами тянутся к тебе", price: 300, time: 15 },
+    { id: "testo", name: "Тестобустер", text: "Старт с дикого пампа: 5 с летишь над дорогой", price: 800, time: 5 },
     { id: "honey", name: "Мёд с пасеки", text: "15 с прыжки выше", price: 400, time: 15 },
     { id: "shield", name: "Чистая карта", text: "Одно столкновение не считается", price: 600 },
     { id: "x2", name: "Лимит ×2", text: "Двойные USDT первые 30 с", price: 700, time: 30 },
     { id: "dash", name: "Рывок", text: "Старт сразу с 500 м", price: 900, meters: 500 },
 ];
+// Баночки на дороге. Тестобустер — дикий памп: герой взлетает над препятствиями и собирает USDT в воздухе,
+// потом приземляется. Холин — ум притягивает умные мысли, а заодно и монеты (магнит).
+// chance — шанс баночки в ряду, gap — минимум рядов между баночками
+export const POWERUPS = {
+    testo: { name: "Тестобустер", text: "дикий памп, летишь!", hud: "ПАМП", time: 5, height: 4.2, color: 0x35e39b },
+    choline: { name: "Холин", text: "мысли и USDT тянутся к тебе", hud: "ХОЛИН", time: 10, color: 0xf2c46b },
+};
+export const POWERUP_SPAWN = { chance: 0.08, gap: 8 };
+
 // Апелляция — продолжить забег после проигрыша, один раз за забег
 export const APPEAL_PRICE = 2; // TRX
 
