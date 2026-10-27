@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, POLICE_OFFICER, CHASER, SKY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, HERO_SKILLS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -216,6 +216,13 @@ class Game {
         if (this.wind) this.world.dropObstacle(this.wind.npc);
         this.wind = null;
         this.nextWindAt = WIND.firstAt;
+        // умения героя: кнопка (раз за забег), «Таран», запасная жизнь, прощённая ошибка на стене
+        this.skillUsed = false;
+        this.ram = 0;
+        this.lives = this.perk?.extraLife || 0;
+        this.wallForgive = this.perk?.wallForgive || 0;
+        this.fx.turbo = 0;
+        this.renderSkill();
         this.cause = null;
         this.rat.position.set(0, 0, 0);
         this.rat.rotation.set(0, 0, 0);
@@ -433,6 +440,7 @@ class Game {
             else if (k === "ArrowRight" || k === "KeyD") this.move(1);
             else if (k === "ArrowUp" || k === "KeyW" || k === "Space") { e.preventDefault(); this.jump(); }
             else if (k === "ArrowDown" || k === "KeyS") this.slide();
+            else if (k === "KeyE" || k === "ShiftLeft" || k === "ShiftRight") this.useSkill();
             else if (k === "Escape" || k === "KeyP") this.state === "paused" ? this.resume() : this.pause();
             else if (k === "Enter" && (this.state === "over" || (this.state === "menu" && this.hub.current === "run" && $("case-open").hidden))) this.start();
         });
@@ -503,6 +511,7 @@ class Game {
             $("btn-sound").setAttribute("aria-pressed", String(this.audio.enabled));
         };
         soundIcon();
+        $("btn-skill").onclick = () => this.useSkill();
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
             try { localStorage.setItem("p2p_sound", this.audio.enabled ? "on" : "off"); } catch {}
@@ -538,6 +547,8 @@ class Game {
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
             { id: "honey", name: "Мёд", left: this.fx.honey, color: "#f0a33a" },
             { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
+            { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#3dd1ff" },
+            { id: "ram", name: "Таран", left: this.ram > 0 ? Infinity : 0, color: "#ffffff" },
         ]);
     }
 
@@ -773,6 +784,7 @@ class Game {
             this.slowLeft -= dt;
             this.speed *= 0.55 + 0.45 * (1 - this.slowLeft / BALANCE.stumbleSlow);
         }
+        if (this.fx.turbo > 0) this.speed *= 1.3; // «Турбо» / «Попутный ветер»
         const move = this.speed * dt;
         this.distance += move;
         const prevStep = Math.floor(this.phase / Math.PI);
@@ -830,7 +842,7 @@ class Game {
 
         if (this.stumble > 0) this.chase(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
-        for (const k of ["magnet", "honey", "safe"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        for (const k of ["magnet", "honey", "safe", "turbo"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         this.collide(dt, move);
         this.updateHud();
     }
@@ -1004,6 +1016,46 @@ class Game {
         this.nextRowZ = Math.min(this.nextRowZ, z - 16); // следующий ряд — не раньше чем через 16 м после стены
     }
 
+    // ---- умение героя ---------------------------------------------------------------------
+    renderSkill() {
+        const s = HERO_SKILLS[this.heroId], b = $("btn-skill");
+        b.hidden = !s;
+        if (!s) return;
+        $("sk-name").textContent = s.name;
+        $("sk-text").textContent = this.skillUsed ? "использовано" : s.text;
+        b.disabled = this.skillUsed;
+    }
+
+    useSkill() {
+        const s = HERO_SKILLS[this.heroId];
+        if (!s || this.skillUsed || this.state !== "playing") return;
+        this.skillUsed = true;
+        if (s.kind === "turbo") { this.fx.turbo = s.time; this.fx.safe = Math.max(this.fx.safe, s.time); }
+        if (s.kind === "magnet") this.fx.magnet = Math.max(this.fx.magnet, s.time);
+        if (s.kind === "x2") this.boostLeft = Math.max(this.boostLeft, s.time);
+        if (s.kind === "ram") this.ram = s.charges;
+        this.hub.toast(`${s.name}: ${s.text}`);
+        this.audio.play("boost");
+        tg.haptic("heavy");
+        this.kick(0.2, 6);
+        $("btn-skill").classList.add("fire");
+        setTimeout(() => $("btn-skill").classList.remove("fire"), 600);
+        this.renderSkill();
+    }
+
+    // запасная жизнь (Саша Белый): второй удар не заканчивает забег, погоня сбрасывается
+    spareLife(o) {
+        if (this.lives <= 0) return false;
+        this.lives--;
+        this.stumble = 0;
+        if (this.chaser) this.chaser.visible = false;
+        this.fx.safe = Math.max(this.fx.safe, 2);
+        if (o) { o.visible = false; o.userData.type = "decor"; }
+        this.hub.toast("Запасная жизнь!");
+        tg.haptic("success");
+        return true;
+    }
+
     // ---- «Ислам дует» -----------------------------------------------------------------------
     spawnWind() {
         const z = -(this.nextWindAt - this.distance);
@@ -1107,12 +1159,21 @@ class Game {
             } else this.hub.toast(`Верно! +${WALLS.reward} USDT`);
             return false;
         }
+        if (this.ram > 0 || this.wallForgive > 0) { // «Таран» Саши или прощённая ошибка Ислама — как верный ответ
+            const how = this.ram > 0 ? "Таран" : "Ислам простил ошибку";
+            if (this.ram > 0) this.ram--; else this.wallForgive--;
+            o.userData.correct = true;
+            w.answered = false;
+            const r = this.answer(o);
+            this.hub.toast(`${how}! +${WALLS.reward} USDT`);
+            return r;
+        }
         st.fail++;
         this.wallStreak = 0;
         this.hub.toast(`Почти! Верно: «${w.q.a[0]}»`); // без «неправильно» — подсказываем верный ответ
         o.userData.type = "decor";
         if (this.fx.safe > 0) return false;
-        if (this.stumble > 0) { this.gameOver("wall"); return true; }
+        if (this.stumble > 0) { if (this.spareLife(o)) return false; this.gameOver("wall"); return true; }
         this.hitOnce(o);
         return false;
     }
@@ -1145,7 +1206,7 @@ class Game {
                 continue;
             }
             // как в сабвее: второй удар, пока ДПС на хвосте, — поймали; первый — споткнулся
-            if (this.stumble > 0) return this.gameOver("caught");
+            if (this.stumble > 0) { if (this.spareLife(o)) continue; return this.gameOver("caught"); }
             this.hitOnce(o);
             break;
         }

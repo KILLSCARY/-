@@ -702,3 +702,23 @@ html.tg, html.tg body { background: #000; }
 .wind-taps i.on { background: #fff; transform: scale(1.15); }
 @keyframes wind-shake { 50% { transform: translateX(calc(-50% + var(--wd, 1) * 4px)); } }
 @media (prefers-reduced-motion: reduce) { .wind-q { animation: none; } }
+
+/* ---- умение героя: кнопка справа снизу, один раз за забег ---- */
+.skill {
+    position: absolute; right: 16px; bottom: calc(24px + var(--tg-safe-area-inset-bottom, 0px) + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    width: 92px; height: 92px; border-radius: 50%; padding: 8px; text-align: center; cursor: pointer;
+    background: radial-gradient(circle at 50% 35%, rgba(61, 209, 255, .35), rgba(20, 20, 20, .92) 70%);
+    border: 1.5px solid rgba(61, 209, 255, .8); color: #fff; box-shadow: 0 0 24px rgba(61, 209, 255, .35);
+    -webkit-tap-highlight-color: transparent; transition: transform .12s, opacity .3s;
+}
+.skill b { font: 800 11px/1.05 var(--font-display); text-transform: uppercase; }
+.skill span:not(.sk-ring) { font-size: 8.5px; line-height: 1.15; color: rgba(255, 255, 255, .7); }
+.skill .sk-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(61, 209, 255, .5); animation: sk-pulse 1.6s ease-out infinite; will-change: transform, opacity; }
+@keyframes sk-pulse { from { transform: scale(.92); opacity: 1; } to { transform: scale(1.15); opacity: 0; } }
+.skill:active { transform: scale(.92); }
+.skill:disabled { opacity: .35; box-shadow: none; border-color: rgba(255, 255, 255, .2); background: rgba(20, 20, 20, .8); }
+.skill:disabled .sk-ring { display: none; }
+.skill.fire { animation: sk-fire .6s ease-out; }
+@keyframes sk-fire { 30% { transform: scale(1.25); } }
+@media (prefers-reduced-motion: reduce) { .skill .sk-ring, .skill.fire { animation: none; } }

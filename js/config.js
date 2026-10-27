@@ -306,9 +306,19 @@ export const HERO_PRICES = { pavel: 50000, islam: 25000, sasha: 75000 };
 export const HERO_PERKS = {
     mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15 },
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
-    islam: { text: "Паркур: перекат длиннее, полосу меняет быстрее", slide: 1.3, lane: 1.1 },
-    denchik: { text: "Свой человек: +8% USDT, полосу меняет быстрее", coinBonus: 12, lane: 1.1 },
-    sasha: { text: "Авторитет: +20% USDT", coinBonus: 5 },
+    islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
+    denchik: { text: "Мозг команды: +10% USDT", coinBonus: 10 },
+    sasha: { text: "+1 жизнь за забег и +20% USDT", extraLife: 1, coinBonus: 5 },
+};
+
+// Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
+// тянутся, x2 — двойные USDT, ram — столько стен подряд засчитываются без ответа (charges)
+export const HERO_SKILLS = {
+    mouse: { name: "Турбо", text: "4 с быстрее и неуязвим", kind: "turbo", time: 4 },
+    denchik: { name: "Магнит", text: "8 с монеты тянутся к тебе", kind: "magnet", time: 8 },
+    islam: { name: "Попутный ветер", text: "5 с ускорение и защита", kind: "turbo", time: 5 },
+    sasha: { name: "Таран", text: "3 стены подряд — без ответа", kind: "ram", charges: 3 },
+    pavel: { name: "Связки", text: "8 с двойные USDT", kind: "x2", time: 8 },
 };
 
 // «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.

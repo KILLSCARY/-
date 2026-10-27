@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -206,7 +206,9 @@ export class Hub {
         const on = st === "play" && c.id === this.game.heroId;
         const price = HERO_PRICES[c.id];
         const share = st === "buy" ? Math.min(1, this.p.usdt / price) : 0;
-        const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя` : HERO_PERKS[c.id]?.text ?? "";
+        const skill = HERO_SKILLS[c.id];
+        const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
+            : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
         box.innerHTML = `<p class="label">${on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Выкуп" : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
             ${st === "buy" ? `<div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div><div class="bar"><i style="width:${share * 100}%"></i></div>` : ""}`;
