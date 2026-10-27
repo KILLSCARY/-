@@ -9,16 +9,33 @@ export const tg = {
     inTelegram,
     user: inTelegram ? wa.initDataUnsafe?.user ?? null : null,
 
+    // На телефоне — во весь экран (Bot API 8.0+): без шапки Telegram, вертикально, свайп вниз не закрывает игру.
+    // Отступы под «чёлку» и кнопки Telegram страница берёт из CSS-переменных --tg-safe-area-inset-* и
+    // --tg-content-safe-area-inset-*, которые выставляет telegram-web-app.js.
     init() {
         if (!inTelegram) return;
         wa.ready();
         wa.expand();
         if (atLeast("7.7")) wa.disableVerticalSwipes();
         if (atLeast("6.1")) {
-            wa.setHeaderColor("#14060a");
-            wa.setBackgroundColor("#14060a");
+            wa.setHeaderColor("#000000");
+            wa.setBackgroundColor("#000000");
         }
-        if (atLeast("8.0")) wa.requestFullscreen?.();
+        if (atLeast("7.10")) wa.setBottomBarColor?.("#000000");
+        const mobile = ["android", "ios"].includes(wa.platform);
+        if (mobile && atLeast("8.0")) {
+            try { wa.requestFullscreen(); } catch {}
+            try { wa.lockOrientation(); } catch {}
+            wa.onEvent?.("fullscreenFailed", () => wa.expand());
+        }
+        document.documentElement.classList.add("tg", mobile ? "tg-mobile" : "tg-desktop");
+    },
+
+    // Во время забега Telegram спросит подтверждение, если игрок случайно закрывает мини-приложение
+    guardClose(on) {
+        if (!atLeast("6.2")) return;
+        if (on) wa.enableClosingConfirmation();
+        else wa.disableClosingConfirmation();
     },
 
     haptic(kind = "light") {

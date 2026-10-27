@@ -178,6 +178,7 @@ class Game {
         setTimeout(() => { cd.hidden = true; }, 500);
         this.state = "playing";
         this.audio.music("run");
+        tg.guardClose(true);
     }
 
     // добавки из NS Store, купленные на этот забег: по одной каждой
@@ -208,6 +209,7 @@ class Game {
         this.show("hud");
         this.state = "playing";
         this.audio.music("run");
+        tg.guardClose(true);
     }
 
     get perk() {
@@ -231,6 +233,7 @@ class Game {
 
     gameOver(cause) {
         this.state = "over";
+        tg.guardClose(false);
         this.cause = cause;
         this.audio.music("menu");
         this.audio.play("hit");

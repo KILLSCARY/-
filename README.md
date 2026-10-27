@@ -133,18 +133,16 @@ tools/maketex.py  генерация карт нормалей/шерохова�
 2. Framework Preset: **Other**, Build Command — пусто, Output Directory — `.` (подтянется из `vercel.json`). **Deploy**.
 3. Получится адрес вида `https://<проект>.vercel.app`. Каждый пуш в `main` публикуется автоматически.
 
-## Подключение к Telegram
+## Подключение к Telegram (мини-приложение во весь экран)
 
-1. Залить папку на любой статический хостинг с HTTPS: GitHub Pages, Vercel, Netlify или Cloudflare Pages.
-2. В @BotFather: `/newbot`, затем `/newapp`, выбрать бота и указать URL игры.
-3. В `js/config.js` вписать `LINKS.bot` (ссылку `t.me/<бот>/<app>`) и `LINKS.course`.
+На телефоне игра сама просит Telegram открыть её во весь экран (Bot API 8.0+), фиксирует вертикальную ориентацию,
+отключает закрытие свайпом вниз, а во время забега включает подтверждение закрытия. Отступы под «чёлку»
+и кнопки Telegram берутся из `--tg-safe-area-inset-*` / `--tg-content-safe-area-inset-*`. На компьютере — обычное окно.
 
-## Что дальше
-
-- Заменить процедурного крыса на спрайты или модель в стиле роликов.
-- Общий лидерборд (нужен бэкенд с проверкой `initData`).
-- Бонусы и препятствия по теме P2P: скамеры, «арбитраж», «стакан».
-- Рефералка и награды за приглашения.
-
-Референсы: [omsingh02/bunny](https://github.com/omsingh02/bunny) (3D-раннер на Three.js) и
-[sagzamovich-netizen/soyaga-yugur](https://github.com/sagzamovich-netizen/soyaga-yugur) (Telegram Mini App раннер).
+1. Опубликовать сайт (Vercel, см. выше) и взять адрес `https://<проект>.vercel.app`.
+2. В @BotFather: `/newbot` → имя и username бота (если бота ещё нет).
+3. `/mybots` → бот → **Bot Settings → Configure Mini App → Enable Mini App** → вставить адрес с Vercel.
+   Там же включить **Launch Mode → Fullscreen** (если пункт есть): тогда игра откроется во весь экран сразу.
+4. Для ссылки-приглашения: `/newapp` → бот → название, описание, картинка 640×360 → адрес → короткое имя (`play`).
+   Ссылка вида `https://t.me/<бот>/play` — её и кидать друзьям; кнопка «Играть» появится и в профиле бота.
+5. В `js/config.js` вписать `LINKS.bot` (эту ссылку) и `LINKS.course`.

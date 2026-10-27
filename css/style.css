@@ -222,7 +222,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     display: grid; grid-template-columns: repeat(4, 1fr);
     margin: 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px))) 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
     border-top: 1px solid var(--line); background: rgba(0, 0, 0, 0.94);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
 }
 .tabbar button {
     position: relative; padding: 14px 0 16px; border: 0; background: none; color: var(--dim); cursor: pointer;
@@ -285,7 +285,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .icon + .icon { margin-left: 0; }
 
 #countdown {
-    position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: 84px; color: #fff;
+    position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: min(84px, 13vw); color: #fff;
     text-shadow: 0 0 30px rgba(227, 52, 58, 0.8); pointer-events: none;
 }
 #countdown.pop { animation: pop 0.5s ease-out; }
@@ -304,3 +304,6 @@ body.shake #game { animation: shake 0.35s; }
 @media (prefers-reduced-motion: reduce) {
     #countdown.pop, #toast.show, body.shake #game { animation: none; }
 }
+
+/* Telegram во весь экран: сверху у Telegram свои кнопки («Закрыть», «…») — их высота в --tg-content-safe-area-inset-top */
+html.tg, html.tg body { background: #000; }
