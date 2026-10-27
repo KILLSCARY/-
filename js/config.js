@@ -71,9 +71,9 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // lights — сколько фонарей светят по-настоящему, rain — капель дождя, fps — потолок кадров в забеге / в меню,
 // lite — облегчённые модели из models/obj/lite (в ~3 раза меньше треугольников, текстуры 512 WebP).
 export const QUALITY_TIERS = {
-    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], lite: false },
-    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], lite: true },
-    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 180, fps: [45, 24], lite: true },
+    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], lite: false, far: 100 },
+    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], lite: true,  far: 80 },
+    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], lite: true,  far: 62 },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

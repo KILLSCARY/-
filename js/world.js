@@ -7,6 +7,7 @@ import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
 import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
+import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
@@ -45,6 +46,32 @@ function loadTex(file, repeat, srgb) {
     t.anisotropy = 8;
     if (srgb) t.encoding = THREE.sRGBEncoding;
     return t;
+}
+
+// Склеить неподвижные детали группы с одинаковым материалом в одну сетку: дом из 10–15 коробок
+// рисуется за 3–5 вызовов вместо 10–15. Детали с userData, дочерними объектами или массивом материалов не трогаем.
+function mergeStatic(g) {
+    const byMat = new Map();
+    for (const m of [...g.children]) {
+        if (!m.isMesh || m.children.length || Array.isArray(m.material) || Object.keys(m.userData).length) continue;
+        m.updateMatrix();
+        const geo = m.geometry.clone();
+        geo.applyMatrix4(m.matrix);
+        for (const name of Object.keys(geo.attributes)) if (!["position", "normal", "uv"].includes(name)) geo.deleteAttribute(name);
+        const list = byMat.get(m.material) || [];
+        list.push({ m, geo });
+        byMat.set(m.material, list);
+    }
+    for (const [mat, list] of byMat) {
+        if (list.length < 2) continue;
+        const merged = mergeBufferGeometries(list.map((x) => x.geo));
+        if (!merged) continue;
+        for (const { m } of list) g.remove(m);
+        const mesh = new THREE.Mesh(merged, mat);
+        mesh.receiveShadow = true;
+        mesh.castShadow = list.some((x) => x.m.castShadow);
+        g.add(mesh);
+    }
 }
 
 // Случайный фасад с учётом weight
@@ -177,6 +204,7 @@ export class World {
         this.scenery = [];   // всё, что едет и переставляется в конец улицы
 
         this.swaps = {};
+        this.warmQueue = []; // свежезагруженные модели: игра заранее соберёт их шейдеры и зальёт текстуры (Game.warmUp)
         this.officers = [];    // живые инспекторы у патрульных машин на обочине
         this.officerPosts = []; // машины, к которым поставить инспектора, когда загрузится модель
         this.buildMaterials();
@@ -379,7 +407,7 @@ export class World {
         }
 
         // мусорные пакеты на тротуарах
-        for (let i = 0; i < 26; i++) {
+        for (let i = 0; i < (this.tier.lite ? 12 : 26); i++) {
             const bag = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.22, 0.42), 10, 8), this.mat.trash);
             bag.scale.set(1, rnd(0.6, 0.8), 1.1);
             bag.position.set(pick([-1, 1]) * rnd(5.5, 6.7), 0.3, BEHIND_Z - rnd(0, STREET_LEN));
@@ -423,6 +451,7 @@ export class World {
         const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.18), this.mat.sodium);
         bulb.position.set(-side * 1.1, 5.18, 0);
         g.add(pole, arm, head, bulb);
+        mergeStatic(g);
         return g;
     }
 
@@ -489,6 +518,7 @@ export class World {
 
         const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
         if (!f.ground) this.addEntrance(g, front, out, len);
+        mergeStatic(g);
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;
@@ -924,6 +954,7 @@ export class World {
                     holder.add(m);
                     holder.userData = { cfg };
                     (this.templates[kind] ||= []).push(holder);
+                    this.warmQueue.push(holder.clone());
                     for (const g of this.swaps[kind] || []) if (!g.userData.swapped) this.swapIn(g, kind);
                 }, () => { if (kind === "bank") this.bankFallback(); }, { deferred: true });
             }
@@ -939,6 +970,7 @@ export class World {
             const k = cfg.height / box.getSize(new THREE.Vector3()).y;
             const c = box.getCenter(new THREE.Vector3());
             this.officer = { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
+            this.warmQueue.push(this.makeOfficer(POLICE_OFFICER.run));
             for (const { car, side } of this.officerPosts) { // у постов на обочине — лицом к бегущему, вполоборота к дороге
                 const o = this.makeOfficer(pick(cfg.idle));
                 o.position.set(side * 3.5, 0.18, car.position.z + 1.6);

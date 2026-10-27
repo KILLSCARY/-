@@ -59,7 +59,10 @@ class Game {
 
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
-        this.quality = QUALITY === "auto" ? (mobile ? "medium" : "high") : QUALITY;
+        // слабый телефон (мало памяти или ядер) — сразу низкая графика, чтобы не грелся
+        const weak = mobile && ((navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4 && !/iPhone|iPad/.test(navigator.userAgent)));
+        this.quality = QUALITY === "auto" ? (weak ? "low" : mobile ? "medium" : "high") : QUALITY;
+        this.resScale = 1; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
         this.tier = QUALITY_TIERS[this.quality];
 
         this.setupScene();
@@ -135,7 +138,7 @@ class Game {
 
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
-        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio);
+        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
         this.composer.setPixelRatio(ratio);
@@ -443,8 +446,10 @@ class Game {
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
 
+        if (this.world.warmQueue.length && now - (this.lastWarm || 0) > 400) this.warmUp();
         if (this.state === "playing") this.step(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
+        if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
@@ -466,10 +471,11 @@ class Game {
         // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
         const lift = this.y * (this.flight ? 0.6 : 0.35);
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
-        const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
-        const front = new THREE.Vector3(0.7, 1.5, portrait ? -3.6 : -3.0);
-        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
-            .lerp(new THREE.Vector3(0, portrait ? 0.5 : 1.0, 0), 1 - k);
+        const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
+        const back = v.back.set(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
+        const front = v.front.set(0.7, 1.5, portrait ? -3.6 : -3.0);
+        const target = v.target.set(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
+            .lerp(v.menu.set(0, portrait ? 0.5 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
         cam.position.x += Math.sin(k * Math.PI) * 4;
@@ -497,18 +503,49 @@ class Game {
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
         this.bloom.strength = this.tier.bloom ? 0.8 : 0;
+        // дальше — туман: не рисуем то, чего всё равно не видно
+        this.camera.far = this.tier.far;
+        this.scene.fog.far = this.tier.far - 12;
+        this.camera.updateProjectionMatrix();
         this.onResize();
+    }
+
+    // Шейдеры и текстуры новых моделей собираем сразу после загрузки (обычно ещё в меню), а не в момент,
+    // когда объект впервые показался в забеге, — иначе там рывок на десятки и сотни миллисекунд.
+    warmUp() {
+        this.lastWarm = performance.now();
+        const g = new THREE.Group();
+        for (const o of this.world.warmQueue.splice(0)) g.add(o);
+        g.position.set(0, 0, -12);
+        this.scene.add(g);
+        this.renderer.compile(this.scene, this.camera);
+        g.traverse((o) => {
+            if (!o.material) return;
+            for (const m of [].concat(o.material)) {
+                for (const key of ["map", "normalMap", "roughnessMap", "emissiveMap", "metalnessMap"]) if (m[key]?.image) this.renderer.initTexture(m[key]);
+            }
+        });
+        this.scene.remove(g);
     }
 
     // В «auto» меряем время кадра в забеге: если стабильно не успеваем — графику на ступень ниже
     measureFps(dt) {
-        if (QUALITY !== "auto" || this.quality === "low" || this.runTime < 1.5) return;
+        if (QUALITY !== "auto" || (this.quality === "low" && this.resScale <= 0.7) || (this.state === "playing" && this.runTime < 1.5)) return;
         this.fpsFrames = (this.fpsFrames || 0) + 1;
         this.fpsTime = (this.fpsTime || 0) + dt;
         if (this.fpsTime < 3) return;
         const fps = this.fpsFrames / this.fpsTime;
         this.fpsFrames = this.fpsTime = 0;
-        if (fps < this.tier.fps[0] * 0.75) this.setQuality(this.quality === "high" ? "medium" : "low");
+        const target = 1000 / this.frameBudget();
+        if (fps >= target * 0.8) return;
+        // сначала меньше пикселей (без рывка), потом — графика на ступень ниже (пересборка шейдеров)
+        if (this.resScale > 0.7) {
+            this.resScale = Math.max(0.7, this.resScale - 0.15);
+            this.onResize();
+        } else {
+            this.resScale = 0.85;
+            this.setQuality(this.quality === "high" ? "medium" : "low");
+        }
     }
 
     // Потолок кадров: в забеге 60 (на 120-герцовых экранах иначе было бы 120), в меню 30–40,
@@ -560,7 +597,6 @@ class Game {
 
     step(dt) {
         this.runTime += dt;
-        this.measureFps(dt);
         this.speed = Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         if (this.slowLeft > 0) { // споткнулся — пару шагов медленнее
             this.slowLeft -= dt;
