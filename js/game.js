@@ -195,7 +195,7 @@ class Game {
         }
         $("over-cause").textContent = pick(DEATH_TEXT[cause]);
         $("over-score").textContent = score;
-        $("over-usdt").textContent = `${this.usdt} ₮`;
+        $("over-usdt").innerHTML = `${this.usdt} <svg class="ico-usdt" aria-label="USDT"><use href="#ico-usdt"/></svg>`;
         $("over-dist").textContent = `${Math.floor(this.distance)} м`;
         $("over-best").textContent = isBest ? "🔥 Новый рекорд!" : `Рекорд: ${this.best}`;
         setTimeout(() => { if (this.state === "over") this.show("over"); }, 700);
@@ -278,7 +278,7 @@ class Game {
         $("btn-resume").onclick = () => this.resume();
         $("btn-menu").onclick = () => { this.state = "menu"; this.resetRun(); this.renderMenu(); this.show("menu"); };
         $("btn-share").onclick = () => tg.share(
-            `Я поднял ${this.usdt} ₮ и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
+            `Я поднял ${this.usdt} USDT и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
             LINKS.bot
         );
         $("btn-course").onclick = () => tg.open(LINKS.course);
