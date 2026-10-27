@@ -166,7 +166,7 @@ class Game {
     }
 
     async start() {
-        if (this.state === "countdown" || $("btn-play").disabled) return;
+        if (this.state === "countdown" || this.heroLoading) return;
         this.audio.unlock();
         this.resetRun();
         this.applyBoosts();
@@ -360,7 +360,7 @@ class Game {
     // ---- интерфейс -----------------------------------------------------------------------
 
     setupUI() {
-        $("btn-play").onclick = () => this.start();
+        $("btn-play").onclick = () => { if (!this.hub.playAction()) this.start(); };
         $("btn-again").onclick = () => this.start();
         $("btn-pause").onclick = () => this.pause();
         $("btn-resume").onclick = () => this.resume();
@@ -383,9 +383,7 @@ class Game {
     renderMenu() {
         this.hub.render();
         $("menu-best").textContent = this.best;
-        $("menu-tip").textContent = pick(TIPS);
-        const name = tg.user?.first_name;
-        $("menu-hello").textContent = name ? `${name}, погнали поднимать USDT` : "Погнали поднимать USDT";
+
     }
 
     show(screen) {
@@ -495,17 +493,17 @@ class Game {
         const cfg = CHARACTERS.find((c) => c.id === id);
         const air = (2 * BALANCE.jumpPower) / BALANCE.gravity;
         const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime * (HERO_PERKS[id]?.slide || 1) + 0.2 } };
-        const play = $("btn-play");
+        // кнопку «Забег» (плитка 01) ведёт главная: пока модель грузится, в забег не пускаем
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
             this.showRat(true);
-            play.disabled = false;
-            play.textContent = "ЗАБЕГ";
+            this.heroLoading = false;
+            this.hub?.updatePlay();
         };
         if (this.heroes[id]) return apply(this.heroes[id]);
-        play.disabled = true; // не пускаем в забег, пока не загрузился выбранный герой
-        play.textContent = "ЗАГРУЗКА…";
+        this.heroLoading = true;
+        this.hub?.updatePlay();
         loadModel(
             cfg.url,
             (gltf) => { this.heroes[id] = gltf; apply(gltf); },
@@ -513,8 +511,8 @@ class Game {
                 console.warn("[hero] не загрузилась модель", cfg.url, e);
                 if (this.heroId !== id) return;
                 this.showRat(true); // запасной вариант — крыс из примитивов
-                play.disabled = false;
-                play.textContent = "ЗАБЕГ";
+                this.heroLoading = false;
+                this.hub?.updatePlay();
             }
         );
     }

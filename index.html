@@ -35,16 +35,19 @@
                 <div class="bar"><i id="chap-bar"></i></div>
             </div>
 
+            <!-- Главная: заголовок-«слово» как на лендинге, карусель героев, плитки 01–04 -->
             <div class="view" id="view-run">
-                <div class="grow"></div>
                 <div class="brand">
-                    <span class="tag">Игра к курсу</span>
-                    <h1><span class="metal">Покоритель</span><span class="red">P2P 3.0</span></h1>
-                    <p id="menu-hello" class="hello"></p>
+                    <p class="label">Игра к курсу</p>
+                    <h1 class="word"><span class="metal">Покоритель</span><span class="outline">P2P 3.0</span></h1>
                 </div>
-                <button id="hero-chip" class="hero-chip"></button>
-                <button id="btn-play" class="btn btn-main">ЗАБЕГ</button>
-                <p id="menu-tip" class="tip"></p>
+                <div class="carousel" id="carousel" aria-label="Выбор героя"></div>
+                <div class="tiles" id="tiles">
+                    <button id="btn-play" class="tile tile-run"><span class="n">01</span><span class="tile-name" id="play-label">Забег</span><span class="arr" aria-hidden="true">→</span></button>
+                    <button class="tile" data-go="cases"><b class="badge" id="tile-cases-badge" hidden>1</b><span class="n">02</span><span class="tile-name">Кейсы</span><span class="tile-sub" id="tile-cases-sub"></span></button>
+                    <button class="tile" data-go="shop"><span class="n">03</span><span class="tile-name">NS Store</span><span class="tile-sub" id="tile-shop-sub"></span></button>
+                    <button class="tile" data-go="heroes"><span class="n">04</span><span class="tile-name">Герои</span><span class="tile-sub" id="tile-heroes-sub"></span></button>
+                </div>
             </div>
             <div class="view sheet" id="view-heroes" hidden>
                 <p class="label">Команда</p>

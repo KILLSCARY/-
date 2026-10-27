@@ -16,7 +16,8 @@ export class Hub {
         this.seg = "boosts";
         for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => this.tab(b.dataset.tab);
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
-        $("hero-chip").onclick = () => this.tab("heroes");
+        for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
+        this.focus = null; // герой в центре карусели
         $("btn-case-ok").onclick = () => { this.game.show("menu"); this.render(); };
         setInterval(() => { if (this.current === "cases") this.renderCases(); }, 30000); // таймер бесплатного конверта
     }
@@ -37,12 +38,128 @@ export class Hub {
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
         $("chap-num").textContent = ch.done ? fmt(ch.earned) : `${fmt(ch.earned)} / ${fmt(ch.goal)}`;
         $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
-        const hero = CHARACTERS.find((c) => c.id === this.game.heroId);
-        $("hero-chip").textContent = `${hero?.name ?? ""} ▸`;
-        $("cases-badge").hidden = !this.freeReady();
+        const free = this.freeReady();
+        $("cases-badge").hidden = !free;
+        $("tile-cases-badge").hidden = !free;
+        $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
+        const next = Object.values(p.data.next || {}).reduce((a, b) => a + b, 0);
+        $("tile-shop-sub").textContent = next ? `Добавок в запасе: ${next}` : "Магнит, мёд, щит";
+        const team = CHARACTERS.filter((c) => !c.locked && p.owns(c.id)).length;
+        $("tile-heroes-sub").textContent = `${team} из ${CHARACTERS.length + SOON_HEROES.length} в команде`;
+        if (this.current === "run") this.renderCarousel();
         if (this.current === "heroes") this.renderHeroes();
         if (this.current === "cases") this.renderCases();
         if (this.current === "shop") this.renderShop();
+    }
+
+    // ---- карусель героев на главной ----
+    heroList() {
+        return [...CHARACTERS.map((c) => ({ ...c, soon: false })), ...SOON_HEROES.map((c, i) => ({ ...c, id: `soon${i}`, soon: true }))];
+    }
+
+    // состояние героя: play — можно бежать, buy — выкуп, locked — не бегает, soon — скоро
+    heroState(c) {
+        if (c.soon) return "soon";
+        if (c.locked) return "locked";
+        return this.p.owns(c.id) ? "play" : "buy";
+    }
+
+    renderCarousel() {
+        const box = $("carousel");
+        const list = this.heroList();
+        if (box.dataset.sig !== list.map((c) => c.id + this.heroState(c)).join()) {
+            box.dataset.sig = list.map((c) => c.id + this.heroState(c)).join();
+            box.innerHTML = list.map((c) => {
+                const st = this.heroState(c);
+                const tag = st === "play" ? (c.id === this.game.heroId ? "В забеге" : "В команде")
+                    : st === "buy" ? `Выкуп · ${fmt(HERO_PRICES[c.id])}` : st === "locked" ? "На связи" : "Скоро";
+                const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
+                return `<div class="hcard st-${st}" data-id="${c.id}">
+                    <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
+                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div></div>`;
+            }).join("");
+            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.scrollTo(el.dataset.id, true);
+            box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
+            requestAnimationFrame(() => this.scrollTo(this.focus ?? this.game.heroId, false));
+        } else {
+            for (const el of box.querySelectorAll(".hcard")) {
+                const c = list.find((x) => x.id === el.dataset.id);
+                if (this.heroState(c) === "play") el.querySelector(".tag").textContent = c.id === this.game.heroId ? "В забеге" : "В команде";
+            }
+        }
+        this.updatePlay();
+    }
+
+    scrollTo(id, smooth) {
+        const el = [...$("carousel").querySelectorAll(".hcard")].find((x) => x.dataset.id === id);
+        if (!el) return;
+        const box = $("carousel");
+        box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.clientWidth) / 2, behavior: smooth ? "smooth" : "auto" });
+        if (!smooth) this.layoutCarousel();
+    }
+
+    // карточки ближе к центру — крупнее и ярче; центральная становится выбранной
+    layoutCarousel() {
+        const box = $("carousel");
+        const mid = box.scrollLeft + box.clientWidth / 2;
+        let best = null, bestD = Infinity;
+        const cards = box.querySelectorAll(".hcard");
+        for (const el of cards) {
+            const d = (el.offsetLeft + el.clientWidth / 2 - mid) / el.clientWidth;
+            const k = Math.min(1, Math.abs(d));
+            el.style.transform = `scale(${1 - 0.16 * k})`;
+            el.style.opacity = String(1 - 0.5 * k);
+            if (Math.abs(d) < bestD) { bestD = Math.abs(d); best = el; }
+        }
+        for (const el of cards) el.classList.toggle("active", el === best);
+        clearTimeout(this.snapTimer);
+        this.snapTimer = setTimeout(() => this.setFocus(best?.dataset.id), 90);
+    }
+
+    setFocus(id) {
+        if (!id || id === this.focus) return;
+        this.focus = id;
+        this.game.audio.play("swipe");
+        const c = this.heroList().find((x) => x.id === id);
+        if (this.heroState(c) === "play" && id !== this.game.heroId) {
+            this.game.selectHero(id);
+            this.renderCarousel();
+        }
+        this.updatePlay();
+    }
+
+    // плитка 01: «Забег», «Выкупить», «Скоро» — по герою в центре карусели
+    updatePlay() {
+        const btn = $("btn-play"), label = $("play-label");
+        if (!btn) return;
+        const c = this.heroList().find((x) => x.id === (this.focus ?? this.game.heroId));
+        const st = c ? this.heroState(c) : "play";
+        btn.classList.remove("is-buy", "is-off");
+        if (st === "play") {
+            btn.disabled = !!this.game.heroLoading;
+            label.textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
+        } else if (st === "buy") {
+            const price = HERO_PRICES[c.id];
+            btn.disabled = this.p.usdt < price;
+            btn.classList.add("is-buy");
+            label.textContent = this.p.usdt >= price ? `Выкупить · ${fmt(price)}` : `Нужно ${fmt(price)} USDT`;
+        } else {
+            btn.disabled = true;
+            btn.classList.add("is-off");
+            label.textContent = st === "soon" ? "Скоро" : "Не бегает";
+        }
+    }
+
+    // нажатие на плитку 01: true — если это выкуп героя (забег не начинаем)
+    playAction() {
+        const c = this.heroList().find((x) => x.id === (this.focus ?? this.game.heroId));
+        if (!c || this.heroState(c) !== "buy") return false;
+        if (!this.p.buyHero(c.id)) return true;
+        this.game.audio.play("buy");
+        this.toast(`${c.name} в команде!`);
+        this.game.selectHero(c.id);
+        this.render();
+        return true;
     }
 
     toast(text) {

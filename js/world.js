@@ -19,10 +19,22 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const loader = new THREE.TextureLoader();
 
+// одна загрузка на файл; копии (свой repeat у каждой) обновляются, когда картинка пришла —
+// раньше needsUpdate без картинки заставлял three.js ругаться в консоль каждый кадр
 const texCache = {};
 function loadTex(file, repeat, srgb) {
-    const t = (texCache[file] ||= loader.load(`textures/${file}`)).clone();
-    t.needsUpdate = true;
+    let entry = texCache[file];
+    if (!entry) {
+        entry = texCache[file] = { copies: [], ready: false };
+        entry.tex = loader.load(`textures/${file}`, () => {
+            entry.ready = true;
+            for (const c of entry.copies) c.needsUpdate = true;
+        });
+    }
+    const t = new THREE.Texture(); // не clone(): он ставит needsUpdate ещё до загрузки картинки
+    t.source = entry.tex.source;
+    if (entry.ready) t.needsUpdate = true;
+    else entry.copies.push(t);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(...repeat);
     t.anisotropy = 8;
