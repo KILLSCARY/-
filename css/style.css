@@ -257,7 +257,9 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 
 .sheet { overflow-y: auto; gap: 10px; padding: 8px 0 14px; scrollbar-width: none; }
 .sheet::-webkit-scrollbar { display: none; }
-.sheet::before {
+/* затемнение под разделами — на .hub, а не на прокручиваемом .sheet: внутри него position: fixed
+   привязывается к разделу (у него transform от анимации въезда) и уезжает вместе со списком */
+.hub[data-tab="cases"]::before, .hub[data-tab="shop"]::before {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: rgba(0, 0, 0, 0.78);
 }
 .sheet-title { margin: 2px 0 0; font-size: 26px; }
@@ -433,24 +435,19 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 #countdown.pop { animation: pop 0.5s ease-out; }
 @keyframes pop { from { transform: scale(1.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-body.shake #game { animation: shake 0.35s; }
+/* собранная монета летит в счётчик USDT (Game.coinFx); тряска при ударе — камерой, не холстом */
+.fly-coin { position: fixed; left: 0; top: 0; width: 22px; height: 22px; display: none; pointer-events: none; z-index: 30; will-change: transform; }
 /* споткнулся: красная пульсирующая рамка по краям экрана, пока ДПС на хвосте */
 body.hurt #hud::after {
     content: ""; position: fixed; inset: 0; pointer-events: none;
     box-shadow: inset 0 0 90px rgba(227, 52, 58, .55); animation: hurt 0.9s ease-in-out infinite; will-change: opacity;
 }
 @keyframes hurt { 50% { opacity: .35; } }
-@keyframes shake {
-    20% { transform: translate(-8px, 4px); }
-    40% { transform: translate(7px, -5px); }
-    60% { transform: translate(-5px, 3px); }
-    80% { transform: translate(3px, -2px); }
-}
 
 .ico-usdt { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
 
 @media (prefers-reduced-motion: reduce) {
-    #countdown.pop, #toast.show, body.shake #game, body.hurt #hud::after, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
+    #countdown.pop, #toast.show, body.hurt #hud::after, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
     #over, #over *, #over *::before, #over *::after { animation: none !important; }
 }
 
@@ -458,8 +455,9 @@ body.hurt #hud::after {
 html.tg, html.tg body { background: #000; }
 
 /* ---- переходы: всё на transform/opacity — это делает видеокарта, без перерисовки страницы ---- */
-.view.in-fwd { animation: view-fwd .38s cubic-bezier(.2, .8, .2, 1) both; }
-.view.in-back { animation: view-back .38s cubic-bezier(.2, .8, .2, 1) both; }
+/* backwards, не both: после въезда transform не должен оставаться — иначе position: fixed внутри раздела ломается */
+.view.in-fwd { animation: view-fwd .38s cubic-bezier(.2, .8, .2, 1) backwards; }
+.view.in-back { animation: view-back .38s cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes view-fwd { from { opacity: 0; transform: translate3d(32px, 0, 0); } }
 @keyframes view-back { from { opacity: 0; transform: translate3d(-32px, 0, 0); } }
 .view.in-fwd .cards > *, .view.in-fwd .hero-detail { animation: tile-in .5s cubic-bezier(.2, .8, .2, 1) both; }
@@ -482,7 +480,7 @@ html.tg, html.tg body { background: #000; }
 /* ---- кейсы: витрина ---- */
 .case-card {
     position: relative; display: flex; flex-direction: column; overflow: hidden;
-    border-radius: 24px; border: 1px solid var(--line); background: var(--card);
+    border-radius: 24px; border: 1px solid var(--line); background: var(--card-solid);
 }
 .case-art {
     position: relative; height: 168px; display: grid; place-items: center; overflow: hidden;

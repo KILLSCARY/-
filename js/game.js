@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER, CHASER } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -56,6 +56,9 @@ class Game {
         this.audio = new Audio();
         this.best = tg.localBest();
         this.t = 0;
+        // рывки камеры: dip — присед по высоте (прыжок, приземление), shake — секунды тряски, fov — «удар» угла обзора
+        this.camKick = { dip: 0, shake: 0, fov: 0 };
+        this.calm = matchMedia("(prefers-reduced-motion: reduce)").matches; // «уменьшить движение» — эффекты слабее
 
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
@@ -148,8 +151,11 @@ class Game {
         this.bloom.setSize(w * ratio / div, h * ratio / div);
         this.bloom.enabled = this.tier.bloom > 0;
         this.camera.aspect = w / h;
-        this.camera.fov = w / h < 0.8 ? 72 : 58;
+        this.baseFov = w / h < 0.8 ? 72 : 58;
+        this.camera.fov = this.baseFov + this.camKick.fov;
         this.camera.updateProjectionMatrix();
+        this.hudCoin = null; // куда летят монеты — пересчитать под новый размер
+        if (this.sceneCovered()) this.composer.render(); // смена размера стирает холст — последний кадр рисуем заново
     }
 
     // ---- забег ---------------------------------------------------------------------------
@@ -246,6 +252,25 @@ class Game {
         return HERO_PERKS[this.heroId] || {};
     }
 
+    // В меню с паузы или с экрана проигрыша. Ушёл с паузы — собранное в забеге всё равно в кошелёк.
+    toMenu() {
+        if (this.state === "paused") {
+            const du = this.usdt - this.credited.usdt, dtrx = this.trx - this.credited.trx;
+            this.credited = { usdt: this.usdt, trx: this.trx };
+            if (du || dtrx) {
+                const chapter = this.profile.earn(du, dtrx);
+                this.hub.toast(`В кошелёк +${fmt(du)} USDT${dtrx ? ` и +${dtrx} TRX` : ""}`);
+                if (chapter !== null) setTimeout(() => this.hub.toast(chapter < CHAPTERS.length ? `Глава ${chapter + 1} открыта: ${CHAPTERS[chapter].name}` : "Сезон 1 пройден!"), 2700);
+            }
+        }
+        tg.guardClose(false);
+        this.state = "menu";
+        this.audio.music("menu");
+        this.resetRun();
+        this.renderMenu();
+        this.show("menu");
+    }
+
     pause() {
         if (this.state !== "playing") return;
         this.state = "paused";
@@ -271,8 +296,8 @@ class Game {
         if (this.chaser) this.chaser.visible = false;
         this.stumble = 0;
         tg.haptic("error");
-        document.body.classList.add("shake");
-        setTimeout(() => document.body.classList.remove("shake"), 400);
+        this.kick(0.5, 10);
+        this.overAt = this.t;
 
         const score = this.score();
         const isBest = score > this.best;
@@ -333,6 +358,7 @@ class Game {
         this.jumping = true;
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
+        this.camKick.dip = -0.16; // камера на миг приседает и догоняет героя
         this.audio.play("swipe");
         tg.haptic("medium");
     }
@@ -342,6 +368,7 @@ class Game {
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
+        this.world.ring(this.x, -0.2, 1.7, 0.5);
         this.audio.play("swipe");
         tg.haptic("light");
     }
@@ -394,15 +421,21 @@ class Game {
         $("btn-again").onclick = () => this.start();
         $("btn-pause").onclick = () => this.pause();
         $("btn-resume").onclick = () => this.resume();
-        $("btn-menu").onclick = $("btn-over-menu").onclick = () => {
-            this.state = "menu"; this.audio.music("menu"); this.resetRun(); this.renderMenu(); this.show("menu");
-        };
+        $("btn-menu").onclick = $("btn-over-menu").onclick = () => this.toMenu();
         $("btn-appeal").onclick = () => this.appeal();
         $("btn-share").onclick = () => tg.share(
             `Я поднял ${this.usdt} USDT и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
             LINKS.bot
         );
         $("btn-course").onclick = () => tg.open(LINKS.course);
+        // иконки монет, летящих в счётчик (coinFx)
+        this.flyPool = Array.from({ length: 8 }, () => {
+            const el = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            el.setAttribute("class", "fly-coin");
+            el.innerHTML = '<use href="#ico-usdt"/>';
+            document.body.append(el);
+            return el;
+        });
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
             $("btn-sound").textContent = this.audio.enabled ? "🔊" : "🔇";
@@ -427,7 +460,7 @@ class Game {
         if (this.boostLeft > 0) $("hud-boost").textContent = `×2 ${Math.ceil(this.boostLeft)}с`;
         const fx = [];
         if (this.fx.shield) fx.push("ЩИТ");
-        if (this.stumble > 0) fx.push(`ДПС ${Math.ceil(this.stumble)}с`);
+        if (this.stumble > 0) fx.push(`${CHASER.hud} ${Math.ceil(this.stumble)}с`);
         document.body.classList.toggle("hurt", this.stumble > 0 && this.state === "playing");
         if (this.flight && this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
         if (this.fx.magnet > 0) fx.push(`${POWERUPS.choline.hud} ${Math.ceil(this.fx.magnet)}с`);
@@ -441,12 +474,22 @@ class Game {
     loop() {
         requestAnimationFrame(() => this.loop());
         const now = performance.now();
-        if (now - (this.lastFrame || 0) < this.frameBudget() - 2) return; // пропускаем кадр
-        this.lastFrame = now;
+        if (this.world.warmQueue.length && now - (this.lastWarm || 0) > 400) this.warmUp();
+        // Разделы «Герои / Кейсы / NS Store» и открытие кейса закрывают сцену: её не рисуем вовсе — на холсте
+        // остаётся последний кадр. Иначе улица за затемнением дёргается, а каждый кадр сцены тормозит прокрутку.
+        if (this.sceneCovered()) { this.clock.getDelta(); return; }
+        this.rafCount = (this.rafCount || 0) + 1; // сколько кадров даёт экран — для measureFps
+        // Потолок кадров по расписанию, а не «прошло ли N мс с прошлого»: иначе на 90 Гц из 60 выходило 45,
+        // а в меню на 60 Гц из 40 — 30. Пол-интервала экрана запаса — кадр рисуем, если он ближе к сроку, чем следующий.
+        const budget = this.frameBudget();
+        const vsync = this.vsync ? Math.min(this.vsync, budget) : 0;
+        if (this.lastRaf) this.vsync = this.vsync ? this.vsync * 0.95 + (now - this.lastRaf) * 0.05 : now - this.lastRaf;
+        this.lastRaf = now;
+        if (now < (this.nextFrame || 0) - vsync / 2) return; // пропускаем кадр
+        this.nextFrame = now - (this.nextFrame || 0) > budget ? now + budget : this.nextFrame + budget;
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
 
-        if (this.world.warmQueue.length && now - (this.lastWarm || 0) > 400) this.warmUp();
         if (this.state === "playing") this.step(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
@@ -479,6 +522,22 @@ class Game {
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
         cam.position.x += Math.sin(k * Math.PI) * 4;
+        // рывки камеры: присед возвращается пружиной, тряска и угол обзора гаснут
+        const kick = this.camKick, calm = this.calm ? 0.3 : 1;
+        kick.dip += (0 - kick.dip) * Math.min(1, dt * 7);
+        cam.position.y += kick.dip * calm;
+        if (kick.shake > 0) {
+            kick.shake = Math.max(0, kick.shake - dt);
+            const a = Math.min(1, kick.shake / 0.35) * 0.14 * calm;
+            cam.position.x += (Math.random() - 0.5) * 2 * a;
+            cam.position.y += (Math.random() - 0.5) * 2 * a;
+        }
+        if (kick.fov > 0.01 || cam.fov !== this.baseFov) {
+            kick.fov += (0 - kick.fov) * Math.min(1, dt * 6);
+            if (kick.fov <= 0.01) kick.fov = 0;
+            cam.fov = this.baseFov + kick.fov * calm;
+            cam.updateProjectionMatrix();
+        }
         cam.lookAt(target);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
@@ -531,12 +590,15 @@ class Game {
     // В «auto» меряем время кадра в забеге: если стабильно не успеваем — графику на ступень ниже
     measureFps(dt) {
         if (QUALITY !== "auto" || (this.quality === "low" && this.resScale <= 0.7) || (this.state === "playing" && this.runTime < 1.5)) return;
+        if (!this.fpsFrames) { this.fpsStart = performance.now(); this.fpsRaf = this.rafCount; }
         this.fpsFrames = (this.fpsFrames || 0) + 1;
         this.fpsTime = (this.fpsTime || 0) + dt;
         if (this.fpsTime < 3) return;
         const fps = this.fpsFrames / this.fpsTime;
+        // экран сам может давать меньше потолка (30 Гц в режиме энергосбережения) — это не лаг
+        const screenHz = (this.rafCount - this.fpsRaf) / ((performance.now() - this.fpsStart) / 1000);
         this.fpsFrames = this.fpsTime = 0;
-        const target = 1000 / this.frameBudget();
+        const target = Math.min(1000 / this.frameBudget(), screenHz);
         if (fps >= target * 0.8) return;
         // сначала меньше пикселей (без рывка), потом — графика на ступень ниже (пересборка шейдеров)
         if (this.resScale > 0.7) {
@@ -552,8 +614,14 @@ class Game {
     // когда сцену закрывает вкладка, пауза или проигрыш — 12. Меньше кадров — меньше нагрев.
     frameBudget() {
         if (this.state === "playing" || this.state === "countdown") return 1000 / this.tier.fps[0];
-        if (this.state === "menu" && this.hub?.current === "run" && !document.querySelector("#case-open:not([hidden])")) return 1000 / this.tier.fps[1];
+        if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / this.tier.fps[0]; // тряска при проигрыше — плавно
+        if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
+    }
+
+    // сцену целиком закрывает затемнение раздела «Кейсы» / «NS Store» или экран открытия кейса
+    sceneCovered() {
+        return this.state === "menu" && (["cases", "shop"].includes(this.hub?.current) || !$("case-open").hidden);
     }
 
     // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
@@ -638,9 +706,15 @@ class Game {
                 this.y = 0;
                 this.jumping = false;
                 this.world.splash(this.x, 0, 16);
+                this.world.ring(this.x, 0, 1.1, 0.35);
             }
         }
-        if (this.slideLeft > 0) this.slideLeft -= dt;
+        if (this.slideLeft > 0) {
+            this.slideLeft -= dt;
+            this.sprayIn = (this.sprayIn || 0) - dt;
+            if (!this.jumping && this.sprayIn <= 0) { this.world.spray(this.x, 0); this.sprayIn = 0.04; }
+        }
+        this.world.playerX = this.x;
         this.rat.position.set(this.x, this.y, 0);
         this.rat.rotation.z = (this.x - targetX) * 0.25; // наклон при перестроении
         const blob = this.rat.userData.blob;
@@ -667,12 +741,13 @@ class Game {
         this.audio.play("hit");
         this.audio.play("whistle");
         tg.haptic("warning");
-        document.body.classList.add("shake");
-        setTimeout(() => document.body.classList.remove("shake"), 400);
+        this.kick(0.35, 7);
         this.world.splash(this.x, 0, 22, 1.3);
-        if (!this.chaser || (!this.chaser.userData.mixer && this.world.officer)) { // живой инспектор бежит; пока не загрузился — спрайт
+        // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+        const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
+        if (!this.chaser || better) {
             if (this.chaser) this.scene.remove(this.chaser);
-            this.chaser = this.world.makeOfficer(POLICE_OFFICER.run);
+            this.chaser = this.world.makeChaser() || this.world.makeOfficer(POLICE_OFFICER.run);
             if (!this.chaser) {
                 this.chaser = this.world.makeSprite("cop");
                 this.chaser.scale.setScalar(0.9);
@@ -682,6 +757,42 @@ class Game {
         this.chaser.visible = true;
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
+    }
+
+    // удар: тряска камеры на shake секунд и рывок угла обзора на fov градусов
+    kick(shake, fov) {
+        this.camKick.shake = Math.max(this.camKick.shake, shake);
+        this.camKick.fov = Math.max(this.camKick.fov, fov);
+    }
+
+    // Монета USDT: вспышка на её месте, а копия-иконка летит в счётчик, и он подпрыгивает.
+    // Иконки — из пула: с холином монеты собираются пачкой, лишние просто не летят.
+    coinFx(c) {
+        this.world.flash(c.position);
+        const chip = $("hud-usdt").parentElement;
+        const el = !this.calm && this.flyPool.find((e) => !e.busy);
+        if (!el) return this.pulseChip(chip);
+        const v = (this.coinVec ||= new THREE.Vector3()).copy(c.position).project(this.camera);
+        const x0 = (v.x + 1) / 2 * window.innerWidth, y0 = (1 - v.y) / 2 * window.innerHeight;
+        if (!this.hudCoin) { // где иконка USDT в счётчике — один раз (сбрасывается в onResize)
+            const r = chip.querySelector("svg").getBoundingClientRect();
+            this.hudCoin = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        const { x, y } = this.hudCoin;
+        el.busy = true;
+        el.style.display = "block";
+        const a = el.animate([
+            { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.15)` },
+            { transform: `translate(${x}px, ${y}px) translate(-50%, -50%) scale(0.7)` },
+        ], { duration: 420, easing: "cubic-bezier(.55, 0, .75, .45)" });
+        a.onfinish = a.oncancel = () => { el.busy = false; el.style.display = "none"; this.pulseChip(chip); };
+    }
+
+    pulseChip(chip) {
+        const now = performance.now();
+        if (this.calm || now - (this.lastPulse || 0) < 120) return;
+        this.lastPulse = now;
+        chip.animate([{ transform: "scale(1)" }, { transform: "scale(1.14)" }, { transform: "scale(1)" }], { duration: 220, easing: "ease-out" });
     }
 
     // ДПС бежит за спиной, пока не отстанет
@@ -752,6 +863,8 @@ class Game {
         } else if (f.e < f.dur + LAND_AIR + LAND_GROUND) { // приземлился в присед и встаёт
             if (this.y > 0) {
                 this.world.splash(this.x, 0, 24, 1.3);
+                this.world.ring(this.x, 0, 2.8, 0.6);
+                this.camKick.dip = -0.35;
                 tg.haptic("medium");
                 this.fx.safe = Math.max(this.fx.safe, 1.2); // фора, чтобы не сесть на препятствие
             }
@@ -813,6 +926,7 @@ class Game {
             } else if (c.userData.boost) { // монета TRX: ×2 на время по уровню прокачки и +1 TRX в кошелёк
                 this.boostLeft = UPGRADES.x2.times[this.profile.level("x2") - 1];
                 this.trx += 1;
+                this.world.flash(c.position, true);
                 this.audio.play("boost");
                 tg.haptic("success");
             } else {
@@ -820,6 +934,7 @@ class Game {
                 const bonus = this.perk.coinBonus && this.coinCount % this.perk.coinBonus === 0 ? 1 : 0; // Паша: +10%
                 this.usdt += (this.boostLeft > 0 ? 2 : 1) + bonus;
                 this.audio.play("coin");
+                this.coinFx(c);
             }
             this.world.removeCoin(i);
         }

@@ -5,10 +5,10 @@ const wa = window.Telegram?.WebApp;
 const inTelegram = Boolean(wa && wa.initData);
 const atLeast = (v) => Boolean(inTelegram && wa.isVersionAtLeast?.(v));
 
-// CloudStorage иногда отвечает секундами — дольше 2,5 с не ждём
-function cloudGet(key) {
+// CloudStorage иногда отвечает секундами — дольше timeout мс не ждём (undefined — «не дождались», null — пусто/ошибка)
+function cloudGet(key, timeout = 2500) {
     return new Promise((resolve) => {
-        setTimeout(() => resolve(null), 2500);
+        if (timeout) setTimeout(() => resolve(undefined), timeout);
         wa.CloudStorage.getItem(key, (err, value) => resolve(err ? null : value));
     });
 }
@@ -72,7 +72,7 @@ export const tg = {
         const local = this.localBest();
         if (!atLeast("6.9")) return local;
         const cloud = await cloudGet("best");
-        return Math.max(local, Number(cloud) || 0);
+        return Math.max(local, Number(cloud ?? 0) || 0);
     },
 
     saveBest(score) {
@@ -86,15 +86,17 @@ export const tg = {
         try { return JSON.parse(localStorage.getItem("p2p_profile") || "null"); } catch { return null; }
     },
 
+    // ждём облако без таймаута: если не дождаться и записать поверх, старая копия с этого телефона затрёт свежую
     async cloudProfile() {
         if (!atLeast("6.9")) return null;
-        try { return JSON.parse((await cloudGet("profile")) || "null"); } catch { return null; }
+        try { return JSON.parse((await cloudGet("profile", 0)) || "null"); } catch { return null; }
     },
 
-    saveProfile(data) {
+    // cloud: false — только в память телефона (пока облачная копия не прочитана)
+    saveProfile(data, { cloud = true } = {}) {
         const text = JSON.stringify(data);
         try { localStorage.setItem("p2p_profile", text); } catch {}
-        if (atLeast("6.9")) wa.CloudStorage.setItem("profile", text, () => {});
+        if (cloud && atLeast("6.9")) wa.CloudStorage.setItem("profile", text, () => {});
     },
 
     share(text, url) {

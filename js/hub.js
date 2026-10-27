@@ -368,6 +368,8 @@ export class Hub {
         const WIN = 34, CELL = 132, W = 120; // ширина ячейки + промежуток, ширина ячейки
         const items = Array.from({ length: WIN + 6 }, () => this.roll(c));
         const win = items[WIN];
+        // приз — сразу в кошелёк: закрыли приложение посреди анимации — он уже начислен
+        const text = this.give(win);
         const co = $("co");
         co.style.setProperty("--cc", c.color);
         co.className = "co s-intro";
@@ -396,7 +398,6 @@ export class Hub {
             this.caseTimer = setTimeout(done, reduce ? 50 : 4300);
         };
         const done = () => {
-            const text = this.give(win);
             strip.children[WIN].classList.add("win");
             co.className = `co s-win r-${win.r}`;
             co.style.setProperty("--rc", RARITY[win.r].color);

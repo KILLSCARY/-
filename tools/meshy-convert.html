@@ -4,23 +4,74 @@ import * as THREE from "../js/vendor/three.module.js";
 import { FBXLoader } from "../js/vendor/jsm/FBXLoader.js";
 import { mergeVertices } from "../js/vendor/jsm/BufferGeometryUtils.js";
 import { GLTFExporter } from "../js/vendor/jsm/GLTFExporter.js";
+import { GLTFLoader } from "../js/vendor/jsm/GLTFLoader.js";
 THREE.ColorManagement.legacyMode = false;
 const q = new URLSearchParams(location.search);
 const job = JSON.parse(q.get("job"));
+// job.glb — вместо FBX готовый .glb из Meshy (только пережать текстуры); job.texExt — окончание файлов текстур
+// (по умолчанию ".lo.jpg", заранее уменьшенные; ".png" — исходники из архива Meshy);
+// job.sizes — {суффикс: максимальная сторона текстуры}, например {"": 1024, "_lite": 512}: сохранить несколько версий
 const fbx = (f) => new Promise((res, rej) => new FBXLoader().load(f, res, undefined, rej));
+const glb = (f) => new Promise((res, rej) => new GLTFLoader().load(f, res, undefined, rej));
 const tex = (f, srgb) => new Promise((res) => new THREE.TextureLoader().load(f, (t) => {
   if (srgb) t.encoding = THREE.sRGBEncoding; t.userData.mimeType = "image/jpeg"; res(t);
 }, undefined, () => res(null)));
+// значение в sizes — сторона текстуры или { tex, tris }: tris — до скольких треугольников упростить сетку
+// (meshoptimizer; версии сохраняются по порядку, и каждая следующая упрощается из предыдущей)
+const sizes = job.sizes || { "": undefined };
 const save = async (name, obj, animations = []) => {
-  const buf = await new Promise((res, rej) => new GLTFExporter().parse(obj, res, rej, { binary: true, animations }));
-  await fetch("/save?name=" + encodeURIComponent(name), { method: "POST", body: buf });
+  for (const [suffix, opt] of Object.entries(sizes)) {
+    const { tex: maxTextureSize, tris } = typeof opt === "object" && opt ? opt : { tex: opt };
+    if (tris) (report.simplified ||= {})[name + suffix] = await simplifyTo(obj, tris);
+    const buf = await new Promise((res, rej) => new GLTFExporter().parse(obj, res, rej, { binary: true, animations, maxTextureSize: maxTextureSize ?? Infinity }));
+    await fetch("/save?name=" + encodeURIComponent(name + suffix), { method: "POST", body: buf });
+  }
 };
+async function simplifyTo(obj, target) {
+  const { MeshoptSimplifier } = await import("https://cdn.jsdelivr.net/npm/meshoptimizer@0.21.0/meshopt_simplifier.module.js");
+  await MeshoptSimplifier.ready;
+  const meshes = []; obj.traverse((m) => { if (m.isMesh && m.geometry.index) meshes.push(m); });
+  const total = meshes.reduce((s, m) => s + m.geometry.index.count / 3, 0);
+  if (total <= target) return total;
+  const k = target / total;
+  let after = 0;
+  for (const m of meshes) {
+    const g = m.geometry, idx = new Uint32Array(g.index.array);
+    const pos = new Float32Array(g.attributes.position.array);
+    // job.error — допустимая погрешность (доля размера модели); job.weld — сначала склеить вершины по одной позиции:
+    // у сеток с множеством швов (разные UV в одной точке) упрощение иначе упирается в их края
+    if (job.weld) {
+      const first = new Map();
+      for (let i = 0; i < idx.length; i++) {
+        const v = idx[i], key = `${pos[v * 3].toFixed(5)},${pos[v * 3 + 1].toFixed(5)},${pos[v * 3 + 2].toFixed(5)}`;
+        if (!first.has(key)) first.set(key, v);
+        idx[i] = first.get(key);
+      }
+    }
+    const count = Math.max(3, Math.floor(idx.length * k / 3) * 3);
+    const [out] = MeshoptSimplifier.simplify(idx, pos, 3, count, job.error ?? 0.05);
+    g.setIndex(new THREE.BufferAttribute(out, 1));
+    m.geometry = compact(g);
+    after += out.length / 3;
+  }
+  return Math.round(after);
+}
 const material = async () => {
-  const map = await tex(job.tex + ".lo.jpg", true), nor = await tex(job.tex + "_normal.lo.jpg");
+  const ext = job.texExt ?? ".lo.jpg";
+  const map = await tex(job.tex + ext, true), nor = await tex(job.tex + "_normal" + ext);
   return new THREE.MeshStandardMaterial({ map, normalMap: nor, roughness: 0.75, metalness: job.metal ?? 0.1 });
 };
 const report = {};
 try {
+  if (job.glb) { // готовый .glb: текстуры в jpeg, анимации как есть
+    const g = await glb(job.glb);
+    g.scene.traverse((m) => { if (m.isMesh) for (const mt of [].concat(m.material)) for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap"]) if (mt[k]) mt[k].userData.mimeType = "image/jpeg"; });
+    let tris = 0; g.scene.traverse((m) => { if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+    report.clips = g.animations.map((c) => [c.name, +c.duration.toFixed(2)]); report.tris = tris;
+    await save(job.out, g.scene, g.animations);
+    window.DONE = report;
+    throw null;
+  }
   const o = await fbx(job.fbx);
   o.updateMatrixWorld(true);
   const mat = await material();
@@ -59,7 +110,7 @@ try {
     }
   }
   window.DONE = report;
-} catch (e) { window.DONE = { error: String(e && e.stack || e) }; }
+} catch (e) { if (e !== null) window.DONE = { error: String(e && e.stack || e) }; }
 
 // Разбить геометрию на отдельные объекты по разрывам между центрами треугольников вдоль оси
 function splitGeometry(g, axis) {

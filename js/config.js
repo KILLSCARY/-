@@ -29,7 +29,7 @@ export const DEATH_TEXT = {
     cart: ["Врезался в тележку", "Тележка с баулами победила", "Не перепрыгнул тележку"],
     starbox: ["Влетел в ящик со звездой", "Сигналка мигала не зря", "Ящик оказался тяжелее"],
     cop: ["Остановил ДПС: «Откуда USDT?»", "Инспектор попросил показать чеки", "Документики! Приехали"],
-    caught: ["Споткнулся дважды — ДПС догнал", "Второй удар — и инспектор тут как тут", "Догнали. Документики!"],
+    caught: ["Споткнулся дважды — Мизулина догнала", "Второй удар — и Мизулина тут как тут", "Догнала. Пиши объяснительную!"],
     block: ["Влетел в бетонный блок", "Бетон не переспоришь", "Блок оказался крепче"],
     roadblock: ["Не перепрыгнул ограждение", "Споткнулся о полосатую балку", "Ограждение — 1, Крыс — 0"],
     atm: ["Врезался в банкомат", "Банкомат зажевал карту", "Снял наличку лбом"],
@@ -131,8 +131,11 @@ export const MODELS = {
     testo: [{ url: "models/obj/testo.glb", axis: "y", size: 0.8 }],     // баночка тестобустера — полёт
     choline: [{ url: "models/obj/choline.glb", axis: "y", size: 0.8 }], // баночка холина — магнит
     boost: [{ url: "models/obj/coin_trx.glb", axis: "x", size: 0.85 }],
-    girl: [{ url: "models/obj/girl.glb", axis: "y", size: 1.7, rotateY: R / 2 }], // девушка в красном пальто (Meshy Red Coat Getaway)
     bin: [{ url: "models/obj/trash1.glb", axis: "y", size: 0.95 }],
+    // неоновая вывеска «ОБМЕН 24/7» над подъездами (модель смотрит в +Z, разворот к дороге — в makeBuilding); glow — самосвечение
+    sign: [
+        { url: "models/obj/sign_obmen1.glb", axis: "x", size: 2.6, glow: 1.6 },
+        { url: "models/obj/sign_obmen2.glb", axis: "x", size: 2.6, glow: 1.6 }],
     can: [{ url: "models/obj/trash0.glb", axis: "x", size: 0.35 }],
     bank: [ // павильоны отделений, size — ширина фасада
         { url: "models/obj/bank_sber.glb", axis: "x", size: 9 },
@@ -141,32 +144,49 @@ export const MODELS = {
 
 // Инспектор ДПС (Meshy biped с анимациями): на постах и на полосе кричит или объясняет руками (idle — случайный),
 // за героем после первого удара — бежит (run). Пока модель грузится, вместо него спрайт.
-export const POLICE_OFFICER = { url: "models/obj/cop.glb", height: 1.85, idle: ["shout", "talk"], run: "run" };
+export const POLICE_OFFICER = { url: "models/obj/cop.glb?v=2", height: 1.85, idle: ["shout", "talk"], run: "run" }; // ?v — версия, как у героев
+
+// Кто бежит за героем после первого удара (BALANCE.stumbleTime секунд); hud — надпись в забеге.
+// Пока модель грузится — инспектор ДПС, а без него спрайт.
+export const CHASER = { url: "models/obj/mizulina.glb", height: 1.72, run: "run", hud: "МИЗУЛИНА" };
+
+// Живые NPC на тротуарах (Meshy, со скелетом). Пока модели нет — девушки спрайтами, кошек и голубей просто нет.
+// girl: walkShare — доля гуляющих (остальные танцуют), speed — м/с вдоль тротуара;
+// cat: length — длина кошки в метрах; pigeon: стайки у бордюра, взлетают, когда герой подбегает ближе flee метров
+export const NPCS = {
+    girl: { url: "models/obj/girl_npc.glb", height: 1.7, walk: "walk", idle: "dance", walkShare: 0.4, speed: 1.1 },
+    cat: { url: "models/obj/cat.glb", length: 0.55, walk: "walk", count: 3, speed: 0.6 },
+    pigeon: { url: "models/obj/pigeon.glb", height: 0.55, flocks: 3, flock: [3, 5], flee: 9 }, // height — с поднятыми крыльями, как в модели
+};
 
 // Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой
-// (по сценарию его выкупают, пока выбирается свободно); Денчик в меню виден, но не играбелен — locked, текст на кнопке.
+// (выкуп), Ислам и Саша Белый — тоже выкуп, Денчик — бесплатно. locked: "текст" — герой виден в меню, но не играбелен.
 // ?v=N в url — версия: модели кэшируются на телефоне на неделю, после замены файла номер надо поднять.
 // clips — какой клип играть в каждой позе; если позы нет — модель наклоняется (подкат) или играет бег.
 // fly — полёт на тестобустере, fall — лицом в асфальт, когда поймал ДПС (нет клипа — играет dead).
 // flyClip — кадры клипа полёта (сек): start — присед перед толчком, launch — отрыв от земли, peak — верхняя точка
 // (в ней герой летит), touch — касание земли, end — встал из приседа и дальше бежит; ground — сколько секунд
 // длится приземление (по умолчанию 0.4); pin — в клипе высота «вшита» в бёдра: в воздухе её гасим, высоту задаёт игра.
+// Клипы из Meshy (папка «Персонажи» на Диске): у Спиди и Саши полёт — «Jump with Arms Open» (руки раскинуты в верхней точке).
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { start: 1.05, launch: 1.33, peak: 1.68, touch: 2.33, end: 2.85 } },
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8, portrait: "img/heroes/pavel.webp",
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=3", height: 1.75, portrait: "img/heroes/speedy.webp",
+        // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { start: 0.8, launch: 1.6, peak: 2.3, touch: 2.8, end: 3.4 } },
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
-    { id: "islam", name: "Ислам", url: "models/islam.glb?v=1", height: 1.8, portrait: "img/heroes/islam.webp",
-        // прыжок — сальто через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=2", height: 1.8, portrait: "img/heroes/islam.webp",
+        // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, portrait: "img/heroes/denchik.webp", locked: "Не бегает — на связи у Спиди",
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=2", height: 1.78, portrait: "img/heroes/denchik.webp",
+        // подкат — «Roll Dodge», от удара — «Knock Down»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=1", height: 1.82, portrait: "img/heroes/sasha.webp",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { start: 0.8, launch: 1.6, peak: 2.3, touch: 2.8, end: 3.4 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
 export const SOON_HEROES = [
-    { name: "Саша Белый", portrait: "img/heroes/sasha.webp" },
     { name: "Юрец", portrait: "img/heroes/yurets.webp" },
 ];
 
@@ -230,13 +250,15 @@ export const CHAPTERS = [
 ];
 
 // Выкуп героев (кого нет в списке — доступен сразу; locked в CHARACTERS — не продаётся)
-export const HERO_PRICES = { pavel: 50000, islam: 25000 };
+export const HERO_PRICES = { pavel: 50000, islam: 25000, sasha: 75000 };
 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
 export const HERO_PERKS = {
     mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15 },
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
     islam: { text: "Паркур: перекат длиннее, полосу меняет быстрее", slide: 1.3, lane: 1.1 },
+    denchik: { text: "Свой человек: +8% USDT, полосу меняет быстрее", coinBonus: 12, lane: 1.1 },
+    sasha: { text: "Авторитет: +20% USDT", coinBonus: 5 },
 };
 
 // «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.

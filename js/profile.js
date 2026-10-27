@@ -16,8 +16,18 @@ export class Profile {
     constructor() {
         this.data = EMPTY();
         this.load(tg.localProfile());
+        // Пока облачная копия не прочитана, сохраняем только в телефон. Облако свежее того, с чем мы стартовали, —
+        // берём его, но то, что игрок успел заработать и купить за это время, переносим поверх.
+        this.synced = false;
+        const start = JSON.parse(JSON.stringify(this.data)); // не structuredClone: его нет в старых WebView iOS
         this.ready = tg.cloudProfile().then((cloud) => {
-            if ((cloud?.t || 0) > (this.data.t || 0)) this.load(cloud);
+            this.synced = true;
+            if ((cloud?.t || 0) > (start.t || 0)) {
+                const mine = this.data;
+                this.load(cloud);
+                this.carry(start, mine);
+            }
+            if (this.data.t !== cloud?.t) this.save();
         });
     }
 
@@ -25,9 +35,20 @@ export class Profile {
         if (saved) this.data = { ...EMPTY(), ...saved, next: { ...EMPTY().next, ...saved.next }, up: { ...EMPTY().up, ...saved.up } };
     }
 
+    // перенести изменения этой сессии (было → стало) на профиль из облака
+    carry(was, now) {
+        if (now.t === was.t) return;
+        const d = this.data;
+        for (const k of ["usdt", "trx", "earned"]) d[k] = Math.max(0, d[k] + (now[k] || 0) - (was[k] || 0));
+        for (const id of Object.keys(d.next)) d.next[id] = Math.max(0, d.next[id] + (now.next[id] || 0) - (was.next[id] || 0));
+        for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id], now.up[id] || 1);
+        d.heroes = [...new Set([...d.heroes, ...now.heroes])];
+        d.freeAt = Math.max(d.freeAt || 0, now.freeAt || 0);
+    }
+
     save() {
         this.data.t = Date.now();
-        tg.saveProfile(this.data);
+        tg.saveProfile(this.data, { cloud: this.synced });
     }
 
     get usdt() { return this.data.usdt; }

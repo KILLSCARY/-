@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CHASER, NPCS } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -15,6 +15,7 @@ const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
 const STREET_LEN = 160;
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
+const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -201,12 +202,16 @@ export class World {
         this.coins = [];        // и монеты, и баночки (userData.pickup)
         this.noPickups = false; // во время полёта новых баночек не нужно
         this.sincePickup = 0;
+        this.playerX = 0;       // где герой по X (ставит игра) — для блика фар
         this.scenery = [];   // всё, что едет и переставляется в конец улицы
 
         this.swaps = {};
         this.warmQueue = []; // свежезагруженные модели: игра заранее соберёт их шейдеры и зальёт текстуры (Game.warmUp)
         this.officers = [];    // живые инспекторы у патрульных машин на обочине
         this.officerPosts = []; // машины, к которым поставить инспектора, когда загрузится модель
+        this.critters = [];     // живые NPC со скелетом: девушки, кошки (анимация — только рядом)
+        this.flocks = [];       // стайки голубей у бордюра
+        this.npcModels = {};
         this.buildMaterials();
         this.buildStreet();
         this.buildRain();
@@ -214,6 +219,12 @@ export class World {
         this.buildStreetLife();
         this.loadObstacleModels();
         this.loadOfficer();
+        this.loadChaser();
+        this.loadNpcs();
+    }
+
+    lite(url) {
+        return this.tier.lite ? url.replace("models/obj/", "models/obj/lite/") : url;
     }
 
     buildMaterials() {
@@ -290,7 +301,42 @@ export class World {
             glow: new THREE.PlaneGeometry(1, 1),
             coin: new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24),
             box: new THREE.BoxGeometry(1, 1, 1),
+            // бак и отбойник собираются на каждое появление — геометрии общие, иначе они копятся в памяти видеокарты
+            dumpster: new THREE.BoxGeometry(1.3, 1.0, 1.0),
+            dumpsterLid: new THREE.BoxGeometry(1.36, 0.07, 1.06),
+            dumpsterRim: new THREE.BoxGeometry(1.38, 0.1, 0.08),
+            wheel: new THREE.CylinderGeometry(0.08, 0.08, 0.06, 10),
+            post: new THREE.BoxGeometry(0.1, 1.3, 0.1),
+            rail: new THREE.BoxGeometry(1.75, 0.34, 0.12),
+            lip: new THREE.BoxGeometry(1.75, 0.05, 0.2),
+            sign: new THREE.BoxGeometry(0.9, 0.22, 0.03),
+            beam: new THREE.PlaneGeometry(2.4, 7),
         };
+
+        // Фары встречных машин — без настоящих источников света: светящиеся точки, пятно на асфальте
+        // и блик в камеру (растёт, когда машина близко и в твоей полосе — см. updateSprites)
+        const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending };
+        this.mat.headlamp = new THREE.SpriteMaterial({ map: this.glowTex, color: new THREE.Color(4, 3.6, 2.8), ...additive });
+        this.mat.glare = new THREE.SpriteMaterial({ map: this.glowTex, color: new THREE.Color(1.5, 1.4, 1.15), opacity: 0.55, ...additive });
+        this.mat.beam = new THREE.MeshBasicMaterial({
+            // верх картинки — у машины (дальний край пятна): мягко разгорается у бампера и гаснет к игроку; края по ширине мягкие
+            map: canvasTex(64, 256, (g2, w, h) => {
+                const v = g2.createLinearGradient(0, 0, 0, h);
+                v.addColorStop(0, "rgba(255,255,255,0)");
+                v.addColorStop(0.12, "rgba(255,255,255,0.45)");
+                v.addColorStop(1, "rgba(255,255,255,0)");
+                g2.fillStyle = v;
+                g2.fillRect(0, 0, w, h);
+                g2.globalCompositeOperation = "destination-in";
+                const s = g2.createLinearGradient(0, 0, w, 0);
+                s.addColorStop(0, "rgba(0,0,0,0)");
+                s.addColorStop(0.5, "rgba(0,0,0,1)");
+                s.addColorStop(1, "rgba(0,0,0,0)");
+                g2.fillStyle = s;
+                g2.fillRect(0, 0, w, h);
+            }),
+            color: new THREE.Color(1.3, 1.15, 0.9), ...additive,
+        });
     }
 
     // ---- окружение -------------------------------------------------------------------------
@@ -427,13 +473,19 @@ export class World {
         this.reflector.position.set(0, 0, this.roadCenterZ);
         this.reflector.renderOrder = 0;
         this.scene.add(this.reflector);
+        this.roadMat.transparent = true; // сквозь «мокрые» места асфальта видно зеркало
+        this.roadMat.alphaMap = this.roadMat.roughnessMap;
+        this.roadMat.needsUpdate = true;
     }
 
     disableReflections() {
-        if (!this.reflector) return;
-        this.scene.remove(this.reflector);
-        this.reflector.dispose();
-        this.reflector = null;
+        // асфальт делаем непрозрачным всегда: на телефоне зеркала не было с самого начала, но прозрачность стояла
+        if (this.reflector) {
+            this.scene.remove(this.reflector);
+            this.reflector.dispose();
+            this.reflector = null;
+        }
+        if (!this.roadMat.transparent) return;
         this.roadMat.transparent = false;
         this.roadMat.alphaMap = null;
         this.roadMat.needsUpdate = true;
@@ -529,6 +581,14 @@ export class World {
             bank.userData = { side, house: g, front, out };
             this.registerSwap("bank", bank);
             g.add(bank);
+        }
+        // неоновая вывеска «ОБМЕН 24/7» над подъездом — лицом к дороге
+        if (Math.random() < 0.3) {
+            const sign = new THREE.Group();
+            sign.position.set(front + out * 0.12, f.ground ? 3.4 : 3.15, 0);
+            sign.userData.faceY = out * Math.PI / 2;
+            this.registerSwap("sign", sign);
+            g.add(sign);
         }
         return g;
     }
@@ -737,6 +797,68 @@ export class World {
             this.drops.push(d);
         }
         this.nextDrop = 0;
+
+        // кольца волны на луже (подкат, приземление) и вспышки собранных монет — свои пулы,
+        // у каждого свой материал (прозрачность своя), ничего не создаётся во время забега
+        const ringTex = canvasTex(128, 128, (g, w, h) => {
+            const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+            gr.addColorStop(0.5, "rgba(255,255,255,0)");
+            gr.addColorStop(0.8, "rgba(255,255,255,0.9)");
+            gr.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = gr;
+            g.fillRect(0, 0, w, h);
+        });
+        this.rings = Array.from({ length: 6 }, () => {
+            const r = new THREE.Mesh(this.geo.glow, new THREE.MeshBasicMaterial({
+                map: ringTex, color: 0xffd8d0, transparent: true, depthWrite: false, opacity: 0,
+            }));
+            r.rotation.x = -Math.PI / 2;
+            r.renderOrder = 3;
+            r.visible = false;
+            r.userData = { t: 0, dur: 0.4, size: 1 };
+            this.scene.add(r);
+            return r;
+        });
+        this.flashes = Array.from({ length: 6 }, () => {
+            const f = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: this.glowTex, color: new THREE.Color(1.6, 3.2, 2.3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+            }));
+            f.visible = false;
+            f.userData = { t: 0 };
+            this.scene.add(f);
+            return f;
+        });
+        this.nextRing = this.nextFlash = 0;
+    }
+
+    // волна по луже: кольцо расходится и гаснет
+    ring(x, z, size = 1.6, dur = 0.45) {
+        const r = this.rings[this.nextRing];
+        this.nextRing = (this.nextRing + 1) % this.rings.length;
+        r.position.set(x, 0.03, z);
+        Object.assign(r.userData, { t: 0, dur, size });
+        r.visible = true;
+    }
+
+    // «усы» брызг из-под героя в подкате: по капле влево и вправо
+    spray(x, z) {
+        for (const sx of [-1, 1]) {
+            const d = this.drops[this.nextDrop];
+            this.nextDrop = (this.nextDrop + 1) % this.drops.length;
+            d.visible = true;
+            d.position.set(x + sx * 0.25, 0.05, z + 0.2);
+            d.userData.v.set(sx * rnd(2.5, 4), rnd(1.5, 2.8), rnd(1, 2.5));
+        }
+    }
+
+    // вспышка на месте собранной монеты; gold — монета TRX
+    flash(pos, gold = false) {
+        const f = this.flashes[this.nextFlash];
+        this.nextFlash = (this.nextFlash + 1) % this.flashes.length;
+        f.position.copy(pos);
+        f.material.color.setRGB(...(gold ? [3.2, 2.4, 0.8] : [1.6, 3.2, 2.3]));
+        f.userData.t = 0;
+        f.visible = true;
     }
 
     splash(x, z, n = 14, power = 1, y = 0.05) {
@@ -753,16 +875,16 @@ export class World {
 
     makeDumpster() {
         const g = new THREE.Group();
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.0, 1.0), this.mat.dumpster);
+        const box = new THREE.Mesh(this.geo.dumpster, this.mat.dumpster);
         box.position.y = 0.6;
-        const lid = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.07, 1.06), this.mat.dumpsterLid);
+        const lid = new THREE.Mesh(this.geo.dumpsterLid, this.mat.dumpsterLid);
         lid.position.set(0, 1.13, 0.06);
         lid.rotation.x = -0.1;
-        const rim = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.1, 0.08), this.mat.dumpsterLid);
+        const rim = new THREE.Mesh(this.geo.dumpsterRim, this.mat.dumpsterLid);
         rim.position.set(0, 0.95, 0.52);
         g.add(box, lid, rim);
         for (const x of [-0.5, 0.5]) for (const zz of [-0.35, 0.35]) {
-            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 10), this.mat.tire);
+            const wheel = new THREE.Mesh(this.geo.wheel, this.mat.tire);
             wheel.rotation.z = Math.PI / 2;
             wheel.position.set(x, 0.08, zz);
             g.add(wheel);
@@ -775,15 +897,15 @@ export class World {
     makeBarrier() {
         const g = new THREE.Group();
         for (const x of [-0.72, 0.72]) {
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.1), this.mat.post);
+            const post = new THREE.Mesh(this.geo.post, this.mat.post);
             post.position.set(x, 0.65, 0.05);
             g.add(post);
         }
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.34, 0.12), this.mat.rail);
+        const rail = new THREE.Mesh(this.geo.rail, this.mat.rail);
         rail.position.y = 1.05;
-        const lip = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.05, 0.2), this.mat.rail);
+        const lip = new THREE.Mesh(this.geo.lip, this.mat.rail);
         lip.position.y = 1.2;
-        const sign = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.03), [
+        const sign = new THREE.Mesh(this.geo.sign, [
             this.mat.post, this.mat.post, this.mat.post, this.mat.post, this.mat.sign, this.mat.sign,
         ]);
         sign.position.set(0, 1.05, 0.075);
@@ -949,10 +1071,23 @@ export class World {
                     box.setFromObject(m);
                     const c = box.getCenter(new THREE.Vector3());
                     m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
-                    m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                    m.traverse((o) => {
+                        if (!o.isMesh) return;
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                        if (cfg.glow) { // неон: светится собственной картинкой (bloom)
+                            o.material.emissive.set(0xffffff);
+                            o.material.emissiveMap = o.material.map;
+                            o.material.emissiveIntensity = cfg.glow;
+                        }
+                    });
                     const holder = new THREE.Group(); // оборачиваем, чтобы rotation/scale модели не сбивались при клонировании
                     holder.add(m);
                     holder.userData = { cfg };
+                    if (kind === "car") { // фары — по габаритам модели (или cfg.lights, если не попали)
+                        const b = new THREE.Box3().setFromObject(holder), s = b.getSize(new THREE.Vector3());
+                        holder.userData.front = cfg.lights || { x: s.x * 0.3, y: b.min.y + s.y * 0.42, z: b.max.z };
+                    }
                     (this.templates[kind] ||= []).push(holder);
                     this.warmQueue.push(holder.clone());
                     for (const g of this.swaps[kind] || []) if (!g.userData.swapped) this.swapIn(g, kind);
@@ -962,14 +1097,143 @@ export class World {
     }
 
     // Инспектор ДПС со скелетом: каждый — свой клон и свой микшер анимаций
+    // масштаб и сдвиг модели со скелетом: по росту height или (кошка) по длине length вдоль Z; ноги — на земле
+    fitRig(gltf, height, length) {
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = box.getSize(new THREE.Vector3());
+        const k = length ? length / size.z : height / size.y;
+        const c = box.getCenter(new THREE.Vector3());
+        return { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
+    }
+
+    // Кто бежит за героем после первого удара (CHASER) — Мизулина
+    loadChaser() {
+        loadModel(this.lite(CHASER.url), (gltf) => {
+            this.chaserModel = this.fitRig(gltf, CHASER.height);
+            this.warmQueue.push(this.makeChaser());
+        }, () => {}, { deferred: true });
+    }
+
+    makeChaser() {
+        return this.chaserModel ? this.rig(this.chaserModel, CHASER.run, { chaser: true }) : null;
+    }
+
+    // Живые NPC: девушки заменяют спрайты на тротуарах, кошки гуляют, голуби сидят стайками у бордюра
+    loadNpcs() {
+        for (const [kind, cfg] of Object.entries(NPCS)) {
+            loadModel(this.lite(cfg.url), (gltf) => {
+                const m = this.npcModels[kind] = this.fitRig(gltf, cfg.height, cfg.length);
+                this.warmQueue.push(this.rig(m, null)); // шейдеры со скелетом — заранее (Game.warmUp)
+                if (kind === "girl") for (const g of this.swaps.girl || []) this.makeGirl(g, m, cfg);
+                if (kind === "cat") for (let i = 0; i < cfg.count; i++) this.makeCat(m, cfg);
+                if (kind === "pigeon") for (let i = 0; i < cfg.flocks; i++) this.makeFlock(m, cfg, i);
+            }, () => {}, { deferred: true });
+        }
+    }
+
+    // гуляет вдоль тротуара (walk — м/с по Z) или танцует на месте
+    makeGirl(g, m, cfg) {
+        const walking = Math.random() < cfg.walkShare;
+        const npc = this.rig(m, walking ? cfg.walk : cfg.idle);
+        g.clear();
+        g.add(npc);
+        Object.assign(g.userData, { billboard: false, swapped: true, mixer: npc.userData.mixer });
+        if (walking) {
+            const dir = pick([-1, 1]);
+            g.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
+            g.rotation.y = dir > 0 ? 0 : Math.PI; // модель смотрит в +Z
+        } else {
+            g.rotation.y = g.userData.faceY ?? 0;
+        }
+        if (!this.critters.includes(g)) this.critters.push(g);
+    }
+
+    makeCat(m, cfg) {
+        const side = pick([-1, 1]), dir = pick([-1, 1]);
+        const cat = this.rig(m, cfg.walk);
+        cat.position.set(side * rnd(4.4, 6.4), 0.18, BEHIND_Z - rnd(0, STREET_LEN));
+        cat.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
+        cat.rotation.y = dir > 0 ? 0 : Math.PI;
+        this.addScenery(cat);
+        this.critters.push(cat);
+    }
+
+    // Стайка голубей у бордюра: сидят и клюют, а когда герой подбегает — взлетают в стороны
+    makeFlock(m, cfg, i) {
+        const side = i % 2 ? 1 : -1;
+        const flock = new THREE.Group();
+        flock.position.set(side * 3.7, 0.18, BEHIND_Z - 30 - i * (STREET_LEN / cfg.flocks));
+        const n = cfg.flock[0] + Math.floor(Math.random() * (cfg.flock[1] - cfg.flock[0] + 1));
+        const pigeons = [];
+        for (let k = 0; k < n; k++) {
+            const p = this.makePigeon(m);
+            p.position.set(rnd(-0.5, 0.5), 0, rnd(-1.3, 1.3));
+            p.rotation.y = rnd(0, Math.PI * 2);
+            p.userData.home = p.position.clone();
+            p.userData.homeY = p.rotation.y;
+            flock.add(p);
+            pigeons.push(p);
+        }
+        flock.userData = { pigeons, side, flee: cfg.flee, state: "rest", lastZ: flock.position.z };
+        this.addScenery(flock);
+        this.flocks.push(flock);
+    }
+
+    // голубь: свой скелет; крылья машут поворотом плечевых костей вокруг оси «вперёд» (у модели +Z)
+    makePigeon(m) {
+        const g = this.rig(m, null);
+        const model = g.children[0];
+        model.updateMatrixWorld(true);
+        const wings = [];
+        for (const [name, sign] of [["Bone_017", 1], ["Bone_020", -1]]) {
+            const bone = model.getObjectByName(name);
+            if (!bone) continue;
+            const q = bone.getWorldQuaternion(new THREE.Quaternion()).invert();
+            wings.push({ bone, sign, rest: bone.quaternion.clone(), axis: new THREE.Vector3(0, 0, 1).applyQuaternion(q) });
+        }
+        Object.assign(g.userData, { wings, v: new THREE.Vector3(), phase: rnd(0, 10) });
+        return g;
+    }
+
+    // крылья: angle — насколько опущены от позы модели (в ней крылья подняты), 0 — как в модели
+    setWings(p, angle) {
+        const q = this._wingQ ||= new THREE.Quaternion();
+        for (const w of p.userData.wings) w.bone.quaternion.copy(w.rest).multiply(q.setFromAxisAngle(w.axis, angle * w.sign));
+    }
+
+    updateFlocks(dt, t) {
+        for (const f of this.flocks) {
+            const u = f.userData;
+            if (f.position.z < u.lastZ - 1) { // стайка переехала в конец улицы — снова сидят
+                u.state = "rest";
+                for (const p of u.pigeons) { p.position.copy(p.userData.home); p.rotation.set(0, p.userData.homeY, 0); p.visible = true; }
+            }
+            u.lastZ = f.position.z;
+            if (u.state === "rest" && f.position.z > -u.flee && f.position.z < 6 && Math.abs(f.position.x - this.playerX) < 4.5) {
+                u.state = "fly";
+                for (const p of u.pigeons) p.userData.v.set(u.side * rnd(0.6, 2.2), rnd(2.2, 3.6), rnd(-3, -0.5));
+            }
+            if (f.position.z < -70 || f.position.z > 8) continue; // дальше — туман
+            for (const p of u.pigeons) {
+                const d = p.userData;
+                if (u.state === "rest") {
+                    this.setWings(p, 1.25);
+                    p.rotation.x = Math.max(0, Math.sin(t * 3 + d.phase)) * 0.35; // клюёт
+                } else if (p.visible) {
+                    d.v.y += 1.2 * dt;
+                    p.position.addScaledVector(d.v, dt);
+                    p.rotation.set(-0.35, Math.atan2(d.v.x, d.v.z), 0);
+                    this.setWings(p, 0.15 + Math.sin(t * 28 + d.phase) * 0.75);
+                    if (p.position.y > 10) p.visible = false;
+                }
+            }
+        }
+    }
+
     loadOfficer() {
         const cfg = POLICE_OFFICER;
-        const url = this.tier.lite ? cfg.url.replace("models/obj/", "models/obj/lite/") : cfg.url;
-        loadModel(url, (gltf) => {
-            const box = new THREE.Box3().setFromObject(gltf.scene);
-            const k = cfg.height / box.getSize(new THREE.Vector3()).y;
-            const c = box.getCenter(new THREE.Vector3());
-            this.officer = { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
+        loadModel(this.lite(cfg.url), (gltf) => {
+            this.officer = this.fitRig(gltf, cfg.height);
             this.warmQueue.push(this.makeOfficer(POLICE_OFFICER.run));
             for (const { car, side } of this.officerPosts) { // у постов на обочине — лицом к бегущему, вполоборота к дороге
                 const o = this.makeOfficer(pick(cfg.idle));
@@ -982,19 +1246,25 @@ export class World {
     }
 
     makeOfficer(clipName) {
-        if (!this.officer) return null;
-        const { gltf, k, offset } = this.officer;
+        return this.officer ? this.rig(this.officer, clipName, { officer: true }) : null;
+    }
+
+    // Клон модели со скелетом (свой скелет и свой микшер) в группе; clipName — какой клип крутить (null — без анимации)
+    rig({ gltf, k, offset }, clipName, data = {}) {
         const m = cloneSkinned(gltf.scene);
         m.scale.setScalar(k);
         m.position.copy(offset);
         m.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; } });
-        const mixer = new THREE.AnimationMixer(m);
-        const clip = gltf.animations.find((a) => a.name === clipName) || gltf.animations[0];
-        const action = mixer.clipAction(clip).play();
-        action.time = Math.random() * clip.duration; // чтобы соседние не двигались синхронно
         const g = new THREE.Group();
         g.add(m);
-        g.userData = { mixer, officer: true };
+        g.userData = { ...data };
+        const clip = clipName !== null && (gltf.animations.find((a) => a.name === clipName) || gltf.animations[0]);
+        if (clip) {
+            const mixer = new THREE.AnimationMixer(m);
+            const action = mixer.clipAction(clip).play();
+            action.time = Math.random() * clip.duration; // чтобы соседние не двигались синхронно
+            g.userData.mixer = mixer;
+        }
         return g;
     }
 
@@ -1050,21 +1320,44 @@ export class World {
             : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
             : kind === "atm" ? this.makeAtm() : this.makeCar();
         const t = this.modelFor(kind);
-        if (!t) return proc;
-        const g = new THREE.Group(); // модель из .glb, а размеры для столкновений — от процедурной (или из конфига)
-        g.add(t.clone());
-        g.userData = { ...proc.userData, billboard: false, lamp: null, flashers: null };
-        if (t.userData.cfg.halfZ) g.userData.halfZ = t.userData.cfg.halfZ;
-        if (t.userData.cfg.top) g.userData.top = t.userData.cfg.top;
-        if (kind === "cop") g.userData.police = true;
+        let g = proc;
+        if (t) { // модель из .glb, а размеры для столкновений — от процедурной (или из конфига)
+            g = new THREE.Group();
+            g.add(t.clone());
+            g.userData = { ...proc.userData, billboard: false, lamp: null, flashers: null };
+            if (t.userData.cfg.halfZ) g.userData.halfZ = t.userData.cfg.halfZ;
+            if (t.userData.cfg.top) g.userData.top = t.userData.cfg.top;
+            if (kind === "cop") g.userData.police = true;
+        }
+        if (kind === "car") this.addHeadlights(g, t?.userData.front || CAR_FRONT);
         return g;
+    }
+
+    // f — где фары: ±x от оси машины, высота y, передняя грань z (машина смотрит на игрока, в +Z)
+    addHeadlights(g, f) {
+        for (const sx of [-1, 1]) {
+            const lamp = new THREE.Sprite(this.mat.headlamp);
+            lamp.scale.setScalar(0.4);
+            lamp.position.set(sx * f.x, f.y, f.z + 0.05);
+            g.add(lamp);
+        }
+        const beam = new THREE.Mesh(this.geo.beam, this.mat.beam);
+        beam.rotation.x = -Math.PI / 2;
+        beam.position.set(0, 0.03, f.z + 3.2);
+        beam.renderOrder = 3;
+        beam.userData.fx = true; // не отбрасывает тень (см. addObstacle)
+        const glare = new THREE.Sprite(this.mat.glare);
+        glare.position.set(0, f.y, f.z + 0.3);
+        glare.scale.setScalar(0.01);
+        g.add(beam, glare);
+        g.userData.glare = glare;
     }
 
     addObstacle(kind, lane, z) {
         const o = this.makeObstacle(kind);
         o.position.set(this.lanes[lane], 0, z);
         o.userData.lane = lane;
-        o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+        o.traverse((m) => { if (m.isMesh && !m.userData.fx) m.castShadow = true; });
         this.scene.add(o);
         this.obstacles.push(o);
         return o;
@@ -1117,10 +1410,17 @@ export class World {
     clear() {
         this.noPickups = false;
         this.sincePickup = 0;
-        for (const o of this.obstacles) this.scene.remove(o);
+        for (const o of this.obstacles) this.dropObstacle(o);
         for (const c of this.coins) this.scene.remove(c);
         this.obstacles = [];
         this.coins = [];
+        for (const o of [...this.rings, ...this.flashes]) o.visible = false;
+    }
+
+    // у каждого инспектора свой скелет, а у скелета — текстура костей в видеопамяти: освобождаем вместе с ним
+    dropObstacle(o) {
+        this.scene.remove(o);
+        o.traverse((m) => m.skeleton?.dispose());
     }
 
     removeCoin(i) {
@@ -1143,6 +1443,11 @@ export class World {
             if (u.flashers) {
                 u.flashers[0].visible = flashOn;
                 u.flashers[1].visible = !flashOn;
+            }
+            if (u.glare) { // блик фар: ближе и ровнее в твоей полосе — ярче
+                const near = Math.max(0, 1 - -o.position.z / 45) * (o.position.z < 0 ? 1 : 0);
+                const lane = Math.max(0, 1 - Math.abs(o.position.x - this.playerX) / 2.2);
+                u.glare.scale.setScalar(0.4 + 3.4 * near * near * (0.35 + 0.65 * lane));
             }
             if (u.flashers || u.police) {
                 const dz = -o.position.z;
@@ -1175,13 +1480,18 @@ export class World {
 
         // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
         for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
+        for (const o of this.critters) {
+            if (o.userData.walk) o.position.z += o.userData.walk * dt; // гуляют вдоль тротуара
+            if (o.position.z > -70 && o.position.z < 8) o.userData.mixer?.update(dt);
+        }
+        this.updateFlocks(dt, t);
         for (const o of this.obstacles) if (o.userData.mixer && o.position.z > -70) o.userData.mixer.update(dt);
 
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const o = this.obstacles[i];
             o.position.z += move + (o.userData.oncoming || 0) * dt;
             if (o.position.z > DESPAWN_Z) {
-                this.scene.remove(o);
+                this.dropObstacle(o);
                 this.obstacles.splice(i, 1);
             }
         }
@@ -1201,6 +1511,25 @@ export class World {
             d.position.y += v.y * dt;
             d.position.z += v.z * dt + move;
             if (d.position.y < 0) d.visible = false;
+        }
+        for (const r of this.rings) {
+            if (!r.visible) continue;
+            const u = r.userData;
+            u.t += dt;
+            const k = Math.min(1, u.t / u.dur);
+            r.scale.setScalar(u.size * (0.3 + 0.7 * (1 - (1 - k) ** 3)));
+            r.material.opacity = 0.7 * (1 - k);
+            r.position.z += move;
+            if (k >= 1) r.visible = false;
+        }
+        for (const f of this.flashes) {
+            if (!f.visible) continue;
+            f.userData.t += dt;
+            const k = Math.min(1, f.userData.t / 0.18);
+            f.scale.setScalar(0.6 + 1.4 * k);
+            f.material.opacity = 1 - k;
+            f.position.z += move;
+            if (k >= 1) f.visible = false;
         }
 
         this.updateSprites(t);
