@@ -18,6 +18,7 @@ export class Hub {
         this.current = "run";
         this.seg = "boosts";
         for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => this.back();
+        $("btn-settings").onclick = () => this.tab("settings");
         // «назад» на компьютере — Esc или Backspace
         addEventListener("keydown", (e) => {
             if ((e.key === "Escape" || e.key === "Backspace") && this.game.state === "menu" && this.current !== "run") this.back();
@@ -91,6 +92,24 @@ export class Hub {
         if (this.current === "cases") this.renderCases();
         if (this.current === "shop") this.renderShop();
         if (this.current === "chapters") this.renderChapters();
+        if (this.current === "settings") this.renderSettings();
+    }
+
+    // ---- настройки: музыка, звуки, вибрация, графика (хранятся в телефоне) ----
+    renderSettings() {
+        const g = this.game, box = $("settings-list");
+        const toggles = [
+            { id: "music", name: "Музыка", text: "Треки в меню и в забеге", on: g.audio.musicOn },
+            { id: "sfx", name: "Звуки", text: "Монеты, удары, свистки, шум улицы", on: g.audio.sfxOn },
+            { id: "vibro", name: "Вибрация", text: "Отклик телефона на действия", on: tg.vibro },
+        ];
+        const q = g.settings.quality || "auto";
+        box.innerHTML = toggles.map((t) => `<div class="card set-row"><div class="card-main"><h3>${t.name}</h3><p>${t.text}</p></div>
+            <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"><i></i></button></div>`).join("")
+            + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
+            <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
+        for (const b of box.querySelectorAll("[data-set]")) b.onclick = () => { g.setSetting(b.dataset.set, !b.classList.contains("on")); this.renderSettings(); };
+        for (const b of box.querySelectorAll("[data-q]")) b.onclick = () => { g.setSetting("quality", b.dataset.q); this.renderSettings(); };
     }
 
     // ---- ежедневный вход ----

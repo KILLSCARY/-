@@ -82,7 +82,11 @@ class Game {
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
         this.quality = QUALITY === "auto" ? (mobile && weakDevice() ? "low" : mobile ? "medium" : "high") : QUALITY;
-        this.resScale = 1; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
+        this.resScale = 1;
+        this.autoQuality = this.quality;
+        // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
+        try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
+        if (this.settings.quality && this.settings.quality !== "auto" && QUALITY_TIERS[this.settings.quality]) this.quality = this.settings.quality; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
         this.tier = QUALITY_TIERS[this.quality];
 
         this.setupScene();
@@ -111,6 +115,7 @@ class Game {
         this.onResize();
 
         this.setQuality(this.quality);
+        this.applySettings();
 
         tg.init();
         tg.getBest().then((b) => { this.best = b; this.renderMenu(); });
@@ -687,6 +692,25 @@ class Game {
         this.onResize();
     }
 
+    // настройка: music | sfx | vibro (вкл/выкл) или quality (auto | high | medium | low)
+    setSetting(key, value) {
+        this.settings[key] = value;
+        try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
+        this.applySettings();
+        if (key === "quality") {
+            this.resScale = 1;
+            const level = value === "auto" ? this.autoQuality : value;
+            if (level !== this.quality) this.setQuality(level); else this.onResize();
+        }
+    }
+
+    applySettings() {
+        const s = this.settings;
+        this.audio.setMusic(s.music !== false);
+        this.audio.setSfx(s.sfx !== false);
+        tg.vibro = s.vibro !== false;
+    }
+
     // Шейдеры и текстуры новых моделей собираем сразу после загрузки (обычно ещё в меню), а не в момент,
     // когда объект впервые показался в забеге, — иначе там рывок на десятки и сотни миллисекунд.
     warmUp() {
@@ -707,7 +731,7 @@ class Game {
 
     // В «auto» меряем время кадра в забеге: если стабильно не успеваем — графику на ступень ниже
     measureFps(dt) {
-        if (QUALITY !== "auto" || (this.quality === "low" && this.resScale <= 0.7) || (this.state === "playing" && this.runTime < 1.5)) return;
+        if (QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto") || (this.quality === "low" && this.resScale <= 0.7) || (this.state === "playing" && this.runTime < 1.5)) return;
         if (!this.fpsFrames) { this.fpsStart = performance.now(); this.fpsRaf = this.rafCount; }
         this.fpsFrames = (this.fpsFrames || 0) + 1;
         this.fpsTime = (this.fpsTime || 0) + dt;

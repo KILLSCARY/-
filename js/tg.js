@@ -46,7 +46,10 @@ export const tg = {
         else wa.disableClosingConfirmation();
     },
 
+    vibro: true, // настройки: вибрация
+
     haptic(kind = "light") {
+        if (!this.vibro) return;
         if (atLeast("6.1")) {
             if (kind === "error" || kind === "success" || kind === "warning") wa.HapticFeedback.notificationOccurred(kind);
             else wa.HapticFeedback.impactOccurred(kind);

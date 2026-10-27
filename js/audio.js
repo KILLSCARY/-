@@ -6,7 +6,9 @@ import { SOUNDS } from "./config.js";
 export class Audio {
     constructor() {
         this.ctx = null;
-        this.enabled = true;
+        this.enabled = true; // кнопка звука в забеге: всё разом
+        this.musicOn = true;  // настройки: музыка
+        this.sfxOn = true;    // настройки: звуки (и шум улицы)
         this.buffers = {}; // url → AudioBuffer
         this.mode = "off"; // off | menu | run | pause
         this.players = {}; // плейлист (menu / run) → { el, gain, index }
@@ -75,10 +77,20 @@ export class Audio {
         // новый забег — трек забега с начала
         if (list === "run" && this.listFor(prev) !== "run") this.players.run.el.currentTime = 0;
         for (const [name, p] of Object.entries(this.players)) {
-            const vol = name === list ? SOUNDS.musicVolume[mode] ?? 0 : 0;
+            const vol = name === list && this.musicOn ? SOUNDS.musicVolume[mode] ?? 0 : 0;
             p.gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.3);
         }
         this.syncTrack();
+        this.syncAmbience();
+    }
+
+    setMusic(on) {
+        this.musicOn = on;
+        this.music(this.mode);
+    }
+
+    setSfx(on) {
+        this.sfxOn = on;
         this.syncAmbience();
     }
 
@@ -105,7 +117,7 @@ export class Audio {
 
     syncAmbience() {
         const buf = this.buffers[SOUNDS.ambience.url];
-        const on = this.mode === "run";
+        const on = this.mode === "run" && this.sfxOn;
         if (on && buf && !this.ambience) {
             this.ambience = this.ctx.createBufferSource();
             this.ambience.buffer = buf;
@@ -138,7 +150,7 @@ export class Audio {
     }
 
     tone(freq, { at = 0, dur = 0.15, vol = 0.2, type = "sine", to = 0 } = {}) {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.enabled || !this.sfxOn) return;
         try {
             const t = this.ctx.currentTime + at;
             const osc = this.ctx.createOscillator();
@@ -155,7 +167,7 @@ export class Audio {
     }
 
     play(name) {
-        if (!this.ctx || !this.enabled || this.sample(name)) return;
+        if (!this.ctx || !this.enabled || !this.sfxOn || this.sample(name)) return;
         switch (name) {
             case "coin": this.tone(1320, { dur: 0.08, vol: 0.12, type: "square" }); this.tone(1760, { at: 0.06, dur: 0.12, vol: 0.12, type: "square" }); break;
             case "boost": [660, 880, 1100, 1320].forEach((f, i) => this.tone(f, { at: i * 0.06, dur: 0.15, vol: 0.12, type: "square" })); break;
