@@ -604,15 +604,17 @@ export class World {
         for (const cfg of Object.values(SPRITES)) for (const v of cfg.variants) this.spriteMaterial(v.name);
         const sideX = () => pick([-1, 1]);
         for (let i = 0; i < 6; i++) {
+            const side = sideX();
             const girl = this.makeSprite("girl");
-            girl.position.set(sideX() * rnd(4.0, 6.2), 0.18, BEHIND_Z - rnd(10, STREET_LEN));
-            this.addScenery(girl);
+            girl.position.set(side * rnd(4.0, 6.2), 0.18, BEHIND_Z - rnd(10, STREET_LEN));
+            girl.userData.faceY = -side * rnd(0.3, 0.9); // 3D-модель — к бегущему, вполоборота к дороге
+            this.addScenery(this.registerSwap("girl", girl));
         }
         for (let i = 0; i < 2; i++) {
             const side = i % 2 ? 1 : -1;
             const car = this.makePoliceCar();
             car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
-            car.userData.faceY = Math.PI; // пост у обочины: машина вдоль дороги
+            car.userData.faceY = -side * 0.35; // пост у обочины: машина вдоль дороги, инспектор лицом к бегущему
             this.addScenery(this.registerSwap("police", car));
         }
         for (let i = 0; i < 10; i++) {
