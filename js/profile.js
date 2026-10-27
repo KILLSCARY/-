@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT, TRX), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES } from "./config.js";
+import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES, BOSS } from "./config.js";
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
@@ -123,7 +123,9 @@ export class Profile {
 
     // кодовые фразы пройденных глав
     phrases() {
-        return CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean);
+        const list = CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean);
+        if (this.data.exam) list.push(BOSS.phrase);
+        return list;
     }
 
     // награда из кейса: в кошелёк, но не в «заработано» — главы двигают только забеги

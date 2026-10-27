@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, HERO_SKILLS, BOSS, GEMS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, HERO_SKILLS, BOSS, GEMS, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -264,6 +264,9 @@ class Game {
         this.audio.play("go");
         setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 500);
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
+        this.chaserSaid = false;
+        const lines = HERO_LINES[this.heroId];
+        if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.hub.toast(`${CHARACTERS.find((c) => c.id === this.heroId)?.name}: «${pick(lines)}»`); }, 2600);
         this.state = "playing";
         this.audio.music("run");
         tg.guardClose(true);
@@ -978,6 +981,11 @@ class Game {
             this.scene.add(this.chaser);
         }
         this.chaser.visible = true;
+        if (!this.chaserSaid) { // первая погоня за забег — Инспекторша представляется (после подсказки стены)
+            this.chaserSaid = true;
+            const run = this.runId;
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Инспекторша: «${CHASER_LINES.start}»`); }, 1400);
+        }
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
     }
@@ -1126,15 +1134,28 @@ class Game {
     spawnWall() {
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = WALLS.every;
-        // экзамен Инакова: на BOSS.at метрах три сложные стены подряд, между ними BOSS.gap
-        if (!this.bossDone && !this.boss && this.nextWallAt >= BOSS.at) this.boss = { left: 3, ok: 0, fail: 0, n: 0 };
-        if (this.boss && this.boss.n < 3) {
-            this.boss.n++;
-            this.nextWallAt += this.boss.n < 3 ? BOSS.gap : a + Math.random() * (b - a);
+        // экзамен Инакова: на BOSS.at метрах BOSS.rounds раундов по BOSS.per стен
+        const total = BOSS.rounds * BOSS.per;
+        if (!this.bossDone && !this.boss && this.nextWallAt >= BOSS.at) {
+            this.boss = { ok: 0, fail: 0, n: 0, asked: new Set() };
+            this.hub.toast(`Инаков: «${BOSS.hello}»`);
+        }
+        let weak = null;
+        if (this.boss && this.boss.n < total) {
+            const n = ++this.boss.n, first = (n - 1) % BOSS.per === 0;
+            this.nextWallAt += n === total ? a + Math.random() * (b - a) : n % BOSS.per === 0 ? BOSS.roundGap : BOSS.gap;
+            if (first) { // начало раунда: реплика Инакова, одна стена — на «проседающий» тип клиента
+                const line = BOSS.lines[(n - 1) / BOSS.per];
+                setTimeout(() => { if (this.boss && this.state === "playing") this.hub.toast(`Инаков: «${line}»`); }, n === 1 ? 2200 : 0);
+                weak = this.profile.weakType();
+            }
         } else this.nextWallAt += a + Math.random() * (b - a);
         const chWall = CHAPTERS[Math.min(this.profile.chapter().index, CHAPTERS.length - 1)].wall;
-        const pool = QUESTIONS.filter((q) => q !== this.lastQ && (!this.boss || q.type !== "common")); // на экзамене — по типам клиентов
+        // на экзамене — по типам клиентов и без повторов
+        let pool = QUESTIONS.filter((q) => q !== this.lastQ && (!this.boss || (q.type !== "common" && !this.boss.asked.has(q))));
+        if (weak && pool.some((q) => q.type === weak)) pool = pool.filter((q) => q.type === weak);
         const q = !this.boss && chWall && Math.random() < WALLS.chapterWall ? QUESTIONS.find((x) => x.id === chWall) : pick(pool);
+        this.boss?.asked.add(q);
         this.lastQ = q;
         const order = [0, 1, 2].sort(() => Math.random() - 0.5); // таблички перемешиваются: order[полоса] = номер ответа
         const wall = this.world.addWall(q, order.map((i) => q.a[i]), order.indexOf(0), z);
@@ -1144,7 +1165,7 @@ class Game {
         this.nextRowZ = Math.min(this.nextRowZ, z - 16); // следующий ряд — не раньше чем через 16 м после стены
     }
 
-    // итог экзамена: сдал (BOSS.pass верных) — USDT в главу и сундук, без ошибок — ещё кристаллы
+    // итог экзамена: сдал (BOSS.pass верных) — USDT в главу, сундук и кодовое слово, без ошибок — ещё кристаллы
     finishBoss() {
         const b = this.boss;
         this.boss = null;
@@ -1153,13 +1174,14 @@ class Game {
         if (b.ok >= BOSS.pass) {
             this.usdt += BOSS.reward;
             this.profile.data.chests = (this.profile.data.chests || 0) + 1;
-            const flawless = b.ok === 3;
+            const flawless = b.ok === BOSS.rounds * BOSS.per;
             if (flawless) this.profile.data.gems = this.profile.gems + BOSS.gems;
+            this.profile.data.exam = true; // кодовое слово уходит менеджеру вместе с фразами глав
             this.profile.save();
-            this.hub.toast(flawless ? `Экзамен сдан без ошибок! +${BOSS.reward} USDT, сундук и ${BOSS.gems} кристаллов` : `Экзамен сдан! +${BOSS.reward} USDT и сундук`);
+            this.hub.toast(`${BOSS.win}. +${BOSS.reward} USDT и сундук${flawless ? `, без ошибок — ещё ${BOSS.gems} кристаллов` : ""}`);
             this.audio.play("record");
             tg.haptic("success");
-        } else this.hub.toast("Экзамен не сдан — Инаков ждёт в следующем забеге");
+        } else this.hub.toast(`Инаков: «${BOSS.lose}»`);
     }
 
     // ---- задержание (поймала погоня) ----------------------------------------------------------
@@ -1375,7 +1397,7 @@ class Game {
         const show = !!w && z > -75 && z < 1;
         if (show && (box.hidden || this.wqShown !== w)) {
             this.wqShown = w;
-            $("wq-type").textContent = w.boss ? `Экзамен Инакова · ${w.boss}/3` : CLIENT_TYPES[w.type].name;
+            $("wq-type").textContent = w.boss ? `Экзамен Инакова · раунд ${Math.ceil(w.boss / BOSS.per)} · ${(w.boss - 1) % BOSS.per + 1}/${BOSS.per}` : CLIENT_TYPES[w.type].name;
             $("wall-q").classList.toggle("boss", !!w.boss);
             $("wq-text").textContent = w.q.q;
             $("wq-ans").innerHTML = "<button></button><button></button><button></button>"; // ответы по полосам: слева, по центру, справа
@@ -1391,7 +1413,7 @@ class Game {
             if (!first.answered) this.answer(null, first); // проскочил (полёт) — ответ не засчитан, но и не ошибка
             this.walls.shift();
             this.world.noCars = this.walls.length > 0;
-            if (first.boss === 3) this.finishBoss();
+            if (first.boss === BOSS.rounds * BOSS.per) this.finishBoss();
         }
     }
 
