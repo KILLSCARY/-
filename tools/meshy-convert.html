@@ -1,0 +1,93 @@
+<script type="module">
+// FBX из Meshy → GLB: свои текстуры (jpg), склейка вершин, разбиение на части, анимации персонажей.
+import * as THREE from "../js/vendor/three.module.js";
+import { FBXLoader } from "../js/vendor/jsm/FBXLoader.js";
+import { mergeVertices } from "../js/vendor/jsm/BufferGeometryUtils.js";
+import { GLTFExporter } from "../js/vendor/jsm/GLTFExporter.js";
+THREE.ColorManagement.legacyMode = false;
+const q = new URLSearchParams(location.search);
+const job = JSON.parse(q.get("job"));
+const fbx = (f) => new Promise((res, rej) => new FBXLoader().load(f, res, undefined, rej));
+const tex = (f, srgb) => new Promise((res) => new THREE.TextureLoader().load(f, (t) => {
+  if (srgb) t.encoding = THREE.sRGBEncoding; t.userData.mimeType = "image/jpeg"; res(t);
+}, undefined, () => res(null)));
+const save = async (name, obj, animations = []) => {
+  const buf = await new Promise((res, rej) => new GLTFExporter().parse(obj, res, rej, { binary: true, animations }));
+  await fetch("/save?name=" + encodeURIComponent(name), { method: "POST", body: buf });
+};
+const material = async () => {
+  const map = await tex(job.tex + ".lo.jpg", true), nor = await tex(job.tex + "_normal.lo.jpg");
+  return new THREE.MeshStandardMaterial({ map, normalMap: nor, roughness: 0.75, metalness: job.metal ?? 0.1 });
+};
+const report = {};
+try {
+  const o = await fbx(job.fbx);
+  o.updateMatrixWorld(true);
+  const mat = await material();
+  if (job.anims) {
+    // персонаж: скиннутый меш + клипы из остальных FBX (тот же скелет)
+    o.traverse((m) => { if (m.isMesh) { m.material = mat; const g = m.geometry; g.deleteAttribute("color"); m.geometry = mergeVertices(g, 1e-4); } });
+    const clips = [];
+    for (const [name, file] of Object.entries(job.anims)) {
+      const src = file === job.fbx ? o : await fbx(file);
+      const clip = src.animations[0].clone(); clip.name = name;
+      clip.tracks = clip.tracks.filter((t) => !t.name.startsWith(job.rootName + ".") && !t.name.endsWith(".scale"));
+      // корневое смещение: бедро стоит на месте по X/Z (бежит «на дорожке»), высоту оставляем
+      for (const t of clip.tracks) if (/Hips\.position$/.test(t.name)) {
+        const v = t.values, x0 = v[0], z0 = v[2];
+        for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; }
+      }
+      clips.push(clip);
+    }
+    report.clips = clips.map((c) => [c.name, +c.duration.toFixed(2), c.tracks.length]);
+    let tris = 0; o.traverse((m) => { if (m.isMesh) tris += m.geometry.index.count / 3; }); report.tris = tris;
+    await save(job.out, o, clips);
+  } else {
+    // статичный объект: геометрия в мировых координатах, при необходимости — разбиение на части
+    let mesh; o.traverse((m) => { if (m.isMesh) mesh = m; });
+    let g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); g.deleteAttribute("color");
+    g = mergeVertices(g, 1e-4);
+    const parts = job.split ? splitGeometry(g, job.split) : [g];
+    report.parts = [];
+    for (let i = 0; i < parts.length; i++) {
+      const pg = parts[i]; pg.computeBoundingBox();
+      const b = pg.boundingBox, c = b.getCenter(new THREE.Vector3());
+      pg.translate(-c.x, -b.min.y, -c.z);
+      const m = new THREE.Mesh(pg, mat); m.name = job.out + (parts.length > 1 ? i : "");
+      report.parts.push({ name: m.name, tris: pg.index.count / 3, size: b.getSize(new THREE.Vector3()).toArray().map(Math.round) });
+      await save(m.name, m);
+    }
+  }
+  window.DONE = report;
+} catch (e) { window.DONE = { error: String(e && e.stack || e) }; }
+
+// Разбить геометрию на отдельные объекты по разрывам между центрами треугольников вдоль оси
+function splitGeometry(g, axis) {
+  const pos = g.attributes.position, idx = g.index.array;
+  const best = (k) => {
+    const C = (i) => (k === 0 ? pos.getX(i) : pos.getZ(i));
+    const tri = []; for (let t = 0; t < idx.length; t += 3) tri.push((C(idx[t]) + C(idx[t + 1]) + C(idx[t + 2])) / 3);
+    const sorted = [...tri].sort((a, b) => a - b);
+    let gap = 0, cut = null;
+    for (let i = 1; i < sorted.length; i++) if (sorted[i] - sorted[i - 1] > gap) { gap = sorted[i] - sorted[i - 1]; cut = (sorted[i] + sorted[i - 1]) / 2; }
+    return { tri, gap, cut };
+  };
+  const cands = axis === "auto" ? [best(0), best(2)] : [best({ x: 0, z: 2 }[axis])];
+  const { tri, cut } = cands.sort((a, b) => b.gap - a.gap)[0];
+  const out = [[], []];
+  for (let t = 0; t < tri.length; t++) out[tri[t] < cut ? 0 : 1].push(idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]);
+  return out.map((ix) => { const h = g.clone(); h.setIndex(ix); return compact(h); });
+}
+function compact(g) { // выкинуть неиспользуемые вершины
+  const idx = g.index.array, map = new Map(), order = [];
+  for (const i of idx) if (!map.has(i)) { map.set(i, order.length); order.push(i); }
+  const out = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(g.attributes)) {
+    const arr = new a.array.constructor(order.length * a.itemSize);
+    order.forEach((src, dst) => { for (let c = 0; c < a.itemSize; c++) arr[dst * a.itemSize + c] = a.array[src * a.itemSize + c]; });
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize, a.normalized));
+  }
+  out.setIndex(Array.from(idx, (i) => map.get(i)));
+  return out;
+}
+</script>

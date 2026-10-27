@@ -5,8 +5,9 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, OBSTACLE_MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
 import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
+import { MeshoptDecoder } from "./vendor/jsm/meshopt_decoder.module.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -148,6 +149,7 @@ export class World {
         this.coins = [];
         this.scenery = [];   // всё, что едет и переставляется в конец улицы
 
+        this.swaps = {};
         this.buildMaterials();
         this.buildStreet();
         this.buildRain();
@@ -315,7 +317,8 @@ export class World {
             const atm = this.makeAtm();
             const side = i % 2 ? 1 : -1;
             atm.position.set(side * rnd(4.0, 4.6), 0.18, BEHIND_Z - 15 - i * 32);
-            atm.rotation.y = side * 0.35; // чуть развёрнут к дороге
+            atm.rotation.y = atm.userData.faceY = -side * 0.6; // лицом к дороге
+            this.registerSwap("atm", atm);
             atm.userData.loop = STREET_LEN;
             atm.traverse((m) => { if (m.isMesh) m.castShadow = true; });
             s.add(atm);
@@ -449,12 +452,18 @@ export class World {
         g.add(pipe);
 
         const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
-        if (Math.random() < BANKS.chance) this.addBankFront(g, front, out);
-        else this.addEntrance(g, front, out, len);
+        this.addEntrance(g, front, out, len);
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;
         this.scene.add(g);
+        // отделение банка: павильон Сбера/Альфы перед домом (дом отодвигается назад)
+        if (Math.random() < BANKS.chance) {
+            const bank = new THREE.Group();
+            bank.userData = { side, house: g, front, out };
+            this.registerSwap("bank", bank);
+            g.add(bank);
+        }
         return g;
     }
 
@@ -490,6 +499,21 @@ export class World {
             neon.position.set(front + out * 0.08, 3.0, pick([-len / 3.2, len / 3.2]));
             g.add(neon);
         }
+    }
+
+    placeBank(bank) {
+        const { side, house } = bank.userData;
+        const w = MODELS.bank[0].size;
+        house.position.x = side * (11 + w + 0.5);
+        bank.position.set(-side * (4 + w / 2 + 0.25), 0.18, 0);
+        bank.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; // вывеской к дороге
+    }
+
+    // Если модели павильонов не загрузились — фото-витрины на первом этаже
+    bankFallback() {
+        if (this.bankFallbackDone || this.modelFor("bank")) return;
+        this.bankFallbackDone = true;
+        for (const b of this.swaps.bank || []) this.addBankFront(b.userData.house, b.userData.front, b.userData.out);
     }
 
     // Отделение банка на первом этаже: фото-витрина со светящейся вывеской и банкоматом,
@@ -589,21 +613,21 @@ export class World {
             const side = i % 2 ? 1 : -1;
             const car = this.makePoliceCar();
             car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
-            this.addScenery(car);
-            const cop = this.makeSprite("cop");
-            cop.position.set(side * 3.6, 0.18, car.position.z + 2.5);
-            this.addScenery(cop);
+            car.userData.faceY = Math.PI; // пост у обочины: машина вдоль дороги
+            this.addScenery(this.registerSwap("police", car));
         }
         for (let i = 0; i < 10; i++) {
             const bin = this.makeSprite("bin");
             bin.position.set(sideX() * rnd(3.4, 3.7), 0.18, BEHIND_Z - rnd(0, STREET_LEN));
-            this.addScenery(bin);
+            bin.userData.faceY = rnd(0, Math.PI * 2);
+            this.addScenery(this.registerSwap("bin", bin));
         }
         for (let i = 0; i < 14; i++) { // банки валяются и на дороге — просто мусор, не мешают
             const can = this.makeSprite("can");
             const onRoad = Math.random() < 0.5;
             can.position.set(onRoad ? rnd(-2.8, 2.8) : sideX() * rnd(3.3, 6.5), onRoad ? 0 : 0.18, BEHIND_Z - rnd(0, STREET_LEN));
-            this.addScenery(can);
+            can.userData.faceY = rnd(0, Math.PI * 2);
+            this.addScenery(this.registerSwap("can", can));
         }
         // свет мигалок: одна пара реальных источников ездит за ближайшей патрульной машиной
         this.policeLights = [0xff1a1a, 0x1a3aff].map((c) => {
@@ -790,6 +814,14 @@ export class World {
     // ---- монеты ------------------------------------------------------------------------------
 
     makeCoin(boost = false) {
+        const t = this.modelFor(boost ? "boost" : "coin");
+        if (t) { // 3D-монета Tether (USDT) или Tron (TRX — бонус ×2)
+            const g = new THREE.Group();
+            g.add(t.clone());
+            g.children[0].position.y -= t.userData.cfg.size / 2; // центр монеты — в точке спавна
+            g.userData = { boost, model: true };
+            return g;
+        }
         const m = boost ? [this.mat.boostEdge, this.mat.boost, this.mat.boost] : [this.mat.coinEdge, this.mat.coin, this.mat.coin];
         const coin = new THREE.Mesh(this.geo.coin, m);
         coin.rotation.x = Math.PI / 2;
@@ -806,26 +838,58 @@ export class World {
         this.coins.push(c);
     }
 
-    // .glb-модели препятствий (OBSTACLE_MODELS в config.js) — если файл есть, подменяет процедурную
+    // 3D-модели из Meshy (MODELS в config.js). Пока модель грузится или если её нет —
+    // используется процедурная модель или спрайт, а загруженная подменяет их «на лету».
     loadObstacleModels() {
         this.templates = {};
-        const loader = new GLTFLoader();
-        for (const [kind, cfg] of Object.entries(OBSTACLE_MODELS)) {
-            loader.load(cfg.url, (gltf) => {
-                const m = gltf.scene;
-                m.rotation.y = cfg.rotateY || 0;
-                m.updateMatrixWorld(true);
-                const box = new THREE.Box3().setFromObject(m);
-                const size = box.getSize(new THREE.Vector3());
-                const k = cfg.size / (cfg.axis === "y" ? size.y : cfg.axis === "x" ? size.x : size.z);
-                m.scale.multiplyScalar(k);
-                m.updateMatrixWorld(true);
-                box.setFromObject(m);
-                const c = box.getCenter(new THREE.Vector3());
-                m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
-                this.templates[kind] = m;
-            }, undefined, () => {});
+        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+        for (const [kind, list] of Object.entries(MODELS)) {
+            for (const cfg of list) {
+                loader.load(cfg.url, (gltf) => {
+                    const m = gltf.scene;
+                    m.rotation.y = cfg.rotateY || 0;
+                    m.updateMatrixWorld(true);
+                    const box = new THREE.Box3().setFromObject(m);
+                    const size = box.getSize(new THREE.Vector3());
+                    const k = cfg.size / (cfg.axis === "y" ? size.y : cfg.axis === "x" ? size.x : size.z);
+                    m.scale.multiplyScalar(k);
+                    m.updateMatrixWorld(true);
+                    box.setFromObject(m);
+                    const c = box.getCenter(new THREE.Vector3());
+                    m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
+                    m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                    const holder = new THREE.Group(); // оборачиваем, чтобы rotation/scale модели не сбивались при клонировании
+                    holder.add(m);
+                    holder.userData = { cfg };
+                    (this.templates[kind] ||= []).push(holder);
+                    for (const g of this.swaps[kind] || []) if (!g.userData.swapped) this.swapIn(g, kind);
+                }, undefined, () => { if (kind === "bank") this.bankFallback(); });
+            }
         }
+    }
+
+    modelFor(kind) {
+        const list = this.templates?.[kind];
+        return list?.length ? pick(list) : null;
+    }
+
+    // Декорация, которую можно заменить моделью, когда та загрузится
+    registerSwap(kind, g) {
+        (this.swaps[kind] ||= []).push(g);
+        if (this.modelFor(kind)) this.swapIn(g, kind);
+        return g;
+    }
+
+    swapIn(g, kind) {
+        const t = this.modelFor(kind);
+        g.clear();
+        g.add(t.clone());
+        g.userData.billboard = false;
+        g.userData.swapped = true;
+        g.userData.flashers = null;
+        g.rotation.y = g.userData.faceY ?? 0;
+        if (kind === "police") g.userData.police = true;
+        if (kind === "bank") this.placeBank(g);
     }
 
     // Препятствия-спрайты: инспектор ДПС и бетонный блок — объезжать, ограждение — перепрыгнуть
@@ -837,14 +901,17 @@ export class World {
     }
 
     makeObstacle(kind) {
-        if (SPRITES[kind]?.obstacle) return this.makeSpriteObstacle(kind);
-        const proc = kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
+        const proc = SPRITES[kind]?.obstacle ? this.makeSpriteObstacle(kind)
+            : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
             : kind === "atm" ? this.makeAtm() : this.makeCar();
-        const t = this.templates?.[kind];
+        const t = this.modelFor(kind);
         if (!t) return proc;
-        const g = new THREE.Group(); // модель из .glb, а размеры для столкновений — от процедурной
+        const g = new THREE.Group(); // модель из .glb, а размеры для столкновений — от процедурной (или из конфига)
         g.add(t.clone());
-        g.userData = proc.userData;
+        g.userData = { ...proc.userData, billboard: false, lamp: null, flashers: null };
+        if (t.userData.cfg.halfZ) g.userData.halfZ = t.userData.cfg.halfZ;
+        if (t.userData.cfg.top) g.userData.top = t.userData.cfg.top;
+        if (kind === "cop") g.userData.police = true;
         return g;
     }
 
@@ -874,7 +941,7 @@ export class World {
         for (const lane of blocked) {
             const kind = this.pickKind();
             this.addObstacle(kind, lane, z);
-            if (kind === "cop") { // пост ДПС: инспектор на полосе, патрульная машина у обочины
+            if (kind === "cop" && !this.modelFor("cop")) { // пост ДПС: инспектор на полосе, патрульная машина у обочины
                 const car = this.makePoliceCar();
                 const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
                 car.position.set(side * 4.4, 0.18, z - 2);
@@ -917,12 +984,14 @@ export class World {
         const flashOn = Math.floor(t * 6) % 2 === 0;
         let nearest = null, best = Infinity;
         const visit = (o) => {
-            if (!o.userData.billboard) return;
-            o.rotation.y = Math.atan2(cam.position.x - o.position.x, cam.position.z - o.position.z);
-            if (o.userData.lamp) o.userData.lamp.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(t * 5));
-            if (o.userData.flashers) {
-                o.userData.flashers[0].visible = flashOn;
-                o.userData.flashers[1].visible = !flashOn;
+            const u = o.userData;
+            if (u.billboard) o.rotation.y = Math.atan2(cam.position.x - o.position.x, cam.position.z - o.position.z);
+            if (u.lamp) u.lamp.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(t * 5));
+            if (u.flashers) {
+                u.flashers[0].visible = flashOn;
+                u.flashers[1].visible = !flashOn;
+            }
+            if (u.flashers || u.police) {
                 const dz = -o.position.z;
                 if (dz > -4 && dz < best) { best = dz; nearest = o; }
             }
@@ -962,7 +1031,7 @@ export class World {
         for (let i = this.coins.length - 1; i >= 0; i--) {
             const c = this.coins[i];
             c.position.z += move;
-            c.rotation.z = t * 3;
+            if (c.userData.model) c.rotation.y = t * 3; else c.rotation.z = t * 3;
             c.position.y = c.userData.baseY + Math.sin(t * 4 + c.position.z) * 0.06;
             if (c.position.z > DESPAWN_Z) this.removeCoin(i);
         }

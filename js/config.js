@@ -58,15 +58,6 @@ export const TEXTURES = {
     ],
 };
 
-// 3D-модель персонажа (.glb из Meshy/Tripo + анимация бега из Mixamo).
-// Если файла нет — бегает крыс, собранный из примитивов.
-export const MODEL = {
-    url: "models/rat.glb",
-    height: 1.9,      // во сколько метров отмасштабировать модель (вместе со шляпой)
-    rotateY: Math.PI, // Mixamo смотрит в +Z, а бежим мы в -Z
-    clips: { run: /run/i, idle: /idle/i, jump: /jump/i, slide: /slide|roll/i },
-};
-
 // Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
 export const QUALITY = "auto"; // "auto" | "high" | "low"
 
@@ -95,14 +86,52 @@ export const ATMS = [
     { name: "atm5", aspect: 0.36, light: 0xff2030 },
 ];
 
-// .glb-модели препятствий (например, Corvette из Meshy по фото). Если файла нет — процедурная модель.
-// size — до какого размера по оси axis отмасштабировать; rotateY — довернуть, чтобы нос смотрел в +Z.
-export const OBSTACLE_MODELS = {
-    car: { url: "models/car.glb", axis: "z", size: 4.3, rotateY: 0 },
-    atm: { url: "models/atm.glb", axis: "y", size: 2.3, rotateY: 0 },
-    dumpster: { url: "models/dumpster.glb", axis: "x", size: 1.3, rotateY: 0 },
-    barrier: { url: "models/barrier.glb", axis: "x", size: 1.75, rotateY: 0 },
+// 3D-модели из Meshy (models/obj/*.glb, сжаты gltfpack). Для каждого вида — список вариантов.
+// size — до какого размера в метрах отмасштабировать по оси axis; rotateY — разворот, чтобы «лицо» смотрело на игрока (+Z).
+// halfZ/top — переопределить размеры для столкновений. Пока модель грузится, видна процедурная модель или спрайт.
+const R = Math.PI / 2;
+export const MODELS = {
+    car: [
+        { url: "models/obj/car1.glb", axis: "z", size: 4.4, rotateY: R },
+        { url: "models/obj/car2.glb", axis: "z", size: 4.4, rotateY: R }],
+    cop: [ // пост ДПС: инспектор с поднятой рукой перед патрульной машиной
+        { url: "models/obj/post1.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 },
+        { url: "models/obj/post2.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 },
+        { url: "models/obj/post3.glb", axis: "z", size: 5.6, rotateY: R, halfZ: 2.7 }],
+    police: [
+        { url: "models/obj/post1.glb", axis: "z", size: 5.6, rotateY: R },
+        { url: "models/obj/post3.glb", axis: "z", size: 5.6, rotateY: R }],
+    atm: [
+        { url: "models/obj/atm_kiosk.glb", axis: "y", size: 2.4 },
+        { url: "models/obj/atm_pair0.glb", axis: "y", size: 2.1 },
+        { url: "models/obj/atm_pair1.glb", axis: "y", size: 2.1 }],
+    cart: [{ url: "models/obj/cart.glb", axis: "y", size: 1.4 }],
+    starbox: [{ url: "models/obj/starbox.glb", axis: "y", size: 1.45 }],
+    hood: [{ url: "models/obj/hood.glb", axis: "x", size: 1.6 }],
+    block: [
+        { url: "models/obj/blockset_a1.glb", axis: "x", size: 1.4 },
+        { url: "models/obj/blockset_b1.glb", axis: "x", size: 1.6 },
+        { url: "models/obj/barricade.glb", axis: "x", size: 1.6, rotateY: R }],
+    roadblock: [
+        { url: "models/obj/blockset_a0.glb", axis: "x", size: 1.6, rotateY: R },
+        { url: "models/obj/blockset_b0.glb", axis: "x", size: 1.6, rotateY: R }],
+    coin: [{ url: "models/obj/coin_usdt.glb", axis: "x", size: 0.62 }],
+    boost: [{ url: "models/obj/coin_trx.glb", axis: "x", size: 0.85 }],
+    bin: [{ url: "models/obj/trash1.glb", axis: "y", size: 0.95 }],
+    can: [{ url: "models/obj/trash0.glb", axis: "x", size: 0.35 }],
+    bank: [ // павильоны отделений, size — ширина фасада
+        { url: "models/obj/bank_sber.glb", axis: "x", size: 9 },
+        { url: "models/obj/bank_alfa.glb", axis: "x", size: 9 }],
 };
+
+// Играбельные персонажи (Meshy biped с анимациями). clips — какой клип играть в каждой позе;
+// если позы нет — модель наклоняется (подкат) или играет бег.
+export const CHARACTERS = [
+    { id: "mouse", name: "Спиди", url: "models/mouse.glb", height: 1.75,
+        clips: { run: "run", jump: "jump", dead: "dead" } },
+    { id: "pavel", name: "Павел", url: "models/pavel.glb", height: 1.8,
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+];
 
 // Объекты-спрайты, вырезанные из концептов (textures/sprites/*.webp, tools/cutout.py).
 // height — высота в метрах; obstacle — может стоять на полосе; top — высота, которую надо перепрыгнуть.

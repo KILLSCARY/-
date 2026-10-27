@@ -270,7 +270,9 @@ export function animateRat(rat, pose, t, phase, dt = 0, speed = 1) {
 // Заменяет крыса из примитивов на загруженную модель: масштаб, разворот, анимации.
 export function attachModel(rat, gltf, cfg) {
     const model = gltf.scene;
-    model.rotation.y = cfg.rotateY;
+    model.rotation.set(0, cfg.rotateY ?? Math.PI, 0); // Meshy/Mixamo смотрят в +Z, а бежим мы в -Z
+    model.position.set(0, 0, 0);
+    model.scale.setScalar(1);
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
@@ -289,18 +291,21 @@ export function attachModel(rat, gltf, cfg) {
         }
     });
 
-    const { rig } = rat.userData;
+    const { rig, blob } = rat.userData;
     rig.clear();
     rig.add(model);
 
+    // clips: поза → имя клипа; timing: во сколько раз ускорить клип, чтобы он уложился в прыжок/подкат
     const mixer = new THREE.AnimationMixer(model);
-    const actions = {};
-    for (const [pose, re] of Object.entries(cfg.clips)) {
-        const clip = gltf.animations.find((a) => re.test(a.name));
-        if (clip) actions[pose] = mixer.clipAction(clip);
+    const actions = {}, timing = {};
+    for (const [pose, name] of Object.entries(cfg.clips)) {
+        const clip = gltf.animations.find((a) => a.name === name);
+        if (!clip) continue;
+        actions[pose] = mixer.clipAction(clip);
+        if (cfg.durations?.[pose]) timing[pose] = clip.duration / cfg.durations[pose];
     }
     if (!actions.run && gltf.animations[0]) actions.run = mixer.clipAction(gltf.animations[0]);
-    rat.userData = { rig, blob: rat.userData.blob, model, mixer, actions, current: null };
+    rat.userData = { rig, blob, model, mixer, actions, timing, current: null };
 }
 
 function animateModel(rat, pose, t, phase, dt, speed) {
@@ -311,25 +316,29 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     rig.scale.set(1, 1, 1);
     if (!Object.keys(actions).length) return animateStatic(rig, pose, t, phase);
 
-    // если отдельного клипа нет — играем бег и доворачиваем позу целиком
-    let clip = pose === "dead" || pose === "idle" ? (actions.idle ? "idle" : "run") : actions[pose] ? pose : "run";
-    if (!actions[clip]) clip = null;
-    if (clip !== u.current) {
-        const next = clip && actions[clip];
-        if (next) next.reset().fadeIn(0.15).play();
-        if (u.current && actions[u.current]) actions[u.current].fadeOut(0.15);
-        u.current = clip;
+    // нет своего клипа для позы — играем бег и доворачиваем модель целиком
+    const want = actions[pose] ? pose : pose === "idle" ? "run" : "run";
+    if (want !== u.current) {
+        const next = actions[want];
+        const once = want !== "run" && want !== "idle";
+        next.reset();
+        next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+        next.clampWhenFinished = once;
+        next.timeScale = u.timing[want] ?? 1;
+        next.fadeIn(0.12).play();
+        if (u.current) actions[u.current].fadeOut(0.12);
+        u.current = want;
     }
     if (pose === "slide" && !actions.slide) {
         rig.rotation.x = 0.9;
         rig.position.set(0, -0.2, -0.4);
     } else if (pose === "jump" && !actions.jump) {
         rig.rotation.x = -0.2;
-    } else if (pose === "dead") {
+    } else if (pose === "dead" && !actions.dead) {
         rig.rotation.x = 0.5;
         rig.position.y = -0.3;
     }
-    const scale = pose === "run" ? Math.max(0.8, speed / 14) : pose === "dead" ? 0 : 1;
+    const scale = want === "run" ? (pose === "idle" ? 0.25 : Math.max(0.8, speed / 14)) : 1;
     mixer.update(dt * scale);
 }
 

@@ -145,3 +145,19 @@ body.shake #game { animation: shake 0.35s; }
     60% { transform: translate(-5px, 3px); }
     80% { transform: translate(3px, -2px); }
 }
+
+/* Выбор персонажа */
+.heroes-label { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+.heroes { display: flex; gap: 8px; margin-bottom: 12px; }
+.hero {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font: 700 15px/1 inherit;
+    font-family: inherit;
+    cursor: pointer;
+}
+.hero.active { border-color: var(--red); background: rgba(255, 45, 61, 0.18); box-shadow: 0 0 14px rgba(255, 45, 61, 0.35); }

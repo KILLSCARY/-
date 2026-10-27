@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, MODEL, QUALITY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY } from "./config.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
 import { World, SPAWN_Z, buildEnvironment } from "./world.js";
 import * as THREE from "./vendor/three.module.js";
@@ -10,6 +10,7 @@ import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
+import { MeshoptDecoder } from "./vendor/jsm/meshopt_decoder.module.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -48,7 +49,10 @@ class Game {
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
-        this.loadModel();
+        this.heroes = {}; // загруженные модели персонажей по id
+        let saved = null;
+        try { saved = localStorage.getItem("p2p_hero"); } catch {}
+        this.selectHero(CHARACTERS.find((c) => c.id === saved) ? saved : CHARACTERS[0].id);
 
         this.setupInput();
         this.setupUI();
@@ -287,7 +291,21 @@ class Game {
         this.renderMenu();
     }
 
+    renderHeroes() {
+        const box = $("menu-heroes");
+        box.innerHTML = "";
+        for (const c of CHARACTERS) {
+            const b = document.createElement("button");
+            b.className = "hero" + (c.id === this.heroId ? " active" : "");
+            b.dataset.id = c.id;
+            b.textContent = c.name;
+            b.onclick = () => this.selectHero(c.id);
+            box.append(b);
+        }
+    }
+
     renderMenu() {
+        this.renderHeroes();
         $("menu-best").textContent = this.best;
         $("menu-tip").textContent = pick(TIPS);
         const name = tg.user?.first_name;
@@ -371,13 +389,21 @@ class Game {
         }
     }
 
-    loadModel() {
-        if (!MODEL.url) return;
-        new GLTFLoader().load(
-            MODEL.url,
-            (gltf) => attachModel(this.rat, gltf, MODEL),
+    // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
+    selectHero(id) {
+        this.heroId = id;
+        try { localStorage.setItem("p2p_hero", id); } catch {}
+        for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
+        const cfg = CHARACTERS.find((c) => c.id === id);
+        const air = (2 * BALANCE.jumpPower) / BALANCE.gravity;
+        const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime + 0.2 } };
+        const apply = (gltf) => { if (this.heroId === id) attachModel(this.rat, gltf, opts); };
+        if (this.heroes[id]) return apply(this.heroes[id]);
+        new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(
+            cfg.url,
+            (gltf) => { this.heroes[id] = gltf; apply(gltf); },
             undefined,
-            () => console.info("[model] нет", MODEL.url, "— бегает крыс из примитивов")
+            () => console.info("[hero] не загрузилась модель", cfg.url, "— бегает крыс из примитивов")
         );
     }
 
