@@ -297,13 +297,18 @@ class Game {
             if (!(next[b.id] > 0) || n >= 4) continue;
             n++;
             const el = document.createElement("button");
-            el.className = "bst";
+            el.className = b.name.length > 9 ? "bst long" : "bst"; // «Устойчивость» — подпись мельче, чтобы влезла
             el.dataset.id = b.id;
             el.disabled = left <= 0 || this.state !== "playing";
             el.innerHTML = `<img src="${b.art}" alt=""><b>${b.name}</b><i>${next[b.id]}</i>`;
-            el.onpointerdown = (e) => { e.stopPropagation(); this.useBoost(b.id); };
+            el.onclick = () => { if (this.boostTap()) this.useBoost(b.id); };
             bar.prepend(el);
         }
+    }
+
+    // кнопка буста или умения нажата тапом, а не концом свайпа, который начался на ней
+    boostTap() {
+        return performance.now() - (this.lastSwipe || 0) > 500;
     }
 
     useBoost(id) {
@@ -330,6 +335,9 @@ class Game {
     // Апелляция: продолжить с того же места за TRX, один раз за забег
     appeal() {
         if (this.state !== "over" || this.appealUsed || !this.profile.pay({ trx: APPEAL_PRICE })) return;
+        // сцена задержания: Инспекторша застыла в жесте «протокол» (бег остановлен), а класс arresting прячет
+        // бусты и плашки добавок. Без этого после апелляции за героем ехала застывшая фигура, а кнопок бустов не было
+        this.endArrest();
         this.appealUsed = true;
         this.audio.play("buy");
         for (const o of this.world.obstacles) {
@@ -511,25 +519,29 @@ class Game {
             else if (k === "Enter" && (this.state === "over" || (this.state === "menu" && this.hub.current === "run" && $("case-open").hidden))) this.start();
         });
 
-        // свайпы: срабатывают ещё до отпускания пальца — так отзывчивее
+        // свайпы: срабатывают ещё до отпускания пальца — так отзывчивее. Ловим их и с ряда бустов внизу:
+        // оттуда большой палец чаще всего и свайпает вверх — буст тогда не срабатывает (он — по тапу, см. boostTap)
         let start = null;
         const area = $("game");
-        area.addEventListener("touchstart", (e) => {
+        const swipeFrom = (el) => el === area || !!el.closest?.("#boost-bar");
+        document.addEventListener("touchstart", (e) => {
+            if (!swipeFrom(e.target)) return;
             const t = e.changedTouches[0];
             start = { x: t.clientX, y: t.clientY, done: false };
         }, { passive: true });
-        area.addEventListener("touchmove", (e) => {
+        document.addEventListener("touchmove", (e) => {
             if (!start || start.done) return;
             const t = e.changedTouches[0];
             const dx = t.clientX - start.x, dy = t.clientY - start.y;
             if (Math.hypot(dx, dy) < 30) return;
             start.done = true;
+            this.lastSwipe = performance.now();
             if (this.wind?.state === "gust" || this.wind?.state === "inhale") return; // в порыв пальцы тапают, полосы не меняем
             if (Math.abs(dx) > Math.abs(dy)) this.move(dx > 0 ? 1 : -1);
             else if (dy < 0) this.jump();
             else this.slide();
         }, { passive: true });
-        area.addEventListener("touchend", () => { start = null; }, { passive: true });
+        document.addEventListener("touchend", () => { start = null; }, { passive: true });
         // порыв ветра: каждое касание в любом месте экрана (и каждым пальцем) — «держусь»
         const tap = (n = 1) => {
             const w = this.wind;
@@ -589,7 +601,7 @@ class Game {
             $("btn-sound").setAttribute("aria-pressed", String(this.audio.enabled));
         };
         soundIcon();
-        $("btn-skill").onclick = () => this.useSkill();
+        $("btn-skill").onclick = () => { if (this.boostTap()) this.useSkill(); };
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
             try { localStorage.setItem("p2p_sound", this.audio.enabled ? "on" : "off"); } catch {}
