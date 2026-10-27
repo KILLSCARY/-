@@ -133,7 +133,7 @@ export const MODELS = {
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75, portrait: "img/heroes/speedy.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8,
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8, portrait: "img/heroes/pavel.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, portrait: "img/heroes/denchik.webp", locked: "Не бегает — на связи у Спиди",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
