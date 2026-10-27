@@ -22,7 +22,7 @@
         </symbol>
     </svg>
 
-    <!-- Главная: кошелёк, глава, вкладки «Герои / Забег / Кейсы / Магазин» -->
+    <!-- Главная: кошелёк, глава, «Клуб» с плитками; разделы «Герои / Кейсы / Магазин» — с кнопкой «назад» -->
     <section id="menu" class="screen">
         <div class="hub">
             <div class="hub-top">
@@ -53,30 +53,24 @@
             </div>
             <!-- Герои (вариант B): карусель с портретами, под ней — выбранный герой и действие -->
             <div class="view" id="view-heroes" hidden>
-                <p class="label">Команда</p>
+                <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Команда</p></div>
                 <h2 class="sheet-title">Герои</h2>
                 <div class="carousel" id="carousel" aria-label="Выбор героя"></div>
                 <div class="hero-detail" id="hero-detail"></div>
             </div>
             <div class="view sheet" id="view-cases" hidden>
-                <p class="label">Лут</p>
+                <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Лут</p></div>
                 <h2 class="sheet-title">Кейсы</h2>
                 <div id="cases-list" class="cards"></div>
             </div>
             <div class="view sheet" id="view-shop" hidden>
-                <p class="label">Добавки и прокачка</p>
+                <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Добавки и прокачка</p></div>
                 <h2 class="sheet-title">NS Store</h2>
                 <p class="sheet-sub">Магазин добавок Паши. Купленное срабатывает в следующем забеге.</p>
                 <div class="seg"><button data-seg="boosts" class="on">Добавки</button><button data-seg="up">Прокачка</button></div>
                 <div id="shop-list" class="cards"></div>
             </div>
 
-            <nav class="tabbar">
-                <button data-tab="heroes">Герои</button>
-                <button data-tab="run" class="on">Забег</button>
-                <button data-tab="cases">Кейсы<b id="cases-badge" hidden>1</b></button>
-                <button data-tab="shop">Магазин</button>
-            </nav>
         </div>
     </section>
 

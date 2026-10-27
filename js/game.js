@@ -11,7 +11,7 @@ import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
-import { loadModel } from "./models.js";
+import { loadModel, releaseQueue } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -54,7 +54,7 @@ class Game {
         this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
-        this.best = 0;
+        this.best = tg.localBest();
         this.t = 0;
 
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
@@ -75,6 +75,7 @@ class Game {
         try { saved = localStorage.getItem("p2p_hero"); } catch {}
         this.selectHero(CHARACTERS.find((c) => c.id === saved && !c.locked) ? saved : CHARACTERS[0].id);
         // невыкупленного героя (раньше все были бесплатными) меняем на стартового
+        this.hub.render(); // кошелёк и плитки — сразу из локальной копии
         this.profile.ready.then(() => {
             if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
             this.hub.render();
@@ -516,6 +517,7 @@ class Game {
             this.showRat(true);
             this.heroLoading = false;
             this.hub?.updatePlay();
+            releaseQueue(); // герой на месте — теперь можно грузить препятствия и витрины
         };
         if (this.heroes[id]) return apply(this.heroes[id]);
         this.heroLoading = true;
@@ -529,6 +531,7 @@ class Game {
                 this.showRat(true); // запасной вариант — крыс из примитивов
                 this.heroLoading = false;
                 this.hub?.updatePlay();
+                releaseQueue();
             }
         );
     }

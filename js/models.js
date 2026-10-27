@@ -14,7 +14,16 @@ function base64ToBuffer(b64) {
     return out.buffer;
 }
 
-export function loadModel(url, onLoad, onError = () => {}) {
+// Сначала грузится герой, всё остальное (препятствия, витрины, спрайты) — после него: иначе на телефоне
+// 8 МБ моделей делят канал с героем, и он появляется секунд через десять. Страховка — 6 с.
+let release;
+const gate = new Promise((r) => (release = r));
+setTimeout(() => release(), 6000);
+export const releaseQueue = () => release();
+export const later = (fn) => gate.then(fn);
+
+export function loadModel(url, onLoad, onError = () => {}, { deferred = false } = {}) {
+    if (deferred) return void later(() => loadModel(url, onLoad, onError));
     if (!url.endsWith(".json")) return loader.load(url, onLoad, undefined, onError);
     fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${url}`))))

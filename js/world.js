@@ -6,7 +6,7 @@
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
 import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX } from "./config.js";
-import { loadModel } from "./models.js";
+import { loadModel, later } from "./models.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -26,10 +26,14 @@ function loadTex(file, repeat, srgb) {
     let entry = texCache[file];
     if (!entry) {
         entry = texCache[file] = { copies: [], ready: false };
-        entry.tex = loader.load(`textures/${file}`, () => {
+        entry.tex = new THREE.Texture();
+        const load = () => loader.load(`textures/${file}`, (img) => {
+            entry.tex.image = img.image; // источник общий у всех копий
             entry.ready = true;
             for (const c of entry.copies) c.needsUpdate = true;
         });
+        // улица и дома видны в меню сразу; витрины банков и банкоматы подождут героя
+        if (/^(bank_|atm)/.test(file)) later(load); else load();
     }
     const t = new THREE.Texture(); // не clone(): он ставит needsUpdate ещё до загрузки картинки
     t.source = entry.tex.source;
@@ -564,7 +568,8 @@ export class World {
     spriteMaterial(name) {
         this.spriteMats ||= {};
         if (this.spriteMats[name]) return this.spriteMats[name];
-        const t = loader.load(`textures/sprites/${name}.webp`);
+        const t = new THREE.Texture();
+        later(() => loader.load(`textures/sprites/${name}.webp`, (img) => { t.image = img.image; t.needsUpdate = true; m.visible = true; }));
         t.encoding = THREE.sRGBEncoding;
         t.anisotropy = 4;
         // лёгкое самосвечение, чтобы нарисованные объекты читались ночью
@@ -572,6 +577,7 @@ export class World {
             map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.32,
             alphaTest: 0.45, roughness: 0.85, metalness: 0.1, envMapIntensity: 0.3,
         });
+        m.visible = false; // до загрузки картинки — не рисуем (иначе чёрный прямоугольник)
         this.spriteMats[name] = m;
         return m;
     }
@@ -892,7 +898,7 @@ export class World {
                     holder.userData = { cfg };
                     (this.templates[kind] ||= []).push(holder);
                     for (const g of this.swaps[kind] || []) if (!g.userData.swapped) this.swapIn(g, kind);
-                }, () => { if (kind === "bank") this.bankFallback(); });
+                }, () => { if (kind === "bank") this.bankFallback(); }, { deferred: true });
             }
         }
     }

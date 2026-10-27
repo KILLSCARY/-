@@ -5,6 +5,14 @@ const wa = window.Telegram?.WebApp;
 const inTelegram = Boolean(wa && wa.initData);
 const atLeast = (v) => Boolean(inTelegram && wa.isVersionAtLeast?.(v));
 
+// CloudStorage иногда отвечает секундами — дольше 2,5 с не ждём
+function cloudGet(key) {
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(null), 2500);
+        wa.CloudStorage.getItem(key, (err, value) => resolve(err ? null : value));
+    });
+}
+
 export const tg = {
     inTelegram,
     user: inTelegram ? wa.initDataUnsafe?.user ?? null : null,
@@ -47,14 +55,24 @@ export const tg = {
         }
     },
 
+    // системная кнопка «назад» в шапке Telegram: onBack — показать и повесить обработчик, false — спрятать
+    backButton(onBack) {
+        if (!atLeast("6.1")) return;
+        const bb = wa.BackButton;
+        if (this._onBack) bb.offClick(this._onBack);
+        this._onBack = onBack || null;
+        if (onBack) { bb.onClick(onBack); bb.show(); } else bb.hide();
+    },
+
+    localBest() {
+        try { return Number(localStorage.getItem("p2p_best")) || 0; } catch { return 0; }
+    },
+
     async getBest() {
-        let local = 0;
-        try { local = Number(localStorage.getItem("p2p_best")) || 0; } catch {}
+        const local = this.localBest();
         if (!atLeast("6.9")) return local;
-        const cloud = await new Promise((resolve) => {
-            wa.CloudStorage.getItem("best", (err, value) => resolve(err ? 0 : Number(value) || 0));
-        });
-        return Math.max(local, cloud);
+        const cloud = await cloudGet("best");
+        return Math.max(local, Number(cloud) || 0);
     },
 
     saveBest(score) {
@@ -63,17 +81,14 @@ export const tg = {
     },
 
     // Профиль игрока (кошелёк, покупки) — JSON с отметкой времени t; из локальной и облачной копии берём свежую
-    async loadProfile() {
-        let local = null, cloud = null;
-        try { local = JSON.parse(localStorage.getItem("p2p_profile") || "null"); } catch {}
-        if (atLeast("6.9")) {
-            cloud = await new Promise((resolve) => {
-                wa.CloudStorage.getItem("profile", (err, value) => {
-                    try { resolve(err ? null : JSON.parse(value || "null")); } catch { resolve(null); }
-                });
-            });
-        }
-        return (cloud?.t || 0) > (local?.t || 0) ? cloud : local;
+    // локальная копия — сразу, без ожидания; облачная — потом, если она свежее (см. Profile)
+    localProfile() {
+        try { return JSON.parse(localStorage.getItem("p2p_profile") || "null"); } catch { return null; }
+    },
+
+    async cloudProfile() {
+        if (!atLeast("6.9")) return null;
+        try { return JSON.parse((await cloudGet("profile")) || "null"); } catch { return null; }
     },
 
     saveProfile(data) {

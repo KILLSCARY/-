@@ -15,9 +15,14 @@ const EMPTY = () => ({
 export class Profile {
     constructor() {
         this.data = EMPTY();
-        this.ready = tg.loadProfile().then((saved) => {
-            if (saved) this.data = { ...EMPTY(), ...saved, next: { ...EMPTY().next, ...saved.next }, up: { ...EMPTY().up, ...saved.up } };
+        this.load(tg.localProfile());
+        this.ready = tg.cloudProfile().then((cloud) => {
+            if ((cloud?.t || 0) > (this.data.t || 0)) this.load(cloud);
         });
+    }
+
+    load(saved) {
+        if (saved) this.data = { ...EMPTY(), ...saved, next: { ...EMPTY().next, ...saved.next }, up: { ...EMPTY().up, ...saved.up } };
     }
 
     save() {

@@ -1,5 +1,6 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
+import { tg } from "./tg.js";
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -14,7 +15,11 @@ export class Hub {
         this.p = profile;
         this.current = "run";
         this.seg = "boosts";
-        for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => this.tab(b.dataset.tab);
+        for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => this.back();
+        // «назад» на компьютере — Esc или Backspace
+        addEventListener("keydown", (e) => {
+            if ((e.key === "Escape" || e.key === "Backspace") && this.game.state === "menu" && this.current !== "run") this.back();
+        });
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
         this.focus = null; // герой в центре карусели «Героев»
@@ -25,10 +30,14 @@ export class Hub {
     tab(name) {
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
-        for (const b of document.querySelectorAll(".tabbar button")) b.classList.toggle("on", b.dataset.tab === name);
+        tg.backButton(name !== "run" && (() => this.back())); // системная «назад» Telegram в шапке
         for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== `view-${name}`;
         this.game.audio.play("swipe");
         this.render();
+    }
+
+    back() {
+        if (this.current !== "run") this.tab("run");
     }
 
     render() {
@@ -40,7 +49,6 @@ export class Hub {
         $("chap-num").textContent = ch.done ? fmt(ch.earned) : `${fmt(ch.earned)} / ${fmt(ch.goal)}`;
         $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
         const free = this.freeReady();
-        $("cases-badge").hidden = !free;
         // плитки главной
         $("tile-cases-badge").hidden = !free;
         $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
