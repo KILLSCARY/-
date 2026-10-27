@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Покоритель P2P 3.0</title>
-    <meta name="theme-color" content="#14060a">
+    <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -36,25 +36,28 @@
             </div>
 
             <div class="view" id="view-run">
+                <div class="grow"></div>
                 <div class="brand">
-                    <div class="kicker">курс</div>
-                    <h1>ПОКОРИТЕЛЬ<br><span>P2P 3.0</span></h1>
+                    <span class="tag">Игра к курсу</span>
+                    <h1><span class="metal">Покоритель</span><span class="red">P2P 3.0</span></h1>
                     <p id="menu-hello" class="hello"></p>
                 </div>
-                <div class="grow"></div>
                 <button id="hero-chip" class="hero-chip"></button>
                 <button id="btn-play" class="btn btn-main">ЗАБЕГ</button>
                 <p id="menu-tip" class="tip"></p>
             </div>
             <div class="view sheet" id="view-heroes" hidden>
+                <p class="label">Команда</p>
                 <h2 class="sheet-title">Герои</h2>
                 <div id="heroes-list" class="cards"></div>
             </div>
             <div class="view sheet" id="view-cases" hidden>
+                <p class="label">Лут</p>
                 <h2 class="sheet-title">Кейсы</h2>
                 <div id="cases-list" class="cards"></div>
             </div>
             <div class="view sheet" id="view-shop" hidden>
+                <p class="label">Добавки и прокачка</p>
                 <h2 class="sheet-title">NS Store</h2>
                 <p class="sheet-sub">Магазин добавок Паши. Купленное срабатывает в следующем забеге.</p>
                 <div class="seg"><button data-seg="boosts" class="on">Добавки</button><button data-seg="up">Прокачка</button></div>

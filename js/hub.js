@@ -1,6 +1,6 @@
 // Главная: кошелёк, глава, вкладки «Герои / Забег / Кейсы / Магазин» и открытие кейсов с лентой наград.
 
-import { CHARACTERS, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
@@ -58,16 +58,17 @@ export class Hub {
     renderHeroes() {
         const box = $("heroes-list");
         box.innerHTML = "";
+        const art = (c) => c.portrait ? `<div class="card-art" style="background-image:url('${c.portrait}')"></div>` : "";
         for (const c of CHARACTERS) {
             const card = document.createElement("div");
-            card.className = "card";
+            card.className = "card card-hero" + (c.portrait ? " has-art" : "");
             const perk = HERO_PERKS[c.id]?.text ?? "";
             if (c.locked) {
                 card.classList.add("card-off");
-                card.innerHTML = `<div class="card-main"><h3>${c.name}</h3><p>${c.locked}. Сыграть за него нельзя</p></div>`;
+                card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Не играбелен</span><h3>${c.name}</h3><p>${c.locked}. Сыграть за него нельзя</p></div>`;
             } else if (this.p.owns(c.id)) {
                 const on = c.id === this.game.heroId;
-                card.innerHTML = `<div class="card-main"><h3>${c.name}</h3><p>${perk}</p></div>`;
+                card.innerHTML = `${art(c)}<div class="card-main">${on ? '<span class="card-tag on">В забеге</span>' : ""}<h3>${c.name}</h3><p>${perk}</p></div>`;
                 const b = document.createElement("button");
                 b.className = "btn-small" + (on ? " is-on" : "");
                 b.textContent = on ? "Выбран" : "Выбрать";
@@ -78,7 +79,7 @@ export class Hub {
                 const price = HERO_PRICES[c.id];
                 const share = Math.min(1, this.p.usdt / price);
                 card.classList.add("card-lock");
-                card.innerHTML = `<div class="card-main"><h3>${c.name}</h3><p>${perk}</p>
+                card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Выкуп</span><h3>${c.name}</h3><p>${perk}</p>
                     <div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div>
                     <div class="bar gold"><i style="width:${share * 100}%"></i></div></div>`;
                 const b = document.createElement("button");
@@ -94,6 +95,12 @@ export class Hub {
                 };
                 card.append(b);
             }
+            box.append(card);
+        }
+        for (const c of SOON_HEROES) {
+            const card = document.createElement("div");
+            card.className = "card card-hero has-art card-soon";
+            card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Скоро</span><h3>${c.name}</h3><p>Появится в следующих главах</p></div>`;
             box.append(card);
         }
     }

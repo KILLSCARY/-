@@ -131,12 +131,19 @@ export const MODELS = {
 // (по сценарию его выкупают, пока выбирается свободно); Денчик в меню виден, но не играбелен — locked, текст на кнопке.
 // clips — какой клип играть в каждой позе; если позы нет — модель наклоняется (подкат) или играет бег.
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75,
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75, portrait: "img/heroes/speedy.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8,
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, locked: "Не бегает — на связи у Спиди",
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, portrait: "img/heroes/denchik.webp", locked: "Не бегает — на связи у Спиди",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+];
+
+// Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
+export const SOON_HEROES = [
+    { name: "Ислам", portrait: "img/heroes/islam.webp" },
+    { name: "Саша Белый", portrait: "img/heroes/sasha.webp" },
+    { name: "Юрец", portrait: "img/heroes/yurets.webp" },
 ];
 
 // Объекты-спрайты, вырезанные из концептов (textures/sprites/*.webp, tools/cutout.py).
