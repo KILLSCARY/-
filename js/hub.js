@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
@@ -31,7 +31,15 @@ export class Hub {
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
         tg.backButton(name !== "run" && (() => this.back())); // системная «назад» Telegram в шапке
-        for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== `view-${name}`;
+        for (const v of document.querySelectorAll(".view")) {
+            const on = v.id === `view-${name}`;
+            v.hidden = !on;
+            if (!on) continue;
+            // въезд: в раздел — справа, обратно на главную — слева
+            v.classList.remove("in-fwd", "in-back");
+            void v.offsetWidth;
+            v.classList.add(name === "run" ? "in-back" : "in-fwd");
+        }
         this.game.audio.play("swipe");
         this.render();
     }
@@ -261,27 +269,63 @@ export class Hub {
         return Date.now() - (this.p.data.freeAt || 0) >= env.free;
     }
 
+    // Витрина: большая карточка на кейс — картинка на цветном свечении, полоса шансов, что внутри, цена
     renderCases() {
         const box = $("cases-list");
         box.innerHTML = "";
         for (const c of CASES) {
             const card = document.createElement("div");
-            card.className = `card case-card case-${c.id}`;
-            card.innerHTML = `<div class="case-box"></div><div class="card-main"><h3>${c.name}</h3><p>${c.text}</p>
-                <div class="odds">${this.odds(c)}</div></div>`;
+            card.className = `case-card case-${c.id}`;
+            card.style.setProperty("--cc", c.color);
+            const kinds = [...new Set(c.drops.map((d) => this.kind(d)))];
+            card.innerHTML = `<div class="case-art">${this.caseArt(c)}</div>
+                <div class="case-info">
+                    <span class="card-tag on">${c.free ? "Бесплатно" : c.priceTrx ? "За TRX" : "За USDT"}</span>
+                    <h3>${c.name}</h3>
+                    <p>${c.text}</p>
+                    <div class="odds-bar">${this.oddsBar(c)}</div>
+                    <div class="odds">${this.odds(c)}</div>
+                    <div class="case-loot">${kinds.map((k) => `<span class="loot">${this.itemIcon(k)}</span>`).join("")}</div>
+                </div>`;
+            let btn;
             if (c.free) {
                 const left = c.free - (Date.now() - (this.p.data.freeAt || 0));
-                const b = document.createElement("button");
-                b.className = "btn-small btn-gold";
-                b.disabled = left > 0;
-                b.textContent = left > 0 ? `через ${Math.floor(left / 3600000)} ч ${Math.ceil((left % 3600000) / 60000)} мин` : "Открыть";
-                b.onclick = () => { this.p.data.freeAt = Date.now(); this.p.save(); this.open(c); };
-                card.append(b);
+                btn = document.createElement("button");
+                btn.className = "btn-small btn-gold";
+                btn.disabled = left > 0;
+                btn.textContent = left > 0 ? `через ${Math.floor(left / 3600000)} ч ${Math.ceil((left % 3600000) / 60000)} мин` : "Открыть бесплатно";
+                btn.onclick = () => { this.p.data.freeAt = Date.now(); this.p.save(); this.open(c); };
             } else {
-                card.append(this.priceButton(c.priceTrx ? { trx: c.priceTrx } : { usdt: c.price }, () => this.open(c)));
+                btn = this.priceButton(c.priceTrx ? { trx: c.priceTrx } : { usdt: c.price }, () => this.open(c));
             }
+            btn.classList.add("case-buy");
+            card.querySelector(".case-info").append(btn);
             box.append(card);
         }
+    }
+
+    // картинка кейса или нарисованная заглушка (коробка цвета кейса с ремнём)
+    caseArt(c) {
+        return c.art ? `<img src="${c.art}" alt="" draggable="false">` : `<div class="case-ph"><i></i><b></b></div>`;
+    }
+
+    // тип награды → иконка (картинка из CASE_ITEM_ART или заглушка)
+    kind(d) {
+        return d.level ? "level" : d.all ? "all" : d.boosts ? "boost" : d.trx && !d.amount ? "trx" : "usdt";
+    }
+
+    itemIcon(k) {
+        if (CASE_ITEM_ART[k]) return `<img class="item-ico" src="${CASE_ITEM_ART[k]}" alt="" draggable="false">`;
+        if (k === "usdt") return `<svg class="item-ico"><use href="#ico-usdt"/></svg>`;
+        if (k === "trx") return `<svg class="item-ico"><use href="#ico-trx"/></svg>`;
+        return `<span class="item-ico ph-${k}"></span>`;
+    }
+
+    oddsBar(c) {
+        const total = c.drops.reduce((s, d) => s + d.w, 0);
+        const by = {};
+        for (const d of c.drops) by[d.r] = (by[d.r] || 0) + d.w;
+        return Object.entries(by).map(([r, w]) => `<i style="flex:${w / total};background:${RARITY[r].color}"></i>`).join("");
     }
 
     odds(c) {
@@ -307,30 +351,56 @@ export class Hub {
         return parts.join(" + ");
     }
 
-    // лента наград крутится 4 с и останавливается на выигрыше
+    cellHtml(d) {
+        return `<div class="cell" style="--rc:${RARITY[d.r].color}">${this.itemIcon(this.kind(d))}<span>${this.label(d)}</span></div>`;
+    }
+
+    // Открытие: кейс трясётся (1.2 с) → вспышка → лента крутится 4.2 с → выигрыш подсвечивается, всплывает приз
     open(c) {
-        const WIN = 34, CELL = 112;
+        const WIN = 34, CELL = 132, W = 120; // ширина ячейки + промежуток, ширина ячейки
         const items = Array.from({ length: WIN + 6 }, () => this.roll(c));
         const win = items[WIN];
+        const co = $("co");
+        co.style.setProperty("--cc", c.color);
+        co.className = "co s-intro";
         $("case-title").textContent = c.name;
-        $("case-result").textContent = "Крутится…";
+        $("case-label").textContent = "Открытие";
+        $("case-result").textContent = "";
         $("btn-case-ok").disabled = true;
+        $("co-case").innerHTML = this.caseArt(c);
+        $("co-prize").innerHTML = "";
         const strip = $("case-strip");
-        strip.innerHTML = items.map((d) => `<div class="cell" style="--rc:${RARITY[d.r].color}"><span>${this.label(d)}</span></div>`).join("");
+        strip.innerHTML = items.map((d) => this.cellHtml(d)).join("");
         this.game.show("case-open");
-        const center = (i) => strip.parentElement.clientWidth / 2 - (i * CELL + 52);
-        strip.style.transition = "none";
-        strip.style.transform = `translateX(${center(2)}px)`;
-        void strip.offsetWidth;
+        this.game.audio.play("swipe");
+        tg.haptic("light");
         const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-        strip.style.transition = reduce ? "none" : "transform 4s cubic-bezier(.12,.72,.14,1)";
-        strip.style.transform = `translateX(${center(WIN) + (Math.random() - 0.5) * 70}px)`;
-        setTimeout(() => {
+        const center = (i) => $("strip-box").clientWidth / 2 - (i * CELL + W / 2);
+        strip.style.transition = "none";
+        strip.style.transform = `translate3d(${center(2)}px,0,0)`;
+        clearTimeout(this.caseTimer);
+        const spin = () => {
+            co.className = "co s-spin";
+            tg.haptic("medium");
+            void strip.offsetWidth;
+            strip.style.transition = reduce ? "none" : "transform 4.2s cubic-bezier(.12,.72,.14,1)";
+            strip.style.transform = `translate3d(${center(WIN) + (Math.random() - 0.5) * 80}px,0,0)`;
+            this.caseTimer = setTimeout(done, reduce ? 50 : 4300);
+        };
+        const done = () => {
             const text = this.give(win);
-            this.game.audio.play("chest");
-            $("case-result").innerHTML = `<b style="color:${RARITY[win.r].color}">${RARITY[win.r].name}</b>: ${text}`;
+            strip.children[WIN].classList.add("win");
+            co.className = `co s-win r-${win.r}`;
+            co.style.setProperty("--rc", RARITY[win.r].color);
+            $("case-label").textContent = RARITY[win.r].name;
+            $("co-prize").innerHTML = `<div class="prize">${this.itemIcon(this.kind(win))}<b>${this.label(win)}</b><span>${RARITY[win.r].name}</span>
+                <i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i></div>`;
+            $("case-result").textContent = text.replace(this.label(win), "").trim();
             $("btn-case-ok").disabled = false;
-        }, reduce ? 100 : 4100);
+            this.game.audio.play(win.r === "legend" || win.r === "epic" ? "record" : "chest");
+            tg.haptic(win.r === "common" ? "success" : "heavy");
+        };
+        this.caseTimer = setTimeout(spin, reduce ? 50 : 1200);
     }
 
     give(d) {

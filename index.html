@@ -75,12 +75,22 @@
     </section>
 
     <!-- Открытие кейса -->
+    <!-- Открытие кейса: кейс трясётся на фоне лучей → вспышка → лента наград → приз -->
     <section id="case-open" class="screen" hidden>
-        <div class="panel case-panel">
-            <h2 id="case-title"></h2>
-            <div class="strip-box"><div class="strip" id="case-strip"></div></div>
+        <div class="co" id="co">
+            <div class="co-rays" aria-hidden="true"></div>
+            <div class="co-flash" aria-hidden="true"></div>
+            <div class="co-head">
+                <p class="label" id="case-label">Открытие</p>
+                <h2 id="case-title" class="co-title"></h2>
+            </div>
+            <div class="co-stage">
+                <div class="co-case" id="co-case"></div>
+                <div class="strip-box" id="strip-box"><div class="strip" id="case-strip"></div></div>
+                <div class="co-prize" id="co-prize"></div>
+            </div>
             <p id="case-result" class="case-result"></p>
-            <button id="btn-case-ok" class="btn btn-main" disabled>ЗАБРАТЬ</button>
+            <button id="btn-case-ok" class="btn btn-main" disabled>Забрать</button>
         </div>
     </section>
 
