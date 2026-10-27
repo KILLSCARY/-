@@ -426,7 +426,7 @@ export class Hub {
     shelf(photos) {
         const box = document.createElement("div");
         box.className = "shelf";
-        box.innerHTML = photos.map(([f, name]) => `<img src="img/shop/bady/${f}.webp?v=2" alt="${name}" loading="lazy" draggable="false">`).join("") + '<span class="shelf-name"></span>';
+        box.innerHTML = photos.map(([f, name]) => `<img src="img/shop/bady/${f}.webp?v=3" alt="${name}" loading="lazy" draggable="false">`).join("") + '<span class="shelf-name"></span>';
         box.dataset.i = "0";
         box.onclick = () => this.turnShelf(box, 1);
         this.turnShelf(box, 0);
