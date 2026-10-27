@@ -450,6 +450,12 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 @keyframes pop { from { transform: scale(1.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 body.shake #game { animation: shake 0.35s; }
+/* споткнулся: красная пульсирующая рамка по краям экрана, пока ДПС на хвосте */
+body.hurt #hud::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 90px rgba(227, 52, 58, .55); animation: hurt 0.9s ease-in-out infinite;
+}
+@keyframes hurt { 50% { box-shadow: inset 0 0 40px rgba(227, 52, 58, .25); } }
 @keyframes shake {
     20% { transform: translate(-8px, 4px); }
     40% { transform: translate(7px, -5px); }
@@ -460,7 +466,7 @@ body.shake #game { animation: shake 0.35s; }
 .ico-usdt { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
 
 @media (prefers-reduced-motion: reduce) {
-    #countdown.pop, #toast.show, body.shake #game, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
+    #countdown.pop, #toast.show, body.shake #game, body.hurt #hud::after, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
     #over, #over *, #over *::before, #over *::after { animation: none !important; }
 }
 

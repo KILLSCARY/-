@@ -169,6 +169,10 @@ class Game {
         this.appealUsed = false;
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
+        this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
+        this.slowLeft = 0;
+        this.prevLane = 1;
+        if (this.chaser) this.chaser.visible = false;
         if (this.aura) this.aura.visible = false;
         this.phase = 0;
         this.nextRowZ = -40;
@@ -259,7 +263,9 @@ class Game {
         this.cause = cause;
         this.audio.music("menu");
         this.audio.play("hit");
-        if (cause === "cop") this.audio.play("busted");
+        if (cause === "cop" || cause === "caught") this.audio.play("busted");
+        if (this.chaser) this.chaser.visible = false;
+        this.stumble = 0;
         tg.haptic("error");
         document.body.classList.add("shake");
         setTimeout(() => document.body.classList.remove("shake"), 400);
@@ -312,6 +318,7 @@ class Game {
         if (this.state !== "playing") return;
         const lane = Math.max(0, Math.min(2, this.lane + dir));
         if (lane === this.lane) return;
+        this.prevLane = this.lane;
         this.lane = lane;
         this.audio.play("swipe");
         tg.haptic("light");
@@ -416,6 +423,8 @@ class Game {
         if (this.boostLeft > 0) $("hud-boost").textContent = `×2 ${Math.ceil(this.boostLeft)}с`;
         const fx = [];
         if (this.fx.shield) fx.push("ЩИТ");
+        if (this.stumble > 0) fx.push(`ДПС ${Math.ceil(this.stumble)}с`);
+        document.body.classList.toggle("hurt", this.stumble > 0 && this.state === "playing");
         if (this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
         if (this.fx.magnet > 0) fx.push(`${POWERUPS.choline.hud} ${Math.ceil(this.fx.magnet)}с`);
         if (this.fx.honey > 0) fx.push(`МЁД ${Math.ceil(this.fx.honey)}с`);
@@ -551,6 +560,10 @@ class Game {
         this.runTime += dt;
         this.measureFps(dt);
         this.speed = Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
+        if (this.slowLeft > 0) { // споткнулся — пару шагов медленнее
+            this.slowLeft -= dt;
+            this.speed *= 0.55 + 0.45 * (1 - this.slowLeft / BALANCE.stumbleSlow);
+        }
         const move = this.speed * dt;
         this.distance += move;
         const prevStep = Math.floor(this.phase / Math.PI);
@@ -600,10 +613,49 @@ class Game {
         blob.position.x = this.x;
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
 
+        if (this.stumble > 0) this.chase(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         this.collide(dt);
         this.updateHud();
+    }
+
+    // Первый удар: врезался сбоку при перестроении — отлетаешь на свою полосу, спереди — препятствие сбито.
+    // Дальше BALANCE.stumbleTime секунд за спиной ДПС, и второй удар заканчивает забег.
+    hitOnce(o) {
+        const target = this.world.lanes[this.lane];
+        const side = Math.abs(target - this.x) > 0.35 && Math.abs(o.position.x - target) < 0.3;
+        if (side) this.lane = this.prevLane;
+        else { o.visible = false; o.userData.type = "decor"; }
+        this.stumble = BALANCE.stumbleTime;
+        this.slowLeft = BALANCE.stumbleSlow;
+        this.fx.safe = Math.max(this.fx.safe, 1);
+        this.audio.play("hit");
+        this.audio.play("whistle");
+        tg.haptic("warning");
+        document.body.classList.add("shake");
+        setTimeout(() => document.body.classList.remove("shake"), 400);
+        this.world.splash(this.x, 0, 22, 1.3);
+        if (!this.chaser) {
+            this.chaser = this.world.makeSprite("cop"); // инспектор из концепта, без поста и машины
+            this.chaser.scale.setScalar(0.9);
+            this.scene.add(this.chaser);
+        }
+        this.chaser.visible = true;
+        this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
+        this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
+    }
+
+    // ДПС бежит за спиной, пока не отстанет
+    chase(dt) {
+        this.stumble -= dt;
+        const c = this.chaser;
+        const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8; // в конце отстаёт
+        c.position.z += (z - c.position.z) * Math.min(1, dt * 4);
+        c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
+        c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
+        c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
+        if (this.stumble <= 0) { this.stumble = 0; c.visible = false; }
     }
 
     // ---- баночки: тестобустер (полёт) и холин (магнит) ----
@@ -672,7 +724,10 @@ class Game {
                 tg.haptic("warning");
                 continue;
             }
-            return this.gameOver(d.type);
+            // как в сабвее: второй удар, пока ДПС на хвосте, — поймали; первый — споткнулся
+            if (this.stumble > 0) return this.gameOver("caught");
+            this.hitOnce(o);
+            break;
         }
 
         const coins = this.world.coins;
