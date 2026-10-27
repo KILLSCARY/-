@@ -484,7 +484,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 /* споткнулся: красная пульсирующая рамка по краям экрана, пока ДПС на хвосте */
 body.hurt #hud::after {
     content: ""; position: fixed; inset: 0; pointer-events: none;
-    box-shadow: inset 0 0 90px rgba(227, 52, 58, .55); animation: hurt 0.9s ease-in-out infinite; will-change: opacity;
+    box-shadow: inset 0 0 90px rgba(227, 52, 58, .55); animation: hurt 0.9s ease-in-out 3;
 }
 @keyframes hurt { 50% { opacity: .35; } }
 
@@ -714,7 +714,8 @@ html.tg, html.tg body { background: #000; }
 }
 .skill b { font: 800 11px/1.05 var(--font-display); text-transform: uppercase; }
 .skill span:not(.sk-ring) { font-size: 8.5px; line-height: 1.15; color: rgba(255, 255, 255, .7); }
-.skill .sk-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(61, 209, 255, .5); animation: sk-pulse 1.6s ease-out infinite; will-change: transform, opacity; }
+/* кольцо пульсирует три раза в начале забега, дальше стоит: бесконечная анимация поверх 3D-сцены дорого обходится */
+.skill .sk-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(61, 209, 255, .5); opacity: 0; animation: sk-pulse 1.6s ease-out 3; }
 @keyframes sk-pulse { from { transform: scale(.92); opacity: 1; } to { transform: scale(1.15); opacity: 0; } }
 .skill:active { transform: scale(.92); }
 .skill:disabled { opacity: .35; box-shadow: none; border-color: rgba(255, 255, 255, .2); background: rgba(20, 20, 20, .8); }
