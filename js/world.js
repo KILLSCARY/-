@@ -149,8 +149,9 @@ export function buildEnvironment(renderer) {
 }
 
 export class World {
-    constructor(scene, laneWidth) {
+    constructor(scene, laneWidth, tier) {
         this.scene = scene;
+        this.tier = tier;
         this.lanes = [-laneWidth, 0, laneWidth];
         this.obstacles = [];
         this.coins = [];
@@ -344,12 +345,13 @@ export class World {
 
         // настоящих источников света немного (дорого): красные у подъездов + оранжевые фонари
         this.lights = [];
-        for (let i = 0; i < 4; i++) {
+        // каждый источник считается в каждом пикселе каждого материала — на телефоне их меньше
+        for (let i = 0; i < this.tier.lights; i++) {
             const red = i % 2 === 0;
             const light = new THREE.PointLight(red ? 0xff2a1a : 0xff8a3a, red ? 3.5 : 3, 14, 1.6);
             const side = i % 2 ? 1 : -1;
             light.position.set(side * (red ? 6 : 3.3), red ? 2.6 : 5, -i * 22);
-            light.userData = { loop: 88 };
+            light.userData = { loop: Math.max(44, this.tier.lights * 22) };
             s.add(light);
             this.lights.push(light);
         }
@@ -644,6 +646,7 @@ export class World {
             this.addScenery(this.registerSwap("can", can));
         }
         // свет мигалок: одна пара реальных источников ездит за ближайшей патрульной машиной
+        if (!this.tier.police) return; // мигалки без настоящего света: только светящиеся пятна (bloom)
         this.policeLights = [0xff1a1a, 0x1a3aff].map((c) => {
             const l = new THREE.PointLight(c, 0, 12, 1.6);
             this.scene.add(l);
@@ -652,7 +655,7 @@ export class World {
     }
 
     buildRain() {
-        const n = 700;
+        const n = this.tier.rain;
         const pos = new Float32Array(n * 6);
         this.rainSpeed = new Float32Array(n);
         for (let i = 0; i < n; i++) {
@@ -858,7 +861,8 @@ export class World {
         this.templates = {};
         for (const [kind, list] of Object.entries(MODELS)) {
             for (const cfg of list) {
-                loadModel(cfg.url, (gltf) => {
+                const url = this.tier.lite ? cfg.url.replace("models/obj/", "models/obj/lite/") : cfg.url;
+                loadModel(url, (gltf) => {
                     const m = gltf.scene;
                     m.rotation.y = cfg.rotateY || 0;
                     m.updateMatrixWorld(true);

@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -46,8 +46,13 @@ class Game {
         this.best = 0;
         this.t = 0;
 
+        // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
+        const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
+        this.quality = QUALITY === "auto" ? (mobile ? "medium" : "high") : QUALITY;
+        this.tier = QUALITY_TIERS[this.quality];
+
         this.setupScene();
-        this.world = new World(this.scene, BALANCE.laneWidth);
+        this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
@@ -69,7 +74,7 @@ class Game {
         this.resetRun();
         this.onResize();
 
-        this.setQuality(QUALITY === "low" ? "low" : "high");
+        this.setQuality(this.quality);
 
         tg.init();
         tg.getBest().then((b) => { this.best = b; this.renderMenu(); });
@@ -89,14 +94,14 @@ class Game {
         this.scene.fog = new THREE.Fog(0x2a070d, 12, 85);
         this.scene.environment = buildEnvironment(this.renderer);
 
-        this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
+        this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
         this.scene.add(new THREE.HemisphereLight(0xa08088, 0x1a0809, 1.15));
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
-        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         const moon = new THREE.DirectionalLight(0xffa090, 0.9);
-        moon.castShadow = true;
+        moon.castShadow = this.tier.shadows;
         moon.shadow.mapSize.set(1024, 1024);
         Object.assign(moon.shadow.camera, { left: -6, right: 6, top: 10, bottom: -10, near: 1, far: 40 });
         moon.shadow.bias = -0.0008;
@@ -118,12 +123,15 @@ class Game {
 
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
-        const ratio = Math.min(window.devicePixelRatio, 1.75);
+        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
         this.composer.setPixelRatio(ratio);
         this.composer.setSize(w, h);
-        this.bloom.setSize(w * ratio / 2, h * ratio / 2);
+        // свечение считается в уменьшенном буфере: в 2 раза на компьютере, в 4 на телефоне
+        const div = this.tier.bloom || 4;
+        this.bloom.setSize(w * ratio / div, h * ratio / div);
+        this.bloom.enabled = this.tier.bloom > 0;
         this.camera.aspect = w / h;
         this.camera.fov = w / h < 0.8 ? 72 : 58;
         this.camera.updateProjectionMatrix();
@@ -401,6 +409,9 @@ class Game {
 
     loop() {
         requestAnimationFrame(() => this.loop());
+        const now = performance.now();
+        if (now - (this.lastFrame || 0) < this.frameBudget() - 2) return; // пропускаем кадр
+        this.lastFrame = now;
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
 
@@ -437,30 +448,43 @@ class Game {
         this.composer.render();
     }
 
-    // Графика: отражения на асфальте и тени — самое дорогое, на слабых телефонах выключаем
+    // Графика: отражения на асфальте, тени и свечение — самое дорогое (QUALITY_TIERS в config.js)
     setQuality(level) {
+        const prevShadows = this.tier.shadows;
         this.quality = level;
-        if (level === "high") {
+        this.tier = QUALITY_TIERS[level];
+        if (this.tier.reflections) {
             const w = Math.min(720, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.6));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
         } else {
             this.world.disableReflections();
-            this.renderer.shadowMap.enabled = false;
-            this.moon.castShadow = false;
-            this.bloom.strength = 0.6;
         }
+        this.renderer.shadowMap.enabled = this.tier.shadows;
+        this.moon.castShadow = this.tier.shadows;
+        if (prevShadows !== this.tier.shadows) { // шейдеры с тенями и без — разные, пересобрать
+            this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
+        }
+        this.bloom.strength = this.tier.bloom ? 0.8 : 0;
+        this.onResize();
     }
 
-    // В «auto» меряем fps на 1–4 секундах забега
+    // В «auto» меряем время кадра в забеге: если стабильно не успеваем — графику на ступень ниже
     measureFps(dt) {
-        if (QUALITY !== "auto" || this.quality === "low" || this.fpsChecked) return;
-        if (this.runTime < 1) return;
+        if (QUALITY !== "auto" || this.quality === "low" || this.runTime < 1.5) return;
         this.fpsFrames = (this.fpsFrames || 0) + 1;
         this.fpsTime = (this.fpsTime || 0) + dt;
-        if (this.fpsTime >= 3) {
-            this.fpsChecked = true;
-            if (this.fpsFrames / this.fpsTime < 40) this.setQuality("low");
-        }
+        if (this.fpsTime < 3) return;
+        const fps = this.fpsFrames / this.fpsTime;
+        this.fpsFrames = this.fpsTime = 0;
+        if (fps < this.tier.fps[0] * 0.75) this.setQuality(this.quality === "high" ? "medium" : "low");
+    }
+
+    // Потолок кадров: в забеге 60 (на 120-герцовых экранах иначе было бы 120), в меню 30–40,
+    // когда сцену закрывает вкладка, пауза или проигрыш — 12. Меньше кадров — меньше нагрев.
+    frameBudget() {
+        if (this.state === "playing" || this.state === "countdown") return 1000 / this.tier.fps[0];
+        if (this.state === "menu" && this.hub?.current === "run" && !document.querySelector("#case-open:not([hidden])")) return 1000 / this.tier.fps[1];
+        return 1000 / 12;
     }
 
     // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
