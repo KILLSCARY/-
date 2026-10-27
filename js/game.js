@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, POLICE_OFFICER, CHASER, SKY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, POLICE_OFFICER, CHASER, SKY } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -212,6 +212,10 @@ class Game {
         this.wallStreak = 0;
         this.wallStats = {};
         this.world.noCars = false;
+        // «Ислам дует»
+        if (this.wind) this.world.dropObstacle(this.wind.npc);
+        this.wind = null;
+        this.nextWindAt = WIND.firstAt;
         this.cause = null;
         this.rat.position.set(0, 0, 0);
         this.rat.rotation.set(0, 0, 0);
@@ -359,6 +363,8 @@ class Game {
         this.profile.addWallStats(this.wallStats);
         this.wallStats = {};
         $("wall-q").hidden = true;
+        $("wind-q").hidden = true;
+        this.world.blowWind(0);
         // пройдена глава — кодовая фраза на экране проигрыша
         const phraseBox = $("over-phrase");
         phraseBox.hidden = chapter === null;
@@ -449,6 +455,8 @@ class Game {
             else this.slide();
         }, { passive: true });
         area.addEventListener("touchend", () => { start = null; }, { passive: true });
+        // порыв ветра: каждое касание (и клик) — «держусь»
+        area.addEventListener("pointerdown", () => { if (this.wind?.state === "gust" && this.state === "playing") this.wind.taps++; });
         document.addEventListener("contextmenu", (e) => e.preventDefault());
 
         document.addEventListener("visibilitychange", () => { if (document.hidden) this.pause(); });
@@ -783,8 +791,10 @@ class Game {
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         if (this.distance - SPAWN_Z >= this.nextWallAt) this.spawnWall();
+        if (this.distance - SPAWN_Z >= this.nextWindAt) this.spawnWind();
         this.world.update(dt, move, this.t);
         this.watchWall();
+        this.watchWind(dt);
         // инспектор свистит, когда пробегаешь мимо поста ДПС
         for (const o of this.world.obstacles) {
             if (!o.userData.police || o.userData.whistled || o.position.z < -5) continue;
@@ -992,6 +1002,64 @@ class Game {
         this.wall = this.world.addWall(q, order.map((i) => q.a[i]), order.indexOf(0), z);
         this.world.noCars = true;
         this.nextRowZ = Math.min(this.nextRowZ, z - 16); // следующий ряд — не раньше чем через 16 м после стены
+    }
+
+    // ---- «Ислам дует» -----------------------------------------------------------------------
+    spawnWind() {
+        const z = -(this.nextWindAt - this.distance);
+        const [a, b] = WIND.every;
+        const wallZ = this.wall?.plates[0].position.z;
+        const npc = this.world.makeIslam();
+        // рядом стена-возражение или модель ещё не загрузилась — позже
+        if (!npc || (wallZ !== undefined && Math.abs(wallZ - z) < 45)) { this.nextWindAt += 60; npc && this.world.dropObstacle(npc); return; }
+        this.nextWindAt += a + Math.random() * (b - a);
+        const side = Math.random() < 0.5 ? -1 : 1;
+        npc.position.set(side * 3.7, 0.18, z);
+        npc.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; // лицом к дороге — дует поперёк
+        npc.userData.type = "decor";
+        this.world.scene.add(npc);
+        this.world.obstacles.push(npc);
+        this.wind = { npc, side, state: "near", t: 0, taps: 0, owned: this.profile.owns("islam") };
+    }
+
+    watchWind(dt) {
+        const w = this.wind, box = $("wind-q");
+        if (!w) return;
+        const z = w.npc.position.z;
+        if (w.state === "near" && z > -24 && w.owned) { // свой — не дует
+            w.state = "done";
+            this.hub.toast("Ислам: «Своих не сдуваю»");
+        }
+        if (w.state === "near" && z > -9) { // порыв!
+            w.state = "gust";
+            w.t = WIND.gust;
+            $("wind-taps").innerHTML = "<i></i>".repeat(WIND.taps);
+            box.style.setProperty("--wd", w.side > 0 ? "-1" : "1");
+            box.hidden = false;
+            this.audio.play("swipe");
+            tg.haptic("warning");
+        }
+        if (w.state === "gust") {
+            w.t -= dt;
+            this.world.blowWind(-w.side, dt);
+            [...$("wind-taps").children].forEach((el, i) => el.classList.toggle("on", i < w.taps));
+            const dodged = this.slideLeft > 0 || this.y > 0.6 || this.flight;
+            if (w.taps >= WIND.taps || (w.t <= 0 && dodged)) {
+                w.state = "done";
+                this.usdt += WIND.reward;
+                this.hub.toast(w.taps >= WIND.taps ? `Удержался! +${WIND.reward} USDT` : `Увернулся! +${WIND.reward} USDT`);
+                tg.haptic("success");
+            } else if (w.t <= 0) { // сдуло на полосу в сторону от Ислама
+                w.state = "done";
+                const lane = this.lane;
+                this.move(-w.side);
+                this.hub.toast(this.lane !== lane ? "Сдуло ветром!" : "Удержался у бордюра");
+                tg.haptic("heavy");
+                this.kick(0.25, 5);
+            }
+            if (w.state === "done") { box.hidden = true; this.world.blowWind(0); }
+        }
+        if (z > 8 && w.state !== "gust") this.wind = null; // сам Ислам уедет и удалится вместе с препятствиями
     }
 
     // вопрос — в HUD, пока стена впереди; прошёл мимо — стена убирается из памяти игры

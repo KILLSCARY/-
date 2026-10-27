@@ -687,3 +687,18 @@ html.tg, html.tg body { background: #000; }
 .ch-phrase { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .ch-phrase b { color: #fff; font-family: var(--font-display); letter-spacing: .02em; }
 @media (prefers-reduced-motion: reduce) { .wall-q { animation: none; } }
+
+/* ---- «Ислам дует»: подсказка тапать, точки — сколько ещё ---- */
+.wind-q {
+    position: absolute; left: 50%; bottom: calc(110px + var(--tg-safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    padding: 12px 18px; border-radius: 20px; text-align: center; pointer-events: none;
+    background: rgba(20, 20, 20, .9); border: 1px solid rgba(255, 255, 255, .35);
+    animation: wind-shake .35s ease-in-out infinite;
+}
+.wind-q b { display: block; font: 800 18px var(--font-display); text-transform: uppercase; white-space: nowrap; }
+.wind-q span { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.wind-taps { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+.wind-taps i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #fff; transition: background .1s, transform .1s; }
+.wind-taps i.on { background: #fff; transform: scale(1.15); }
+@keyframes wind-shake { 50% { transform: translateX(calc(-50% + var(--wd, 1) * 4px)); } }
+@media (prefers-reduced-motion: reduce) { .wind-q { animation: none; } }

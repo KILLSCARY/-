@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHASER, NPCS, SKY } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -268,6 +268,8 @@ export class World {
         this.unclutter();
         this.loadObstacleModels();
         this.loadOfficer();
+        this.loadIslam();
+        this.buildWind();
         this.loadChaser();
         this.loadNpcs();
     }
@@ -1365,6 +1367,45 @@ export class World {
                 this.officers.push(o);
             }
         }, () => {}, { deferred: true });
+    }
+
+    // Ислам у обочины (препятствие «Ислам дует») — та же модель, что у героя, клип «swing»
+    loadIslam() {
+        const cfg = CHARACTERS.find((c) => c.id === "islam");
+        if (!cfg) return;
+        loadModel(cfg.url, (gltf) => {
+            this.islam = this.fitRig(gltf, cfg.height);
+            this.warmQueue.push(this.makeIslam());
+        }, () => {}, { deferred: true });
+    }
+
+    makeIslam() {
+        return this.islam ? this.rig(this.islam, "swing", { islam: true }) : null;
+    }
+
+    // порыв ветра: белые штрихи поперёк дороги (dir — куда дует: 1 вправо, −1 влево)
+    buildWind() {
+        const n = 46, pos = new Float32Array(n * 6);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        this.windLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false }));
+        this.windLines.visible = false;
+        this.windLines.frustumCulled = false;
+        this.windSeed = Array.from({ length: n }, () => ({ x: rnd(-6, 6), y: rnd(0.3, 3.2), z: rnd(-14, 2), v: rnd(14, 26), l: rnd(0.6, 1.6) }));
+        this.scene.add(this.windLines);
+    }
+
+    blowWind(dir, dt) {
+        const w = this.windLines;
+        w.visible = dir !== 0;
+        if (!dir) return;
+        const pos = w.geometry.attributes.position.array;
+        this.windSeed.forEach((s, i) => {
+            s.x += s.v * dir * dt;
+            if (s.x * dir > 7) { s.x = -7 * dir; s.y = rnd(0.3, 3.2); s.z = rnd(-14, 2); }
+            pos.set([s.x, s.y, s.z, s.x - s.l * dir, s.y, s.z], i * 6);
+        });
+        w.geometry.attributes.position.needsUpdate = true;
     }
 
     makeOfficer(clipName) {
