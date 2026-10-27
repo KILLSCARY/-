@@ -782,3 +782,12 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
 
 .wind-q.tap { animation: wind-tap .18s ease-out; }
 @keyframes wind-tap { 50% { transform: translateX(-50%) scale(1.08); } }
+
+/* Ислам: портрет в карточке ветра; на вдохе карточка спокойная, без тряски */
+.wind-q { padding-left: 74px; text-align: left; }
+.wind-q::before {
+    content: ""; position: absolute; left: 12px; top: 50%; width: 50px; height: 50px; margin-top: -25px; border-radius: 50%;
+    background: #222 url("../img/heroes/islam.webp") center 20% / cover; border: 2px solid #fff;
+}
+.wind-q .wind-taps { justify-content: flex-start; }
+.wind-q.inhale { animation: none; border-color: rgba(255, 255, 255, .2); }

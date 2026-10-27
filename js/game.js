@@ -666,7 +666,11 @@ class Game {
         if (this.camFocus > 0.01 && this.wind) { // Ислам дует: камера поворачивается к нему и сдвигается в его сторону
             const n = this.wind.npc.position;
             // смотрим между Исламом и героем, а сама камера отходит в сторону сноса — в кадре оба
-            target.lerp((v.focus ||= new THREE.Vector3()).set((n.x + this.x) / 2, 1.3, n.z * 0.6), 0.35 * this.camFocus);
+            // на вдохе — почти на Ислама и с приближением, в порыв — между ним и героем
+            const inh = this.wind.state === "inhale" ? 1 : 0;
+            this.camInhale = (this.camInhale || 0) + (inh - (this.camInhale || 0)) * Math.min(1, dt * 3);
+            target.lerp((v.focus ||= new THREE.Vector3()).set((n.x + this.x) / 2, 1.3, n.z * 0.6), 0.35 * this.camFocus)
+                .lerp(v.focus.set(n.x, 1.5, n.z), 0.45 * this.camInhale);
             cam.position.x += -this.wind.side * 0.9 * this.camFocus;
             cam.position.z += 0.6 * this.camFocus;
         }
@@ -687,6 +691,11 @@ class Game {
             cam.fov = this.baseFov + kick.fov * calm;
             cam.updateProjectionMatrix();
         }
+        if (this.camFocus > 0.01 && this.wind) { // приближение на Ислама
+            cam.fov -= 14 * (this.camInhale || 0) * this.camFocus;
+            cam.updateProjectionMatrix();
+            this.zoomed = true;
+        } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
         cam.lookAt(target);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
@@ -849,7 +858,8 @@ class Game {
             near.waited = (near.waited || 0) + dt;
             if (near.waited > 8) this.chooseAnswer(near, this.lane);
         }
-        const windSlow = this.wind && (this.wind.state === "inhale" || this.wind.state === "gust") ? 0.45 : 1; // Ислам дует — чуть медленнее
+        // Ислам вдыхает — почти стоим (камера на нём), дует — вполовину скорости
+        const windSlow = this.wind?.state === "inhale" ? 0.25 : this.wind?.state === "gust" ? 0.45 : 1;
         const slowTo = slow ? 0.08 : windSlow;
         this.slowK = (this.slowK ?? 1) + (slowTo - (this.slowK ?? 1)) * Math.min(1, dt * (slowTo < 1 ? 5 : 3));
         this.speed *= this.slowK;
@@ -1200,9 +1210,17 @@ class Game {
         if (!w) { this.camFocus = Math.max(0, (this.camFocus || 0) - dt * 2); return; }
         const z = w.npc.position.z;
         if (!w.bones) this.windRig(w);
-        if (w.state === "near" && z > -16) {
+        if (w.state === "near" && z > -15) { // вдох дольше и раньше — видно, что это Ислам набирает воздух
             if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
-            else { w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane; this.audio.play("swipe"); }
+            else {
+                w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane;
+                this.audio.play("swipe");
+                $("wind-title").textContent = "Ислам вдыхает…";
+                $("wind-sub").textContent = "Готовься тапать!";
+                $("wind-taps").innerHTML = "<i></i>".repeat(WIND.taps);
+                $("wind-q").classList.add("inhale");
+                $("wind-q").hidden = false;
+            }
         }
         if (w.state === "inhale") {
             w.t -= dt;
@@ -1210,7 +1228,9 @@ class Game {
             if (w.t <= 0) {
                 w.state = "gust";
                 w.t = WIND.gust;
-                $("wind-taps").innerHTML = "<i></i>".repeat(WIND.taps);
+                $("wind-title").textContent = "Ислам дует!";
+                $("wind-sub").textContent = "Тапай, чтобы удержаться";
+                box.classList.remove("inhale");
                 box.style.setProperty("--wd", w.side > 0 ? "-1" : "1");
                 box.hidden = false;
                 tg.haptic("warning");

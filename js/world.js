@@ -832,7 +832,7 @@ export class World {
         for (let i = 0; i < 2; i++) {
             const side = i % 2 ? 1 : -1;
             const car = this.makePoliceCar();
-            car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
+            car.position.set(side * 4.6, 0.2, BEHIND_Z - 40 - i * 80); // на 2 см над тротуаром: шины не сливаются с его текстурой
             car.userData.faceY = -side * 0.35; // пост у обочины: машина вдоль дороги, инспектор лицом к бегущему
             car.userData.foot = { hx: 1.2, hz: 2.6, prio: 1 };
             this.addScenery(this.registerSwap("police", car));
@@ -1694,7 +1694,7 @@ export class World {
             const dz = kind === "cop" && [-2, -5, 1, -8, 4].find((d) => this.sidewalkFree(side * 4.4, z + d, 1.2, 2.6));
             if (dz !== undefined && dz !== false) {
                 const car = this.makePatrol();
-                car.position.set(side * 4.4, 0.18, z + dz);
+                car.position.set(side * 4.4, 0.2, z + dz);
                 car.rotation.y = car.userData.billboard ? 0 : -side * 0.35;
                 car.userData.type = "decor";
                 this.scene.add(car);
