@@ -318,6 +318,7 @@ export function attachModel(rat, gltf, cfg) {
     if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
 
+const _lift = new THREE.Vector3(), _base = new THREE.Vector3();
 function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
     const { rig, actions, mixer } = u;
@@ -361,6 +362,13 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     if (want === "fly" && u.flyPitch) {
         rig.rotation.x = -u.flyPitch;
         rig.position.set(0, 0.9, 0.9 * Math.sin(u.flyPitch) * 0.55);
+    }
+    // клип падения у части героев уводит бёдра под асфальт — поднимаем тело, чтобы лежал на дороге
+    if ((want === "fall" || want === "dead") && u.hips && u.restHips) {
+        rig.updateMatrixWorld(true);
+        const h = u.hips.getWorldPosition(_lift).y - rig.parent.getWorldPosition(_base).y;
+        const min = u.restHips * 0.22;
+        if (h < min) rig.position.y += (min - h) / (rig.parent.scale.y || 1);
     }
     if (want === "fly" && u.pin && u.hips && u.clipT !== null && u.clipT < u.pinUntil) {
         pinHips(u);

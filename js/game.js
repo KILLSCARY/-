@@ -241,6 +241,7 @@ class Game {
     // раньше он стартовал через 2,4 с всё равно, невидимо под меню
     async start() {
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
+        this.endArrest();
         const run = this.runId = (this.runId || 0) + 1;
         this.audio.unlock();
         this.resetRun();
@@ -306,6 +307,7 @@ class Game {
 
     // В меню с паузы или с экрана проигрыша. Ушёл с паузы — собранное в забеге всё равно в кошелёк.
     toMenu() {
+        this.endArrest();
         if (this.state === "paused") {
             const du = this.usdt - this.credited.usdt, dtrx = this.trx - this.credited.trx;
             this.credited = { usdt: this.usdt, trx: this.trx };
@@ -345,7 +347,10 @@ class Game {
         this.audio.music("menu");
         this.audio.play("hit");
         if (cause === "cop" || cause === "caught") this.audio.play("busted");
-        if (this.chaser) this.chaser.visible = false;
+        // поймала погоня — сцена задержания (герой лежит, Мизулина над ним, мигалки), потом экран проигрыша
+        const arrest = cause === "caught" && this.chaser?.visible && this.chaser.userData.mixer;
+        if (arrest) this.startArrest();
+        else if (this.chaser) this.chaser.visible = false;
         this.stumble = 0;
         tg.haptic("error");
         this.kick(0.5, 10);
@@ -402,8 +407,9 @@ class Game {
         setTimeout(() => {
             if (this.state !== "over") return;
             this.show("over");
+            $("arrest").hidden = true;
             for (const [id, to, delay] of counters) countUp($(id), to, delay);
-        }, 700);
+        }, arrest ? 2700 : 700);
     }
 
     // очки = профит в USDT ×10 + пройденные метры
@@ -633,6 +639,7 @@ class Game {
         this.t += dt;
 
         if (this.state === "playing") this.step(dt);
+        else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
 
@@ -651,6 +658,7 @@ class Game {
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
         const behind = this.state === "menu" ? 0 : 1;
+        const arr = this.state === "over" && this.arrest;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
         // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
@@ -696,6 +704,11 @@ class Game {
             cam.updateProjectionMatrix();
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
+        if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
+            const a = this.arrest, k = Math.min(1, a.t / 0.6), ang = 0.5 + a.t * 0.3;
+            cam.position.lerp((v.focus2 ||= new THREE.Vector3()).set(this.x - Math.sin(ang) * 3.4 * a.side, 1.4, 0.4 + Math.cos(ang) * 3.4), k);
+            target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
+        }
         cam.lookAt(target);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
@@ -1142,6 +1155,51 @@ class Game {
             this.audio.play("record");
             tg.haptic("success");
         } else this.hub.toast("Экзамен не сдан — Инаков ждёт в следующем забеге");
+    }
+
+    // ---- задержание (поймала погоня) ----------------------------------------------------------
+    startArrest() {
+        const c = this.chaser;
+        const feet = [];
+        c.traverse((o) => { if (o.isBone && /(Foot|ToeBase)$/.test(o.name)) feet.push(o); });
+        this.arrest = { t: 0, c, side: c.userData.side || 1, from: c.position.clone(), arrived: false, feet };
+        $("arrest").hidden = false;
+        document.body.classList.add("arresting");
+        tg.haptic("heavy");
+    }
+
+    arrestStep(dt) {
+        const a = this.arrest, c = a.c;
+        a.t += dt;
+        // подбегает и встаёт сбоку у пояса героя, лицом к нему
+        const k = Math.min(1, a.t / 0.7), e = k * (2 - k);
+        c.position.x = a.from.x + (this.x + a.side * 0.75 - a.from.x) * e;
+        c.position.z = a.from.z + (-0.35 - a.from.z) * e;
+        c.rotation.y = Math.atan2(this.x - c.position.x, -0.5 - c.position.z);
+        const mixer = c.userData.mixer;
+        if (k < 1) { c.position.y = 0; mixer.update(dt * 1.3); return; }
+        if (a.arrived) return;
+        // встала: замираем в шаге, когда обе ноги на асфальте, и ставим ступни на землю
+        a.arrived = true;
+        mixer.timeScale = 0;
+        for (const act of mixer._actions) act.time = 0;
+        mixer.update(0);
+        c.position.y = 0;
+        c.updateMatrixWorld(true);
+        let low = Infinity;
+        for (const f of a.feet) low = Math.min(low, f.getWorldPosition(new THREE.Vector3()).y);
+        if (low < Infinity) c.position.y = -Math.max(0, low - 0.04);
+        this.audio.play("whistle");
+    }
+
+    endArrest() {
+        if (!this.arrest) return;
+        const m = this.arrest.c.userData.mixer;
+        if (m) m.timeScale = 1;
+        this.arrest.c.visible = false;
+        this.arrest = null;
+        $("arrest").hidden = true;
+        document.body.classList.remove("arresting");
     }
 
     // ---- умение героя ---------------------------------------------------------------------
