@@ -30,6 +30,14 @@ function loadTex(file, repeat, srgb) {
     return t;
 }
 
+// Случайный фасад с учётом weight
+function pickFacade() {
+    const list = TEXTURES.facades;
+    let r = Math.random() * list.reduce((s, f) => s + (f.weight ?? 1), 0);
+    for (let i = 0; i < list.length; i++) if ((r -= list[i].weight ?? 1) < 0) return i;
+    return 0;
+}
+
 // maps: какие карты есть у текстуры, кроме diff: "nor", "rough", "glow"
 function pbr(name, repeat, maps = ["nor", "rough"]) {
     const out = { map: loadTex(`${name}_diff.jpg`, repeat, true) };
@@ -394,15 +402,16 @@ export class World {
         return g;
     }
 
-    // Материал фасада: текстура повторяется так, чтобы этаж был ~2.9 м, а окна горели (bloom)
-    facadeMaterial(index, floors, len) {
-        const key = `${index}_${floors}`;
+    // Материал фасада: картинка дома натянута на всю высоту, по ширине виден кусок len метров
+    // (variant сдвигает его, чтобы соседние дома не были одинаковыми); окна горят (bloom)
+    facadeMaterial(index, len, variant) {
+        const key = `${index}_${variant}`;
         if (this.mat.facades[key]) return this.mat.facades[key];
         const f = TEXTURES.facades[index];
-        const tile = f.rows * FLOOR_H;                 // высота (и ширина) одного тайла, м
-        const h = floors * FLOOR_H + 0.8;
-        const maps = pbr(f.name, [len / tile, h / tile], ["nor", "glow"]);
-        maps.map.offset.y = maps.normalMap.offset.y = maps.emissiveMap.offset.y = -0.8 / tile;
+        const h = f.floors * FLOOR_H + 0.8;
+        const share = Math.min(1, len / (h * f.aspect)); // какая доля ширины картинки помещается на дом
+        const maps = pbr(f.name, [share, 1], ["nor", "glow"]);
+        maps.map.offset.x = maps.normalMap.offset.x = maps.emissiveMap.offset.x = (1 - share) * variant / 2;
         const m = new THREE.MeshStandardMaterial({
             ...maps, color: 0xffffff, roughness: 0.92, emissive: 0xffffff, emissiveIntensity: 2.2,
             normalScale: new THREE.Vector2(1.4, 1.4), envMapIntensity: 0.5,
@@ -415,30 +424,34 @@ export class World {
     // первый этаж — магазины: подъезд с красной лампой, рольставни, иногда неон.
     makeBuilding(side, z, slot) {
         const g = new THREE.Group();
-        const floors = 5 + Math.floor(Math.random() * 3);
+        const fi = pickFacade();
+        const f = TEXTURES.facades[fi];
+        const floors = f.floors;
         const h = floors * FLOOR_H + 0.8;
         const len = slot - 1.2;
         const depth = 8;
         const face = -side * depth / 2; // x фасада, смотрящего на дорогу (в координатах группы)
         const out = -side;              // направление «наружу», к дороге
 
-        const wall = new THREE.Mesh(this.geo.box, this.facadeMaterial(Math.floor(Math.random() * TEXTURES.facades.length), floors, len));
+        const wall = new THREE.Mesh(this.geo.box, this.facadeMaterial(fi, len, Math.floor(Math.random() * 3)));
         wall.scale.set(depth, h, len);
         wall.position.y = h / 2;
         wall.receiveShadow = true;
         g.add(wall);
 
-        // первый этаж: бетонный пояс магазинов поверх окон
-        const band = new THREE.Mesh(this.geo.box, this.mat.plinth);
-        band.scale.set(0.3, 3.2, len + 0.02);
-        band.position.set(face + out * 0.15, 1.6, 0);
         const roof = new THREE.Mesh(this.geo.box, this.mat.trim);
         roof.scale.set(depth + 0.4, 0.35, len + 0.4);
         roof.position.y = h + 0.17;
-        g.add(band, roof);
+        g.add(roof);
+        if (!f.ground) { // первый этаж: бетонный пояс магазинов поверх окон (у домов со своими подъездами — не нужен)
+            const band = new THREE.Mesh(this.geo.box, this.mat.plinth);
+            band.scale.set(0.3, 3.2, len + 0.02);
+            band.position.set(face + out * 0.15, 1.6, 0);
+            g.add(band);
+        }
 
-        for (let i = 0; i < 3; i++) { // кондиционеры
-            if (Math.random() < 0.4) continue;
+        for (let i = 0; i < 3; i++) { // кондиционеры (у фасадов с подъездами они уже нарисованы)
+            if (f.ground || Math.random() < 0.4) continue;
             const ac = new THREE.Mesh(this.geo.box, this.mat.ac);
             ac.scale.set(0.35, 0.5, 0.75);
             ac.position.set(face + out * 0.2, FLOOR_H * (1 + Math.floor(Math.random() * (floors - 1))) + 0.6, rnd(-len / 2 + 1, len / 2 - 1));
@@ -451,7 +464,7 @@ export class World {
         g.add(pipe);
 
         const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
-        this.addEntrance(g, front, out, len);
+        if (!f.ground) this.addEntrance(g, front, out, len);
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;

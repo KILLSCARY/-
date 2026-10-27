@@ -45,6 +45,26 @@ export const tg = {
         if (atLeast("6.9")) wa.CloudStorage.setItem("best", String(score), () => {});
     },
 
+    // Профиль игрока (кошелёк, покупки) — JSON с отметкой времени t; из локальной и облачной копии берём свежую
+    async loadProfile() {
+        let local = null, cloud = null;
+        try { local = JSON.parse(localStorage.getItem("p2p_profile") || "null"); } catch {}
+        if (atLeast("6.9")) {
+            cloud = await new Promise((resolve) => {
+                wa.CloudStorage.getItem("profile", (err, value) => {
+                    try { resolve(err ? null : JSON.parse(value || "null")); } catch { resolve(null); }
+                });
+            });
+        }
+        return (cloud?.t || 0) > (local?.t || 0) ? cloud : local;
+    },
+
+    saveProfile(data) {
+        const text = JSON.stringify(data);
+        try { localStorage.setItem("p2p_profile", text); } catch {}
+        if (atLeast("6.9")) wa.CloudStorage.setItem("profile", text, () => {});
+    },
+
     share(text, url) {
         const link = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
         if (inTelegram) wa.openTelegramLink(link);

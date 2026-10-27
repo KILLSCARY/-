@@ -1,7 +1,9 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS } from "./config.js";
+import { Profile } from "./profile.js";
+import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
 import { World, SPAWN_Z, buildEnvironment } from "./world.js";
 import * as THREE from "./vendor/three.module.js";
@@ -33,6 +35,7 @@ const OutputShader = {
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
 
 class Game {
     constructor() {
@@ -50,9 +53,16 @@ class Game {
         this.scene.add(this.rat, this.rat.userData.blob);
         this.showRat(false); // до загрузки модели героя не показываем никого — крыс из примитивов только запасной
         this.heroes = {}; // загруженные модели персонажей по id
+        this.profile = new Profile();
+        this.hub = new Hub(this, this.profile);
         let saved = null;
         try { saved = localStorage.getItem("p2p_hero"); } catch {}
-        this.selectHero(CHARACTERS.find((c) => c.id === saved) ? saved : CHARACTERS[0].id);
+        this.selectHero(CHARACTERS.find((c) => c.id === saved && !c.locked) ? saved : CHARACTERS[0].id);
+        // невыкупленного героя (раньше все были бесплатными) меняем на стартового
+        this.profile.ready.then(() => {
+            if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
+            this.hub.render();
+        });
 
         this.setupInput();
         this.setupUI();
@@ -133,7 +143,12 @@ class Game {
         this.runTime = 0;
         this.distance = 0;
         this.usdt = 0;
+        this.trx = 0;
+        this.coinCount = 0;
+        this.credited = { usdt: 0, trx: 0 }; // сколько из этого забега уже зачислено в кошелёк
+        this.appealUsed = false;
         this.boostLeft = 0;
+        this.fx = { magnet: 0, honey: 0, shield: false, safe: 0 }; // добавки: секунды магнита и мёда, щит, неуязвимость
         this.phase = 0;
         this.nextRowZ = -40;
         this.cause = null;
@@ -146,6 +161,7 @@ class Game {
         if (this.state === "countdown" || $("btn-play").disabled) return;
         this.audio.unlock();
         this.resetRun();
+        this.applyBoosts();
         this.show("hud");
         this.state = "countdown";
         const cd = $("countdown");
@@ -162,6 +178,40 @@ class Game {
         setTimeout(() => { cd.hidden = true; }, 500);
         this.state = "playing";
         this.audio.music("run");
+    }
+
+    // добавки из NS Store, купленные на этот забег: по одной каждой
+    applyBoosts() {
+        const names = [];
+        for (const b of this.profile.takeBoosts()) {
+            names.push(b.name);
+            if (b.id === "magnet") this.fx.magnet = b.time;
+            if (b.id === "honey") this.fx.honey = b.time;
+            if (b.id === "shield") this.fx.shield = true;
+            if (b.id === "x2") this.boostLeft = b.time;
+            if (b.id === "dash") { this.distance = b.meters; this.runTime = 20; } // со старта — как будто уже разогнался
+        }
+        if (names.length) this.hub.toast(`В забеге: ${names.join(", ")}`);
+        this.updateHud();
+    }
+
+    // Апелляция: продолжить с того же места за TRX, один раз за забег
+    appeal() {
+        if (this.state !== "over" || this.appealUsed || !this.profile.pay({ trx: APPEAL_PRICE })) return;
+        this.appealUsed = true;
+        this.audio.play("buy");
+        for (const o of this.world.obstacles) {
+            if (o.position.z > -25 && o.position.z < 6) { o.visible = false; o.userData.type = "decor"; }
+        }
+        this.fx.safe = 2;
+        this.cause = null;
+        this.show("hud");
+        this.state = "playing";
+        this.audio.music("run");
+    }
+
+    get perk() {
+        return HERO_PERKS[this.heroId] || {};
     }
 
     pause() {
@@ -201,6 +251,23 @@ class Game {
         $("over-usdt").innerHTML = `${this.usdt} <svg class="ico-usdt" aria-label="USDT"><use href="#ico-usdt"/></svg>`;
         $("over-dist").textContent = `${Math.floor(this.distance)} м`;
         $("over-best").textContent = isBest ? "🔥 Новый рекорд!" : `Рекорд: ${this.best}`;
+
+        // в кошелёк — то, что ещё не зачислено (после апелляции забег продолжается)
+        const du = this.usdt - this.credited.usdt, dtrx = this.trx - this.credited.trx;
+        this.credited = { usdt: this.usdt, trx: this.trx };
+        const chapter = this.profile.earn(du, dtrx);
+        $("over-wallet").textContent = `+${fmt(du)} USDT${dtrx ? ` и +${dtrx} TRX` : ""} в кошелёк · всего ${fmt(this.profile.usdt)} USDT`;
+        const appeal = $("btn-appeal");
+        appeal.hidden = this.appealUsed;
+        appeal.disabled = this.profile.trx < APPEAL_PRICE;
+        appeal.textContent = this.profile.trx < APPEAL_PRICE
+            ? `АПЕЛЛЯЦИЯ · НУЖНО ${APPEAL_PRICE} TRX` : `АПЕЛЛЯЦИЯ · ПРОДОЛЖИТЬ ЗА ${APPEAL_PRICE} TRX`;
+        if (chapter !== null) {
+            setTimeout(() => {
+                this.audio.play("record");
+                this.hub.toast(chapter < CHAPTERS.length ? `Глава ${chapter + 1} открыта: ${CHAPTERS[chapter].name}` : "Сезон 1 пройден!");
+            }, 1500);
+        }
         setTimeout(() => { if (this.state === "over") this.show("over"); }, 700);
     }
 
@@ -224,7 +291,7 @@ class Game {
         if (this.state !== "playing" || this.jumping) return;
         this.jumping = true;
         this.slideLeft = 0;
-        this.vy = BALANCE.jumpPower;
+        this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
         this.audio.play("swipe");
         tg.haptic("medium");
     }
@@ -232,7 +299,7 @@ class Game {
     slide() {
         if (this.state !== "playing") return;
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
-        this.slideLeft = BALANCE.slideTime;
+        this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
         this.audio.play("swipe");
         tg.haptic("light");
@@ -286,7 +353,10 @@ class Game {
         $("btn-again").onclick = () => this.start();
         $("btn-pause").onclick = () => this.pause();
         $("btn-resume").onclick = () => this.resume();
-        $("btn-menu").onclick = () => { this.state = "menu"; this.audio.music("menu"); this.resetRun(); this.renderMenu(); this.show("menu"); };
+        $("btn-menu").onclick = $("btn-over-menu").onclick = () => {
+            this.state = "menu"; this.audio.music("menu"); this.resetRun(); this.renderMenu(); this.show("menu");
+        };
+        $("btn-appeal").onclick = () => this.appeal();
         $("btn-share").onclick = () => tg.share(
             `Я поднял ${this.usdt} USDT и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
             LINKS.bot
@@ -299,21 +369,8 @@ class Game {
         this.renderMenu();
     }
 
-    renderHeroes() {
-        const box = $("menu-heroes");
-        box.innerHTML = "";
-        for (const c of CHARACTERS) {
-            const b = document.createElement("button");
-            b.className = "hero" + (c.id === this.heroId ? " active" : "");
-            b.dataset.id = c.id;
-            b.textContent = c.name;
-            b.onclick = () => this.selectHero(c.id);
-            box.append(b);
-        }
-    }
-
     renderMenu() {
-        this.renderHeroes();
+        this.hub.render();
         $("menu-best").textContent = this.best;
         $("menu-tip").textContent = pick(TIPS);
         const name = tg.user?.first_name;
@@ -329,6 +386,12 @@ class Game {
         $("hud-score").textContent = this.score();
         $("hud-boost").hidden = this.boostLeft <= 0;
         if (this.boostLeft > 0) $("hud-boost").textContent = `×2 ${Math.ceil(this.boostLeft)}с`;
+        const fx = [];
+        if (this.fx.shield) fx.push("ЩИТ");
+        if (this.fx.magnet > 0) fx.push(`МАГНИТ ${Math.ceil(this.fx.magnet)}с`);
+        if (this.fx.honey > 0) fx.push(`МЁД ${Math.ceil(this.fx.honey)}с`);
+        $("hud-fx").hidden = !fx.length;
+        $("hud-fx").textContent = fx.join(" · ");
     }
 
     // ---- кадр ----------------------------------------------------------------------------
@@ -404,14 +467,14 @@ class Game {
         for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
         const cfg = CHARACTERS.find((c) => c.id === id);
         const air = (2 * BALANCE.jumpPower) / BALANCE.gravity;
-        const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime + 0.2 } };
+        const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime * (HERO_PERKS[id]?.slide || 1) + 0.2 } };
         const play = $("btn-play");
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
             this.showRat(true);
             play.disabled = false;
-            play.textContent = "ИГРАТЬ";
+            play.textContent = "ЗАБЕГ";
         };
         if (this.heroes[id]) return apply(this.heroes[id]);
         play.disabled = true; // не пускаем в забег, пока не загрузился выбранный герой
@@ -424,7 +487,7 @@ class Game {
                 if (this.heroId !== id) return;
                 this.showRat(true); // запасной вариант — крыс из примитивов
                 play.disabled = false;
-                play.textContent = "ИГРАТЬ";
+                play.textContent = "ЗАБЕГ";
             }
         );
     }
@@ -465,7 +528,7 @@ class Game {
 
         // движение крыса
         const targetX = this.world.lanes[this.lane];
-        this.x += (targetX - this.x) * Math.min(1, dt * 18);
+        this.x += (targetX - this.x) * Math.min(1, dt * 18 * (this.perk.lane || 1));
         if (this.jumping) {
             this.vy -= BALANCE.gravity * dt;
             this.y += this.vy * dt;
@@ -483,11 +546,12 @@ class Game {
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
 
         if (this.boostLeft > 0) this.boostLeft -= dt;
-        this.collide();
+        for (const k of ["magnet", "honey", "safe"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        this.collide(dt);
         this.updateHud();
     }
 
-    collide() {
+    collide(dt) {
         const sliding = this.slideLeft > 0;
         for (const o of this.world.obstacles) {
             const d = o.userData;
@@ -496,21 +560,42 @@ class Game {
             if (d.type === "decor") continue;
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
+            if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
+            if (this.fx.shield) { // «Чистая карта» прощает одно столкновение
+                this.fx.shield = false;
+                this.fx.safe = 1;
+                o.visible = false;
+                d.type = "decor";
+                this.audio.play("boost");
+                tg.haptic("warning");
+                continue;
+            }
             return this.gameOver(d.type);
         }
 
         const coins = this.world.coins;
+        if (this.fx.magnet > 0) { // «Скупщик»: монеты впереди летят к игроку
+            const k = Math.min(1, dt * 7);
+            for (const c of coins) {
+                if (c.position.z < -14 || c.position.z > 1) continue;
+                c.position.x += (this.x - c.position.x) * k;
+                c.position.y += (this.y + 0.8 - c.position.y) * k;
+            }
+        }
         const ratTop = sliding ? 0.9 : 1.6;
         for (let i = coins.length - 1; i >= 0; i--) {
             const c = coins[i];
             if (Math.abs(c.position.x - this.x) > 0.7 || Math.abs(c.position.z) > 0.7) continue;
             if (c.position.y < this.y - 0.2 || c.position.y > this.y + ratTop) continue;
-            if (c.userData.boost) {
-                this.boostLeft = BALANCE.boostTime;
+            if (c.userData.boost) { // монета TRX: ×2 на время по уровню прокачки и +1 TRX в кошелёк
+                this.boostLeft = UPGRADES.x2.times[this.profile.level("x2") - 1];
+                this.trx += 1;
                 this.audio.play("boost");
                 tg.haptic("success");
             } else {
-                this.usdt += this.boostLeft > 0 ? 2 : 1;
+                this.coinCount++;
+                const bonus = this.perk.coinBonus && this.coinCount % this.perk.coinBonus === 0 ? 1 : 0; // Паша: +10%
+                this.usdt += (this.boostLeft > 0 ? 2 : 1) + bonus;
                 this.audio.play("coin");
             }
             this.world.removeCoin(i);

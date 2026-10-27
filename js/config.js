@@ -49,12 +49,14 @@ export const TIPS = [
 export const TEXTURES = {
     road: "ground2",
     sidewalk: "ground4",
-    // rows — сколько этажей в одном тайле картинки (чтобы этаж был ~2.9 м)
+    // Фасады — снимки домов из Meshy спереди, переведённые в ночь (tools/nightify.py). Картинка — дом целиком:
+    // floors — этажей на ней, aspect — ширина/высота, ground — свои подъезды внизу (без нарисованного первого этажа),
+    // weight — как часто попадается
     facades: [
-        { name: "facade1", rows: 7 },
-        { name: "facade2", rows: 6 },
-        { name: "facade3", rows: 6 },
-        { name: "facade4", rows: 5 },
+        { name: "house1", floors: 7, aspect: 1, weight: 1 },
+        { name: "house2", floors: 6, aspect: 1, weight: 1 },
+        { name: "house3", floors: 5, aspect: 1.84, ground: true, weight: 2 }, // главный
+        { name: "house4", floors: 5, aspect: 1.87, ground: true, weight: 1 },
     ],
 };
 
@@ -125,12 +127,15 @@ export const MODELS = {
         { url: "models/obj/bank_alfa.glb", axis: "x", size: 9 }],
 };
 
-// Играбельные персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, Павел Инаков — человек с бородой. clips — какой клип играть в каждой позе;
-// если позы нет — модель наклоняется (подкат) или играет бег.
+// Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой
+// (по сценарию его выкупают, пока выбирается свободно); Денчик в меню виден, но не играбелен — locked, текст на кнопке.
+// clips — какой клип играть в каждой позе; если позы нет — модель наклоняется (подкат) или играет бег.
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75,
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8,
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, locked: "Не бегает — на связи у Спиди",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
 ];
 
@@ -176,7 +181,69 @@ export const SOUNDS = {
         boost: { urls: ["audio/coin_trx.mp3"], volume: 0.8 }, // монета TRX ×2
         whistle: { urls: ["audio/police_whistle.mp3"], volume: 0.6 }, // пробегаешь мимо ДПС
         busted: { urls: ["audio/police.mp3"], volume: 0.6 }, // поймал ДПС
-        record: { urls: ["audio/achievement.mp3"], volume: 0.8 }, // новый рекорд
-        // есть, но пока негде играть: audio/chest.mp3 (сундук), audio/purchase.mp3 (покупка)
+        record: { urls: ["audio/achievement.mp3"], volume: 0.8 }, // новый рекорд, новая глава
+        buy: { urls: ["audio/purchase.mp3"], volume: 0.8 }, // покупка в магазине, выкуп героя
+        chest: { urls: ["audio/chest.mp3"], volume: 0.8 }, // кейс открылся
     },
+};
+
+// ---- Экономика: кошелёк, магазин, кейсы, главы (сценарий — артефакт «Сценарий Покорителя P2P») ----
+
+// Главы сюжета: сколько USDT надо заработать за всё время (траты не мешают)
+export const CHAPTERS = [
+    { name: "Первый ордер", goal: 1000 },
+    { name: "Печати", goal: 5000 },
+    { name: "Первый миллион", goal: 20000 },
+    { name: "Тот, кто вернулся", goal: 50000 },
+    { name: "Трон", goal: 100000 },
+];
+
+// Выкуп героев (кого нет в списке — доступен сразу; locked в CHARACTERS — не продаётся)
+export const HERO_PRICES = { pavel: 50000 };
+
+// Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
+export const HERO_PERKS = {
+    mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15 },
+    pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
+};
+
+// «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.
+export const BOOSTS = [
+    { id: "magnet", name: "Скупщик", text: "Магнит первые 15 с: USDT летят к тебе", price: 300, time: 15 },
+    { id: "honey", name: "Мёд с пасеки", text: "15 с прыжки выше", price: 400, time: 15 },
+    { id: "shield", name: "Чистая карта", text: "Одно столкновение не считается", price: 600 },
+    { id: "x2", name: "Лимит ×2", text: "Двойные USDT первые 30 с", price: 700, time: 30 },
+    { id: "dash", name: "Рывок", text: "Старт сразу с 500 м", price: 900, meters: 500 },
+];
+// Апелляция — продолжить забег после проигрыша, один раз за забег
+export const APPEAL_PRICE = 2; // TRX
+
+// Прокачка навсегда: сколько секунд действует монета TRX ×2 на уровнях 1…5 и цена следующего уровня
+export const UPGRADES = {
+    x2: { name: "Монета TRX ×2", text: "Дольше действует ×2 с дороги", times: [8, 10, 12, 15, 18], prices: [1000, 2500, 5000, 10000] },
+};
+
+// Кейсы. Награды: usdt [от, до], trx, boosts (сколько случайных добавок), all (по одной каждой), level (уровень прокачки)
+export const CASES = [
+    { id: "envelope", name: "Конверт", text: "Бесплатно раз в 4 часа", free: 4 * 3600 * 1000, drops: [
+        { r: "common", w: 70, usdt: [50, 400] },
+        { r: "common", w: 30, boosts: 1 }] },
+    { id: "merchant", name: "Кейс Мерчанта", text: "USDT, добавки, TRX", price: 2500, drops: [
+        { r: "common", w: 35, usdt: [800, 1500] },
+        { r: "common", w: 25, boosts: 2 },
+        { r: "rare", w: 18, usdt: [3000, 3000] },
+        { r: "rare", w: 10, level: 1 },
+        { r: "epic", w: 10, trx: 5, all: true },
+        { r: "legend", w: 2, usdt: [10000, 10000], trx: 10 }] },
+    { id: "conqueror", name: "Кейс Покорителя", text: "Только редкое и лучше", priceTrx: 10, drops: [
+        { r: "rare", w: 35, usdt: [4000, 6000] },
+        { r: "rare", w: 20, level: 1 },
+        { r: "epic", w: 35, trx: 8, all: true },
+        { r: "legend", w: 10, usdt: [20000, 20000], trx: 15 }] },
+];
+export const RARITY = {
+    common: { name: "Обычное", color: "#9aa3ad" },
+    rare: { name: "Редкое", color: "#3d8bff" },
+    epic: { name: "Эпическое", color: "#b05cff" },
+    legend: { name: "Легендарное", color: "#e9c25a" },
 };
