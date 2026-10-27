@@ -35,6 +35,17 @@ const OutputShader = {
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// число «досчитывается» от 0 (easeOutCubic); без анимаций — сразу итог
+const countUp = (el, to, delay = 0, ms = 900) => {
+    if (!to || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = fmt(to); return; }
+    const t0 = performance.now() + delay;
+    const step = (t) => {
+        const k = Math.min(1, Math.max(0, (t - t0) / ms));
+        el.textContent = fmt(to * (1 - (1 - k) ** 3));
+        if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+};
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/ /g, " ");
 
 class Game {
@@ -258,28 +269,33 @@ class Game {
             setTimeout(() => this.audio.play("record"), 700);
         }
         $("over-cause").textContent = pick(DEATH_TEXT[cause]);
-        $("over-score").textContent = score;
-        $("over-usdt").innerHTML = `${this.usdt} <svg class="ico-usdt" aria-label="USDT"><use href="#ico-usdt"/></svg>`;
-        $("over-dist").textContent = `${Math.floor(this.distance)} м`;
-        $("over-best").textContent = isBest ? "🔥 Новый рекорд!" : `Рекорд: ${this.best}`;
+        $("over-new").hidden = !isBest;
+        $("over-best").innerHTML = isBest ? "" : `Рекорд <b>${fmt(this.best)}</b>`;
+        document.querySelector(".over-card").classList.toggle("is-best", isBest);
 
         // в кошелёк — то, что ещё не зачислено (после апелляции забег продолжается)
         const du = this.usdt - this.credited.usdt, dtrx = this.trx - this.credited.trx;
         this.credited = { usdt: this.usdt, trx: this.trx };
         const chapter = this.profile.earn(du, dtrx);
-        $("over-wallet").textContent = `+${fmt(du)} USDT${dtrx ? ` и +${dtrx} TRX` : ""} в кошелёк · всего ${fmt(this.profile.usdt)} USDT`;
-        const appeal = $("btn-appeal");
+        $("over-wallet").innerHTML = `В кошелёк <b>+${fmt(du)} USDT</b>${dtrx ? ` и <b>+${dtrx} TRX</b>` : ""} · всего ${fmt(this.profile.usdt)} USDT`;
+        const appeal = $("btn-appeal"), canAppeal = this.profile.trx >= APPEAL_PRICE;
         appeal.hidden = this.appealUsed;
-        appeal.disabled = this.profile.trx < APPEAL_PRICE;
-        appeal.textContent = this.profile.trx < APPEAL_PRICE
-            ? `АПЕЛЛЯЦИЯ · НУЖНО ${APPEAL_PRICE} TRX` : `АПЕЛЛЯЦИЯ · ПРОДОЛЖИТЬ ЗА ${APPEAL_PRICE} TRX`;
+        appeal.disabled = !canAppeal;
+        $("appeal-sub").textContent = canAppeal ? "Продолжить с того же места" : `Нужно ${APPEAL_PRICE} TRX — собирай в забеге или в кейсах`;
+        $("appeal-price").textContent = `${APPEAL_PRICE} TRX`;
+        const counters = [["over-score", score, 0], ["over-usdt", this.usdt, 250], ["over-dist", this.distance, 320], ["over-trx", this.trx, 390]];
+        for (const [id] of counters) $(id).textContent = "0";
         if (chapter !== null) {
             setTimeout(() => {
                 this.audio.play("record");
                 this.hub.toast(chapter < CHAPTERS.length ? `Глава ${chapter + 1} открыта: ${CHAPTERS[chapter].name}` : "Сезон 1 пройден!");
             }, 1500);
         }
-        setTimeout(() => { if (this.state === "over") this.show("over"); }, 700);
+        setTimeout(() => {
+            if (this.state !== "over") return;
+            this.show("over");
+            for (const [id, to, delay] of counters) countUp($(id), to, delay);
+        }, 700);
     }
 
     // очки = профит в USDT ×10 + пройденные метры

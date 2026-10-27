@@ -114,22 +114,35 @@
         </div>
     </section>
 
-    <!-- Проигрыш -->
+    <!-- Проигрыш: причина, счёт со счётчиком, плитки 01–03, зачисление, апелляция, действия -->
     <section id="over" class="screen" hidden>
-        <div class="panel">
-            <p id="over-cause" class="cause"></p>
-            <div class="score-big" id="over-score">0</div>
-            <div class="stats">
-                <span id="over-usdt"></span>
-                <span id="over-dist"></span>
+        <div class="over-card">
+            <div class="over-head o-in" style="--i:0">
+                <span class="label">Забег окончен</span>
+                <p id="over-cause" class="cause"></p>
             </div>
-            <p id="over-best" class="best"></p>
-            <p id="over-wallet" class="wallet-line"></p>
-            <button id="btn-appeal" class="btn btn-appeal" hidden></button>
-            <button id="btn-again" class="btn btn-main">ЕЩЁ РАЗ</button>
-            <button id="btn-over-menu" class="btn">В МЕНЮ</button>
-            <button id="btn-share" class="btn">ПОДЕЛИТЬСЯ</button>
-            <button id="btn-course" class="btn btn-ghost">Научиться P2P по-настоящему →</button>
+            <div class="over-score o-in" style="--i:1">
+                <span id="over-new" class="new-rec" hidden>Новый рекорд</span>
+                <div class="score-big" id="over-score">0</div>
+                <p id="over-best" class="best"></p>
+            </div>
+            <div class="over-stats">
+                <div class="st o-in" style="--i:2"><span class="n">01</span><b id="over-usdt">0</b><span class="st-cap"><svg class="ico-usdt" aria-hidden="true"><use href="#ico-usdt"/></svg>USDT</span></div>
+                <div class="st o-in" style="--i:3"><span class="n">02</span><b id="over-dist">0</b><span class="st-cap">метров</span></div>
+                <div class="st o-in" style="--i:4"><span class="n">03</span><b id="over-trx">0</b><span class="st-cap"><svg class="ico-usdt" aria-hidden="true"><use href="#ico-trx"/></svg>TRX</span></div>
+            </div>
+            <p id="over-wallet" class="wallet-line o-in" style="--i:5"></p>
+            <button id="btn-appeal" class="appeal o-in" style="--i:6" hidden>
+                <svg class="ico-usdt" aria-hidden="true"><use href="#ico-trx"/></svg>
+                <span class="appeal-text"><b>Апелляция</b><span id="appeal-sub">Продолжить с того же места</span></span>
+                <span class="price" id="appeal-price">2 TRX</span>
+            </button>
+            <button id="btn-again" class="btn btn-main btn-shine o-in" style="--i:7">Ещё раз</button>
+            <div class="over-row o-in" style="--i:8">
+                <button id="btn-over-menu" class="btn">В меню</button>
+                <button id="btn-share" class="btn">Поделиться</button>
+            </div>
+            <button id="btn-course" class="btn btn-ghost o-in" style="--i:9">Научиться P2P по-настоящему →</button>
         </div>
     </section>
 
