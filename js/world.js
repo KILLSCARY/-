@@ -948,7 +948,7 @@ export class World {
         const f = this.flashes[this.nextFlash];
         this.nextFlash = (this.nextFlash + 1) % this.flashes.length;
         f.position.copy(pos);
-        f.material.color.setRGB(...(gold ? [3.2, 2.4, 0.8] : [1.6, 3.2, 2.3]));
+        f.material.color.setRGB(...(gold ? [2.4, 1.8, 0.6] : [0.9, 1.8, 1.3]));
         f.userData.t = 0;
         f.visible = true;
     }
@@ -1847,8 +1847,8 @@ export class World {
             if (!f.visible) continue;
             f.userData.t += dt;
             const k = Math.min(1, f.userData.t / 0.18);
-            f.scale.setScalar(0.6 + 1.4 * k);
-            f.material.opacity = 1 - k;
+            f.scale.setScalar(0.35 + 0.65 * k); // небольшая короткая вспышка: в полёте монеты идут подряд и сливались в шар
+            f.material.opacity = (1 - k) * 0.8;
             f.position.z += move;
             if (k >= 1) f.visible = false;
         }

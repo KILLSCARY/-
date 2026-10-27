@@ -474,13 +474,25 @@ class Game {
             const dx = t.clientX - start.x, dy = t.clientY - start.y;
             if (Math.hypot(dx, dy) < 30) return;
             start.done = true;
+            if (this.wind?.state === "gust" || this.wind?.state === "inhale") return; // в порыв пальцы тапают, полосы не меняем
             if (Math.abs(dx) > Math.abs(dy)) this.move(dx > 0 ? 1 : -1);
             else if (dy < 0) this.jump();
             else this.slide();
         }, { passive: true });
         area.addEventListener("touchend", () => { start = null; }, { passive: true });
-        // порыв ветра: каждое касание (и клик) — «держусь»
-        area.addEventListener("pointerdown", () => { if (this.wind?.state === "gust" && this.state === "playing") this.wind.taps++; });
+        // порыв ветра: каждое касание в любом месте экрана (и каждым пальцем) — «держусь»
+        const tap = (n = 1) => {
+            const w = this.wind;
+            if (this.state !== "playing" || !w || (w.state !== "gust" && w.state !== "inhale")) return false;
+            w.taps += n;
+            tg.haptic("light");
+            this.x += this.wind.side * 0.12; // откат против ветра — видно, что тап помогает
+            const box = $("wind-q");
+            box.classList.remove("tap"); void box.offsetWidth; box.classList.add("tap");
+            return true;
+        };
+        // pointerdown — одно событие на палец (касание + «эмулированный» клик мыши не считаются дважды)
+        document.addEventListener("pointerdown", (e) => { if (!e.target.closest("button")) tap(); });
         document.addEventListener("contextmenu", (e) => e.preventDefault());
 
         document.addEventListener("visibilitychange", () => { if (document.hidden) this.pause(); });
@@ -1031,6 +1043,23 @@ class Game {
         f.e += dt;
         this.jumping = false;
         this.slideLeft = 0;
+        if (c.loop) { // клип крутится сам (плавание): только высота — взлёт, полёт, спуск
+            if (f.e < TAKEOFF) this.y = H * ease(f.e / TAKEOFF);
+            else if (f.e < f.dur) this.y = H + Math.sin((f.e - TAKEOFF) * 3) * 0.12;
+            else if (f.e < f.dur + LAND_AIR) { const k = (f.e - f.dur) / LAND_AIR; this.y = H * (1 - k * k); }
+            else {
+                this.y = 0;
+                this.world.splash(this.x, 0, 24, 1.3);
+                this.fx.safe = Math.max(this.fx.safe, 1.2);
+                this.flight = null;
+                this.fx.fly = 0;
+                this.world.noPickups = false;
+                return;
+            }
+            this.fx.fly = Math.max(0, f.dur + LAND_AIR - f.e);
+            this.rat.userData.clipT = null;
+            return;
+        }
         let clipT;
         if (f.e < TAKEOFF) { // присед, толчок, набор высоты
             clipT = lerp(c.start, c.peak, f.e / TAKEOFF);
@@ -1194,20 +1223,22 @@ class Game {
             const mouth = w.head.getWorldPosition(this.windMouth ||= new THREE.Vector3());
             this.world.blowWind(mouth, -w.side, dt, k);
             [...$("wind-taps").children].forEach((el, i) => el.classList.toggle("on", i < w.taps));
-            const dodged = this.slideLeft > 0 || this.y > 0.6 || this.flight;
+            const flying = !!this.flight;
             const grip = Math.min(1, w.taps / WIND.taps);
-            if (!dodged) this.windSlide = -w.side * WIND.push * (1 - grip) * k; // скольжением поперёк полос
-            if (grip >= 1 || w.t <= 0) {
+            if (!flying) this.windSlide = -w.side * WIND.push * (1 - grip) * k; // скольжением поперёк полос
+            if (grip >= 1 || w.t <= 0 || flying) {
                 w.state = "done";
-                const blown = this.lane !== w.lane0;
-                if (blown) { this.hub.toast("Сдуло ветром!"); tg.haptic("heavy"); }
-                else {
-                    this.usdt += WIND.reward;
-                    this.hub.toast(grip >= 1 ? `Удержался! +${WIND.reward} USDT` : dodged ? `Увернулся! +${WIND.reward} USDT` : `Устоял! +${WIND.reward} USDT`);
-                    tg.haptic("success");
-                }
                 box.hidden = true;
                 this.world.blowWind(null);
+                if (grip >= 1 || flying) {
+                    this.usdt += WIND.reward;
+                    this.hub.toast(`Удержался! +${WIND.reward} USDT`);
+                    tg.haptic("success");
+                } else if (!this.spareLife(null)) { // не натапал — сдуло
+                    this.windSlide = 0;
+                    this.gameOver("wind");
+                    return;
+                }
             }
         }
         if (w.state === "done") this.windPose(w, 0);

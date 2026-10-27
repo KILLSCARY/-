@@ -27,6 +27,7 @@ export const BALANCE = {
 
 // Почему проиграл — шутки по поводу причины
 export const DEATH_TEXT = {
+    wind: ["Сдуло Исламом", "Ислам дунул — и всё", "Не удержался на ветру"],
     wall: ["Стена возражений не пустила", "Возражение оказалось крепче", "Два неверных ответа подряд — стоп"],
     hood: ["Споткнулся о ржавый капот", "Капот — 1, Крыс — 0", "Зацепился за тряпки на капоте"],
     cart: ["Врезался в тележку", "Тележка с баулами победила", "Не перепрыгнул тележку"],
@@ -190,8 +191,9 @@ export const CHARACTERS = [
     { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=2", height: 1.78, portrait: "img/heroes/denchik.webp",
         // подкат — «Roll Dodge», от удара — «Knock Down»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=1", height: 1.82, portrait: "img/heroes/sasha.webp",
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { start: 0.8, launch: 1.6, peak: 2.3, touch: 2.8, end: 3.4 } },
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=2", height: 1.82, portrait: "img/heroes/sasha.webp",
+        // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -262,8 +264,9 @@ export const CHAPTERS = [
 
 // «Ислам дует»: стоит у обочины, порыв ветра сносит героя на полосу в сторону от него. Удержаться — тапать
 // (taps раз за gust секунд), увернуться — подкатом или в прыжке. Выкуплен Ислам — не дует: «Своих не сдуваю».
-export const WIND = { firstAt: 420, every: [420, 620], inhale: 0.8, gust: 1.8, push: 2.4, taps: 4, reward: 3 };
-// inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов
+export const WIND = { firstAt: 420, every: [420, 620], inhale: 0.8, gust: 2, push: 2.4, taps: 5, reward: 3 };
+// inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
+// не натапал taps за порыв — проигрыш («Сдуло Исламом»)
 
 // Экзамен у босса Павла Инакова: раз за забег на at метрах — три сложные стены подряд (gap м между ними, меньше
 // времени на ответ). Сдал (pass верных из 3) — reward USDT и сундук; без ошибок — ещё gems кристаллов.

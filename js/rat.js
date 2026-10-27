@@ -313,7 +313,9 @@ export function attachModel(rat, gltf, cfg) {
     model.traverse((o) => { if (!hips && o.isBone && /hips/i.test(o.name)) hips = o; });
     rig.updateMatrixWorld(true);
     const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
-    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch };
+    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
+        flyLoop: !!cfg.flyClip?.loop, hipsRest: hips?.position.clone() };
+    if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
 
 function animateModel(rat, pose, t, phase, dt, speed) {
@@ -328,7 +330,7 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     const want = actions[pose] ? pose : pose === "fall" && actions.dead ? "dead" : "run";
     if (want !== u.current) {
         const next = actions[want];
-        const once = want !== "run" && want !== "idle";
+        const once = want !== "run" && want !== "idle" && !(want === "fly" && u.flyLoop); // плавание в полёте — по кругу
         next.reset();
         next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
         next.clampWhenFinished = once;
@@ -353,6 +355,8 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         actions.fly.time = u.clipT;
     }
     mixer.update(dt * scale);
+    // у плавания в клипе тело уплывает вперёд — держим бёдра на месте (по X и Z), летит герой за счёт игры
+    if (want === "fly" && u.flyLoop && u.hips && u.hipsRest) { u.hips.position.x = u.hipsRest.x; u.hips.position.z = u.hipsRest.z; }
     if (want === "fly" && u.pin && u.hips && u.clipT !== null && u.clipT < u.pinUntil) {
         pinHips(u);
     }
