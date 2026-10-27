@@ -314,7 +314,7 @@ export function attachModel(rat, gltf, cfg) {
     rig.updateMatrixWorld(true);
     const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
     rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
-        flyLoop: !!cfg.flyClip?.loop, hipsRest: hips?.position.clone() };
+        flyLoop: !!cfg.flyClip?.loop, flyPitch: cfg.flyClip?.pitch || 0, hipsRest: hips?.position.clone() };
     if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
 
@@ -357,6 +357,11 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     mixer.update(dt * scale);
     // у плавания в клипе тело уплывает вперёд — держим бёдра на месте (по X и Z), летит герой за счёт игры
     if (want === "fly" && u.flyLoop && u.hips && u.hipsRest) { u.hips.position.x = u.hipsRest.x; u.hips.position.z = u.hipsRest.z; }
+    // клип плавания перенесён с другого героя: тело в нём вертикально — кладём героя вперёд целиком, вокруг пояса
+    if (want === "fly" && u.flyPitch) {
+        rig.rotation.x = -u.flyPitch;
+        rig.position.set(0, 0.9, 0.9 * Math.sin(u.flyPitch) * 0.55);
+    }
     if (want === "fly" && u.pin && u.hips && u.clipT !== null && u.clipT < u.pinUntil) {
         pinHips(u);
     }

@@ -179,9 +179,10 @@ export const NPCS = {
 // длится приземление (по умолчанию 0.4); pin — в клипе высота «вшита» в бёдра: в воздухе её гасим, высоту задаёт игра.
 // Клипы из Meshy (папка «Персонажи» на Диске): у Спиди и Саши полёт — «Jump with Arms Open» (руки раскинуты в верхней точке).
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=3", height: 1.75, portrait: "img/heroes/speedy.webp",
-        // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { start: 0.8, launch: 1.6, peak: 2.3, touch: 2.8, end: 3.4 } },
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=4", height: 1.75, portrait: "img/heroes/speedy.webp",
+        // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
+        // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "islam", name: "Ислам", url: "models/islam.glb?v=2", height: 1.8, portrait: "img/heroes/islam.webp",
