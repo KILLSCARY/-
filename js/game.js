@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER, CHASER } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -107,14 +107,14 @@ class Game {
         this.renderer.outputEncoding = THREE.sRGBEncoding;
 
         this.scene = new THREE.Scene();
-        // красный туман вдали
-        this.scene.background = new THREE.Color(0x2a070d);
-        this.scene.fog = new THREE.Fog(0x2a070d, 12, 85);
+        // красный туман вдали — того же цвета, что небо (SKY)
+        this.scene.background = new THREE.Color(SKY.color);
+        this.scene.fog = new THREE.Fog(SKY.color, 12, 85);
         this.scene.environment = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
-        this.scene.add(new THREE.HemisphereLight(0xa08088, 0x1a0809, 1.15));
+        this.scene.add(new THREE.HemisphereLight(0xa08088, 0x1a0809, SKY.light));
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -134,7 +134,9 @@ class Game {
         this.composer.addPass(new RenderPass(this.scene, this.camera));
         this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.5, 0.92);
         this.composer.addPass(this.bloom);
-        this.composer.addPass(new ShaderPass(OutputShader));
+        const output = new ShaderPass(OutputShader);
+        output.uniforms.exposure.value = SKY.exposure;
+        this.composer.addPass(output);
 
         window.addEventListener("resize", () => this.onResize());
     }

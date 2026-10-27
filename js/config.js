@@ -63,6 +63,10 @@ export const TEXTURES = {
     ],
 };
 
+// Небо и туман вдали (один цвет — дальние дома растворяются в небе), light — сила рассеянного света,
+// exposure — общая яркость кадра
+export const SKY = { color: 0x5a1f30, zenith: "#3a1426", light: 1.4, exposure: 1.2 };
+
 // Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
 export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 

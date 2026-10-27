@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CHASER, NPCS } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CHASER, NPCS, SKY } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -167,8 +167,8 @@ export function buildEnvironment(renderer) {
             side: THREE.BackSide,
             map: canvasTex(16, 256, (g, w, h) => {
                 const grad = g.createLinearGradient(0, 0, 0, h);
-                grad.addColorStop(0, "#14040a");
-                grad.addColorStop(0.42, "#3a0810");
+                grad.addColorStop(0, SKY.zenith);
+                grad.addColorStop(0.42, "#5a1424");
                 grad.addColorStop(0.5, "#b0182a");
                 grad.addColorStop(0.56, "#2a0509");
                 grad.addColorStop(1, "#050102");
@@ -217,10 +217,44 @@ export class World {
         this.buildRain();
         this.buildSplash();
         this.buildStreetLife();
+        this.unclutter();
         this.loadObstacleModels();
         this.loadOfficer();
         this.loadChaser();
         this.loadNpcs();
+    }
+
+    // Тротуар без наложений: у кого есть userData.foot (полуразмеры hx/hz), те не стоят друг в друге —
+    // ни инспектор в машине, ни прохожая в банкомате. Ставим по очереди (prio: 0 — не двигать, дальше — по порядку),
+    // мешает — сдвигаем вдоль тротуара. Всё на тротуаре едет вместе, так что расставить достаточно один раз.
+    unclutter() {
+        const items = this.scenery.filter((o) => o.userData.foot).sort((a, b) => (a.userData.foot.prio ?? 9) - (b.userData.foot.prio ?? 9));
+        const placed = [];
+        for (const o of items) {
+            if (o.userData.foot.prio !== 0) this.placeFree(o, placed);
+            placed.push(o);
+        }
+    }
+
+    placeFree(o, others = this.scenery.filter((p) => p !== o && p.userData.foot)) {
+        for (let i = 0; i < 80 && others.some((p) => this.footHit(o, p)); i++) {
+            o.position.z -= 0.8;
+            if (o.position.z < BEHIND_Z - STREET_LEN) o.position.z += STREET_LEN;
+        }
+    }
+
+    footHit(a, b) {
+        if (a === b || Math.sign(a.position.x) !== Math.sign(b.position.x)) return false;
+        const fa = a.userData.foot, fb = b.userData.foot;
+        let dz = Math.abs(a.position.z - b.position.z) % STREET_LEN;
+        dz = Math.min(dz, STREET_LEN - dz); // улица закольцована
+        return Math.abs(a.position.x - b.position.x) < fa.hx + fb.hx && dz < fa.hz + fb.hz;
+    }
+
+    // свободно ли место на обочине (для патрульной машины у поста на полосе)
+    sidewalkFree(x, z, hx, hz) {
+        const probe = { position: { x, z }, userData: { foot: { hx, hz } } };
+        return !this.scenery.some((p) => p.userData.foot && this.footHit(probe, p));
     }
 
     lite(url) {
@@ -422,6 +456,7 @@ export class World {
             const side = i % 2 ? 1 : -1;
             atm.position.set(side * rnd(4.0, 4.6), 0.18, BEHIND_Z - 15 - i * 32);
             atm.rotation.y = atm.userData.faceY = -side * 0.6; // лицом к дороге
+            atm.userData.foot = { hx: 0.8, hz: 0.75, prio: 2 };
             this.registerSwap("atm", atm);
             atm.userData.loop = STREET_LEN;
             atm.traverse((m) => { if (m.isMesh) m.castShadow = true; });
@@ -435,6 +470,7 @@ export class World {
             const pole = this.makeStreetLamp(side);
             pole.position.set(side * 3.5, 0, BEHIND_Z - 10 - i * 20);
             pole.userData.loop = STREET_LEN;
+            pole.userData.foot = { hx: 0.25, hz: 0.25, prio: 0 }; // столбы не двигаются
             s.add(pole);
             this.scenery.push(pole);
         }
@@ -456,7 +492,7 @@ export class World {
         for (let i = 0; i < (this.tier.lite ? 12 : 26); i++) {
             const bag = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.22, 0.42), 10, 8), this.mat.trash);
             bag.scale.set(1, rnd(0.6, 0.8), 1.1);
-            bag.position.set(pick([-1, 1]) * rnd(5.5, 6.7), 0.3, BEHIND_Z - rnd(0, STREET_LEN));
+            bag.position.set(pick([-1, 1]) * rnd(6.3, 6.8), 0.3, BEHIND_Z - rnd(0, STREET_LEN)); // у стены, за дорожкой гуляющих
             bag.userData.loop = STREET_LEN;
             s.add(bag);
             this.scenery.push(bag);
@@ -735,8 +771,9 @@ export class World {
         for (let i = 0; i < 6; i++) {
             const side = sideX();
             const girl = this.makeSprite("girl");
-            girl.position.set(side * rnd(4.0, 6.2), 0.18, BEHIND_Z - rnd(10, STREET_LEN));
+            girl.position.set(side * rnd(4.0, 5.2), 0.18, BEHIND_Z - rnd(10, STREET_LEN));
             girl.userData.faceY = -side * rnd(0.3, 0.9); // 3D-модель — к бегущему, вполоборота к дороге
+            girl.userData.foot = { hx: 0.45, hz: 0.45 };
             this.addScenery(this.registerSwap("girl", girl));
         }
         for (let i = 0; i < 2; i++) {
@@ -744,6 +781,7 @@ export class World {
             const car = this.makePoliceCar();
             car.position.set(side * 4.6, 0.18, BEHIND_Z - 40 - i * 80);
             car.userData.faceY = -side * 0.35; // пост у обочины: машина вдоль дороги, инспектор лицом к бегущему
+            car.userData.foot = { hx: 1.2, hz: 2.6, prio: 1 };
             this.addScenery(this.registerSwap("police", car));
             this.officerPosts.push({ car, side });
         }
@@ -751,6 +789,7 @@ export class World {
             const bin = this.makeSprite("bin");
             bin.position.set(sideX() * rnd(3.4, 3.7), 0.18, BEHIND_Z - rnd(0, STREET_LEN));
             bin.userData.faceY = rnd(0, Math.PI * 2);
+            bin.userData.foot = { hx: 0.4, hz: 0.4 };
             this.addScenery(this.registerSwap("bin", bin));
         }
         for (let i = 0; i < 14; i++) { // банки валяются и на дороге — просто мусор, не мешают
@@ -1138,8 +1177,10 @@ export class World {
         g.clear();
         g.add(npc);
         Object.assign(g.userData, { billboard: false, swapped: true, mixer: npc.userData.mixer });
-        if (walking) {
+        if (walking) { // гуляют своей дорожкой у стен — там ничего не стоит (банкоматы, урны, посты — ближе к дороге)
             const dir = pick([-1, 1]);
+            g.position.x = Math.sign(g.position.x) * rnd(5.6, 6.0);
+            delete g.userData.foot;
             g.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
             g.rotation.y = dir > 0 ? 0 : Math.PI; // модель смотрит в +Z
         } else {
@@ -1151,7 +1192,7 @@ export class World {
     makeCat(m, cfg) {
         const side = pick([-1, 1]), dir = pick([-1, 1]);
         const cat = this.rig(m, cfg.walk);
-        cat.position.set(side * rnd(4.4, 6.4), 0.18, BEHIND_Z - rnd(0, STREET_LEN));
+        cat.position.set(side * rnd(5.6, 6.1), 0.18, BEHIND_Z - rnd(0, STREET_LEN)); // дорожка у стен, как у гуляющих
         cat.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
         cat.rotation.y = dir > 0 ? 0 : Math.PI;
         this.addScenery(cat);
@@ -1174,7 +1215,9 @@ export class World {
             flock.add(p);
             pigeons.push(p);
         }
-        flock.userData = { pigeons, side, flee: cfg.flee, state: "rest", lastZ: flock.position.z };
+        flock.userData = { pigeons, side, flee: cfg.flee, state: "rest", lastZ: flock.position.z, foot: { hx: 0.8, hz: 1.6 } };
+        this.placeFree(flock);
+        flock.userData.lastZ = flock.position.z;
         this.addScenery(flock);
         this.flocks.push(flock);
     }
@@ -1237,7 +1280,10 @@ export class World {
             this.warmQueue.push(this.makeOfficer(POLICE_OFFICER.run));
             for (const { car, side } of this.officerPosts) { // у постов на обочине — лицом к бегущему, вполоборота к дороге
                 const o = this.makeOfficer(pick(cfg.idle));
-                o.position.set(side * 3.5, 0.18, car.position.z + 1.6);
+                // перед капотом, а не в нём: машина 4,6 м длиной
+                o.position.set(side * 3.6, 0.18, car.position.z + 3.3);
+                o.userData.foot = { hx: 0.4, hz: 0.4 };
+                this.placeFree(o);
                 o.rotation.y = -side * 0.5;
                 this.addScenery(o, car.userData.loop);
                 this.officers.push(o);
@@ -1379,10 +1425,13 @@ export class World {
         for (const lane of blocked) {
             const kind = this.pickKind();
             this.addObstacle(kind, lane, z);
-            if (kind === "cop") { // пост ДПС: инспектор на полосе, патрульная машина у обочины
+            // пост ДПС: инспектор на полосе, патрульная машина у обочины — там, где на тротуаре свободно
+            // (иначе она встаёт внутрь банкомата, урны или прохожей); места нет — инспектор без машины
+            const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
+            const dz = kind === "cop" && [-2, -5, 1, -8, 4].find((d) => this.sidewalkFree(side * 4.4, z + d, 1.2, 2.6));
+            if (dz !== undefined && dz !== false) {
                 const car = this.makePatrol();
-                const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
-                car.position.set(side * 4.4, 0.18, z - 2);
+                car.position.set(side * 4.4, 0.18, z + dz);
                 car.rotation.y = car.userData.billboard ? 0 : -side * 0.35;
                 car.userData.type = "decor";
                 this.scene.add(car);
