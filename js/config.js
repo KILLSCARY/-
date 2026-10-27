@@ -124,12 +124,12 @@ export const MODELS = {
         { url: "models/obj/bank_alfa.glb", axis: "x", size: 9 }],
 };
 
-// Играбельные персонажи (Meshy biped с анимациями). clips — какой клип играть в каждой позе;
+// Играбельные персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, Павел Инаков — человек с бородой. clips — какой клип играть в каждой позе;
 // если позы нет — модель наклоняется (подкат) или играет бег.
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди", url: "models/mouse.glb", height: 1.75,
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb", height: 1.75,
         clips: { run: "run", jump: "jump", dead: "dead" } },
-    { id: "pavel", name: "Павел", url: "models/pavel.glb", height: 1.8,
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8,
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
 ];
 

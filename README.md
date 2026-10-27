@@ -49,7 +49,7 @@ python3 tools/maketex.py картинка.jpg textures/facade5 facade   # или
 
 ### Персонажи и 3D-модели (Meshy)
 
-- **Персонажи** — `models/mouse.glb` (Спиди) и `models/pavel.glb` (Павел), выбираются в меню. Это Meshy biped со скелетом
+- **Персонажи** — `models/mouse.glb` (Спиди Гонзалес, мышь) и `models/pavel.glb` (Павел Инаков, человек с бородой), выбираются в меню. Это Meshy biped со скелетом
   и анимациями: бег, прыжок, перепрыгивание, подкат (у Павла), падение. Клипы и роли — `CHARACTERS` в `js/config.js`.
 - **Объекты** — `models/obj/*.glb`: посты ДПС, два Corvette, банкоматы, тележки, капот, ограждения, бетонные блоки,
   урна и банка, павильоны Сбера и Альфы, монеты Tether (USDT) и Tron (TRX, бонус ×2). Варианты, масштаб и разворот — `MODELS`.
@@ -83,6 +83,7 @@ js/audio.js       синтезированные звуки и бит
 js/tg.js          Telegram WebApp: expand, haptics, CloudStorage, share
 textures/         текстуры фасадов, земли и материалов
 models/           персонажи (mouse.glb, pavel.glb) и объекты (obj/*.glb)
+fonts/            шрифты Unbounded, Oswald, Inter Tight (woff2, кириллица + латиница)
 tools/maketex.py  генерация карт нормалей/шероховатости/свечения из картинки
 ```
 
