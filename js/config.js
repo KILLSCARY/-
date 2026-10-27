@@ -371,7 +371,7 @@ export const HERO_PRICES = { pavel: 50000, islam: 25000, sasha: 75000 };
 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
 export const HERO_PERKS = {
-    mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15 },
+    mouse: { text: "Связка: +4% USDT. Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
     islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
     denchik: { text: "Мозг команды: +10% USDT", coinBonus: 10 },
