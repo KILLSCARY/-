@@ -420,6 +420,16 @@ export class Hub {
             video.currentTime = 0;
             video.ontimeupdate = () => { if (video.currentTime >= c.burst) go(); };
             video.play().catch(() => { video.muted = true; return video.play(); }).catch(() => { co.classList.remove("has-video"); this.caseTimer = setTimeout(go, 1200); });
+            // кадры ролика — на холст: на iPhone видео рисуется поверх страницы и «осветление» (убрать чёрный фон)
+            // на нём не работает, а на холсте работает
+            const ctx = $("co-canvas").getContext("2d");
+            ctx.clearRect(0, 0, 480, 480);
+            const draw = () => {
+                if (!co.classList.contains("s-intro") && !co.classList.contains("s-spin")) return;
+                if (video.readyState >= 2) ctx.drawImage(video, 0, 0, 480, 480);
+                if (!co.classList.contains("s-win")) requestAnimationFrame(draw);
+            };
+            requestAnimationFrame(draw);
             this.caseTimer = setTimeout(go, (c.burst + 1.5) * 1000); // страховка, если timeupdate не придёт
             setTimeout(() => { co.onclick = (e) => { if (!e.target.closest("button")) go(); }; }, 300);
         } else {
