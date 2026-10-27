@@ -378,6 +378,8 @@ class Game {
         this.profile.addWallStats(this.wallStats);
         this.wallStats = {};
         $("wall-q").hidden = true;
+        this.slowK = 1;
+        if (this.slowmo) { this.slowmo = false; document.body.classList.remove("slowmo"); }
         $("wind-q").hidden = true;
         this.world.blowWind(0);
         // пройдена глава — кодовая фраза на экране проигрыша
@@ -421,6 +423,10 @@ class Game {
 
     jump() {
         if (this.state !== "playing" || this.jumping || this.flight) return;
+        if (this.slowmo) { // в замедлении перед стеной свайп вверх — «выбираю ответ на своей полосе»
+            const w = this.walls.find((x) => !x.answered && !x.chosen);
+            if (w) return this.chooseAnswer(w, this.lane);
+        }
         this.jumping = true;
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
@@ -813,6 +819,18 @@ class Game {
             this.speed *= 0.55 + 0.45 * (1 - this.slowLeft / BALANCE.stumbleSlow);
         }
         if (this.fx.turbo > 0) this.speed *= 1.3; // «Турбо» / «Попутный ветер»
+        // перед стеной-возражением — почти остановка, пока игрок не выберет ответ (нажал карточку или свайп вверх);
+        // 8 с не выбирает — бежим дальше
+        const near = this.walls.find((w) => !w.answered && !w.chosen);
+        const nz = near ? near.plates[0].position.z : -1e9;
+        const slow = nz > -22 && nz < -1.5;
+        if (slow) {
+            near.waited = (near.waited || 0) + dt;
+            if (near.waited > 8) this.chooseAnswer(near, this.lane);
+        }
+        this.slowK = (this.slowK ?? 1) + ((slow ? 0.08 : 1) - (this.slowK ?? 1)) * Math.min(1, dt * (slow ? 5 : 3));
+        this.speed *= this.slowK;
+        if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми на ответ — или встань на полосу и свайпни вверх" : "Беги в правильный ответ"; }
         const move = this.speed * dt;
         this.distance += move;
         const prevStep = Math.floor(this.phase / Math.PI);
@@ -1167,6 +1185,16 @@ class Game {
         if (z > 8 && w.state !== "gust") this.wind = null; // сам Ислам уедет и удалится вместе с препятствиями
     }
 
+    // выбор ответа в замедлении: герой встаёт на полосу ответа, скорость возвращается
+    chooseAnswer(w, lane) {
+        if (!w || w.chosen || w.answered) return;
+        w.chosen = true;
+        if (lane !== this.lane) { this.prevLane = this.lane; this.lane = lane; }
+        [...$("wq-ans").children].forEach((el, i) => el.classList.toggle("pick", i === lane));
+        this.audio.play("swipe");
+        tg.haptic("medium");
+    }
+
     // вопрос — в HUD, пока стена впереди; прошёл мимо — стена убирается из памяти игры
     watchWall() {
         const box = $("wall-q");
@@ -1178,8 +1206,11 @@ class Game {
             $("wq-type").textContent = w.boss ? `Экзамен Инакова · ${w.boss}/3` : CLIENT_TYPES[w.type].name;
             $("wall-q").classList.toggle("boss", !!w.boss);
             $("wq-text").textContent = w.q.q;
-            $("wq-ans").innerHTML = "<em></em><em></em><em></em>"; // ответы по полосам: слева, по центру, справа
-            [...$("wq-ans").children].forEach((el, i) => { el.textContent = w.answers[i]; });
+            $("wq-ans").innerHTML = "<button></button><button></button><button></button>"; // ответы по полосам: слева, по центру, справа
+            [...$("wq-ans").children].forEach((el, i) => {
+                el.textContent = w.answers[i];
+                el.onpointerdown = (e) => { e.stopPropagation(); this.chooseAnswer(w, i); };
+            });
             box.style.setProperty("--tc", CLIENT_TYPES[w.type].color);
             box.hidden = false;
         } else if (!show && !box.hidden) box.hidden = true;
