@@ -48,6 +48,7 @@ class Game {
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
+        this.showRat(false); // до загрузки модели героя не показываем никого — крыс из примитивов только запасной
         this.heroes = {}; // загруженные модели персонажей по id
         let saved = null;
         try { saved = localStorage.getItem("p2p_hero"); } catch {}
@@ -408,6 +409,7 @@ class Game {
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
+            this.showRat(true);
             play.disabled = false;
             play.textContent = "ИГРАТЬ";
         };
@@ -420,10 +422,16 @@ class Game {
             (e) => {
                 console.warn("[hero] не загрузилась модель", cfg.url, e);
                 if (this.heroId !== id) return;
-                play.disabled = false; // запасной вариант — крыс из примитивов
+                this.showRat(true); // запасной вариант — крыс из примитивов
+                play.disabled = false;
                 play.textContent = "ИГРАТЬ";
             }
         );
+    }
+
+    showRat(on) {
+        this.rat.visible = on;
+        this.rat.userData.blob.visible = on;
     }
 
     step(dt) {
