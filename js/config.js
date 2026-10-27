@@ -158,3 +158,21 @@ export const SPRITES = {
 export const OBSTACLE_MIX = {
     dumpster: 18, roadblock: 12, barrier: 16, car: 12, atm: 9, block: 11, cop: 9, hood: 9, cart: 8, starbox: 8,
 };
+
+// Музыка и звуки — mp3 в audio/. Музыка играет в меню и в забеге, треки идут по кругу.
+// Громкость 0…1; у звука может быть несколько вариантов — играет случайный.
+// Чего здесь нет (монетка USDT, отсчёт, «погнали»), синтезирует audio.js.
+export const SOUNDS = {
+    music: ["audio/music_chicago.mp3", "audio/music_v2.mp3"],
+    musicVolume: { menu: 0.45, run: 0.6, pause: 0.2 },
+    ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
+    sfx: {
+        swipe: { urls: ["audio/swipe1.mp3", "audio/swipe2.mp3", "audio/swipe3.mp3"], volume: 0.6 }, // полоса, прыжок, подкат
+        hit: { urls: ["audio/crash.mp3", "audio/crash2.mp3"], volume: 0.9 },
+        boost: { urls: ["audio/coin_trx.mp3"], volume: 0.8 }, // монета TRX ×2
+        whistle: { urls: ["audio/police_whistle.mp3"], volume: 0.6 }, // пробегаешь мимо ДПС
+        busted: { urls: ["audio/police.mp3"], volume: 0.6 }, // поймал ДПС
+        record: { urls: ["audio/achievement.mp3"], volume: 0.8 }, // новый рекорд
+        // есть, но пока негде играть: audio/chest.mp3 (сундук), audio/purchase.mp3 (покупка)
+    },
+};

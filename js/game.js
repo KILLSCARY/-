@@ -160,13 +160,13 @@ class Game {
         this.audio.play("go");
         setTimeout(() => { cd.hidden = true; }, 500);
         this.state = "playing";
-        this.audio.startMusic();
+        this.audio.music("run");
     }
 
     pause() {
         if (this.state !== "playing") return;
         this.state = "paused";
-        this.audio.stopMusic();
+        this.audio.music("pause");
         this.show("pause");
     }
 
@@ -174,15 +174,16 @@ class Game {
         if (this.state !== "paused") return;
         this.audio.unlock();
         this.state = "playing";
-        this.audio.startMusic();
+        this.audio.music("run");
         this.show("hud");
     }
 
     gameOver(cause) {
         this.state = "over";
         this.cause = cause;
-        this.audio.stopMusic();
+        this.audio.music("menu");
         this.audio.play("hit");
+        if (cause === "cop") this.audio.play("busted");
         tg.haptic("error");
         document.body.classList.add("shake");
         setTimeout(() => document.body.classList.remove("shake"), 400);
@@ -192,6 +193,7 @@ class Game {
         if (isBest) {
             this.best = score;
             tg.saveBest(score);
+            setTimeout(() => this.audio.play("record"), 700);
         }
         $("over-cause").textContent = pick(DEATH_TEXT[cause]);
         $("over-score").textContent = score;
@@ -213,7 +215,7 @@ class Game {
         const lane = Math.max(0, Math.min(2, this.lane + dir));
         if (lane === this.lane) return;
         this.lane = lane;
-        this.audio.play("lane");
+        this.audio.play("swipe");
         tg.haptic("light");
     }
 
@@ -222,7 +224,7 @@ class Game {
         this.jumping = true;
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower;
-        this.audio.play("jump");
+        this.audio.play("swipe");
         tg.haptic("medium");
     }
 
@@ -231,7 +233,7 @@ class Game {
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime;
         this.world.splash(this.x, 0, 20, 1.2);
-        this.audio.play("slide");
+        this.audio.play("swipe");
         tg.haptic("light");
     }
 
@@ -267,6 +269,13 @@ class Game {
         document.addEventListener("contextmenu", (e) => e.preventDefault());
 
         document.addEventListener("visibilitychange", () => { if (document.hidden) this.pause(); });
+
+        // музыка меню — с первого касания: раньше браузер звук не даст
+        const wake = () => {
+            this.audio.unlock();
+            if (this.audio.mode === "off") this.audio.music(this.state === "playing" ? "run" : this.state === "paused" ? "pause" : "menu");
+        };
+        for (const ev of ["pointerdown", "keydown", "touchstart"]) document.addEventListener(ev, wake, { once: true, capture: true });
     }
 
     // ---- интерфейс -----------------------------------------------------------------------
@@ -276,16 +285,15 @@ class Game {
         $("btn-again").onclick = () => this.start();
         $("btn-pause").onclick = () => this.pause();
         $("btn-resume").onclick = () => this.resume();
-        $("btn-menu").onclick = () => { this.state = "menu"; this.resetRun(); this.renderMenu(); this.show("menu"); };
+        $("btn-menu").onclick = () => { this.state = "menu"; this.audio.music("menu"); this.resetRun(); this.renderMenu(); this.show("menu"); };
         $("btn-share").onclick = () => tg.share(
             `Я поднял ${this.usdt} USDT и набрал ${this.score()} очков в «Покорителе P2P 3.0» 🐀💸 Сможешь больше?`,
             LINKS.bot
         );
         $("btn-course").onclick = () => tg.open(LINKS.course);
         $("btn-sound").onclick = () => {
-            this.audio.enabled = !this.audio.enabled;
+            this.audio.setEnabled(!this.audio.enabled);
             $("btn-sound").textContent = this.audio.enabled ? "🔊" : "🔇";
-            if (!this.audio.enabled) this.audio.stopMusic();
         };
         this.renderMenu();
     }
@@ -440,6 +448,12 @@ class Game {
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         this.world.update(dt, move, this.t);
+        // инспектор свистит, когда пробегаешь мимо поста ДПС
+        for (const o of this.world.obstacles) {
+            if (!o.userData.police || o.userData.whistled || o.position.z < -5) continue;
+            o.userData.whistled = true;
+            this.audio.play("whistle");
+        }
 
         // движение крыса
         const targetX = this.world.lanes[this.lane];
