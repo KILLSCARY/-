@@ -125,6 +125,14 @@ fonts/            шрифты Unbounded, Oswald, Inter Tight (woff2, кирил
 tools/maketex.py  генерация карт нормалей/шероховатости/свечения из картинки
 ```
 
+## Публикация на Vercel
+
+Сборки нет — Vercel отдаёт папку как есть (`vercel.json`, лишнее отсекает `.vercelignore`).
+
+1. vercel.com → **Add New… → Project** → **Import** репозитория `KILLSCARY/-` (при первом разе — дать Vercel доступ к GitHub).
+2. Framework Preset: **Other**, Build Command — пусто, Output Directory — `.` (подтянется из `vercel.json`). **Deploy**.
+3. Получится адрес вида `https://<проект>.vercel.app`. Каждый пуш в `main` публикуется автоматически.
+
 ## Подключение к Telegram
 
 1. Залить папку на любой статический хостинг с HTTPS: GitHub Pages, Vercel, Netlify или Cloudflare Pages.
