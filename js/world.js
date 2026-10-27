@@ -867,7 +867,7 @@ export class World {
         return coin;
     }
 
-    // мягкое цветное свечение (спрайт всегда к камере): ореол баночки и «памп» вокруг героя
+    // мягкое цветное свечение (спрайт всегда к камере): «памп» под героем в полёте
     makeHalo(color, size) {
         this.haloTex ||= canvasTex(128, 128, (g, w, h) => {
             const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
@@ -884,7 +884,7 @@ export class World {
         return s;
     }
 
-    // баночка на дороге: модель из Meshy (пока не загрузилась — простая банка своего цвета) + ореол
+    // баночка на дороге: модель из Meshy (пока не загрузилась — простая банка своего цвета)
     addPickup(kind, lane, z) {
         const cfg = POWERUPS[kind];
         const g = new THREE.Group();
@@ -897,7 +897,7 @@ export class World {
             body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 16),
                 new THREE.MeshStandardMaterial({ color: 0x151515, emissive: cfg.color, emissiveIntensity: 0.35, roughness: 0.4 }));
         }
-        g.add(body, this.makeHalo(cfg.color, 1.7));
+        g.add(body);
         g.position.set(this.lanes[lane], 0.95, z);
         g.userData = { pickup: kind, model: true, baseY: 0.95 };
         this.scene.add(g);
