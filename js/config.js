@@ -266,20 +266,21 @@ export const UPGRADES = {
 };
 
 // Кейсы. Награды: usdt [от, до], trx, boosts (сколько случайных добавок), all (по одной каждой), level (уровень прокачки)
-// color — цвет свечения кейса; art — картинка кейса (img/cases/*.webp, прозрачный фон). Пока art: null —
-// вместо картинки нарисованная заглушка. Иконки наград — CASE_ITEM_ART ниже.
+// color — цвет свечения кейса; art — картинка кейса (img/cases/*.webp, прозрачный фон; null — нарисованная заглушка);
+// video — ролик открытия на чёрном фоне (video/case_*.mp4, накладывается «осветлением»), burst — секунда ролика,
+// когда кейс раскрылся и бьёт свет: в этот момент вспышка и лента наград. Иконки наград — CASE_ITEM_ART ниже.
 export const CASES = [
-    { id: "envelope", name: "Конверт", text: "Бесплатно раз в 4 часа", color: "#e9c25a", art: null, free: 4 * 3600 * 1000, drops: [
+    { id: "envelope", name: "Конверт", text: "Бесплатно раз в 4 часа", color: "#e9c25a", art: "img/cases/envelope.webp", video: "video/case_envelope.mp4", burst: 4.4, free: 4 * 3600 * 1000, drops: [
         { r: "common", w: 70, usdt: [50, 400] },
         { r: "common", w: 30, boosts: 1 }] },
-    { id: "merchant", name: "Кейс Мерчанта", text: "USDT, добавки, TRX", color: "#e3343a", art: null, price: 2500, drops: [
+    { id: "merchant", name: "Кейс Мерчанта", text: "USDT, добавки, TRX", color: "#e3343a", art: "img/cases/merchant.webp", video: "video/case_merchant.mp4", burst: 4.4, price: 2500, drops: [
         { r: "common", w: 35, usdt: [800, 1500] },
         { r: "common", w: 25, boosts: 2 },
         { r: "rare", w: 18, usdt: [3000, 3000] },
         { r: "rare", w: 10, level: 1 },
         { r: "epic", w: 10, trx: 5, all: true },
         { r: "legend", w: 2, usdt: [10000, 10000], trx: 10 }] },
-    { id: "conqueror", name: "Кейс Покорителя", text: "Только редкое и лучше", color: "#b05cff", art: null, priceTrx: 10, drops: [
+    { id: "conqueror", name: "Кейс Покорителя", text: "Только редкое и лучше", color: "#b05cff", art: "img/cases/conqueror.webp", video: "video/case_conqueror.mp4", burst: 4.4, priceTrx: 10, drops: [
         { r: "rare", w: 35, usdt: [4000, 6000] },
         { r: "rare", w: 20, level: 1 },
         { r: "epic", w: 35, trx: 8, all: true },

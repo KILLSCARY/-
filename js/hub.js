@@ -23,7 +23,14 @@ export class Hub {
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
         this.focus = null; // герой в центре карусели «Героев»
-        $("btn-case-ok").onclick = () => { this.game.show("menu"); this.render(); };
+        $("btn-case-ok").onclick = () => {
+            const v = $("co-video");
+            v.pause();
+            v.removeAttribute("src");
+            v.load();
+            this.game.show("menu");
+            this.render();
+        };
         setInterval(() => { if (this.current === "cases") this.renderCases(); }, 30000); // таймер бесплатного конверта
     }
 
@@ -271,6 +278,7 @@ export class Hub {
 
     // Витрина: большая карточка на кейс — картинка на цветном свечении, полоса шансов, что внутри, цена
     renderCases() {
+        this.preloadCaseVideos();
         const box = $("cases-list");
         box.innerHTML = "";
         for (const c of CASES) {
@@ -400,7 +408,30 @@ export class Hub {
             this.game.audio.play(win.r === "legend" || win.r === "epic" ? "record" : "chest");
             tg.haptic(win.r === "common" ? "success" : "heavy");
         };
-        this.caseTimer = setTimeout(spin, reduce ? 50 : 1200);
+        // ролик открытия: кейс разгорается, открывается, бьёт свет — на «burst» вспышка и лента; тап — пропустить.
+        // Нет ролика или не запустился — кейс просто трясётся 1.2 с.
+        const video = $("co-video");
+        let started = false;
+        const go = () => { if (started) return; started = true; co.onclick = null; spin(); };
+        if (c.video && !reduce && video.canPlayType('video/mp4; codecs="avc1.4D401E"')) {
+            co.classList.add("has-video");
+            video.src = c.video;
+            video.muted = !this.game.audio.enabled;
+            video.currentTime = 0;
+            video.ontimeupdate = () => { if (video.currentTime >= c.burst) go(); };
+            video.play().catch(() => { video.muted = true; return video.play(); }).catch(() => { co.classList.remove("has-video"); this.caseTimer = setTimeout(go, 1200); });
+            this.caseTimer = setTimeout(go, (c.burst + 1.5) * 1000); // страховка, если timeupdate не придёт
+            setTimeout(() => { co.onclick = (e) => { if (!e.target.closest("button")) go(); }; }, 300);
+        } else {
+            this.caseTimer = setTimeout(go, reduce ? 50 : 1200);
+        }
+    }
+
+    // ролики кейсов — заранее, когда открыта вкладка «Кейсы» (чтобы открытие стартовало сразу)
+    preloadCaseVideos() {
+        if (this.videosLoaded) return;
+        this.videosLoaded = true;
+        for (const c of CASES) if (c.video) fetch(c.video).catch(() => {});
     }
 
     give(d) {
