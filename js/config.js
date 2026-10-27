@@ -2,7 +2,7 @@
 
 export const LINKS = {
     // ссылка на бота / мини-апп (для кнопки «Поделиться»)
-    bot: "https://t.me/your_bot/app",
+    bot: "https://p2p-game-eta.vercel.app", // заменить на https://t.me/<бот>/<app>, когда будет мини-приложение
     // куда ведёт кнопка курса на экране проигрыша
     course: "https://t.me/your_course_channel",
 };

@@ -139,7 +139,7 @@ tools/maketex.py  генерация карт нормалей/шерохова�
 отключает закрытие свайпом вниз, а во время забега включает подтверждение закрытия. Отступы под «чёлку»
 и кнопки Telegram берутся из `--tg-safe-area-inset-*` / `--tg-content-safe-area-inset-*`. На компьютере — обычное окно.
 
-1. Опубликовать сайт (Vercel, см. выше) и взять адрес `https://<проект>.vercel.app`.
+1. Сайт опубликован: `https://p2p-game-eta.vercel.app`.
 2. В @BotFather: `/newbot` → имя и username бота (если бота ещё нет).
 3. `/mybots` → бот → **Bot Settings → Configure Mini App → Enable Mini App** → вставить адрес с Vercel.
    Там же включить **Launch Mode → Fullscreen** (если пункт есть): тогда игра откроется во весь экран сразу.
