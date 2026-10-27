@@ -173,7 +173,8 @@ class Game {
         this.slowLeft = 0;
         this.prevLane = 1;
         if (this.chaser) this.chaser.visible = false;
-        if (this.aura) this.aura.visible = false;
+        this.flight = null;
+        if (this.rat.userData) this.rat.userData.clipT = null;
         this.phase = 0;
         this.nextRowZ = -40;
         this.cause = null;
@@ -325,7 +326,7 @@ class Game {
     }
 
     jump() {
-        if (this.state !== "playing" || this.jumping || this.fx.fly > 0) return;
+        if (this.state !== "playing" || this.jumping || this.flight) return;
         this.jumping = true;
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // мёд с пасеки — прыжок выше
@@ -334,7 +335,7 @@ class Game {
     }
 
     slide() {
-        if (this.state !== "playing" || this.fx.fly > 0) return;
+        if (this.state !== "playing" || this.flight) return;
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
@@ -425,7 +426,7 @@ class Game {
         if (this.fx.shield) fx.push("ЩИТ");
         if (this.stumble > 0) fx.push(`ДПС ${Math.ceil(this.stumble)}с`);
         document.body.classList.toggle("hurt", this.stumble > 0 && this.state === "playing");
-        if (this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
+        if (this.flight && this.fx.fly > 0) fx.push(`${POWERUPS.testo.hud} ${Math.ceil(this.fx.fly)}с`);
         if (this.fx.magnet > 0) fx.push(`${POWERUPS.choline.hud} ${Math.ceil(this.fx.magnet)}с`);
         if (this.fx.honey > 0) fx.push(`МЁД ${Math.ceil(this.fx.honey)}с`);
         $("hud-fx").hidden = !fx.length;
@@ -446,7 +447,7 @@ class Game {
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
-            : this.fx.fly > 0 ? "fly"
+            : this.flight ? "fly"
             : this.state === "menu" ? "run"
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
@@ -463,11 +464,11 @@ class Game {
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
         // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
-        const lift = this.y * (this.fx.fly > 0 || this.y > 2.6 ? 0.5 : 0.35);
+        const lift = this.y * (this.flight ? 0.6 : 0.35);
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const back = new THREE.Vector3(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
         const front = new THREE.Vector3(0.7, 1.5, portrait ? -3.6 : -3.0);
-        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.camY * 0.85, -8)
+        const target = new THREE.Vector3(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
             .lerp(new THREE.Vector3(0, portrait ? 0.5 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
@@ -593,7 +594,7 @@ class Game {
         // движение крыса
         const targetX = this.world.lanes[this.lane];
         this.x += (targetX - this.x) * Math.min(1, dt * 18 * (this.perk.lane || 1));
-        if (this.fx.fly > 0) this.flyStep(dt);
+        if (this.flight) this.flyStep(dt);
         if (this.jumping) {
             this.vy -= BALANCE.gravity * dt;
             this.y += this.vy * dt;
@@ -605,10 +606,6 @@ class Game {
         }
         if (this.slideLeft > 0) this.slideLeft -= dt;
         this.rat.position.set(this.x, this.y, 0);
-        if (this.aura?.visible) {
-            this.aura.position.set(this.x, this.y + 0.1, 0.15); // зелёный «выхлоп» под ногами
-            this.aura.scale.setScalar(1.3 + Math.sin(this.t * 16) * 0.18);
-        }
         this.rat.rotation.z = (this.x - targetX) * 0.25; // наклон при перестроении
         const blob = this.rat.userData.blob;
         blob.position.x = this.x;
@@ -669,40 +666,61 @@ class Game {
         if (kind === "testo") this.fly(p.time);
     }
 
-    // взлёт: над дорогой — дорожка USDT, полоса иногда меняется, чтобы было что ловить
+    // Тестобустер: присед и толчок (TAKEOFF с), полёт в верхней точке клипа, спуск (LAND_AIR) и приземление
+    // в присед (LAND_GROUND) — кадры клипа из flyClip героя. Над дорогой — дорожка USDT, полоса иногда меняется.
     fly(time) {
-        const first = !(this.fx.fly > 0);
+        const first = !this.flight;
+        if (first) this.flight = { e: 0, dur: time };
+        else this.flight.dur = Math.max(this.flight.dur, this.flight.e + time); // ещё баночка в полёте — дольше
         this.fx.fly = time;
         this.world.noPickups = true;
-        if (!this.aura) {
-            this.aura = this.world.makeHalo(POWERUPS.testo.color, 1.3);
-            this.scene.add(this.aura);
-        }
-        this.aura.visible = true;
         if (!first) return;
         const h = POWERUPS.testo.height + 0.5;
         const len = Math.max(this.speed || 0, BALANCE.speedStart) * time;
         let lane = this.lane;
-        for (let z = -9, i = 0; z > -len + 4; z -= 2.2, i++) {
+        for (let z = -12, i = 0; z > -len + 4; z -= 2.2, i++) {
             if (i && i % 8 === 0) lane = Math.max(0, Math.min(2, lane + (Math.random() < 0.5 ? -1 : 1)));
             this.world.addCoin(lane, z, h);
         }
     }
 
     flyStep(dt) {
-        this.fx.fly -= dt;
+        const TAKEOFF = 0.75, LAND_AIR = 0.6, LAND_GROUND = 0.4;
+        const c = CHARACTERS.find((h) => h.id === this.heroId)?.flyClip || { start: 1.05, launch: 1.33, peak: 1.83, touch: 2.33, end: 2.85 };
+        const f = this.flight, H = POWERUPS.testo.height;
+        const lerp = (a, b, k) => a + (b - a) * Math.min(1, Math.max(0, k));
+        const ease = (k) => k * k * (3 - 2 * k);
+        f.e += dt;
         this.jumping = false;
         this.slideLeft = 0;
-        this.y += (POWERUPS.testo.height - this.y) * Math.min(1, dt * 3);
-        this.world.splash(this.x, 0.3, 1, 0.35, this.y + 0.2); // след из капель под героем
-        if (this.fx.fly > 0) return;
-        // приземление обычным падением и секунда-полторы форы, чтобы не сесть на препятствие
-        this.fx.fly = 0;
-        this.jumping = true;
-        this.vy = 0;
-        this.fx.safe = Math.max(this.fx.safe, 1.6);
-        this.world.noPickups = false;
-        this.aura.visible = false;
+        let clipT;
+        if (f.e < TAKEOFF) { // присед, толчок, набор высоты
+            clipT = lerp(c.start, c.peak, f.e / TAKEOFF);
+            this.y = H * ease(Math.min(1, Math.max(0, (clipT - c.launch) / (c.peak - c.launch))));
+        } else if (f.e < f.dur) { // летит, чуть покачиваясь
+            clipT = c.peak;
+            this.y = H + Math.sin((f.e - TAKEOFF) * 3) * 0.12;
+        } else if (f.e < f.dur + LAND_AIR) { // спуск: всё быстрее к земле
+            const k = (f.e - f.dur) / LAND_AIR;
+            clipT = lerp(c.peak, c.touch, k);
+            this.y = H * (1 - k * k);
+        } else if (f.e < f.dur + LAND_AIR + LAND_GROUND) { // приземлился в присед и встаёт
+            if (this.y > 0) {
+                this.world.splash(this.x, 0, 24, 1.3);
+                tg.haptic("medium");
+                this.fx.safe = Math.max(this.fx.safe, 1.2); // фора, чтобы не сесть на препятствие
+            }
+            this.y = 0;
+            clipT = lerp(c.touch, c.end, (f.e - f.dur - LAND_AIR) / LAND_GROUND);
+        } else { // дальше бежит
+            this.flight = null;
+            this.fx.fly = 0;
+            this.rat.userData.clipT = null;
+            this.world.noPickups = false;
+            return;
+        }
+        this.fx.fly = Math.max(0, f.dur + LAND_AIR - f.e); // в воздухе — препятствия не страшны
+        this.rat.userData.clipT = clipT;
     }
 
     collide(dt) {

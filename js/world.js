@@ -867,23 +867,6 @@ export class World {
         return coin;
     }
 
-    // мягкое цветное свечение (спрайт всегда к камере): «памп» под героем в полёте
-    makeHalo(color, size) {
-        this.haloTex ||= canvasTex(128, 128, (g, w, h) => {
-            const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
-            r.addColorStop(0, "rgba(255,255,255,1)");
-            r.addColorStop(0.35, "rgba(255,255,255,.45)");
-            r.addColorStop(1, "rgba(255,255,255,0)");
-            g.fillStyle = r;
-            g.fillRect(0, 0, w, h);
-        });
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: this.haloTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-        }));
-        s.scale.setScalar(size);
-        return s;
-    }
-
     // баночка на дороге: модель из Meshy (пока не загрузилась — простая банка своего цвета)
     addPickup(kind, lane, z) {
         const cfg = POWERUPS[kind];

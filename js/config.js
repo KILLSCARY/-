@@ -147,10 +147,11 @@ export const MODELS = {
 // ?v=N в url — версия: модели кэшируются на телефоне на неделю, после замены файла номер надо поднять.
 // clips — какой клип играть в каждой позе; если позы нет — модель наклоняется (подкат) или играет бег.
 // fly — полёт на тестобустере, fall — лицом в асфальт, когда поймал ДПС (нет клипа — играет dead).
-// hold: [начало, пик] — клип стартует с «начала» и замирает на «пике» (полёт с раскинутыми руками).
+// flyClip — кадры клипа полёта (сек): start — присед перед толчком, launch — отрыв от земли, peak — верхняя точка
+// (в ней герой летит), touch — касание земли, end — встал из приседа и дальше бежит.
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, hold: { fly: [1.0, 1.62] } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { start: 1.05, launch: 1.33, peak: 1.68, touch: 2.33, end: 2.85 } },
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8, portrait: "img/heroes/pavel.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
     { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, portrait: "img/heroes/denchik.webp", locked: "Не бегает — на связи у Спиди",
