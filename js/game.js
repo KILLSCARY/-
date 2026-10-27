@@ -694,8 +694,8 @@ class Game {
     }
 
     flyStep(dt) {
-        const TAKEOFF = 0.75, LAND_AIR = 0.6, LAND_GROUND = 0.4;
         const c = CHARACTERS.find((h) => h.id === this.heroId)?.flyClip || { start: 1.05, launch: 1.33, peak: 1.83, touch: 2.33, end: 2.85 };
+        const TAKEOFF = 0.75, LAND_AIR = 0.6, LAND_GROUND = c.ground ?? 0.4;
         const f = this.flight, H = POWERUPS.testo.height;
         const lerp = (a, b, k) => a + (b - a) * Math.min(1, Math.max(0, k));
         const ease = (k) => k * k * (3 - 2 * k);

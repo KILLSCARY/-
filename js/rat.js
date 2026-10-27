@@ -308,7 +308,12 @@ export function attachModel(rat, gltf, cfg) {
         if (cfg.durations?.[pose]) timing[pose] = clip.duration / cfg.durations[pose];
     }
     if (!actions.run && gltf.animations[0]) actions.run = mixer.clipAction(gltf.animations[0]);
-    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null };
+    // бёдра в позе покоя — для pin (полёт: высоту задаёт игра, а не клип)
+    let hips = null;
+    model.traverse((o) => { if (!hips && o.isBone && /hips/i.test(o.name)) hips = o; });
+    rig.updateMatrixWorld(true);
+    const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
+    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch };
 }
 
 function animateModel(rat, pose, t, phase, dt, speed) {
@@ -348,6 +353,18 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         actions.fly.time = u.clipT;
     }
     mixer.update(dt * scale);
+    if (want === "fly" && u.pin && u.hips && u.clipT !== null && u.clipT < u.pinUntil) {
+        pinHips(u);
+    }
+}
+
+// гасим высоту, «вшитую» в клип: бёдра остаются на высоте покоя, поднимает героя игра
+function pinHips(u) {
+    u.model.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    const base = u.rig.getWorldPosition(new THREE.Vector3()).y;
+    const h = u.hips.getWorldPosition(v).y - base;
+    u.rig.position.y -= h - u.restHips;
 }
 
 // Модель без скелета (застывшая поза бега из Meshy): бег «покадровый» — на каждом шаге

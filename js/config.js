@@ -149,19 +149,23 @@ export const POLICE_OFFICER = { url: "models/obj/cop.glb", height: 1.85, idle: [
 // clips — какой клип играть в каждой позе; если позы нет — модель наклоняется (подкат) или играет бег.
 // fly — полёт на тестобустере, fall — лицом в асфальт, когда поймал ДПС (нет клипа — играет dead).
 // flyClip — кадры клипа полёта (сек): start — присед перед толчком, launch — отрыв от земли, peak — верхняя точка
-// (в ней герой летит), touch — касание земли, end — встал из приседа и дальше бежит.
+// (в ней герой летит), touch — касание земли, end — встал из приседа и дальше бежит; ground — сколько секунд
+// длится приземление (по умолчанию 0.4); pin — в клипе высота «вшита» в бёдра: в воздухе её гасим, высоту задаёт игра.
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { start: 1.05, launch: 1.33, peak: 1.68, touch: 2.33, end: 2.85 } },
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb", height: 1.8, portrait: "img/heroes/pavel.webp",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=1", height: 1.8, portrait: "img/heroes/islam.webp",
+        // прыжок — сальто через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
+        flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
     { id: "denchik", name: "Денчик", url: "models/denchik.glb", height: 1.78, portrait: "img/heroes/denchik.webp", locked: "Не бегает — на связи у Спиди",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
 export const SOON_HEROES = [
-    { name: "Ислам", portrait: "img/heroes/islam.webp" },
     { name: "Саша Белый", portrait: "img/heroes/sasha.webp" },
     { name: "Юрец", portrait: "img/heroes/yurets.webp" },
 ];
@@ -226,12 +230,13 @@ export const CHAPTERS = [
 ];
 
 // Выкуп героев (кого нет в списке — доступен сразу; locked в CHARACTERS — не продаётся)
-export const HERO_PRICES = { pavel: 50000 };
+export const HERO_PRICES = { pavel: 50000, islam: 25000 };
 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
 export const HERO_PERKS = {
     mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее", lane: 1.15 },
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
+    islam: { text: "Паркур: перекат длиннее, полосу меняет быстрее", slide: 1.3, lane: 1.1 },
 };
 
 // «НЕ СУЩИЙ STORE» — добавки на следующий забег (cur: usdt | trx). Купленные копятся и тратятся по одной на старте.
