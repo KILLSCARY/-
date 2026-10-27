@@ -1,4 +1,4 @@
-// Главная: кошелёк, глава, вкладки «Герои / Забег / Кейсы / Магазин» и открытие кейсов с лентой наград.
+// Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE } from "./config.js";
 
@@ -17,13 +17,14 @@ export class Hub {
         for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => this.tab(b.dataset.tab);
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
-        this.focus = null; // герой в центре карусели
+        this.focus = null; // герой в центре карусели «Героев»
         $("btn-case-ok").onclick = () => { this.game.show("menu"); this.render(); };
         setInterval(() => { if (this.current === "cases") this.renderCases(); }, 30000); // таймер бесплатного конверта
     }
 
     tab(name) {
         this.current = name;
+        document.querySelector(".hub").dataset.tab = name;
         for (const b of document.querySelectorAll(".tabbar button")) b.classList.toggle("on", b.dataset.tab === name);
         for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== `view-${name}`;
         this.game.audio.play("swipe");
@@ -40,19 +41,26 @@ export class Hub {
         $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
         const free = this.freeReady();
         $("cases-badge").hidden = !free;
+        // плитки главной
         $("tile-cases-badge").hidden = !free;
         $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
         const next = Object.values(p.data.next || {}).reduce((a, b) => a + b, 0);
         $("tile-shop-sub").textContent = next ? `Добавок в запасе: ${next}` : "Магнит, мёд, щит";
-        const team = CHARACTERS.filter((c) => !c.locked && p.owns(c.id)).length;
-        $("tile-heroes-sub").textContent = `${team} из ${CHARACTERS.length + SOON_HEROES.length} в команде`;
-        if (this.current === "run") this.renderCarousel();
-        if (this.current === "heroes") this.renderHeroes();
+        const hero = CHARACTERS.find((c) => c.id === this.game.heroId);
+        $("tile-heroes-sub").textContent = hero?.name ?? "";
+        $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
+        $("tile-chap-name").textContent = ch.done ? "Сезон 1" : `Глава ${ch.index + 1}`;
+        $("tile-chap-sub").textContent = ch.done ? "пройден" : `${ch.name} · ${Math.floor(Math.min(1, ch.earned / ch.goal) * 100)}%`;
+        $("tile-chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
+        $("tile-earned").textContent = `${fmt(p.data.earned || 0)} USDT`;
+        document.querySelector(".hub").dataset.tab = this.current;
+        this.updatePlay();
+        if (this.current === "heroes") this.renderCarousel();
         if (this.current === "cases") this.renderCases();
         if (this.current === "shop") this.renderShop();
     }
 
-    // ---- карусель героев на главной ----
+    // ---- герои: карусель ----
     heroList() {
         return [...CHARACTERS.map((c) => ({ ...c, soon: false })), ...SOON_HEROES.map((c, i) => ({ ...c, id: `soon${i}`, soon: true }))];
     }
@@ -81,13 +89,15 @@ export class Hub {
             for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.scrollTo(el.dataset.id, true);
             box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
             requestAnimationFrame(() => this.scrollTo(this.focus ?? this.game.heroId, false));
+        } else if (!this.focus) {
+            requestAnimationFrame(() => this.scrollTo(this.game.heroId, false));
         } else {
             for (const el of box.querySelectorAll(".hcard")) {
                 const c = list.find((x) => x.id === el.dataset.id);
                 if (this.heroState(c) === "play") el.querySelector(".tag").textContent = c.id === this.game.heroId ? "В забеге" : "В команде";
             }
         }
-        this.updatePlay();
+        this.renderDetail();
     }
 
     scrollTo(id, smooth) {
@@ -120,46 +130,52 @@ export class Hub {
         if (!id || id === this.focus) return;
         this.focus = id;
         this.game.audio.play("swipe");
-        const c = this.heroList().find((x) => x.id === id);
-        if (this.heroState(c) === "play" && id !== this.game.heroId) {
-            this.game.selectHero(id);
-            this.renderCarousel();
-        }
-        this.updatePlay();
+        this.renderDetail();
     }
 
-    // плитка 01: «Забег», «Выкупить», «Скоро» — по герою в центре карусели
-    updatePlay() {
-        const btn = $("btn-play"), label = $("play-label");
-        if (!btn) return;
+    // под каруселью: имя, умение и действие — «Выбрать», «Выкупить», «Скоро»
+    renderDetail() {
+        const box = $("hero-detail");
         const c = this.heroList().find((x) => x.id === (this.focus ?? this.game.heroId));
-        const st = c ? this.heroState(c) : "play";
-        btn.classList.remove("is-buy", "is-off");
+        if (!box || !c) return;
+        const st = this.heroState(c);
+        const on = st === "play" && c.id === this.game.heroId;
+        const price = HERO_PRICES[c.id];
+        const share = st === "buy" ? Math.min(1, this.p.usdt / price) : 0;
+        const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя` : HERO_PERKS[c.id]?.text ?? "";
+        box.innerHTML = `<p class="label">${on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Выкуп" : st === "locked" ? "На связи" : "Скоро"}</p>
+            <h3>${c.name}</h3><p class="perk">${text}</p>
+            ${st === "buy" ? `<div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div><div class="bar"><i style="width:${share * 100}%"></i></div>` : ""}`;
+        const b = document.createElement("button");
+        b.className = "btn btn-main";
         if (st === "play") {
-            btn.disabled = !!this.game.heroLoading;
-            label.textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
+            b.textContent = on ? "Выбран" : "Выбрать";
+            b.disabled = on;
+            b.onclick = () => { this.game.selectHero(c.id); this.render(); };
         } else if (st === "buy") {
-            const price = HERO_PRICES[c.id];
-            btn.disabled = this.p.usdt < price;
-            btn.classList.add("is-buy");
-            label.textContent = this.p.usdt >= price ? `Выкупить · ${fmt(price)}` : `Нужно ${fmt(price)} USDT`;
+            b.textContent = share >= 1 ? `Выкупить · ${fmt(price)} USDT` : `Ещё ${fmt(price - this.p.usdt)} USDT`;
+            b.disabled = share < 1;
+            b.onclick = () => {
+                if (!this.p.buyHero(c.id)) return;
+                this.game.audio.play("buy");
+                this.toast(`${c.name} в команде!`);
+                this.game.selectHero(c.id);
+                this.render();
+            };
         } else {
-            btn.disabled = true;
-            btn.classList.add("is-off");
-            label.textContent = st === "soon" ? "Скоро" : "Не бегает";
+            b.textContent = st === "soon" ? "Скоро" : "Не бегает";
+            b.disabled = true;
         }
+        box.append(b);
     }
 
-    // нажатие на плитку 01: true — если это выкуп героя (забег не начинаем)
-    playAction() {
-        const c = this.heroList().find((x) => x.id === (this.focus ?? this.game.heroId));
-        if (!c || this.heroState(c) !== "buy") return false;
-        if (!this.p.buyHero(c.id)) return true;
-        this.game.audio.play("buy");
-        this.toast(`${c.name} в команде!`);
-        this.game.selectHero(c.id);
-        this.render();
-        return true;
+    // плитка 01 «Забег»: пока модель героя грузится — ждём
+    updatePlay() {
+        const btn = $("btn-play");
+        if (!btn) return;
+        btn.disabled = !!this.game.heroLoading;
+        $("play-label").textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
+        $("play-hero").textContent = CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "";
     }
 
     toast(text) {
@@ -169,57 +185,6 @@ export class Hub {
         t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
         clearTimeout(this.toastTimer);
         this.toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
-    }
-
-    // ---- герои ----
-    renderHeroes() {
-        const box = $("heroes-list");
-        box.innerHTML = "";
-        const art = (c) => c.portrait ? `<div class="card-art" style="background-image:url('${c.portrait}')"></div>` : "";
-        for (const c of CHARACTERS) {
-            const card = document.createElement("div");
-            card.className = "card card-hero" + (c.portrait ? " has-art" : "");
-            const perk = HERO_PERKS[c.id]?.text ?? "";
-            if (c.locked) {
-                card.classList.add("card-off");
-                card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Не играбелен</span><h3>${c.name}</h3><p>${c.locked}. Сыграть за него нельзя</p></div>`;
-            } else if (this.p.owns(c.id)) {
-                const on = c.id === this.game.heroId;
-                card.innerHTML = `${art(c)}<div class="card-main">${on ? '<span class="card-tag on">В забеге</span>' : ""}<h3>${c.name}</h3><p>${perk}</p></div>`;
-                const b = document.createElement("button");
-                b.className = "btn-small" + (on ? " is-on" : "");
-                b.textContent = on ? "Выбран" : "Выбрать";
-                b.disabled = on;
-                b.onclick = () => { this.game.selectHero(c.id); this.render(); };
-                card.append(b);
-            } else {
-                const price = HERO_PRICES[c.id];
-                const share = Math.min(1, this.p.usdt / price);
-                card.classList.add("card-lock");
-                card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Выкуп</span><h3>${c.name}</h3><p>${perk}</p>
-                    <div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div>
-                    <div class="bar gold"><i style="width:${share * 100}%"></i></div></div>`;
-                const b = document.createElement("button");
-                b.className = "btn-small btn-gold";
-                b.innerHTML = share >= 1 ? `Выкупить ${ICON.usdt} ${fmt(price)}` : `Ещё ${fmt(price - this.p.usdt)}`;
-                b.disabled = share < 1;
-                b.onclick = () => {
-                    if (!this.p.buyHero(c.id)) return;
-                    this.game.audio.play("buy");
-                    this.toast(`${c.name} в команде!`);
-                    this.game.selectHero(c.id);
-                    this.render();
-                };
-                card.append(b);
-            }
-            box.append(card);
-        }
-        for (const c of SOON_HEROES) {
-            const card = document.createElement("div");
-            card.className = "card card-hero has-art card-soon";
-            card.innerHTML = `${art(c)}<div class="card-main"><span class="card-tag">Скоро</span><h3>${c.name}</h3><p>Появится в следующих главах</p></div>`;
-            box.append(card);
-        }
     }
 
     // ---- магазин ----

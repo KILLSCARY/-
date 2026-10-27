@@ -360,7 +360,7 @@ class Game {
     // ---- интерфейс -----------------------------------------------------------------------
 
     setupUI() {
-        $("btn-play").onclick = () => { if (!this.hub.playAction()) this.start(); };
+        $("btn-play").onclick = () => this.start();
         $("btn-again").onclick = () => this.start();
         $("btn-pause").onclick = () => this.pause();
         $("btn-resume").onclick = () => this.resume();
