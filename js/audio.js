@@ -54,9 +54,23 @@ export class Audio {
         }
 
         // свернули Telegram — тишина, вернулись — играем дальше
+        // Пока свёрнуто, звуки не запускаются (иначе копятся и при возврате играют все разом), а при возврате
+        // громкость плавно нарастает, а не бьёт по ушам
         document.addEventListener("visibilitychange", () => {
-            if (document.hidden) this.ctx.suspend()?.catch(() => {});
-            else this.ctx.resume()?.catch(() => {});
+            const g = this.master.gain, now = this.ctx.currentTime;
+            if (document.hidden) {
+                g.cancelScheduledValues(now);
+                g.setValueAtTime(0, now);
+                this.ctx.suspend()?.catch(() => {});
+            } else {
+                this.quietUntil = performance.now() + 400;
+                this.ctx.resume()?.then(() => {
+                    const t = this.ctx.currentTime;
+                    g.cancelScheduledValues(t);
+                    g.setValueAtTime(0, t);
+                    g.linearRampToValueAtTime(this.enabled ? 1 : 0, t + 0.8);
+                }).catch(() => {});
+            }
             this.syncTrack();
         });
     }
@@ -133,6 +147,11 @@ export class Audio {
     }
 
     // звук из файла; false — если файла нет или он ещё грузится
+    // можно ли сейчас звучать: приложение не свёрнуто и после возврата прошло немного времени
+    live() {
+        return this.ctx && !document.hidden && performance.now() > (this.quietUntil || 0);
+    }
+
     sample(name) {
         const s = SOUNDS.sfx[name];
         if (!s) return false;
@@ -150,7 +169,7 @@ export class Audio {
     }
 
     tone(freq, { at = 0, dur = 0.15, vol = 0.2, type = "sine", to = 0 } = {}) {
-        if (!this.ctx || !this.enabled || !this.sfxOn) return;
+        if (!this.ctx || !this.enabled || !this.sfxOn || !this.live()) return;
         try {
             const t = this.ctx.currentTime + at;
             const osc = this.ctx.createOscillator();
@@ -167,7 +186,7 @@ export class Audio {
     }
 
     play(name) {
-        if (!this.ctx || !this.enabled || !this.sfxOn || this.sample(name)) return;
+        if (!this.ctx || !this.enabled || !this.sfxOn || !this.live() || this.sample(name)) return;
         switch (name) {
             case "coin": this.tone(1320, { dur: 0.08, vol: 0.12, type: "square" }); this.tone(1760, { at: 0.06, dur: 0.12, vol: 0.12, type: "square" }); break;
             case "boost": [660, 880, 1100, 1320].forEach((f, i) => this.tone(f, { at: i * 0.06, dur: 0.15, vol: 0.12, type: "square" })); break;

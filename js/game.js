@@ -246,6 +246,7 @@ class Game {
         this.resetRun();
         this.show("hud");
         this.state = "countdown";
+        this.audio.music("run"); // трек забега — сразу со старта, а не после отсчёта
         const cd = $("countdown");
         const live = () => this.runId === run && this.state === "countdown";
         cd.hidden = false;
@@ -653,7 +654,7 @@ class Game {
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
         // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
-        const lift = this.y * (this.flight ? 0.6 : 0.35);
+        const lift = this.y * (this.flight ? 0.6 : 0.15); // в прыжке камера почти не поднимается — не «улетает» вместе с героем
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
         const back = v.back.set(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);

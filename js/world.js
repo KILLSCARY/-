@@ -1285,7 +1285,7 @@ export class World {
         const pigeons = [];
         for (let k = 0; k < n; k++) {
             const p = this.makePigeon(m);
-            p.position.set(rnd(-0.5, 0.5), 0, rnd(-1.3, 1.3));
+            p.position.set(rnd(-0.5, 0.5), 0.07, rnd(-1.3, 1.3)); // чуть выше тротуара: в анимации клевания тело опускается ниже позы покоя
             p.rotation.y = rnd(0, Math.PI * 2);
             p.userData.home = p.position.clone();
             p.userData.homeY = p.rotation.y;
