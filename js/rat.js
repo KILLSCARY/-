@@ -197,9 +197,12 @@ export function createRat() {
     return rat;
 }
 
-// pose: "run" | "jump" | "slide" | "idle" | "dead"; t — время, phase — фаза бега
+const ALIAS = { fly: "jump", fall: "dead" };
+
+// pose: "run" | "jump" | "slide" | "idle" | "dead" | "fly" | "fall"; t — время, phase — фаза бега
 export function animateRat(rat, pose, t, phase, dt = 0, speed = 1) {
     if (rat.userData.model) return animateModel(rat, pose, t, phase, dt, speed);
+    pose = ALIAS[pose] || pose; // у крыса из примитивов нет полёта и падения ничком
     const { rig, body, legs, arms, head, tailPivot } = rat.userData;
     const s = Math.sin(phase);
 
@@ -305,7 +308,7 @@ export function attachModel(rat, gltf, cfg) {
         if (cfg.durations?.[pose]) timing[pose] = clip.duration / cfg.durations[pose];
     }
     if (!actions.run && gltf.animations[0]) actions.run = mixer.clipAction(gltf.animations[0]);
-    rat.userData = { rig, blob, model, mixer, actions, timing, current: null };
+    rat.userData = { rig, blob, model, mixer, actions, timing, hold: cfg.hold || {}, current: null };
 }
 
 function animateModel(rat, pose, t, phase, dt, speed) {
@@ -314,10 +317,10 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     rig.rotation.set(0, 0, 0);
     rig.position.set(0, 0, 0);
     rig.scale.set(1, 1, 1);
-    if (!Object.keys(actions).length) return animateStatic(rig, pose, t, phase);
+    if (!Object.keys(actions).length) return animateStatic(rig, ALIAS[pose] || pose, t, phase);
 
     // нет своего клипа для позы — играем бег и доворачиваем модель целиком
-    const want = actions[pose] ? pose : pose === "idle" ? "run" : "run";
+    const want = actions[pose] ? pose : pose === "fall" && actions.dead ? "dead" : "run";
     if (want !== u.current) {
         const next = actions[want];
         const once = want !== "run" && want !== "idle";
@@ -325,6 +328,7 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
         next.clampWhenFinished = once;
         next.timeScale = u.timing[want] ?? 1;
+        if (u.hold[want]) next.time = u.hold[want][0];
         next.fadeIn(0.12).play();
         if (u.current) actions[u.current].fadeOut(0.12);
         u.current = want;
@@ -334,12 +338,15 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         rig.position.set(0, -0.2, -0.4);
     } else if (pose === "jump" && !actions.jump) {
         rig.rotation.x = -0.2;
-    } else if (pose === "dead" && !actions.dead) {
+    } else if ((pose === "dead" || pose === "fall") && !actions.dead) {
         rig.rotation.x = 0.5;
         rig.position.y = -0.3;
     }
     const scale = want === "run" ? (pose === "idle" ? 0.25 : Math.max(0.8, speed / 14)) : 1;
     mixer.update(dt * scale);
+    // замереть в верхней точке клипа (полёт), чуть «покачиваясь»
+    const hold = u.hold[want];
+    if (hold && actions[want].time > hold[1]) actions[want].time = hold[1] - 0.06 + Math.sin(t * 5) * 0.06;
 }
 
 // Модель без скелета (застывшая поза бега из Meshy): бег «покадровый» — на каждом шаге

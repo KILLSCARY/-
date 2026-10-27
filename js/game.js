@@ -445,7 +445,8 @@ class Game {
         if (this.state === "playing") this.step(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
 
-        const pose = this.state === "over" ? "dead"
+        const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
+            : this.fx.fly > 0 ? "fly"
             : this.state === "menu" ? "run"
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
