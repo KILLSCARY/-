@@ -1,13 +1,13 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_GEM_PRICES, GEMS, DAILY } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
 // в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
 const short = (n) => n < 1e5 ? fmt(n) : n < 1e6 ? `${Math.floor(n / 1000)} тыс` : `${(Math.floor(n / 1e5) / 10).toLocaleString("ru-RU")} млн`;
-const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', trx: '<svg class="ico-usdt"><use href="#ico-trx"/></svg>' };
+const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', trx: '<svg class="ico-usdt"><use href="#ico-trx"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -66,6 +66,7 @@ export class Hub {
         const p = this.p;
         $("w-usdt").textContent = short(p.usdt);
         $("w-trx").textContent = short(p.trx);
+        $("w-gems").textContent = short(p.gems);
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
@@ -90,6 +91,37 @@ export class Hub {
         if (this.current === "cases") this.renderCases();
         if (this.current === "shop") this.renderShop();
         if (this.current === "chapters") this.renderChapters();
+    }
+
+    // ---- ежедневный вход ----
+    showDaily() {
+        const st = this.p.dailyState();
+        if (st.claimed || this.game.state !== "menu") return;
+        $("daily-day").textContent = st.day;
+        $("daily-grid").innerHTML = DAILY.map((r, i) => {
+            const label = r.usdt ? `${ICON.usdt}<b>${r.usdt}</b>` : r.gems ? `${ICON.gem}<b>${r.gems}</b>` : `<span class="dg-hero">★</span><b>Герой</b>`;
+            const cls = i + 1 < st.day ? "done" : i + 1 === st.day ? "now" : "";
+            return `<div class="dg ${cls}"><span>День ${i + 1}</span>${label}</div>`;
+        }).join("");
+        $("daily").hidden = false;
+        $("btn-daily").onclick = () => {
+            const day = this.p.claimDaily();
+            $("daily").hidden = true;
+            if (!day) return;
+            const r = DAILY[day - 1];
+            if (r.usdt) { this.p.gift(r.usdt); this.toast(`+${r.usdt} USDT`); }
+            if (r.gems) { this.p.addGems(r.gems); this.toast(`+${r.gems} кристаллов`); }
+            if (r.trial) { // герой на пробу — из тех, кого ещё нет
+                const id = pick(Object.keys(HERO_PRICES).filter((h) => !this.p.data.heroes.includes(h)));
+                if (id) {
+                    this.p.data.trial = { id, until: Date.now() + r.trial * 36e5 };
+                    this.p.save();
+                    this.toast(`${CHARACTERS.find((c) => c.id === id)?.name} на пробу на ${r.trial} ч!`);
+                } else { this.p.addGems(15); this.toast("+15 кристаллов"); }
+            }
+            this.game.audio.play("chest");
+            this.render();
+        };
     }
 
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)
@@ -209,7 +241,8 @@ export class Hub {
         const skill = HERO_SKILLS[c.id];
         const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
             : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
-        box.innerHTML = `<p class="label">${on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Выкуп" : st === "locked" ? "На связи" : "Скоро"}</p>
+        const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
+        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Выкуп" : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
             ${st === "buy" ? `<div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div><div class="bar"><i style="width:${share * 100}%"></i></div>` : ""}`;
         const b = document.createElement("button");
@@ -233,6 +266,21 @@ export class Hub {
             b.disabled = true;
         }
         box.append(b);
+        const gp = HERO_GEM_PRICES[c.id];
+        if (gp && (st === "buy" || trial)) { // выкуп за кристаллы
+            const g = document.createElement("button");
+            g.className = "btn";
+            g.innerHTML = `Выкупить за ${ICON.gem} ${gp}`;
+            g.disabled = this.p.gems < gp;
+            g.onclick = () => {
+                if (!this.p.buyHero(c.id, true)) return;
+                this.game.audio.play("buy");
+                this.toast(`${c.name} в команде!`);
+                this.game.selectHero(c.id);
+                this.render();
+            };
+            box.append(g);
+        }
     }
 
     // плитка 01 «Забег»: пока модель героя грузится — ждём
@@ -274,6 +322,23 @@ export class Hub {
             appeal.className = "card card-note";
             appeal.innerHTML = `<div class="card-main"><h3>Апелляция</h3><p>Второй шанс после проигрыша — кнопка на экране проигрыша, ${APPEAL_PRICE} TRX. TRX дают монеты TRX на дороге и кейсы.</p></div>`;
             box.append(appeal);
+        } else if (this.seg === "gems") {
+            const note = document.createElement("div");
+            note.className = "card card-note";
+            note.innerHTML = `<div class="card-main"><h3>Кристаллы</h3><p>Твёрдая валюта: выкуп героев и редкое. Ещё дают за главу (${GEMS.chapter}), экзамен Инакова без ошибок и ежедневный вход.</p></div>`;
+            box.append(note);
+            for (const pk of GEMS.packs) {
+                if (pk.once && (this.p.data.packs || []).includes(pk.id)) continue;
+                const card = document.createElement("div");
+                card.className = `card gem-pack${pk.once ? " gem-starter" : ""}`;
+                card.innerHTML = `<div class="gem-ico">${ICON.gem}<b>${pk.gems}</b></div><div class="card-main">${pk.once ? '<span class="card-tag on">Один раз · выгодно</span>' : ""}<h3>${pk.name}</h3><p>${pk.gems} кристаллов</p></div>`;
+                card.append(this.priceButton({ usdt: pk.usdt }, () => {
+                    this.p.addGems(pk.gems);
+                    if (pk.once) { (this.p.data.packs ||= []).push(pk.id); this.p.save(); }
+                    this.toast(`+${pk.gems} кристаллов`);
+                }));
+                box.append(card);
+            }
         } else {
             for (const [id, u] of Object.entries(UPGRADES)) {
                 const lvl = this.p.level(id);
@@ -324,6 +389,17 @@ export class Hub {
         this.preloadCaseVideos();
         const box = $("cases-list");
         box.innerHTML = "";
+        if (this.p.data.chests > 0) { // сундук за сданный экзамен Инакова — Кейс Мерчанта бесплатно
+            const ch = document.createElement("div");
+            ch.className = "card card-note chest-note";
+            ch.innerHTML = `<div class="card-main"><span class="card-tag on">Экзамен Инакова сдан</span><h3>Сундук ×${this.p.data.chests}</h3><p>Открой Кейс Мерчанта бесплатно</p></div>`;
+            const b = document.createElement("button");
+            b.className = "btn-small btn-gold";
+            b.textContent = "Открыть";
+            b.onclick = () => { this.p.data.chests--; this.p.save(); this.open(CASES.find((c) => c.id === "merchant")); };
+            ch.append(b);
+            box.append(ch);
+        }
         for (const c of CASES) {
             const card = document.createElement("div");
             card.className = `case-card case-${c.id}`;

@@ -16,6 +16,10 @@
             <circle cx="16" cy="16" r="16" fill="#26A17B"/>
             <path fill="#fff" d="M17.9 17.9c-.1 0-.7.1-2 .1-1.1 0-1.8 0-2.1-.1-3.9-.2-6.8-.9-6.8-1.7s2.9-1.5 6.8-1.7v2.7c.3 0 1 .1 2.1.1 1.3 0 1.9-.1 2-.1v-2.7c3.9.2 6.8.9 6.8 1.7s-2.9 1.5-6.8 1.7zm0-3.6v-2.4h5.4V8.3H8.6v3.6H14v2.4c-4.4.2-7.7 1.1-7.7 2.1s3.3 1.9 7.7 2.1v7.7h3.9v-7.7c4.4-.2 7.7-1.1 7.7-2.1s-3.3-1.9-7.7-2.1z"/>
         </symbol>
+        <symbol id="ico-gem" viewBox="0 0 32 32">
+            <circle cx="16" cy="16" r="16" fill="#3dd1ff"/>
+            <path fill="#fff" d="M10 9h12l4 5-10 11L6 14z" opacity=".95"/><path fill="#3dd1ff" d="M10 9l3 5h6l3-5M6 14h20M13 14l3 11 3-11" stroke="#1593b8" stroke-width="1" fill-opacity=".35"/>
+        </symbol>
         <symbol id="ico-trx" viewBox="0 0 32 32">
             <circle cx="16" cy="16" r="16" fill="#EB0029"/>
             <path fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round" d="M8 9l16 3.2L15 24.5zM8 9l7 15.5M8 9l10.6 6.6L24 12.2M18.6 15.6L15 24.5"/>
@@ -28,6 +32,7 @@
             <div class="hub-top">
                 <span class="cur"><svg class="ico-usdt" aria-label="USDT"><use href="#ico-usdt"/></svg><b id="w-usdt">0</b></span>
                 <span class="cur"><svg class="ico-usdt" aria-label="TRX"><use href="#ico-trx"/></svg><b id="w-trx">0</b></span>
+                <span class="cur"><svg class="ico-usdt" aria-label="Кристаллы"><use href="#ico-gem"/></svg><b id="w-gems">0</b></span>
                 <span class="hub-best">Рекорд <b id="menu-best">0</b></span>
             </div>
             <div class="chap">
@@ -67,7 +72,7 @@
                 <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Добавки и прокачка</p></div>
                 <h2 class="sheet-title">NS Store</h2>
                 <p class="sheet-sub">Магазин добавок Паши. Купленное срабатывает в следующем забеге.</p>
-                <div class="seg"><button data-seg="boosts" class="on">Добавки</button><button data-seg="up">Прокачка</button></div>
+                <div class="seg seg3"><button data-seg="boosts" class="on">Добавки</button><button data-seg="up">Прокачка</button><button data-seg="gems">Кристаллы</button></div>
                 <div id="shop-list" class="cards"></div>
             </div>
             <!-- Главы сюжета: пройденные, текущая с прогрессом, закрытые -->
@@ -103,6 +108,17 @@
             <button id="btn-case-ok" class="btn btn-main" disabled>Забрать</button>
         </div>
     </section>
+
+    <!-- ежедневная награда: 7 дней подряд, на 7-й — герой на пробу -->
+    <div id="daily" class="modal" hidden>
+        <div class="modal-card">
+            <p class="label">Ежедневный вход</p>
+            <h2 class="sheet-title">День <span id="daily-day">1</span> из 7</h2>
+            <p class="sheet-sub">Заходи каждый день — награда растёт. На 7-й день — герой на пробу на сутки.</p>
+            <div class="daily-grid" id="daily-grid"></div>
+            <button id="btn-daily" class="btn btn-main btn-shine">Забрать</button>
+        </div>
+    </div>
 
     <div id="toast" hidden></div>
 

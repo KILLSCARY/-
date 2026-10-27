@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, HERO_SKILLS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, HERO_SKILLS, BOSS, GEMS, POLICE_OFFICER, CHASER, SKY } from "./config.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -102,6 +102,7 @@ class Game {
         this.profile.ready.then(() => {
             if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
             this.hub.render();
+            setTimeout(() => this.hub.showDaily(), 1200); // ежедневная награда — когда облако прочитано
         });
 
         this.setupInput();
@@ -208,7 +209,9 @@ class Game {
         this.nextRowZ = -40;
         // стены-возражения: где следующая, серия правильных, ошибки по типам клиентов за забег
         this.nextWallAt = WALLS.firstAt;
-        this.wall = null;
+        this.boss = null; // экзамен Инакова: { left: сколько стен осталось, ok, fail }
+        this.bossDone = false;
+        this.walls = []; // стены впереди (на экзамене их бывает несколько сразу)
         this.wallStreak = 0;
         this.wallStats = {};
         this.world.noCars = false;
@@ -377,8 +380,9 @@ class Game {
         phraseBox.hidden = chapter === null;
         if (chapter !== null) {
             const done = CHAPTERS[chapter - 1];
+            this.profile.addGems(GEMS.chapter);
             phraseBox.innerHTML = `<span class="label">Глава ${chapter} «${done.name}» пройдена</span>
-                <p>Кодовая фраза</p><b>${done.phrase}</b>
+                <p>Кодовая фраза</p><b>${done.phrase}</b><p>+${GEMS.chapter} кристаллов</p>
                 <button class="btn-small" id="btn-phrase">Назвать менеджеру →</button>`;
             $("btn-phrase").onclick = () => tg.open(this.hub.managerLink());
             setTimeout(() => {
@@ -1005,15 +1009,40 @@ class Game {
     spawnWall() {
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = WALLS.every;
-        this.nextWallAt += a + Math.random() * (b - a);
+        // экзамен Инакова: на BOSS.at метрах три сложные стены подряд, между ними BOSS.gap
+        if (!this.bossDone && !this.boss && this.nextWallAt >= BOSS.at) this.boss = { left: 3, ok: 0, fail: 0, n: 0 };
+        if (this.boss && this.boss.n < 3) {
+            this.boss.n++;
+            this.nextWallAt += this.boss.n < 3 ? BOSS.gap : a + Math.random() * (b - a);
+        } else this.nextWallAt += a + Math.random() * (b - a);
         const chWall = CHAPTERS[Math.min(this.profile.chapter().index, CHAPTERS.length - 1)].wall;
-        const pool = QUESTIONS.filter((q) => q !== this.lastQ);
-        const q = chWall && Math.random() < WALLS.chapterWall ? QUESTIONS.find((x) => x.id === chWall) : pick(pool);
+        const pool = QUESTIONS.filter((q) => q !== this.lastQ && (!this.boss || q.type !== "common")); // на экзамене — по типам клиентов
+        const q = !this.boss && chWall && Math.random() < WALLS.chapterWall ? QUESTIONS.find((x) => x.id === chWall) : pick(pool);
         this.lastQ = q;
         const order = [0, 1, 2].sort(() => Math.random() - 0.5); // таблички перемешиваются: order[полоса] = номер ответа
-        this.wall = this.world.addWall(q, order.map((i) => q.a[i]), order.indexOf(0), z);
+        const wall = this.world.addWall(q, order.map((i) => q.a[i]), order.indexOf(0), z);
+        wall.boss = this.boss?.n || 0;
+        this.walls.push(wall);
         this.world.noCars = true;
         this.nextRowZ = Math.min(this.nextRowZ, z - 16); // следующий ряд — не раньше чем через 16 м после стены
+    }
+
+    // итог экзамена: сдал (BOSS.pass верных) — USDT в главу и сундук, без ошибок — ещё кристаллы
+    finishBoss() {
+        const b = this.boss;
+        this.boss = null;
+        this.bossDone = true;
+        if (!b) return;
+        if (b.ok >= BOSS.pass) {
+            this.usdt += BOSS.reward;
+            this.profile.data.chests = (this.profile.data.chests || 0) + 1;
+            const flawless = b.ok === 3;
+            if (flawless) this.profile.data.gems = this.profile.gems + BOSS.gems;
+            this.profile.save();
+            this.hub.toast(flawless ? `Экзамен сдан без ошибок! +${BOSS.reward} USDT, сундук и ${BOSS.gems} кристаллов` : `Экзамен сдан! +${BOSS.reward} USDT и сундук`);
+            this.audio.play("record");
+            tg.haptic("success");
+        } else this.hub.toast("Экзамен не сдан — Инаков ждёт в следующем забеге");
     }
 
     // ---- умение героя ---------------------------------------------------------------------
@@ -1060,10 +1089,10 @@ class Game {
     spawnWind() {
         const z = -(this.nextWindAt - this.distance);
         const [a, b] = WIND.every;
-        const wallZ = this.wall?.plates[0].position.z;
+        const nearWall = this.walls.some((w) => Math.abs(w.plates[0].position.z - z) < 45);
         const npc = this.world.makeIslam();
         // рядом стена-возражение или модель ещё не загрузилась — позже
-        if (!npc || (wallZ !== undefined && Math.abs(wallZ - z) < 45)) { this.nextWindAt += 60; npc && this.world.dropObstacle(npc); return; }
+        if (!npc || nearWall) { this.nextWindAt += 60; npc && this.world.dropObstacle(npc); return; }
         this.nextWindAt += a + Math.random() * (b - a);
         const side = Math.random() < 0.5 ? -1 : 1;
         npc.position.set(side * 3.7, 0.18, z);
@@ -1116,33 +1145,38 @@ class Game {
 
     // вопрос — в HUD, пока стена впереди; прошёл мимо — стена убирается из памяти игры
     watchWall() {
-        const w = this.wall, box = $("wall-q");
-        if (!w) { if (!box.hidden) box.hidden = true; return; }
-        const z = w.plates[0].position.z;
-        const show = !w.answered && z > -75 && z < 1;
-        if (show && box.hidden) {
-            $("wq-type").textContent = CLIENT_TYPES[w.type].name;
+        const box = $("wall-q");
+        const w = this.walls.find((x) => !x.answered); // в HUD — ближайшая неотвеченная
+        const z = w ? w.plates[0].position.z : -1e9;
+        const show = !!w && z > -75 && z < 1;
+        if (show && (box.hidden || this.wqShown !== w)) {
+            this.wqShown = w;
+            $("wq-type").textContent = w.boss ? `Экзамен Инакова · ${w.boss}/3` : CLIENT_TYPES[w.type].name;
+            $("wall-q").classList.toggle("boss", !!w.boss);
             $("wq-text").textContent = w.q.q;
             $("wq-ans").innerHTML = "<em></em><em></em><em></em>"; // ответы по полосам: слева, по центру, справа
             [...$("wq-ans").children].forEach((el, i) => { el.textContent = w.answers[i]; });
             box.style.setProperty("--tc", CLIENT_TYPES[w.type].color);
             box.hidden = false;
         } else if (!show && !box.hidden) box.hidden = true;
-        if (z > 3) {
-            if (!w.answered) this.answer(null); // проскочил (полёт) — ответ не засчитан, но и не ошибка
-            this.wall = null;
-            this.world.noCars = false;
+        const first = this.walls[0];
+        if (first && first.plates[0].position.z > 3) {
+            if (!first.answered) this.answer(null, first); // проскочил (полёт) — ответ не засчитан, но и не ошибка
+            this.walls.shift();
+            this.world.noCars = this.walls.length > 0;
+            if (first.boss === 3) this.finishBoss();
         }
     }
 
     // ответ: true — забег закончился (второй удар)
-    answer(o) {
-        const w = this.wall;
+    answer(o, wall = null) {
+        const w = o ? o.userData.wall : wall;
         if (!w || w.answered) return false;
         w.answered = true;
         for (const p of w.plates) if (p !== o) p.userData.type = "decor";
         if (!o) return false;
         const st = (this.wallStats[w.type] ||= { ok: 0, fail: 0 });
+        if (w.boss && this.boss) this.boss[o.userData.correct || this.ram > 0 || this.wallForgive > 0 ? "ok" : "fail"]++;
         if (o.userData.correct) {
             st.ok++;
             this.wallStreak++;
