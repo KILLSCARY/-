@@ -330,6 +330,7 @@ export class Hub {
         const box = $("shop-list");
         box.innerHTML = "";
         if (this.seg === "boosts") {
+            this.spinShelves();
             const head = (t, p) => {
                 const n = document.createElement("div");
                 n.className = "card card-note";
@@ -417,7 +418,41 @@ export class Hub {
         real.onclick = () => this.openStore();
         acts.append(priceBtn, real);
         card.append(acts);
+        if (it.photos?.length) card.prepend(this.shelf(it.photos));
         return card;
+    }
+
+    // витрина настоящих банок: по кругу выезжает следующая, по нажатию — сразу
+    shelf(photos) {
+        const box = document.createElement("div");
+        box.className = "shelf";
+        box.innerHTML = photos.map(([f, name]) => `<img src="img/shop/bady/${f}.webp" alt="${name}" loading="lazy" draggable="false">`).join("") + '<span class="shelf-name"></span>';
+        box.dataset.i = "0";
+        box.onclick = () => this.turnShelf(box, 1);
+        this.turnShelf(box, 0);
+        return box;
+    }
+
+    turnShelf(box, step) {
+        const imgs = box.querySelectorAll("img"), n = imgs.length;
+        const i = (Number(box.dataset.i) + step + n) % n;
+        box.dataset.i = String(i);
+        imgs.forEach((img, k) => {
+            let d = k - i;
+            if (d > n / 2) d -= n;
+            if (d < -n / 2) d += n;
+            img.dataset.pos = Math.abs(d) > 1 ? "far" : String(d);
+        });
+        box.querySelector(".shelf-name").textContent = imgs[i].alt;
+    }
+
+    // пока открыт магазин — витрины крутятся сами (одна таймерная функция на все)
+    spinShelves() {
+        clearInterval(this.shelfTimer);
+        this.shelfTimer = setInterval(() => {
+            if (this.current !== "shop" || document.hidden) return;
+            for (const b of document.querySelectorAll("#shop-list .shelf")) if (b.querySelectorAll("img").length > 1) this.turnShelf(b, 1);
+        }, 2600);
     }
 
     openStore() {
