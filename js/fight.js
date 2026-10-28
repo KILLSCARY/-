@@ -95,7 +95,7 @@ export class Fight {
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и синий контровые
-        const key = new THREE.PointLight(0xffd2b0, 0.8, 9); // мягко: белая шляпа Спиди не должна пересвечиваться
+        const key = new THREE.PointLight(0xffd2b0, 0.45, 9); // мягко: белая шляпа Спиди не должна пересвечиваться
         key.position.set(-2.4, 2.2, 0.4);
         const rimR = new THREE.PointLight(0xff2a40, 3.2, 8);
         rimR.position.set(1.8, 2.2, -2.4);
@@ -167,8 +167,9 @@ export class Fight {
         f.base = base;
         base.play();
         if (!f.clips.idle) { base.timeScale = 0; base.time = 0; }
-        const ko = list.find((a) => a.name === "dead");
-        if (ko && !f.clips.ko) f.clips.ko = f.mixer.clipAction(ko);
+        // нокаут: g_ko (сборка Grok — валится навзничь на месте), иначе своё падение модели
+        const ko = list.find((a) => a.name === "g_ko") || list.find((a) => a.name === "dead");
+        if (ko) f.clips.ko = f.mixer.clipAction(ko);
         f.walk = list.find((a) => a.name === "walk" || a.name === "run");
         // приёмы из клипов боя (FIGHTERS[…].moves): каждый — кусок клипа [from, to], время ставим сами
         if (f.cfg.moves) {
@@ -204,7 +205,7 @@ export class Fight {
             if (f.clips.win) f.clips.win.stop();
             f.base?.reset().play();
             if (f.base && f.base !== f.clips.idle) { f.base.timeScale = 0; f.base.time = 0; }
-            f.cur = null; f.prev = null; f.segId = null;
+            f.cur = null; f.prev = null; f.segId = null; f.koYaw = undefined; f.koLift = undefined;
         }
         this.timeLeft = FIGHT.roundTime;
         // ИИ: раунд за раундом злее (FIGHTERS[…].ai)
@@ -493,6 +494,19 @@ export class Fight {
             // нокаут: в последних кадрах клипа падения боец снова стоит — замираем, пока лежит
             const ko = f.act === "ko" && f.clips.ko;
             if (ko && ko.time > ko.getClip().duration * FIGHT.koHold) { ko.time = ko.getClip().duration * FIGHT.koHold; ko.paused = true; f.mixer.update(0); }
+            if (ko) { // и в нокауте: падает на месте, а не уезжает вместе с клипом; разворот — один раз по первому кадру,
+                this.pinHips(f); // иначе в кувырке линия бёдер крутится и корпус бы вертело
+                if (f.koYaw === undefined) { this.faceOpponent(f, false); f.koYaw = f.model.rotation.y; }
+                f.model.rotation.y = f.koYaw;
+                // в клипе нет движения бёдер — тело опускаем так, чтобы самая нижняя кость легла на асфальт
+                f.root.position.y = 0;
+                f.root.updateMatrixWorld(true);
+                let low = Infinity;
+                const p = new THREE.Vector3();
+                for (const [bone] of f.rest) low = Math.min(low, bone.getWorldPosition(p).y);
+                f.koLift = (f.koLift ?? 0) + ((0.06 - low) - (f.koLift ?? 0)) * Math.min(1, dt * 12);
+                f.root.position.y = f.koLift;
+            }
         }
         this.updateSparks(dt);
         if (this.phase === "load") { this.camera(dt); return; }
@@ -716,8 +730,8 @@ export class Fight {
         let time;
         if ((key === "idle" || key === "win") && mv.loop) time = mv.from + ((this.t * (mv.speed || 1)) % (mv.to - mv.from)); // стойка по кругу
         else if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
-            const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) * Math.PI) / (mv.period || len * 2);
-            time = mv.from + len * (0.5 - 0.5 * Math.cos(ph));
+            const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) * Math.PI) / (mv.period || len * 2 || 1);
+            time = len > 0 ? mv.from + len * (0.5 - 0.5 * Math.cos(ph)) : mv.from;
         } else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
         const id = key === "punch" ? `p${f.combo}${f.hand}` : key + (f.heavyVar || "");
         if (f.segId !== id) { // переход: прошлый кусок гаснет за 0.12 с; тот же клип — на втором слоте
@@ -738,13 +752,9 @@ export class Fight {
             a.setEffectiveWeight(w);
         });
         f.mixer.update(0);
-        // бёдра — на месте стойки: в клипах ударов тело шагает и уезжает, а ходит боец у нас сам
-        const hips = f.b.Hips;
-        if (hips) {
-            if (!f.hip0 && key === "idle") f.hip0 = hips.position.clone();
-            if (f.hip0) { hips.position.x = f.hip0.x; hips.position.z = f.hip0.z; }
-        }
-        f.model.updateMatrixWorld(true);
+        if (key === "idle" && !f.hip0) f.hip0 = f.b.Hips?.position.clone();
+        this.pinHips(f);
+        this.faceOpponent(f, key === "idle");
         const b = f.b, k = Math.min(1, f.t / (f.dur || 1)), fw = f.fwd, rt = f.right;
         const V = (x, y, z) => new THREE.Vector3().addScaledVector(rt, x).addScaledVector(UP, y).addScaledVector(fw, z);
         let dz = 0, dip = 0, sideX = 0;
@@ -776,12 +786,45 @@ export class Fight {
         this.place(f, dz, dip, sideX, dt);
     }
 
+    // бёдра — на месте стойки по горизонтали (в клипах тело шагает и уезжает, а ходит боец у нас сам), по высоте — как в клипе.
+    // «Верх» у бёдер у каждой модели свой: у Павла скелет повёрнут на −90° (высота — локальная Z), у Спиди — Y.
+    // Поэтому вертикаль берём из мира, переведённую в систему родителя бёдер, и убираем только горизонталь.
+    pinHips(f) {
+        const hips = f.b.Hips;
+        if (!hips || !f.hip0) return;
+        if (!f.hipUp) {
+            f.model.updateMatrixWorld(true);
+            const q = hips.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+            f.hipUp = UP.clone().applyQuaternion(q).normalize();
+        }
+        const d = hips.position.clone().sub(f.hip0);
+        hips.position.copy(f.hip0).addScaledVector(f.hipUp, d.dot(f.hipUp));
+        f.model.updateMatrixWorld(true);
+    }
+
+    // бёдра — к сопернику: в клипах ударов корпус разворачивается, и боец оказывался то спиной, то лицом к камере.
+    // Направление — линия тазобедренных суставов по земле; в стойке запоминаем, дальше доворачиваем всю модель
+    faceOpponent(f, ref) {
+        const L = f.b.LeftUpLeg, R = f.b.RightUpLeg;
+        if (!L || !R) return;
+        f.model.rotation.y = 0;
+        f.model.updateMatrixWorld(true);
+        const v = R.getWorldPosition(new THREE.Vector3()).sub(L.getWorldPosition(new THREE.Vector3()));
+        const a = Math.atan2(v.x, v.z);
+        if (ref || f.yaw0 === undefined) { if (ref) f.yaw0 = a; else return; }
+        let d = f.yaw0 - a;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        f.model.rotation.y = d;
+        f.model.updateMatrixWorld(true);
+    }
+
     // корень: шаг вперёд/назад, «танец» на месте, ноги на асфальте; вспышка при попадании
     place(f, dz, dip, sideX, dt) {
-        const step = Math.sin(this.t * 2.2 + f.dir * 1.3) * 0.06 * (f.act === "idle" ? 1 : 0.3);
+        const step = Math.sin(this.t * 2.2 + f.dir * 1.3) * 0.05 * (f.act === "idle" ? 1 : 0.3);
+        dip += (f.act === "idle" ? 1 : 0.4) * (0.5 + 0.5 * Math.sin(this.t * 3.1 + f.dir)) * 0.018; // дыхание: корпус чуть пружинит
         const tz = f.home + (dz + step) * -f.dir;
         f.z += (tz - f.z) * Math.min(1, dt * 14);
-        f.root.position.set(sideX * f.dir, 0, f.z);
+        f.root.position.set(sideX * f.dir, f.act === "ko" ? f.koLift ?? 0 : 0, f.z); // в нокауте высоту ставит update()
         // ноги на асфальте: самая нижняя точка стоп — на земле (иначе при приседе ступни уходят под дорогу)
         if (f.model && f.act !== "ko") {
             f.model.updateMatrixWorld(true);
@@ -792,7 +835,7 @@ export class Fight {
             for (const n of ["LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot"]) if (f.b[n]) low = Math.min(low, f.b[n].getWorldPosition(p).y);
             const air = this.moveOf(f)?.air;
             if (low < Infinity && !air) f.lift = (f.lift ?? 0) + ((f.cfg.foot ?? 0.04) - low - (f.lift ?? 0)) * Math.min(1, dt * 10);
-            f.root.position.y += f.lift ?? 0;
+            f.root.position.y += (f.lift ?? 0) - dip;
         }
         f.flash = Math.max(0, f.flash - dt * 6);
         for (const m of f.mats) {
@@ -831,7 +874,8 @@ export class Fight {
         if (ko) { // нокаут: камера выше и сбоку от упавшего — его видно из-за победителя
             const l = this.f.find((f) => f.act === "ko");
             this.koK = Math.min(1, (this.koK || 0) + dt * 1.2);
-            cam.position.lerp((this.v5 ||= new THREE.Vector3()).set(-2.6, 2.3, l.z + l.dir * -0.4 + 1.2 * l.dir), smooth(this.koK));
+            const lz = l.z + l.dir * 0.7; // упавший лежит навзничь — на ~0.7 м за своим местом
+            cam.position.lerp((this.v5 ||= new THREE.Vector3()).set(-2.9, 1.9, lz - l.dir * 0.5), smooth(this.koK));
         } else this.koK = 0;
         cam.position.x += Math.sin(this.t * 0.5) * 0.12; // камера чуть плывёт
         cam.position.y += Math.sin(this.t * 0.7) * 0.04;
@@ -841,7 +885,7 @@ export class Fight {
             cam.position.y += (Math.random() - 0.5) * this.shake * 0.5;
         }
         const look = (this.v3 ||= new THREE.Vector3()).set(0, portrait ? 1.02 : 0.95, -0.02);
-        if (ko) { const l = this.f.find((f) => f.act === "ko"); look.lerp(new THREE.Vector3(0, 0.4, l.z - l.dir * 0.6), smooth(this.koK)); }
+        if (ko) { const l = this.f.find((f) => f.act === "ko"); look.lerp(new THREE.Vector3(0, 0.45, l.z + l.dir * 0.45), smooth(this.koK)); }
         cam.lookAt(look.lerp((this.v4 ||= new THREE.Vector3()).set(0, 0.9, -8), 1 - k));
         const fov = portrait ? FIGHT.fov : this.g.baseFov;
         if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
