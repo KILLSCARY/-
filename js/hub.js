@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -330,8 +330,16 @@ export class Hub {
         for (const b of document.querySelectorAll(".seg button")) b.classList.toggle("on", b.dataset.seg === this.seg);
         const box = $("shop-list");
         box.innerHTML = "";
+        // предупреждение: в магазине всё игровое, настоящее — только через кнопку заказа в @Nesuschiystore
+        const warn = (t, p) => {
+            const n = document.createElement("div");
+            n.className = "card card-note card-warn";
+            n.innerHTML = `<span class="warn-ico">!</span><div class="card-main"><span class="card-tag">Важно</span><h3>${t}</h3><p>${p}</p></div>`;
+            box.append(n);
+        };
         if (this.seg === "boosts") {
             this.spinShelves();
+            warn("Бусты — игровые", "Покупаются за игровую валюту и работают только в игре. Настоящие добавки можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящие»</b>.");
             const head = (t, p) => {
                 const n = document.createElement("div");
                 n.className = "card card-note";
@@ -351,13 +359,14 @@ export class Hub {
             appeal.innerHTML = `<div class="card-main"><h3>Апелляция</h3><p>Второй шанс после проигрыша — кнопка на экране проигрыша, ${fmt(APPEAL_PRICE)} USDT. Одна валюта — USDT: монеты на дороге, кейсы и награды.</p></div>`;
             box.append(appeal);
         } else if (this.seg === "sets") {
+            warn("Наборы — игровые", "Только для игры: открываются за игровую валюту и действия в игре, а не за настоящие деньги. Настоящий набор можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящий набор»</b>.");
             const n = document.createElement("div");
             n.className = "card card-note";
-            n.innerHTML = `<div class="card-main"><h3>Наборы</h3><p>Не продаются — открываются действиями: экзамен, кодовое слово от менеджера, 7 дней входа. Набор — бусты на ${3} забега. Настоящий — в @Nesuschiystore.</p></div>`;
+            n.innerHTML = `<div class="card-main"><h3>Как открыть</h3><p>Экзамен у Инакова, кодовое слово от менеджера, 7 дней входа подряд. Набор — бусты на ${SET_RUNS} забега.</p></div>`;
             box.append(n);
             for (const st of SETS) {
                 const owned = this.p.hasSet(st.id);
-                const card = this.storeCard({ ...st, text: `${st.text}. ${owned ? "Открыт" : st.how}` }, "", Object.assign(document.createElement("button"), { className: "btn-small" + (owned ? " is-on" : ""), textContent: owned ? "Есть" : "Закрыт", disabled: true }));
+                const card = this.storeCard({ ...st, text: `${st.text}. ${owned ? "Открыт" : st.how}` }, "", Object.assign(document.createElement("button"), { className: "btn-small" + (owned ? " is-on" : ""), textContent: owned ? "Есть" : "Закрыт", disabled: true }), "Заказать настоящий набор");
                 if (!owned && st.unlock === "code") {
                     const row = document.createElement("div");
                     row.className = "set-code";
@@ -399,7 +408,7 @@ export class Hub {
     }
 
     // карточка NS Store: иконка, название, эффект, реплика, цена и «Заказать настоящие» → @Nesuschiystore
-    storeCard(it, have, priceBtn) {
+    storeCard(it, have, priceBtn, realText = "Заказать настоящие") {
         const card = document.createElement("div");
         card.className = "card card-store";
         card.innerHTML = `${it.art ? `<img class="store-art" src="${it.art}" alt="" loading="lazy">` : ""}<div class="card-main"><h3>${it.name}</h3><p>${it.text}</p>${it.line ? `<p class="store-line">${it.line}</p>` : ""}${have ? `<span class="have">${have}</span>` : ""}</div>`;
@@ -407,7 +416,7 @@ export class Hub {
         acts.className = "store-acts";
         const real = document.createElement("button");
         real.className = "btn-small btn-real";
-        real.textContent = "Заказать настоящие";
+        real.textContent = realText;
         real.onclick = () => this.openStore();
         acts.append(priceBtn, real);
         card.append(acts);
