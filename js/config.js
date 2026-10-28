@@ -699,8 +699,9 @@ export const FIGHTERS = {
             hook: { clip: "hkick", from: 0.05, to: 0.95, hit: 0.47, speed: 1.0 }, // третий в связке — боковой ногой, его видно издалека
             super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
             superFin: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 0.8 }, // добивание супера — апперкот в замедлении
+            low: { clip: "kick", from: 0.2, to: 1.0, hit: 0.6, speed: 1.1 }, // удар ногой — тап по ногам соперника
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
-        dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30 } },
+        dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30, low: 4 } }, // low — удар ногой (тап по ногам соперника)
     pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
@@ -767,13 +768,14 @@ FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.
         hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1.05 },
         super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
         superFin: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 0.8 }, // добивание — высокий удар ногой в замедлении
+        low: { clip: "kick", from: 0.3, to: 1.05, hit: 0.72, speed: 1.05 },
         win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES } };
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
 export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 60, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, buffer: 0.25, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
-    stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
+    stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65, low: 0.3 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
 // Крючки анимаций боя: первое найденное в glb имя клипа (без учёта регистра). Положи клип с таким именем в модель —
 // бой возьмёт его вместо процедурной анимации. idle — стойка (иначе idle/run модели + руки в защиту).
 export const FIGHT_CLIPS = {

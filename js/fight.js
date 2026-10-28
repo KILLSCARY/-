@@ -285,6 +285,9 @@ export class Fight {
         } else this.say(this.round === 1 ? L.intro : this.round === 2 ? L.round2 || null : this.round === 3 ? L.final : null);
         // начало первого раунда: сколько HP дали ответы на табличках
         if (this.round === 1 && this.hpBonus > 0) setTimeout(() => this.phase !== "end" && this.g.gorilla?.(`+${this.hpBonus} HP от ответов на табличках`, true, 2600), 600);
+        // подсказка про тап по зонам — в первых боях игрока
+        const pd = this.g.profile?.data;
+        if (this.round === 1 && !this.exam && pd && (pd.tapHints || 0) < 3) { pd.tapHints = (pd.tapHints || 0) + 1; setTimeout(() => this.phase !== "end" && this.g.gorilla?.("Тапай по боссу: в голову — рукой, по ногам — ногой", false, 3200), this.hpBonus > 0 ? 3600 : 900); }
         this.bigShown = 0;
         this.hud();
     }
@@ -326,11 +329,11 @@ export class Fight {
             if (!s) return;
             const dx = e.clientX - s.x, dy = e.clientY - s.y;
             s = null;
-            if (Math.hypot(dx, dy) < 28) return this.input("punch");
+            if (Math.hypot(dx, dy) < 28) return this.input(this.tapZone(e.clientX, e.clientY)); // тап по сопернику: голова/корпус — рукой, ноги — ногой
             if (Math.abs(dy) > Math.abs(dx)) this.input(dy > 0 ? "block" : "super");
             else this.input("dodge");
         });
-        const keys = { j: "punch", " ": "punch", k: "super", w: "super", ArrowUp: "super", a: "dodge", d: "dodge", ArrowLeft: "dodge", ArrowRight: "dodge" };
+        const keys = { j: "punch", " ": "punch", l: "low", k: "super", w: "super", ArrowUp: "super", a: "dodge", d: "dodge", ArrowLeft: "dodge", ArrowRight: "dodge" };
         const kd = (e) => {
             if (e.key === "s" || e.key === "ArrowDown") { e.preventDefault(); this.holdBlock = true; this.input("block"); return; }
             const k = keys[e.key];
@@ -348,13 +351,18 @@ export class Fight {
         const free = h.act === "idle" || (h.act === "block" && cmd !== "block");
         // буфер нажатий (как input buffer во Fray): удар/уклон, нажатый чуть раньше, чем боец освободился,
         // не теряется — сработает, как только станет можно (окно FIGHT.buffer с)
-        if (!again && (cmd === "punch" || cmd === "dodge") && !(cmd === "punch" && h.act === "punch" && h.t > h.dur * 0.55) && (!free || h.cd > 0))
+        if (!again && (cmd === "punch" || cmd === "dodge" || cmd === "low") && !(cmd === "punch" && h.act === "punch" && h.t > h.dur * 0.55) && (!free || h.cd > 0))
             this.buf = { cmd, t: this.t };
         if (cmd === "punch") {
             // связка: следующий удар можно нажать в конце текущего — джеб, кросс, третий — с доворотом (сильнее)
             if (h.act === "punch" && h.t > h.dur * 0.55) { h.queued = true; return; }
             if (!free || h.cd > 0) return;
             this.punch(h);
+        } else if (cmd === "low") { // удар ногой (тап по ногам соперника)
+            if (!free || h.cd > 0) return;
+            if (!h.moves?.low) return this.input("punch", again);
+            this.act(h, "low", 0.7);
+            h.cd = FIGHT.punchCd;
         } else if (cmd === "block") {
             if (h.act === "idle") this.act(h, "block", FIGHT.blockTime);
         } else if (cmd === "dodge") {
@@ -374,6 +382,30 @@ export class Fight {
             this.g.audio?.play("boost");
             this.g.kick?.(0.1, 6);
         }
+    }
+
+    // куда тапнули по сопернику: выше бёдер — удар рукой, ниже — ногой; мимо соперника — обычный удар рукой
+    tapZone(x, y) {
+        const o = this.f?.[1], cam = this.g.camera;
+        if (!o?.b?.Hips) return "punch";
+        const rect = this.g.renderer.domElement.getBoundingClientRect();
+        const scr = (bone) => { const p = bone.getWorldPosition(_v1).project(cam); return { x: rect.left + (p.x * 0.5 + 0.5) * rect.width, y: rect.top + (-p.y * 0.5 + 0.5) * rect.height }; };
+        const hips = scr(o.b.Hips), head = scr(o.b.Head || o.b.Hips), foot = scr(o.b.LeftFoot || o.b.Hips);
+        const halfW = Math.max(60, Math.abs(foot.y - head.y) * 0.35);
+        if (Math.abs(x - hips.x) > halfW * 1.6 || y < head.y - halfW * 0.8 || y > foot.y + 40) return "punch";
+        const zone = y > hips.y + (foot.y - hips.y) * 0.15 ? "low" : "punch";
+        this.tapMark(x, y, zone);
+        return zone;
+    }
+
+    // метка тапа: кружок там, куда целился (рука — красный, нога — жёлтый)
+    tapMark(x, y, zone) {
+        const el = document.createElement("i");
+        el.className = `f-tap ${zone}`;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        $("fight").appendChild(el);
+        setTimeout(() => el.remove(), 400);
     }
 
     punch(f) {
@@ -666,6 +698,7 @@ export class Fight {
                 }
                 if (a.act === "heavy" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.38)) { a.hitDone = true; if (this.inReach(a, d)) this.strike(a, d, "heavy"); }
                 if (a.act === "knee" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.4)) { a.hitDone = true; if (this.inReach(a, d)) this.strike(a, d, "hook"); }
+                if (a.act === "low" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.6)) { a.hitDone = true; if (this.inReach(a, d)) this.strike(a, d, "low"); }
                 if (a.act === "superFin" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.5)) { a.hitDone = true; this.strike(a, d, "super"); }
                 if (a.act === "super" && a.hitsAt) { // серия из клипа: последний — супер
                     while (a.act === "super" && a.hitsAt && a.hitsDone < a.hitsAt.length && a.t > a.dur * a.hitsAt[a.hitsDone]) {
@@ -958,7 +991,7 @@ export class Fight {
         const own = !!this.moveOf(f); // у действия свой клип — позы из костей не нужны, только шаг корня
         if (own) {
             if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k));
-            if (f.act === "punch" || f.act === "knee" || f.act === "super" || f.act === "superFin") dz += (f.cfg.lunge ?? 0.16) * bell(k, Math.min(0.8, Math.max(0.2, (f.hitAt ?? 0.5) - 0.05)), 1); // шаг в удар — кулак должен достать
+            if (f.act === "punch" || f.act === "knee" || f.act === "low" || f.act === "super" || f.act === "superFin") dz += (f.cfg.lunge ?? 0.16) * bell(k, Math.min(0.8, Math.max(0.2, (f.hitAt ?? 0.5) - 0.05)), 1); // шаг в удар — кулак должен достать
             if (f.act === "heavy" || f.act === "heavyWind") dz -= 0.28 * (f.act === "heavy" ? bell(k, 0.35, 1) : smooth(k)); // нога не проходит сквозь соперника
         }
         else if (f.act === "block") {
@@ -1076,7 +1109,7 @@ export class Fight {
         const d = (portrait ? 1 : 0.8) * this.zoom;
         // вид сбоку, как в Tekken: герой справа, соперник слева, оба в рост
         // камера дальше и чуть выше: видно и руки, и ноги обоих, удары читаются
-        const pos = (this.v1 ||= new THREE.Vector3()).set(-4.5 * d, 1.45, 0.55 * d);
+        const pos = (this.v1 ||= new THREE.Vector3()).set(-4.7 * d, 1.25, 0.12 * d); // строго сбоку, как в Shadow Fight: оба в профиль
         const from = (this.v2 ||= new THREE.Vector3()).set(0, portrait ? 3.3 : 2.5, 5.0);
         cam.position.lerpVectors(from, pos, k);
         if (ko) { // нокаут: камера выше и сбоку от упавшего — его видно из-за победителя
