@@ -51,7 +51,7 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
-    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set();
+    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set(), leads = new Map();
     return {
         kind: "memory",
         // рейтинг (api/_lib/rating.mjs)
@@ -67,6 +67,8 @@ export function memoryStore() {
             return { rank, score, ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) };
         },
         async taskOnce(id, task) { const k = `${id}:${task}`; if (tk.has(k)) return false; tk.add(k); return true; },
+        // заявка не чаще раза в cd секунд; reset — снять блок (сообщение не дошло)
+        async leadGate(id, ts, cd, reset) { if (reset) { leads.delete(id); return true; } const t = leads.get(id); if (t && ts - t < cd * 1000) return false; leads.set(id, ts); return true; },
         async addEvent(id, event, ts) { const m = ev.get(id) || new Map(); if (!m.has(event)) m.set(event, ts); ev.set(id, m); },
         async events(id) { return Object.fromEntries(ev.get(id) || []); },
         async claim(id, total) { // атомарно в пределах процесса (JS однопоточный)
@@ -138,6 +140,10 @@ export function redisStore(url, token, fetchImpl = fetch) {
             return { rank: Number(r) + 1, score: Number(s), ...(await statsOf([String(id)]))[0] };
         },
         async taskOnce(id, task, ts) { return Number(await cmd("HSETNX", `p2p:tk:${id}`, task, String(ts || Date.now()))) === 1; },
+        async leadGate(id, ts, cd, reset) {
+            if (reset) { await cmd("DEL", `p2p:ld:${id}`); return true; }
+            return (await cmd("SET", `p2p:ld:${id}`, String(ts), "NX", "EX", String(Math.max(1, cd)))) === "OK";
+        },
         async addEvent(id, event, ts) { await cmd("HSETNX", `p2p:ev:${id}`, event, String(ts)); },
         async events(id) {
             const a = (await cmd("HGETALL", `p2p:ev:${id}`)) || [];

@@ -5,6 +5,7 @@ import { prizeConfig, EVENT_RE, BOSS_MIN_RUN_SEC } from "./config.mjs";
 import { rewardAmount } from "./rewards.mjs";
 import { handleCards } from "./cards.mjs";
 import { handleRating, score, rewardPoints, RATING } from "./rating.mjs";
+import { handleLead } from "./leads.mjs";
 
 export function checkChain(events, cfg) {
     let prev = null, first = null;
@@ -19,7 +20,7 @@ export function checkChain(events, cfg) {
     return { ok: true };
 }
 
-export async function handle(action, body, { store, env = process.env, now = Date.now() }) {
+export async function handle(action, body, { store, env = process.env, now = Date.now(), fetchImpl = fetch }) {
     const cfg = prizeConfig(env);
     const counter = async () => { const taken = Math.min(cfg.total, await store.taken()); return { total: cfg.total, taken, left: cfg.total - taken }; };
     if (action === "counter") {
@@ -50,6 +51,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
+    if (action === "apply") return handleLead(body, who, { store, env, now, fetchImpl });
     if (action === "task" || action === "top") return handleRating(action, body, who, { store, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {

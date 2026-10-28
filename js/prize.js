@@ -24,5 +24,7 @@ export const prize = {
     // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)
     top(n = 50) { return tg.initData ? post({ action: "top", n }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     task(id) { if (tg.initData) post({ action: "task", task: id }); },
+    // заявка на разбор: сервер отправляет её менеджерам; очки за «разбор» — только после доставки
+    apply(lead) { return tg.initData ? post({ action: "apply", ...lead }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },
 };

@@ -183,10 +183,50 @@ export class Hub {
         prize.task(id);
     }
 
-    // «Записаться на разбор»: чат с менеджером + задание рейтинга
+    // «Записаться на разбор»: заявка в игре → сервер отправляет её менеджерам через бота заявок.
+    // Очки рейтинга — только когда заявка дошла (просто открыть чат с менеджером — не считается)
     razbor(extra = "") {
-        this.task("razbor");
-        tg.open(this.managerLink(extra));
+        if (!prize.online) return void tg.open(this.managerLink(extra)); // вне Telegram — как раньше, чатом
+        const d = this.p.data, u = tg.user || {};
+        $("lead-contact").value = d.leadContact || (u.username ? `@${u.username}` : "");
+        $("lead-note").value = "";
+        $("lead-err").hidden = true;
+        $("lead").hidden = false;
+        const close = () => ($("lead").hidden = true);
+        $("btn-lead-x").onclick = close;
+        $("btn-lead-self").onclick = () => { close(); tg.open(this.managerLink(extra)); };
+        const btn = $("btn-lead");
+        btn.disabled = false;
+        btn.textContent = "Отправить заявку";
+        btn.onclick = async () => {
+            const contact = $("lead-contact").value.trim();
+            const err = (t) => { $("lead-err").textContent = t; $("lead-err").hidden = false; };
+            if (!contact) return err("Напиши, как с тобой связаться: @ник или телефон");
+            btn.disabled = true;
+            btn.textContent = "Отправляем…";
+            const ak = d.anketa || {}, ch = this.p.chapter(), weak = this.p.weakType();
+            const r = await prize.apply({
+                contact, note: [extra, $("lead-note").value.trim()].filter(Boolean).join(" "),
+                anketa: GORILLA.anketa.filter((q) => ak[q.id]).map((q) => [q.q, ak[q.id]]),
+                phrases: this.p.phrases(), code: weak ? CLIENT_TYPES[weak].tag : "",
+                progress: `глава ${ch.index + 1}, заработано ${fmt(d.earned || 0)} USDT, рекорд ${fmt(this.game.best || 0)}`,
+            });
+            btn.disabled = false;
+            btn.textContent = "Отправить заявку";
+            if (r?.status === 200) {
+                d.leadContact = contact;
+                (d.tasksDone ||= {}).razbor = 1;
+                this.p.save();
+                close();
+                this.toast(r.points ? `Заявка отправлена! +${r.points} в рейтинг` : "Заявка отправлена — менеджер напишет тебе");
+                this.game.audio.play("record");
+                if (this.current === "rating") this.showRating();
+                return;
+            }
+            if (r?.status === 429) return err("Заявка уже отправлена — менеджер скоро напишет. Повторить можно через 10 минут.");
+            if (r?.status === 503) { close(); return void tg.open(this.managerLink(extra)); } // приём заявок ещё не настроен — чатом
+            err("Не получилось отправить. Попробуй ещё раз или напиши менеджеру сам.");
+        };
     }
 
     // ---- рейтинг игроков (очки считает сервер) ----

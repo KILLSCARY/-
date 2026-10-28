@@ -33,6 +33,7 @@ export function rewardPoints(key) {
 export async function handleRating(action, body, who, { store, now }) {
     if (action === "task") {
         const id = String(body.task || "");
+        if (id === "razbor") return { status: 400, json: { error: "use_apply" } }; // разбор — только через отправленную заявку (leads.mjs)
         const pts = RATING.tasks[id];
         if (!pts) return { status: 400, json: { error: "bad_task" } };
         const fresh = await store.taskOnce(who.id, id, now);

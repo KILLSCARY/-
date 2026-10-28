@@ -24,7 +24,7 @@ export default async function handler(req, res) {
             r = await handle("counter", { initData: q.get("initData") || "" }, { store: getStore() });
         } else if (req.method === "POST") {
             const b = await readBody(req);
-            r = await handle(["claim", "event", "reward", "rewards", "cards", "cardrun", "card", "cardbuy", "casecard", "task", "top"].includes(b.action) ? b.action : "?", b, { store: getStore() });
+            r = await handle(["claim", "event", "reward", "rewards", "cards", "cardrun", "card", "cardbuy", "casecard", "task", "top", "apply"].includes(b.action) ? b.action : "?", b, { store: getStore() });
         } else r = { status: 405, json: { error: "method" } };
         res.statusCode = r.status;
         res.setHeader("Content-Type", "application/json");

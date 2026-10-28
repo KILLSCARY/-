@@ -1748,6 +1748,7 @@ export class World {
         arch.userData = { type: "decor" };
         this.scene.add(arch);
         this.obstacles.push(arch);
+        wall.parts = [arch]; // рамка стены — двигается вместе с табличками (полёт отодвигает стену)
         // таблички на полосах: стекло в неоне, стрелка полосы, ответ; под ними светящаяся планка и пятно на асфальте
         // табличка-ответ: плотная карточка (без размытого неона — текст читается издалека), сверху цветная плашка
         // с направлением, ниже крупный ответ, подобранный по размеру. Два варианта — карточки шире (стоят на крайних полосах)
@@ -1811,7 +1812,12 @@ export class World {
             this.obstacles.push(g);
             wall.plates.push(g);
         });
-        // ничего постороннего вплотную к стене: ряды препятствий и монеты в ±12 м убираем
+        this.clearAround(z);
+        return wall;
+    }
+
+    // ничего постороннего вплотную к стене: ряды препятствий и монеты рядом убираем (и когда стену отодвинул полёт)
+    clearAround(z) {
         for (const o of [...this.obstacles]) {
             if (o.userData.type === "decor" || o.userData.type === "answer") continue;
             if ((o.position.z > z - 34 && o.position.z < z + 28) || (o.userData.oncoming && o.position.z < z)) { // перед стеной (там замедление и выбор) и после неё — пусто
@@ -1820,7 +1826,6 @@ export class World {
             }
         }
         for (let i = this.coins.length - 1; i >= 0; i--) if (Math.abs(this.coins[i].position.z - z) < 6) this.removeCoin(i);
-        return wall;
     }
 
     pickKind() {

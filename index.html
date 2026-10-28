@@ -210,6 +210,18 @@
         <div class="qi-row"><input id="qi-val" type="text" inputmode="numeric" autocomplete="off" placeholder="Сумма"><span id="qi-unit">₽</span></div>
         <button id="btn-qi" class="btn btn-main btn-shine">Ответить</button>
     </div></div>
+    <!-- заявка на разбор: уходит менеджерам через бота заявок (api/_lib/leads.mjs) -->
+    <div id="lead" class="modal" hidden><div class="modal-card lead-card">
+        <p class="label">Бесплатный разбор</p>
+        <h2 class="sheet-title">Заявка менеджеру</h2>
+        <p class="sheet-sub">Менеджер напишет тебе в Telegram и разберёт твою ситуацию. Анкета Гориллы и твои фразы уйдут вместе с заявкой.</p>
+        <label class="lead-f"><span>Как с тобой связаться</span><input id="lead-contact" type="text" maxlength="80" autocomplete="off" placeholder="@ник или телефон"></label>
+        <label class="lead-f"><span>Комментарий (необязательно)</span><textarea id="lead-note" maxlength="400" rows="2" placeholder="Например: удобно вечером"></textarea></label>
+        <p class="lead-err" id="lead-err" hidden></p>
+        <button id="btn-lead" class="btn btn-main">Отправить заявку</button>
+        <button id="btn-lead-self" class="btn btn-ghost">Написать менеджеру самому</button>
+        <button id="btn-lead-x" class="btn btn-ghost">Не сейчас</button>
+    </div></div>
     <div id="anketa" class="modal" hidden><div class="modal-card sl-card">
         <div class="sl-ph g-big"></div>
         <p class="label">Горилла · <span id="ak-step"></span></p>

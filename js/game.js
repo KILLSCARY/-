@@ -1123,12 +1123,6 @@ class Game {
         // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
         if (this.flight) this.nextWallAt = Math.max(this.nextWallAt, this.distance - SPAWN_Z); // срок не «протухает» — после посадки стена встанет вдали, а не за спиной
         else if (!quiet && this.distance - SPAWN_Z >= this.nextWallAt) this.questions ? this.spawnWall() : this.spawnArch();
-        // стена-вопрос впереди, а герой летит — садимся заранее, чтобы успеть ответить
-        if (this.flight && this.flight.e < this.flight.dur && this.walls.some((w) => !w.answered && !w.arch && w.plates[0].position.z > -55)) {
-            this.flight.dur = this.flight.e;
-            this.fx.fly = Math.min(this.fx.fly, 0.6);
-            this.hub.toast("Вопрос впереди — приземляемся");
-        }
         if (!quiet && this.distance - SPAWN_Z >= this.nextWindAt) this.spawnWind();
         if (!quiet && this.distance - SPAWN_Z >= this.nextVentAt) this.spawnVent();
         this.watchBoss(dt, move);
@@ -1393,6 +1387,7 @@ class Game {
         else this.flight.dur = Math.max(this.flight.dur, this.flight.e + time); // ещё баночка в полёте — дольше
         this.fx.fly = time;
         this.world.noPickups = true;
+        this.pushWalls(); // стены-вопросы впереди — за точку приземления: не пролететь их и не садиться раньше времени
         if (!first) return;
         const h = POWERUPS.testo.height + 0.5;
         const len = Math.max(this.speed || 0, BALANCE.speedStart) * time;
@@ -1400,6 +1395,20 @@ class Game {
         for (let z = -12, i = 0; z > -len + 4; z -= 2.2, i++) {
             if (i && i % 8 === 0) lane = Math.max(0, Math.min(2, lane + (Math.random() < 0.5 ? -1 : 1)));
             this.world.addCoin(lane, z, h);
+        }
+    }
+
+    // отодвинуть неотвеченные стены, до которых долетим в воздухе, — за место посадки (+30 м на разбег к вопросу)
+    pushWalls() {
+        const f = this.flight; if (!f) return;
+        const air = Math.max(this.speed || 0, BALANCE.speedStart) * (f.dur - f.e + 1.4) + 30;
+        for (const w of this.walls) {
+            if (w.answered) continue;
+            const z = w.plates[0].position.z;
+            if (z < -air || z > 2) continue;
+            const dz = -air - 4 - z;
+            for (const o of [...w.plates, ...(w.parts || [])]) o.position.z += dz;
+            this.world.clearAround(z + dz);
         }
     }
 
@@ -2304,7 +2313,7 @@ class Game {
         this.world.obstacles.push(npc);
         this.world.clearZone(z - 50, z + 30); // пока Ислам дует, на дороге пусто — только тапать
         this.nextRowZ = Math.min(this.nextRowZ, z - 50);
-        this.wind = { npc, side, state: "near", t: 0, taps: 0, owned: this.profile.owns("islam") };
+        this.wind = { npc, side, state: "near", t: 0, taps: 0, owned: this.heroId === "islam" }; // щадит, только если бежишь за него самого
     }
 
     // Ислам: вдох (откинулся назад, камера на нём) → порыв (наклон вперёд, поток изо рта через дорогу) → героя
@@ -2413,7 +2422,7 @@ class Game {
         npc.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
         npc.userData.type = "decor";
         for (const o of [fan, npc]) { this.world.scene.add(o); this.world.obstacles.push(o); }
-        this.vent = { fan, npc, side, state: "near", spin: 2, owned: this.profile.owns("islam") };
+        this.vent = { fan, npc, side, state: "near", spin: 2, owned: this.heroId === "islam" }; // щадит, только если бежишь за него самого
     }
 
     // near → warn (вентилятор раскручивается, подсказка, куда понесёт) → blow (в зоне ветра: замедление, снос) → done
