@@ -1062,19 +1062,10 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
     font: 900 22px/1 var(--font-display); color: #ffd65a; background: rgba(0, 0, 0, .55); text-shadow: 0 0 10px rgba(255, 214, 90, .8); }
 #story-win .sw-next { margin-top: 14px; opacity: .85; }
 
-/* ---- v2.5: Горилла, ввод числа, анкета, финал ---- */
-.gorilla { position: fixed; left: 12px; right: 12px; top: calc(118px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); z-index: 21;
-    display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 16px; background: rgba(12, 10, 8, .92);
-    box-shadow: 0 0 0 1px rgba(233, 194, 90, .55), 0 10px 30px rgba(0, 0, 0, .5); pointer-events: none; animation: g-in .3s ease-out; }
-.gorilla .g-ph, .g-big { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-style: normal; font-size: 30px;
+/* ---- v2.5: ввод числа, анкета, финал ---- */
+.g-big { width: 96px; height: 96px; margin: 0 auto 10px; border-radius: 50%; display: grid; place-items: center; font-size: 60px; font-style: normal;
     background: radial-gradient(circle at 50% 35%, #4a3a1a, #120c04 75%); box-shadow: 0 0 0 2px #e9c25a; }
-.gorilla .g-ph::before, .g-big::before { content: "🦍"; }
-.g-big { font-size: 60px; }
-.g-big { width: 96px; height: 96px; border-radius: 50%; border-color: #e9c25a; margin: 0 auto 10px; }
-.gorilla b { font: 800 12px/1 var(--font-display); color: #e9c25a; letter-spacing: .04em; text-transform: uppercase; }
-.gorilla p { margin: 4px 0 0; font: 600 14px/1.3 var(--font-body); color: #fff; }
-.gorilla.ok { box-shadow: 0 0 0 1px rgba(53, 227, 155, .6), 0 10px 30px rgba(0, 0, 0, .5); }
-@keyframes g-in { from { opacity: 0; transform: translateY(-10px); } }
+.g-big::before { content: "🦍"; }
 .qi-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
 .qi-row input { flex: 1; min-width: 0; width: 0; padding: 14px 16px; border-radius: 14px; border: 2px solid rgba(233, 194, 90, .6); background: rgba(0, 0, 0, .45); color: #fff;
     font: 800 24px/1 var(--font-display); text-align: center; outline: none; }
@@ -1101,11 +1092,35 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .fight.exam .fb { display: none; }
 .fight.exam .f-time { visibility: hidden; }
 
-.gorilla[data-who="miz"] .g-ph, .gorilla[data-who="hero"] .g-ph { background: #2a0a0c center 15%/cover; }
-.gorilla[data-who="miz"] .g-ph { background-image: url(../img/heroes/mizulina.webp); box-shadow: 0 0 0 2px #ff3b5c; }
-.gorilla[data-who="hero"] .g-ph { background-image: url(../img/heroes/speedy.webp); box-shadow: 0 0 0 2px #fff; }
-.gorilla[data-who="miz"] .g-ph::before, .gorilla[data-who="hero"] .g-ph::before { content: none; }
-.gorilla[data-who="miz"] b { color: #ff6a7f; }
-.gorilla[data-who="hero"] b { color: #fff; }
 .fade { position: fixed; inset: 0; z-index: 40; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; }
 .fade.on { opacity: 1; }
+
+/* ---- реплики: персонаж выглядывает из-за края экрана и говорит в облачке (Горилла — слева, остальные — справа) ---- */
+.talk { position: fixed; left: 0; right: 0; top: calc(112px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); z-index: 21;
+    height: 120px; pointer-events: none; }
+.t-face { position: absolute; top: 0; left: -22px; width: 118px; height: 118px; font-style: normal; transform-origin: 0 100%;
+    animation: t-peek-l .45s cubic-bezier(.2, 1.4, .4, 1) both, t-bob 1.6s ease-in-out .45s 4 alternate; }
+.talk[data-who="gorilla"] .t-face { display: grid; place-items: center; font-size: 104px; line-height: 1; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
+.talk[data-who="gorilla"] .t-face::before { content: "🦍"; transform: rotate(14deg); }
+.talk:not([data-who="gorilla"]) .t-face { left: auto; right: -18px; width: 104px; height: 104px; top: 6px; border-radius: 50%; transform-origin: 100% 100%;
+    background: #2a0a0c var(--face) 50% var(--fy, 30%)/230% auto no-repeat; border: 3px solid var(--tc, #fff); box-shadow: 0 8px 20px rgba(0, 0, 0, .55);
+    animation-name: t-peek-r, t-bob; }
+.t-bubble { position: absolute; top: 10px; left: 92px; right: 12px; padding: 10px 14px 12px; border-radius: 18px; background: #fff; color: #111;
+    box-shadow: 0 0 0 3px #111, 0 10px 24px rgba(0, 0, 0, .5); animation: t-pop .3s .12s cubic-bezier(.2, 1.4, .4, 1) both; }
+.t-bubble::before { content: ""; position: absolute; left: -13px; top: 30px; border: 9px solid transparent; border-right: 14px solid #111; border-left: 0; }
+.t-bubble::after { content: ""; position: absolute; left: -8px; top: 32px; border: 7px solid transparent; border-right: 11px solid #fff; border-left: 0; }
+.talk:not([data-who="gorilla"]) .t-bubble { left: 12px; right: 96px; }
+.talk:not([data-who="gorilla"]) .t-bubble::before { left: auto; right: -13px; border-right: 0; border-left: 14px solid #111; }
+.talk:not([data-who="gorilla"]) .t-bubble::after { left: auto; right: -8px; border-right: 0; border-left: 11px solid #fff; }
+.t-bubble b { display: inline-block; margin-bottom: 4px; padding: 3px 8px; border-radius: 6px; background: var(--tc, #e9c25a); color: #111;
+    font: 900 10px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase; }
+.t-bubble p { margin: 0; font: 700 15px/1.3 var(--font-body); }
+.talk[data-who="gorilla"] { --tc: #e9c25a; }
+.talk[data-who="miz"] { --tc: #ff3b5c; }
+.talk[data-who="hero"] { --tc: #fff; }
+.talk[data-who="hero"] .t-bubble b { box-shadow: inset 0 0 0 2px #111; }
+@keyframes t-peek-l { from { transform: translateX(-100%) rotate(-25deg); } }
+@keyframes t-peek-r { from { transform: translateX(110%) rotate(25deg); } }
+@keyframes t-pop { from { opacity: 0; transform: scale(.6); } }
+@keyframes t-bob { to { transform: rotate(-4deg) translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .t-face, .t-bubble { animation: none; } }

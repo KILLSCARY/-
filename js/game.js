@@ -298,7 +298,7 @@ class Game {
         if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla((st.chase && !this.grudge && st.chaseHint) || st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
         this.chaserSaid = false;
         const lines = HERO_LINES[this.heroId];
-        if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.hub.toast(`${CHARACTERS.find((c) => c.id === this.heroId)?.name}: «${pick(lines)}»`); }, 2600);
+        if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.speech(CHARACTERS.find((c) => c.id === this.heroId)?.name, pick(lines), 3000); }, 2600);
         this.state = "playing";
         this.renderBoosts(); // кнопки бустов оживают со стартом
         this.audio.music("run");
@@ -1630,14 +1630,20 @@ class Game {
     gorilla(text, good = false, ms = 4200) { this.speech("Горилла", text, ms, good); }
 
     // реплика персонажа (Горилла, Мизулина, Спиди) — плашка сверху
-    speech(who, text, ms = 3200, good = false) {
+    speech(who, text, ms = 3200, good = false, face = null) {
         const el = $("gorilla");
         $("g-text").textContent = text;
         $("g-who").textContent = who;
-        el.dataset.who = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
+        const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
+        el.dataset.who = kind;
+        // лицо: Мизулина — её портрет, герой — портрет выбранного героя
+        const url = face || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait : "");
+        $("g-face").style.setProperty("--face", url ? `url("${new URL(url, location.href).href}")` : "none"); // путь в переменной CSS считается от файла стилей — даём полный
+        // где лицо на портрете (по высоте): у Спиди — ниже середины карточки, у отрендеренных боссов — сверху
+        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : "18%");
+        for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
         el.hidden = false;
-        el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
         clearTimeout(this.gorillaT);
         this.gorillaT = setTimeout(() => (el.hidden = true), ms);
     }
@@ -1713,7 +1719,7 @@ class Game {
         this.storyCatch = false;
         this.startStoryFight(true);
         setTimeout(() => $("fade").classList.remove("on"), 150);
-        if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech("Спиди", s.heroLine, 2000), 1900);
+        if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech(FIGHTERS.mouse.name, s.heroLine, 2400), 1900);
     }
 
     async startStoryFight() {
