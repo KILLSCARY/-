@@ -108,6 +108,26 @@ export class Hub {
             <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"><i></i></button></div>`).join("")
             + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
             <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
+        // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
+        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом (после короткого разгона) и все герои открыты.</p>
+            <div class="seg seg-test">${STORIES.map((st, i) => `<button data-fight="${i}">${FIGHTERS[st.opponent].short || FIGHTERS[st.opponent].name}${st.exam ? " · экзамен" : ""}</button>`).join("")}</div>
+            <button class="btn-small" id="btn-all-heroes">Открыть всех героев</button></div></div>
+            <div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
+            <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>`);
+        for (const b of box.querySelectorAll("[data-fight]")) b.onclick = () => { this.tab("run"); g.testFight(+b.dataset.fight); };
+        $("btn-all-heroes").onclick = () => {
+            const d = this.p.data;
+            d.heroes = [...new Set([...(d.heroes || []), ...CHARACTERS.map((c) => c.id)])];
+            this.p.save();
+            this.toast("Все герои открыты");
+        };
+        const reset = $("btn-reset-story");
+        reset.onclick = () => {
+            if (!reset.dataset.sure) { reset.dataset.sure = "1"; reset.textContent = "Точно? Нажми ещё раз"; return; }
+            g.resetStory();
+            this.toast("Начинаем заново: глава 1, Мизулина");
+            this.tab("run");
+        };
         for (const b of box.querySelectorAll("[data-set]")) b.onclick = () => { g.setSetting(b.dataset.set, !b.classList.contains("on")); this.renderSettings(); };
         for (const b of box.querySelectorAll("[data-q]")) b.onclick = () => { g.setSetting("quality", b.dataset.q); this.renderSettings(); };
     }

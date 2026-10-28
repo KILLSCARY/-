@@ -1152,3 +1152,8 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 @keyframes t-hide-r { to { transform: translateX(120%) rotate(20deg); } }
 
 /* звёздочки — рисуются в 3D (Game.updateStars), здесь ничего */
+
+/* настройки: тестовые бои и «пройти всё заново» */
+.seg-test { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.seg-test button { flex: 1 1 auto; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06); color: #fff; font: 700 12px var(--font-body); cursor: pointer; }
+.btn-danger { background: #e3343a !important; color: #fff !important; }

@@ -1672,6 +1672,29 @@ class Game {
         return s && this.profile.chapter().index >= (s.chapter || 1) - 1 ? s : null;
     }
 
+    // Тест: сразу в бой с боссом сюжета i — его глава открывается, после разгона — бой (для Мизулины без погони)
+    async testFight(i) {
+        const d = this.profile.data, st = STORIES[i];
+        d.story = i;
+        d.beaten = Math.max(0, (st.chapter || 1) - 1);
+        d.anketa ||= { test: "тест" };
+        this.settings.questions = true;
+        this.profile.save();
+        this.renderMenu();
+        await this.start();
+        const run = this.runId;
+        setTimeout(() => { if (this.runId === run && this.state === "playing" && !this.storyOn) this.startStoryFight(); }, 1500);
+    }
+
+    // «Пройти всё заново»: сюжет, главы, таблички, анкета, значки и награды боссов — с начала; кошелёк остаётся
+    resetStory() {
+        const d = this.profile.data;
+        Object.assign(d, { story: 0, beaten: 0, earned: 0, quiz: {}, mizBeaten: false, bossPaid: {}, badges: {}, exam: false });
+        for (const k of ["anketa", "place", "left"]) delete d[k];
+        this.profile.save();
+        this.renderMenu();
+    }
+
     // Следующий босс, пока его глава не открыта: кто, в какой главе и сколько ещё заработать (USDT за все забеги, не очки)
     nextBoss() {
         const s = STORIES[this.profile.data.story || 0];
