@@ -1558,10 +1558,19 @@ class Game {
         $("bs-ph").style.backgroundImage = `url(${opp.portrait})`;
         $("bs-hero").style.backgroundImage = `url(${FIGHTERS.mouse.portrait})`;
         $("bs-name").textContent = opp.name;
-        $("boss-splash").hidden = false;
+        $("bs-hero-name").textContent = FIGHTERS.mouse.name;
+        $("bs-label").textContent = s.name;
+        $("bs-quote").textContent = `«${opp.lines.intro}»`;
+        const splash = $("boss-splash");
+        splash.classList.remove("out");
+        $("toast").hidden = true; // уведомления забега («Серия 5!») — не поверх заставки
+        splash.hidden = false;
         $("hud").hidden = true;
-        await wait(2300);
-        $("boss-splash").hidden = true;
+        setTimeout(() => this.audio.play("crash"), 560); // удар «VS»
+        await wait(2400);
+        splash.classList.add("out");
+        await wait(450);
+        splash.hidden = true;
         // улица пустая: без препятствий, монет, погони и карточек — только бойцы
         this.world.clear();
         this.walls = [];
