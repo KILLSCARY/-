@@ -147,7 +147,8 @@ export class Profile {
         this.data.earned += usdt;
         // боссов глав больше нет: глава засчитывается, как только набрана её цель (финал — победой в сюжете)
         let ch = this.chapter(), done = null;
-        while (!ch.done && !CHAPTERS[ch.index].final && this.data.earned >= ch.goal) { done = this.beatBoss(); ch = this.chapter(); }
+        // глава с боссом (CHAPTERS[].boss) засчитывается только победой в бою — сумма её не закрывает
+        while (!ch.done && !CHAPTERS[ch.index].final && !CHAPTERS[ch.index].boss && this.data.earned >= ch.goal) { done = this.beatBoss(); ch = this.chapter(); }
         this.save();
         return done;
     }

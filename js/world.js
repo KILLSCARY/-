@@ -215,11 +215,12 @@ export function buildEnvironment(renderer) {
             side: THREE.BackSide,
             map: canvasTex(16, 256, (g, w, h) => {
                 const grad = g.createLinearGradient(0, 0, 0, h);
-                grad.addColorStop(0, SKY.zenith);
-                grad.addColorStop(0.42, "#5a1424");
-                grad.addColorStop(0.5, "#b0182a");
-                grad.addColorStop(0.56, "#2a0509");
-                grad.addColorStop(1, "#050102");
+                const [z, a, hz, b, n] = SKY.env; // отражения — в цветах неба (сиреневая ночь)
+                grad.addColorStop(0, z);
+                grad.addColorStop(0.42, a);
+                grad.addColorStop(0.5, hz);
+                grad.addColorStop(0.56, b);
+                grad.addColorStop(1, n);
                 g.fillStyle = grad;
                 g.fillRect(0, 0, w, h);
             }),

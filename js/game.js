@@ -138,18 +138,20 @@ class Game {
         this.renderer.outputEncoding = THREE.sRGBEncoding;
 
         this.scene = new THREE.Scene();
-        // красный туман вдали — того же цвета, что небо (SKY)
+        // небо — картинка во весь экран (градиент, звёзды, луна; перерисовывается под размер экрана в onResize),
+        // туман вдали — цвета горизонта (SKY)
         this.scene.background = new THREE.Color(SKY.color);
         this.scene.fog = new THREE.Fog(SKY.color, 12, 85);
+        this.paintSky();
         this.scene.environment = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
-        this.scene.add(new THREE.HemisphereLight(0xa08088, 0x1a0809, SKY.light));
+        this.scene.add(new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], SKY.light));
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        const moon = new THREE.DirectionalLight(0xffa090, 0.9);
+        const moon = new THREE.DirectionalLight(SKY.moon, 0.9);
         moon.castShadow = this.tier.shadows;
         moon.shadow.mapSize.set(1024, 1024);
         Object.assign(moon.shadow.camera, { left: -6, right: 6, top: 10, bottom: -10, near: 1, far: 40 });
@@ -185,11 +187,41 @@ class Game {
         this.bloom.setSize(w * ratio / div, h * ratio / div);
         this.bloom.enabled = this.tier.bloom > 0;
         this.camera.aspect = w / h;
+        this.paintSky(w, h);
         this.baseFov = w / h < 0.8 ? 72 : 58;
         this.camera.fov = this.baseFov + this.camKick.fov;
         this.camera.updateProjectionMatrix();
         this.hudCoin = null; // куда летят монеты — пересчитать под новый размер
         if (this.sceneCovered()) this.composer.render(); // смена размера стирает холст — последний кадр рисуем заново
+    }
+
+    // Небо под пропорции экрана (иначе луна вытянется в овал): градиент, звёзды, луна с ореолом. Звёзды — одни и те же
+    // при каждой перерисовке (свой генератор с зерном), чтобы при повороте экрана небо не «перемешивалось»
+    paintSky(w = window.innerWidth, h = window.innerHeight) {
+        if (!this.scene || !w || !h) return;
+        const key = `${Math.round(w / h * 100)}`;
+        if (this.skyKey === key) return;
+        this.skyKey = key;
+        const W = 512, H = Math.round(512 * h / w), c = document.createElement("canvas");
+        c.width = W; c.height = H;
+        const g = c.getContext("2d");
+        const grad = g.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, SKY.zenith); grad.addColorStop(0.5, SKY.mid); grad.addColorStop(1, SKY.horizon);
+        g.fillStyle = grad; g.fillRect(0, 0, W, H);
+        let seed = 11;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        for (let i = 0; i < SKY.stars; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + rnd() * 0.7})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.55, 0.6 + rnd() * 1.2, 0, 7); g.fill(); }
+        const m = SKY.moonDisc, mx = m.x * W, my = m.y * H, r = m.r * W;
+        const halo = g.createRadialGradient(mx, my, r * 0.6, mx, my, r * 4);
+        halo.addColorStop(0, "rgba(220,200,255,.45)"); halo.addColorStop(1, "rgba(220,200,255,0)");
+        g.fillStyle = halo; g.fillRect(0, 0, W, H);
+        g.fillStyle = "#f2eaff"; g.beginPath(); g.arc(mx, my, r, 0, 7); g.fill();
+        g.fillStyle = "rgba(180,160,220,.35)";
+        for (const [a, b, rr] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.15], [0.05, 0.35, 0.12]]) { g.beginPath(); g.arc(mx + a * r, my + b * r, rr * r, 0, 7); g.fill(); }
+        const tex = new THREE.CanvasTexture(c);
+        tex.encoding = THREE.sRGBEncoding;
+        this.scene.background?.dispose?.();
+        this.scene.background = tex;
     }
 
     // ---- забег ---------------------------------------------------------------------------
@@ -1590,7 +1622,11 @@ class Game {
     // ---- сюжет v2.5: таблички главы (страх босса) → практика → «БОСС» → бой 1 на 1 -------------------
     // Верный ответ засчитывается один раз (profile.data.quiz): +USDT главы и заряд против босса.
     // Ошибка — реплика Гориллы с пояснением, без удара и без заряда; табличку можно пересдать в следующем забеге.
-    get story() { return STORIES[this.profile.data.story || 0] || null; }
+    // сюжет босса идёт, когда игрок дошёл до его главы; до тех пор — обычные забеги
+    get story() {
+        const s = STORIES[this.profile.data.story || 0];
+        return s && this.profile.chapter().index >= (s.chapter || 1) - 1 ? s : null;
+    }
 
     // Мизулина побеждена — дальше бегает «из принципа»
     get grudge() { return !!this.profile.data.mizBeaten; }
@@ -1814,7 +1850,8 @@ class Game {
         }
         const d = this.profile.data;
         d.story = (d.story || 0) + 1;
-        if (s.final) { d.exam = true; if (CHAPTERS[this.profile.chapter().index]?.final) this.profile.beatBoss(); }
+        if (s.final) d.exam = true;
+        if (CHAPTERS[this.profile.chapter().index]?.boss === s.opponent) this.profile.beatBoss(); // глава босса засчитана
         const paid = (d.bossPaid ||= {})[s.id]; // награда за босса — только за первую победу
         if (!paid) { d.bossPaid[s.id] = 1; this.profile.gift(s.reward.usdt); }
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
