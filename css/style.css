@@ -1076,8 +1076,9 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .gorilla.ok { box-shadow: 0 0 0 1px rgba(53, 227, 155, .6), 0 10px 30px rgba(0, 0, 0, .5); }
 @keyframes g-in { from { opacity: 0; transform: translateY(-10px); } }
 .qi-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
-.qi-row input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 14px; border: 2px solid rgba(233, 194, 90, .6); background: rgba(0, 0, 0, .45); color: #fff;
+.qi-row input { flex: 1; min-width: 0; width: 0; padding: 14px 16px; border-radius: 14px; border: 2px solid rgba(233, 194, 90, .6); background: rgba(0, 0, 0, .45); color: #fff;
     font: 800 24px/1 var(--font-display); text-align: center; outline: none; }
 .qi-row span { font: 800 22px/1 var(--font-display); color: #e9c25a; }
 #quiz-input .btn, #anketa .btn, #final .btn { width: 100%; margin-top: 8px; }
+#quiz-input .modal-card, #anketa .modal-card, #final .modal-card { width: min(100%, 380px); box-sizing: border-box; }
 .ak-a { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
