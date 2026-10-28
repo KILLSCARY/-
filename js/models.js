@@ -41,7 +41,7 @@ export function matteCharacters(root) {
 export function loadModel(url, onLoad, onError = () => {}, { deferred = false } = {}) {
     if (deferred) return void later(() => loadModel(url, onLoad, onError));
     const done = onLoad;
-    onLoad = (gltf) => { matteCharacters(gltf.scene); done(gltf); };
+    onLoad = (gltf) => { matteCharacters(gltf.scene); gltf.scene.userData.src = url; done(gltf); }; // src — откуда модель (замеры нагрузки)
     if (!url.endsWith(".json")) return loader.load(url, onLoad, undefined, onError);
     fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${url}`))))

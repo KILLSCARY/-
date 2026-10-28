@@ -54,6 +54,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Слабый телефон — сразу низкая графика, чтобы не грелся. Бюджетный Android обычно с 8 ядрами, поэтому
 // одних ядер мало: смотрим ещё память (Chrome отдаёт 0.5, 1, 2, 4, 8 ГБ) и название видеочипа.
+// Telegram на Android сам пишет класс телефона в User-Agent: «Telegram-Android/11.2.0 (Модель; Android 14; SDK 34; LOW)»
+// (LOW / AVERAGE / HIGH, Bot API 8.0). Ему верим больше, чем догадкам по памяти и видеочипу.
+function tgPerfClass() {
+    const m = navigator.userAgent.match(/Telegram-Android\/[^(]*\([^)]*;\s*(LOW|AVERAGE|HIGH)\s*\)/i);
+    return m ? m[1].toUpperCase() : null;
+}
+
 function weakDevice() {
     const ios = /iPhone|iPad/.test(navigator.userAgent);
     if (navigator.deviceMemory && navigator.deviceMemory <= 4) return true;
@@ -99,7 +106,8 @@ class Game {
 
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
-        this.quality = QUALITY === "auto" ? (mobile && weakDevice() ? "low" : mobile ? "medium" : "high") : QUALITY;
+        const cls = tgPerfClass(); // LOW → слабая графика, AVERAGE/HIGH → средняя (телефон греется и на сильном)
+        this.quality = QUALITY === "auto" ? (cls === "LOW" || (!cls && mobile && weakDevice()) ? "low" : mobile ? "medium" : "high") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона

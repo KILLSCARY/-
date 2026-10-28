@@ -61,6 +61,7 @@ function sparkTexture() {
     return sparkTex;
 }
 
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(); // рабочие векторы для поз (без выделений памяти в кадре)
 const COMIC = ["БАХ!", "ХРЯСЬ!", "БУМ!", "БДЫЩ!", "ШМЯК!"]; // слова комикс-вспышки на сильных ударах
 
 // время, где бёдра ниже всего (во второй половине клипа нокаута); иначе — доля FIGHT.koHold
@@ -995,7 +996,7 @@ export class Fight {
         if (!L || !R) return;
         f.model.rotation.y = 0;
         f.model.updateMatrixWorld(true);
-        const v = R.getWorldPosition(new THREE.Vector3()).sub(L.getWorldPosition(new THREE.Vector3()));
+        const v = R.getWorldPosition(_v1).sub(L.getWorldPosition(_v2)); // общие векторы — без мусора каждый кадр
         const a = Math.atan2(v.x, v.z);
         if (ref || f.yaw0 === undefined) { if (ref) f.yaw0 = a; else return; }
         let d = f.yaw0 - a;
@@ -1019,7 +1020,7 @@ export class Fight {
             f.root.position.y = 0;
             f.root.updateMatrixWorld(true);
             let low = Infinity;
-            const p = new THREE.Vector3();
+            const p = _v1;
             for (const n of ["LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot"]) if (f.b[n]) low = Math.min(low, f.b[n].getWorldPosition(p).y);
             const air = this.moveOf(f)?.air;
             if (low < Infinity && !air) f.lift = (f.lift ?? 0) + ((f.cfg.foot ?? 0.04) - low - (f.lift ?? 0)) * Math.min(1, dt * 10);
