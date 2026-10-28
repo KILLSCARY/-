@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter } from "./config.js";
 import { Fight } from "./fight.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -1857,7 +1857,7 @@ class Game {
         this.storyCatch = false;
         this.startStoryFight(true);
         setTimeout(() => $("fade").classList.remove("on"), 150);
-        if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech(FIGHTERS.mouse.name, s.heroLine, 2400), 1900);
+        if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech(FIGHTERS[heroFighter(this.heroId)].name, s.heroLine, 2400), 1900);
     }
 
     async startStoryFight() {
@@ -1868,9 +1868,10 @@ class Game {
         this.audio.play("record");
         $("bs-ph").style.backgroundImage = `url(${opp.portrait})`;
         for (const [k, v] of [["--bh", opp.splash?.h], ["--fx", opp.splash?.fx], ["--fy", opp.splash?.fy]]) $("bs-ph").style[v == null ? "removeProperty" : "setProperty"](k, v); // кадр портрета у каждого босса свой
-        $("bs-hero").style.backgroundImage = `url(${FIGHTERS.mouse.portrait})`;
+        const hero = FIGHTERS[heroFighter(this.heroId)]; // в бой — тот, за кого бежишь
+        $("bs-hero").style.backgroundImage = `url(${hero.portrait})`;
         $("bs-name").textContent = opp.name;
-        $("bs-hero-name").textContent = FIGHTERS.mouse.name;
+        $("bs-hero-name").textContent = hero.name;
         $("bs-label").textContent = `${s.name} · ${s.fear}`;
         $("bs-quote").textContent = `«${s.before?.boss || opp.lines.intro}»`;
         const splash = $("boss-splash");
@@ -1899,7 +1900,7 @@ class Game {
         // экзамен Инакова: вопросы перемешаны (пересдача — в другом порядке), заряды убирают неверные варианты
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
         // заряды главы: +5% HP за каждый, с трёх — супер на 30% со старта
-        this.fight = new Fight(this, { hero: "mouse", opponent: s.opponent, exam,
+        this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam,
             bonus: exam ? {} : { hp: Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
             onEnd: (win) => this.endStoryFight(win) });
     }

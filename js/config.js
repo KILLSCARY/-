@@ -722,6 +722,11 @@ export const FIGHTERS = {
             roundWon: "Вот так-то.", roundLost: "Крепкий… Ещё раунд.", lose: "Задержан. Приходи, когда разберёшься.", spam: "Сопротивление при задержании!" } },
 };
 FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
+// В бой выходит тот герой, за кого бежишь: клипы боя Спиди перенесены на модель каждого героя (models/<id>_hero_fight.glb),
+// приёмы, урон и HP — как у Спиди
+for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
+    model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait };
+export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
