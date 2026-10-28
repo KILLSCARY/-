@@ -61,6 +61,8 @@ function sparkTexture() {
     return sparkTex;
 }
 
+const COMIC = ["БАХ!", "ХРЯСЬ!", "БУМ!", "БДЫЩ!", "ШМЯК!"]; // слова комикс-вспышки на сильных ударах
+
 // время, где бёдра ниже всего (во второй половине клипа нокаута); иначе — доля FIGHT.koHold
 function koLowest(clip) {
     const tr = clip.tracks.find((t) => /hips\.position$/i.test(t.name));
@@ -460,6 +462,10 @@ export class Fight {
         def.hitSide = att.hand ? 1 : -1;
         this.spark(contact, kind === "jab" ? 0.6 : kind === "super" ? 1.4 : 0.9, kind === "super" ? 0xffd65a : 0xffffff);
         this.popText(def, counter ? `КОНТР −${dmg}` : `−${dmg}`, counter || kind === "heavy" || kind === "super" || kind === "hook" ? "crit" : "");
+        if (kind === "heavy" || kind === "hook" || kind === "super" || counter) { // комикс-вспышка и волна по асфальту — сильный удар видно сразу
+            this.comic(contact, kind === "super" ? "super" : kind === "heavy" ? "heavy" : "");
+            this.shockwave(def, kind === "super" ? 1.6 : 1);
+        }
         this.stop = kind === "jab" ? 0.07 : kind === "super" ? 0.32 : 0.12; // стоп-кадр — удар «чувствуется»
         this.punchIn = kind === "jab" ? 0.03 : kind === "super" ? 0.12 : 0.06; // камера на миг «вздрагивает» к удару
         if (kind === "super") { this.slow = 0.2; this.flashScreen(); }
@@ -487,6 +493,29 @@ export class Fight {
         m.renderOrder = 20;
         this.group.add(m);
         this.sparks.push({ m, t: 0, size });
+    }
+
+    // «БАХ!» звёздочкой у точки удара (как в комиксе), слово — случайное
+    comic(pos, cls) {
+        const p = pos.clone().project(this.g.camera);
+        const el = document.createElement("b");
+        el.className = `f-comic ${cls}`;
+        el.textContent = COMIC[Math.floor(Math.random() * COMIC.length)];
+        el.style.left = `${(p.x * 0.5 + 0.5) * 100}%`;
+        el.style.top = `${(-p.y * 0.5 + 0.5) * 100}%`;
+        el.style.setProperty("--r", `${(Math.random() - 0.5) * 24}deg`);
+        $("fight").appendChild(el);
+        setTimeout(() => el.remove(), 650);
+    }
+
+    // волна по асфальту из-под ног получившего удар
+    shockwave(f, size) {
+        if (!this.ringGeo) this.ringGeo = new THREE.RingGeometry(0.7, 1, 40);
+        const m = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(f.root.position.x, 0.04, f.root.position.z);
+        this.group.add(m);
+        this.sparks.push({ m, t: 0, size, ring: true });
     }
 
     popText(f, text, cls) {
@@ -1009,9 +1038,12 @@ export class Fight {
         for (let i = this.sparks.length - 1; i >= 0; i--) {
             const s = this.sparks[i];
             s.t += dt;
-            const k = s.t / 0.28;
-            s.m.scale.setScalar(s.size * 0.5 * (0.3 + smooth(Math.min(1, k * 2.2)) * 0.9));
-            s.m.material.opacity = 1 - smooth(k);
+            const k = s.t / (s.ring ? 0.45 : 0.28);
+            if (s.ring) { s.m.scale.setScalar(s.size * (0.3 + smooth(k) * 1.4)); s.m.material.opacity = 0.7 * (1 - k); }
+            else {
+                s.m.scale.setScalar(s.size * 0.5 * (0.3 + smooth(Math.min(1, k * 2.2)) * 0.9));
+                s.m.material.opacity = 1 - smooth(k);
+            }
             if (k >= 1) { this.group.remove(s.m); s.m.material.dispose(); this.sparks.splice(i, 1); }
         }
     }
