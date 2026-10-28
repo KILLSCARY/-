@@ -197,12 +197,12 @@ export const CHARACTERS = [
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=3", height: 1.78, portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=4", height: 1.78, portrait: "img/heroes/denchik.webp",
         // подкат — «Roll Dodge», от удара — «Knock Down»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1 } }, // v3: клипы команды (бег, подкат, прыжок, полёт-«плаванье»)
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=3", height: 1.82, portrait: "img/heroes/sasha.webp",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } }, // v4: прежние клипы — бег v2 команды выглядел как скольжение
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=4", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1 } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -289,13 +289,13 @@ export const CHAPTER_BOSSES = [
         mid: "Протокол: слишком много «подумаю»…",
         win: "Нарушений не выявлено… Свободен. Пока что.",
         lose: "Протокол составлен. Жду в следующем забеге." },
-    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=3", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=4", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
         throw: "block", need: 8, every: [1.4, 1.15, 0.95], speed: 17, vary: ["double"],
         intro: "Дорого? Давай посчитаем, во сколько тебе обходится стоять на месте.",
         mid: "Цифры не врут. Беги быстрее.",
         win: "Посчитал: стоять дороже, чем бежать. Ты в плюсе.",
         lose: "Баланс не сошёлся. Пересчитаем в следующий раз." },
-    { id: "sasha", name: "Саша Белый", model: "models/sasha.glb?v=3", height: 1.82, clip: "run", portrait: "img/heroes/sasha.webp",
+    { id: "sasha", name: "Саша Белый", model: "models/sasha.glb?v=4", height: 1.82, clip: "run", portrait: "img/heroes/sasha.webp",
         throw: "dumpster", need: 10, every: [1.3, 1.05, 0.85], speed: 19, vary: ["double"],
         intro: "Первый миллион начинается с первого «да». Покажи, что ты его скажешь.",
         mid: "В Тюмени холодно, а мы горячие!",
