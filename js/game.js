@@ -858,7 +858,9 @@ class Game {
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
         if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
-            const a = this.arrest, k = Math.min(1, a.t / 0.6), ang = 0.5 + a.t * 0.3;
+            // плавно: въезд за 0.8 с, облёт ~2.5 с с замедлением и остановка (дальше кадров мало — камера уже стоит)
+            const a = this.arrest, sm = (x) => x * x * (3 - 2 * x);
+            const k = sm(Math.min(1, a.t / 0.8)), ang = 0.5 + 0.8 * sm(Math.min(1, a.t / 2.6));
             cam.position.lerp((v.focus2 ||= new THREE.Vector3()).set(this.x - Math.sin(ang) * 3.4 * a.side, 1.4, 0.4 + Math.cos(ang) * 3.4), k);
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
         }
@@ -964,6 +966,7 @@ class Game {
         if (this.state === "fight") return 1000 / Math.min(this.tier.fps[0], this.tier.fight || 60);
         if (this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / this.tier.fps[0];
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / this.tier.fps[0]; // тряска при проигрыше — плавно
+        if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / Math.min(this.tier.fps[0], 45); // задержание: камера облетает — плавно
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
     }
