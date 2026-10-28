@@ -219,7 +219,8 @@ export class Fight {
             // на клип — два действия (второе — на копии клипа): одно действие не играет два времени сразу,
             // а джеб и кросс — куски одного клипа, и переход между ними должен смешивать оба
             f.acts = {};
-            for (const m of Object.values(f.cfg.moves)) {
+            const parts = Object.values(f.cfg.moves).flatMap((m) => (m.seq ? [m, ...Object.values(m.seq)] : [m]));
+            for (const m of parts) {
                 if (f.acts[m.clip]) continue;
                 const clip = list.find((a) => a.name === m.clip);
                 if (!clip) continue;
@@ -855,7 +856,16 @@ export class Fight {
     // блок, уклон, попадание и отдача — поверх стойки костями (своих клипов у них пока нет)
     clipPose(f, dt) {
         const key = this.moveOf(f) ? f.act : f.act === "win" && f.moves.win ? "win" : "idle";
-        const mv = key === "idle" ? f.moves.idle : key === "win" ? f.moves.win : this.moveOf(f);
+        let mv = key === "idle" ? f.moves.idle : key === "win" ? f.moves.win : this.moveOf(f);
+        let seg = "";
+        if (mv.seq) { // блок из трёх клипов: заход → удержание по кругу → выход (заход и выход ужимаем под короткий блок)
+            const q = mv.seq, d = f.dur || 1, tIn = Math.min(q.in.time, d * 0.35), tOut = Math.min(q.out.time, d * 0.35);
+            const part = f.t < tIn ? "in" : f.t > d - tOut ? "out" : "loop";
+            const p = q[part], k = part === "in" ? f.t / tIn : part === "out" ? (f.t - (d - tOut)) / tOut : 0;
+            mv = { ...p, fit: true, hold: false };
+            seg = part;
+            var seqTime = part === "loop" ? p.from + ((f.t - tIn) % (p.to - p.from)) : p.from + (p.to - p.from) * Math.min(1, Math.max(0, k));
+        }
         let time;
         if ((key === "idle" || key === "win") && mv.loop) time = mv.from + ((this.t * (mv.speed || 1)) % (mv.to - mv.from)); // стойка по кругу
         else if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
@@ -863,7 +873,8 @@ export class Fight {
             time = len > 0 ? mv.from + len * (0.5 - 0.5 * Math.cos(ph)) : mv.from;
         } else if (mv.hold) time = Math.min(mv.to, mv.from + f.t * (mv.speed || 1)); // замах в своём темпе, дальше держит
         else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
-        const id = key === "punch" ? `p${f.combo}${f.hand}` : key + (f.heavyVar || "");
+        if (seg) time = seqTime;
+        const id = key === "punch" ? `p${f.combo}${f.hand}` : key + (f.heavyVar || "") + seg;
         if (f.segId !== id) { // переход: прошлый кусок гаснет за 0.12 с; тот же клип — на втором слоте
             f.prev = f.cur || null;
             f.cur = { clip: mv.clip, slot: f.prev && f.prev.clip === mv.clip ? 1 - f.prev.slot : 0, time };
