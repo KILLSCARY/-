@@ -110,6 +110,7 @@ export class Fight {
         this.f[1].hpMax = this.oppCfg.hp;
         for (const f of this.f) { f.hp = f.hpMax; f.shown = f.hpMax; }
         let left = 2;
+        this.loadT = setTimeout(() => { if (this.phase === "load") $("f-load").hidden = false; }, 120); // загрузилось мгновенно — экран загрузки не мелькает
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и оранжевый контровые
@@ -243,9 +244,19 @@ export class Fight {
         console.info(`[fight] ${f.cfg.name}: клипы`, list.map((a) => a.name), "крючки боя:", Object.keys(f.clips));
     }
 
+    // модели на месте: шейдеры новых материалов собираем сразу, под экраном загрузки (иначе первый кадр боя «встаёт»)
     ready() {
-        this.phase = "intro";
-        this.startRound();
+        if (this.phase !== "load") return;
+        const go = () => {
+            if (this.disposed) return; // бой уже закрыли
+            try { this.g.renderer.compile(this.g.scene, this.g.camera); } catch {}
+            clearTimeout(this.loadT);
+            $("f-load").hidden = true;
+            this.phase = "intro";
+            this.startRound();
+        };
+        if ($("f-load").hidden) go();
+        else { $("f-load-sub").textContent = "Почти готово…"; setTimeout(go, 60); } // дать экрану загрузки отрисоваться
     }
 
     startRound() {
@@ -768,6 +779,9 @@ export class Fight {
     }
 
     dispose() {
+        this.disposed = true;
+        clearTimeout(this.loadT);
+        $("f-load").hidden = true;
         $("fight").hidden = true;
         $("fight").classList.remove("exam", "cine");
         for (const o of this.hidden || []) o.visible = true;

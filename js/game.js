@@ -14,7 +14,7 @@ import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
-import { loadModel, releaseQueue } from "./models.js";
+import { loadModel, releaseQueue, preloadModel } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -337,6 +337,8 @@ class Game {
         this.audio.unlock();
         this.resetRun();
         if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
+        // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
+        if (this.story) setTimeout(() => { for (const id of [heroFighter(this.heroId), this.story.opponent]) preloadModel(FIGHTERS[id]?.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -1999,6 +2001,7 @@ class Game {
 
     async startStoryFight() {
         const s = this.story, opp = FIGHTERS[s.opponent];
+        for (const id of [heroFighter(this.heroId), s.opponent]) preloadModel(FIGHTERS[id]?.model); // если ещё не скачаны — пока идёт заставка
         this.storyOn = true;
         this.state = "bossintro";
         tg.haptic("heavy");

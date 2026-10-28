@@ -38,10 +38,21 @@ export function matteCharacters(root) {
     });
 }
 
+// Заранее скачанные модели (байты): бойцов босса качаем ещё в забеге, чтобы встреча с ним не стояла на загрузке.
+// Храним байты, а не готовую сцену: бой свою модель потом выкидывает, а из байтов каждый раз собирается свежая.
+const bytes = new Map();
+export function preloadModel(url) {
+    if (!url || url.endsWith(".json")) return Promise.resolve(null);
+    if (!bytes.has(url)) bytes.set(url, fetch(url).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
+        .then((b) => { if (!b) bytes.delete(url); return b; }));
+    return bytes.get(url);
+}
+
 export function loadModel(url, onLoad, onError = () => {}, { deferred = false } = {}) {
     if (deferred) return void later(() => loadModel(url, onLoad, onError));
     const done = onLoad;
     onLoad = (gltf) => { matteCharacters(gltf.scene); gltf.scene.userData.src = url; done(gltf); }; // src — откуда модель (замеры нагрузки)
+    if (bytes.has(url)) return void bytes.get(url).then((b) => (b ? loader.parse(b, "", onLoad, onError) : loader.load(url, onLoad, undefined, onError)));
     if (!url.endsWith(".json")) return loader.load(url, onLoad, undefined, onError);
     fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${url}`))))
