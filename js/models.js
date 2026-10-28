@@ -22,8 +22,26 @@ setTimeout(() => release(), 6000);
 export const releaseQueue = () => release();
 export const later = (fn) => gate.then(fn);
 
+// Персонажи (сетки со скелетом) — матовые: у моделей Meshy металличность 0.1 и шероховатость 0.75, и на ночной
+// улице кожа и одежда ловят отражения неба и неона — выглядят масляными и «зеркальными». Ткань и кожа так не блестят.
+export function matteCharacters(root) {
+    root.traverse((o) => {
+        if (!o.isSkinnedMesh) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+            if (!m || !m.isMeshStandardMaterial) continue;
+            m.metalness = 0;
+            m.metalnessMap = null;
+            m.roughness = Math.max(m.roughness ?? 1, 0.93);
+            m.envMapIntensity = 0.28; // отражения окружения — едва-едва, только чтобы не было плоско
+            m.needsUpdate = true;
+        }
+    });
+}
+
 export function loadModel(url, onLoad, onError = () => {}, { deferred = false } = {}) {
     if (deferred) return void later(() => loadModel(url, onLoad, onError));
+    const done = onLoad;
+    onLoad = (gltf) => { matteCharacters(gltf.scene); done(gltf); };
     if (!url.endsWith(".json")) return loader.load(url, onLoad, undefined, onError);
     fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${url}`))))

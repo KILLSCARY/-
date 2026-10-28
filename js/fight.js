@@ -109,6 +109,15 @@ export class Fight {
             this.rimWas = { pos: game.rim.position.clone(), color: game.rim.color.getHex(), i: game.rim.intensity, d: game.rim.distance };
             game.rim.position.set(-1.6, 2.0, 0.6); game.rim.color.setHex(0xffd2b0); game.rim.intensity = 1.1; game.rim.distance = 7;
         }
+        // что стоит между камерой (сбоку, x ≈ −4.5) и бойцами — фонари, урны, знаки с тротуара — на время боя прячем
+        const corridor = new THREE.Box3(new THREE.Vector3(-5.6, 0, -2.4), new THREE.Vector3(-0.8, 4, 2.4)), bb = new THREE.Box3();
+        this.hidden = [];
+        for (const o of game.scene.children) {
+            if (!o.visible || o === this.group || o.isLight || o.isCamera || o === game.rat || o === game.world?.reflector) continue;
+            bb.setFromObject(o);
+            if (bb.isEmpty() || bb.max.x - bb.min.x > 12 || bb.max.z - bb.min.z > 12) continue; // дома и дорога — большие, их не трогаем
+            if (bb.intersectsBox(corridor)) { o.visible = false; this.hidden.push(o); }
+        }
         // бойцы в паре метров от камеры: дальний конец улицы не нужен — меньше домов в кадре
         this.farWas = game.camera.far; game.camera.far = 34; game.camera.updateProjectionMatrix();
         // световой круг на асфальте — «ринг»
@@ -660,6 +669,7 @@ export class Fight {
     dispose() {
         $("fight").hidden = true;
         $("fight").classList.remove("exam", "cine");
+        for (const o of this.hidden || []) o.visible = true;
         $("f-exam").hidden = true;
         this.g.camera.fov = this.g.baseFov;
         if (this.farWas) this.g.camera.far = this.farWas;
