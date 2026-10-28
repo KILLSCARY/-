@@ -95,8 +95,8 @@ export class Fight {
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и синий контровые
-        const key = new THREE.PointLight(0xffd2b0, 1.4, 9);
-        key.position.set(-1.6, 2.6, 2.2);
+        const key = new THREE.PointLight(0xffd2b0, 0.8, 9); // мягко: белая шляпа Спиди не должна пересвечиваться
+        key.position.set(-2.4, 2.2, 0.4);
         const rimR = new THREE.PointLight(0xff2a40, 3.2, 8);
         rimR.position.set(1.8, 2.2, -2.4);
         const rimB = new THREE.PointLight(0x3a7bff, 2.4, 8);
@@ -573,6 +573,8 @@ export class Fight {
 
     dispose() {
         $("fight").hidden = true;
+        this.g.camera.fov = this.g.baseFov;
+        this.g.camera.updateProjectionMatrix();
         $("fb").classList.remove("off");
         for (const u of this.unbind || []) u();
         clearTimeout(this.sayT);
@@ -731,18 +733,19 @@ export class Fight {
             aim(b.LeftForeArm, b.LeftHand, V(0.35, 1, 0.1), w);
             aim(b.RightArm, b.RightForeArm, V(0.25, -0.35, 0.75), w);
             aim(b.RightForeArm, b.RightHand, V(-0.35, 1, 0.1), w);
-            twist(b.Spine1, rt, 0.12 * w * f.dir);
+            twist(b.Spine1, rt, -0.12 * w); // чуть вперёд, за руки
             dip += 0.04 * w;
         } else if (f.act === "dodge") {
             const w = bell(k, 0.3, 1);
             twist(b.Spine, fw, -0.45 * w * f.dir);
-            twist(b.Spine1, rt, 0.25 * w * f.dir);
+            twist(b.Spine1, rt, 0.25 * w);
             dip += 0.12 * w; sideX = -0.25 * w; dz -= 0.15 * w;
         } else if (f.act === "hit" || f.act === "recoil") {
             const w = 1 - smooth(k), back = f.act === "hit" ? 0.5 : 0.3;
-            twist(b.Spine, rt, -back * 0.5 * w * f.dir);
-            twist(b.Spine2, rt, -back * 0.6 * w * f.dir);
-            twist(b.Neck, rt, -back * 0.8 * w * f.dir);
+            // вокруг своей оси «вправо» на +угол — корпус и голова откидываются назад
+            twist(b.Spine, rt, back * 0.5 * w);
+            twist(b.Spine2, rt, back * 0.6 * w);
+            twist(b.Neck, rt, back * 0.8 * w);
             if (f.act === "hit") twist(b.Spine1, UP, (f.hitSide || 1) * 0.35 * w);
             dz -= (f.act === "hit" ? f.kb : 0.18) * w;
         }
@@ -766,7 +769,7 @@ export class Fight {
         f.flash = Math.max(0, f.flash - dt * 6);
         for (const m of f.mats) {
             const w = 0; // замах видно по клипу и надписи — без подсветки тела
-            m.emissive.setRGB(f.flash * 0.12 + w, f.flash * 0.05 + w * 0.4, f.flash * 0.04); // попадание — короткий красноватый отсвет
+            m.emissive.setRGB(0, 0, 0); // без заливки тела: попадание видно по искре, отдаче и цифрам
         }
         const warn = this.f[1].act === "heavyWind";
         if (warn !== this.warnShown) { this.warnShown = warn; $("f-warn").hidden = !warn; }
@@ -777,7 +780,7 @@ export class Fight {
             const s = this.sparks[i];
             s.t += dt;
             const k = s.t / 0.28;
-            s.m.scale.setScalar(s.size * (0.3 + smooth(Math.min(1, k * 2.2)) * 0.9));
+            s.m.scale.setScalar(s.size * 0.5 * (0.3 + smooth(Math.min(1, k * 2.2)) * 0.9));
             s.m.material.opacity = 1 - smooth(k);
             if (k >= 1) { this.group.remove(s.m); s.m.material.dispose(); this.sparks.splice(i, 1); }
         }
@@ -793,7 +796,8 @@ export class Fight {
         const zoom = ko ? 0.7 : sup ? 0.82 : 1;
         this.zoom = (this.zoom ?? 1) + (zoom - (this.zoom ?? 1)) * Math.min(1, dt * 3);
         const d = (portrait ? 1 : 0.8) * this.zoom;
-        const pos = (this.v1 ||= new THREE.Vector3()).set(-3.1 * d, 1.35 + 0.1 * d, 0.55 + 1.35 * d);
+        // вид сбоку, как в Tekken: герой справа, соперник слева, оба в рост
+        const pos = (this.v1 ||= new THREE.Vector3()).set(-3.45 * d, 1.2, 0.35 * d);
         const from = (this.v2 ||= new THREE.Vector3()).set(0, portrait ? 3.3 : 2.5, 5.0);
         cam.position.lerpVectors(from, pos, k);
         if (ko) { // нокаут: камера выше и сбоку от упавшего — его видно из-за победителя
@@ -808,10 +812,11 @@ export class Fight {
             cam.position.x += (Math.random() - 0.5) * this.shake * 0.5;
             cam.position.y += (Math.random() - 0.5) * this.shake * 0.5;
         }
-        const look = (this.v3 ||= new THREE.Vector3()).set(0.2, portrait ? 1.12 : 1.02, -0.12);
+        const look = (this.v3 ||= new THREE.Vector3()).set(0, portrait ? 1.02 : 0.95, -0.02);
         if (ko) { const l = this.f.find((f) => f.act === "ko"); look.lerp(new THREE.Vector3(0, 0.4, l.z - l.dir * 0.6), smooth(this.koK)); }
         cam.lookAt(look.lerp((this.v4 ||= new THREE.Vector3()).set(0, 0.9, -8), 1 - k));
-        if (cam.fov !== this.g.baseFov) { cam.fov = this.g.baseFov; cam.updateProjectionMatrix(); }
+        const fov = portrait ? FIGHT.fov : this.g.baseFov;
+        if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     }
 
     hud() {

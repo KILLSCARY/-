@@ -575,7 +575,7 @@ export const FIGHTERS = {
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
-export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, gap: 1.05, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
+export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, fov: 58, gap: 0.82, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
     stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
 // Крючки анимаций боя: первое найденное в glb имя клипа (без учёта регистра). Положи клип с таким именем в модель —
 // бой возьмёт его вместо процедурной анимации. idle — стойка (иначе idle/run модели + руки в защиту).
