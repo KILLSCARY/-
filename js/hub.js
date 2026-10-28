@@ -26,7 +26,6 @@ export class Hub {
         });
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
-        $("tile-rate").onclick = () => this.showRating();
         this.focus = null; // герой в центре карусели «Героев»
         $("btn-case-ok").onclick = () => {
             const v = $("co-video");
@@ -54,6 +53,7 @@ export class Hub {
         }
         this.game.audio.play("swipe");
         this.render();
+        if (name === "rating") this.showRating();
     }
 
     back() {
@@ -191,9 +191,6 @@ export class Hub {
 
     // ---- рейтинг игроков (очки считает сервер) ----
     async showRating() {
-        $("rating").hidden = false;
-        $("rate-x").onclick = () => ($("rating").hidden = true);
-        $("rating").onclick = (e) => { if (e.target.id === "rating") $("rating").hidden = true; };
         const list = $("rate-list"), n = (x) => fmt(x || 0);
         const stats = (r) => [r.cards && `карт ${r.cards}`, r.bosses && `боссов ${r.bosses}`, r.signs && `табличек ${r.signs}`, r.tasks && `заданий ${r.tasks}`].filter(Boolean).join(" · ") || "только начал";
         list.innerHTML = `<p class="rate-empty">Загружаем…</p>`;

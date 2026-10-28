@@ -48,7 +48,7 @@
                     <button class="tile" data-go="cases"><b class="badge" id="tile-cases-badge" hidden>1</b><span class="n">03</span><span><span class="tile-name">Кейсы</span><span class="tile-sub" id="tile-cases-sub"></span></span></button>
                     <button class="tile" data-go="shop"><span class="n">04</span><span><span class="tile-name">NS Store</span><span class="tile-sub" id="tile-shop-sub"></span></span></button>
                     <button class="tile tile-chap" data-go="chapters"><span class="n">05</span><span><span class="tile-name" id="tile-chap-name">Глава 1</span><span class="tile-sub" id="tile-chap-sub"></span></span><span class="bar"><i id="tile-chap-bar"></i></span></button>
-                    <button class="tile tile-rate" id="tile-rate"><span class="n">06</span><span><span class="tile-name">Рейтинг</span><span class="tile-sub" id="tile-rate-sub">Карты, боссы, задания</span></span><span class="arr" aria-hidden="true">→</span></button>
+                    <button class="tile tile-rate" data-go="rating"><span class="n">06</span><span><span class="tile-name">Рейтинг</span><span class="tile-sub" id="tile-rate-sub">Карты, боссы, задания</span></span><span class="arr" aria-hidden="true">→</span></button>
                     <p class="tiles-note">Заработано всего<b id="tile-earned">0</b></p>
                 </div>
             </div>
@@ -75,6 +75,16 @@
                 <p class="sheet-sub">Магазин добавок Паши. Купленное срабатывает в следующем забеге.</p>
                 <div class="seg seg3"><button data-seg="boosts" class="on">Бусты</button><button data-seg="sets">Наборы</button><button data-seg="up">Прокачка</button></div>
                 <div id="shop-list" class="cards"></div>
+            </div>
+            <!-- Рейтинг игроков: очки считает сервер (api/_lib/rating.mjs) -->
+            <div class="view sheet" id="view-rating" hidden>
+                <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Рейтинг игроков</p></div>
+                <h2 class="sheet-title" id="rate-me">Твоё место</h2>
+                <p class="sheet-sub" id="rate-me-sub"></p>
+                <div class="rate-list" id="rate-list"></div>
+                <p class="label rate-cap">Задания</p>
+                <div class="rate-tasks" id="rate-tasks"></div>
+                <details class="rate-rules"><summary>За что очки</summary><div id="rate-rules"></div></details>
             </div>
             <!-- Главы сюжета: пройденные, текущая с прогрессом, закрытые -->
             <div class="view sheet" id="view-chapters" hidden>
@@ -111,18 +121,6 @@
     </section>
 
     <!-- ежедневная награда: 7 дней подряд, на 7-й — герой на пробу -->
-    <!-- рейтинг игроков: очки считает сервер (api/_lib/rating.mjs) -->
-    <div id="rating" class="modal" hidden>
-        <div class="modal-card rate-card">
-            <button class="rate-x" id="rate-x" aria-label="Закрыть">✕</button>
-            <p class="label">Рейтинг игроков</p>
-            <h2 class="sheet-title" id="rate-me">Твоё место</h2>
-            <p class="sheet-sub" id="rate-me-sub"></p>
-            <div class="rate-list" id="rate-list"></div>
-            <details class="rate-rules"><summary>За что очки</summary><div id="rate-rules"></div></details>
-            <div class="rate-tasks" id="rate-tasks"></div>
-        </div>
-    </div>
     <div id="daily" class="modal" hidden>
         <div class="modal-card">
             <p class="label">Ежедневный вход</p>
