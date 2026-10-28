@@ -1816,11 +1816,12 @@ export class World {
         return wall;
     }
 
-    // ничего постороннего вплотную к стене: ряды препятствий и монеты рядом убираем (и когда стену отодвинул полёт)
-    clearAround(z) {
+    // ничего постороннего вплотную к стене: ряды препятствий и монеты рядом убираем (и когда стену отодвинул полёт).
+    // before / after — сколько метров пусто до стены и после неё; на скорости игра их удлиняет (Game.wallClear → this.wallClear)
+    clearAround(z, before = this.wallClear?.before ?? 28, after = this.wallClear?.after ?? 34) {
         for (const o of [...this.obstacles]) {
-            if (o.userData.type === "decor" || o.userData.type === "answer") continue;
-            if ((o.position.z > z - 34 && o.position.z < z + 28) || (o.userData.oncoming && o.position.z < z)) { // перед стеной (там замедление и выбор) и после неё — пусто
+            if (o.userData.type === "decor" || o.userData.type === "answer" || o.userData.islam) continue;
+            if ((o.position.z > z - after && o.position.z < z + before) || (o.userData.oncoming && o.position.z < z)) { // перед стеной (там замедление и выбор) и после неё — пусто
                 this.dropObstacle(o);
                 this.obstacles.splice(this.obstacles.indexOf(o), 1);
             }
@@ -1901,6 +1902,18 @@ export class World {
     // У каждого инспектора свой скелет, а у скелета — текстура костей в видеопамяти: освобождаем вместе с ним.
     // Свои (не общие) геометрии и материалы процедурных препятствий помечены userData.own — их тоже: без моделей
     // каждая тачка и банкомат оставляли в видеопамяти десяток буферов.
+    // убрать препятствия одной полосы между z0 и z1 (дорога к выбранному ответу), монеты оставить
+    clearLane(lane, z0, z1) {
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            const o = this.obstacles[i], t = o.userData.type;
+            if (t === "decor" || t === "answer" || o.userData.islam || o.userData.lane !== lane) continue;
+            if ((o.position.z > z0 && o.position.z < z1) || (o.userData.oncoming && o.position.z < z1)) {
+                this.dropObstacle(o);
+                this.obstacles.splice(i, 1);
+            }
+        }
+    }
+
     // убрать препятствия (не стены и не декор) между z0 и z1, монеты оставить
     clearZone(z0, z1) {
         for (let i = this.obstacles.length - 1; i >= 0; i--) {

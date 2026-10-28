@@ -197,9 +197,11 @@ export const CHARACTERS = [
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=4", height: 1.78, portrait: "img/heroes/denchik.webp",
-        // подкат — «Roll Dodge», от удара — «Knock Down»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead" } }, // v4: прежние клипы — бег v2 команды выглядел как скольжение
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=5", height: 1.78, portrait: "img/heroes/denchik.webp",
+        // v5 (denchik_v2 команды): гипс на левой ноге и два костыля (меши crutch_L/crutch_R на кистях, в полёте, подкате и бою
+        // спрятаны в самих клипах). Бег — на костылях, полёт — «Swim Forward» 2 с по кругу, поймали — падение лицом вперёд,
+        // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.0 } },
     { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=4", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
@@ -289,7 +291,7 @@ export const CHAPTER_BOSSES = [
         mid: "Протокол: слишком много «подумаю»…",
         win: "Нарушений не выявлено… Свободен. Пока что.",
         lose: "Протокол составлен. Жду в следующем забеге." },
-    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=4", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=5", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
         throw: "block", need: 8, every: [1.4, 1.15, 0.95], speed: 17, vary: ["double"],
         intro: "Дорого? Давай посчитаем, во сколько тебе обходится стоять на месте.",
         mid: "Цифры не врут. Беги быстрее.",
@@ -512,9 +514,20 @@ export const POWERUPS = {
 };
 // «Карта» — редкая вторая валюта (js/cards.js, economy_v7: банковская карта, решение Гриши). Девушка с картой у края
 // дороги; perRun — максимум за забег: первая гарантированно после firstAt м, следующая через nextGap м; в погоне и в бою
-// не появляется. edge — насколько за крайней полосой стоит (м), spawnZ — где появляется, idleSpeed — темп «танца».
-// lines — что говорит девушка, когда герой забрал карту (cards_texts_v1)
-export const CARDS = { perRun: 2, firstAt: 300, nextGap: [500, 800], edge: 1.05, spawnZ: -70, idleSpeed: 0.45, cardSize: 1.5, girlGlow: 0x5a3c08,
+// не появляется. edge — насколько за крайней полосой стоит (м; бордюр — в 1.35 м за ней, стоит вплотную к нему),
+// spawnZ — где появляется, idleSpeed — темп «танца». lines — что говорит девушка, когда герой забрал карту (cards_texts_v1).
+// Бросок: когда девушка ближе tossAt м, она кидает карту дугой (tossTime с) на свою крайнюю полосу, на tossAhead м ближе
+// к герою; карта висит над асфальтом на высоте roadY и крутится, размер — roadScale. Забирает, кто пробежал по этой полосе.
+// banks — чьи карты раздают (по кругу, две подряд не повторяются): название на карте, реплика над девушкой (line),
+// «чья» для подсказки (of), цвета карты: фон bg, волна wave, надписи ink, свечение glow. Логотипов нет — только название и цвет
+export const CARDS = { perRun: 2, firstAt: 300, nextGap: [500, 800], edge: 1.15, spawnZ: -70, idleSpeed: 0.45, cardSize: 1.5,
+    tossAt: -38, tossAhead: 4, tossTime: 0.55, roadY: 0.95, roadScale: 1.3,
+    banks: [
+        { id: "sber", name: "СБЕР", line: "Держи карту Сбера!", of: "Сбера", bg: ["#2fc35a", "#0b6b26"], wave: "#16a34a", ink: "#ffffff", glow: 0x35e39b },
+        { id: "alfa", name: "АЛЬФА", line: "Держи карту Альфы!", of: "Альфы", bg: ["#ff4a3d", "#b5160d"], wave: "#e3241a", ink: "#ffffff", glow: 0xff5a4d },
+        { id: "tinkoff", name: "ТИНЬКОФФ", line: "Держи карту Тинькофф!", of: "Тинькофф", bg: ["#ffe14d", "#f5c400"], wave: "#1f1f1f", ink: "#111111", glow: 0xffdd2d },
+        { id: "ozon", name: "OZON", line: "Держи карту Озона!", of: "Озона", bg: ["#2f7bff", "#0040c8"], wave: "#f1117e", ink: "#ffffff", glow: 0x4d8dff },
+    ],
     lines: ["Лови!", "Аккуратнее с ней!", "Только не теряй!", "Быстрый какой…", "Это тебе на удачу"], missed: "Эх, не успел",
     first: "Карта — редкая валюта. Копи на бусты, которых нет за USDT" };
 // За Карты (economy_v7): на следующий забег, обмена на USDT нет
@@ -770,6 +783,21 @@ FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.
         superFin: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 0.8 }, // добивание — высокий удар ногой в замедлении
         low: { clip: "kick", from: 0.3, to: 1.05, hit: 0.72, speed: 1.05 },
         win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES } };
+// Денчик (denchik_v2) дерётся своими клипами из той же модели, что и в забеге: стойка, джеб (удар 0.50 с), кросс (0.63 с),
+// лоу-кик (0.87 с), блок, пропущенный удар в голову (0.60 с). Серии в наборе нет: супер — джеб и добивание кроссом в замедлении
+FIGHTERS.hero_denchik = { ...FIGHTERS.hero_denchik, model: "models/denchik.glb?v=5", yaw: 0.6, lunge: 0.15, capWhite: 0,
+    moves: { idle: { clip: "fight_idle", from: 0, to: 1.67, loop: true },
+        jab: { clip: "jab", from: 0.2, to: 0.95, hit: 0.5, speed: 1.1 },
+        cross: { clip: "cross", from: 0.3, to: 1.1, hit: 0.63, speed: 1.1 },
+        hook: { clip: "low_kick", from: 0.45, to: 1.35, hit: 0.87, speed: 1.1 }, // третий в связке — ногой
+        super: { clip: "jab", from: 0.2, to: 1.0, hits: [0.5], speed: 1.1 },
+        superFin: { clip: "cross", from: 0.3, to: 1.2, hit: 0.63, speed: 0.8 },
+        low: { clip: "low_kick", from: 0.45, to: 1.35, hit: 0.87, speed: 1.1 },
+        block: { clip: "block", from: 0.5, to: 1.5, fit: true },
+        dodge: { clip: "hit_head", from: 0.3, to: 1.0, fit: true },
+        hit: { clip: "hit_head", from: 0.45, to: 1.4, fit: true },
+        recoil: { clip: "hit_head", from: 0.5, to: 1.1, fit: true },
+        win: { clip: "idle", from: 0, to: 4.0, loop: true } } };
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,

@@ -1150,8 +1150,10 @@ class Game {
             this.nextWindAt = Math.max(this.nextWindAt, this.distance + 220);
             this.nextVentAt = Math.max(this.nextVentAt, this.distance + 260);
         }
+        this.world.wallClear = this.wallClear();
         while (this.nextRowZ > SPAWN_Z) {
-            this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
+            // в зоне стены (до неё и после) ряд не ставим — даже если стену отодвинул полёт или скорость выросла
+            if (!this.nearWall(this.nextRowZ)) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
             const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
@@ -1364,12 +1366,16 @@ class Game {
         if (got.length) this.hub.toast(`За Карты: ${got.join(", ")}`);
     }
 
-    cardFx(line) {
-        // сервер проверяет карту (забег этого игрока, не больше 2, не быстрее лимитов): отказ — карту забираем обратно
-        if (this.cardRunId) prize.card(this.cardRunId).then((r) => { if (r?.status === 403) this.profile.addCards(-1); });
+    cardFx(line, n = 1) {
+        // сервер проверяет карту (забег этого игрока, не больше 2, не быстрее лимитов) и отвечает балансом —
+        // его и показываем, чтобы баланс в игре не расходился с сервером (отказ — карта не засчитана)
+        if (this.cardRunId) prize.card(this.cardRunId).then((r) => {
+            if (typeof r?.cards === "number") this.profile.setCards(r.cards);
+            else if (r?.status === 403) this.profile.addCards(-1);
+        });
         const chip = $("hud-cards").closest(".tk");
         chip.classList.remove("got"); void chip.offsetWidth; chip.classList.add("got");
-        this.hub.toast(`«${line}» · +1 Карта`);
+        this.hub.toast(`«${line}» · +1 Карта (${n} из ${CARDS.perRun} за забег)`);
         tg.haptic("success");
         const d = this.profile.data;
         if (!d.cardTold) { d.cardTold = true; this.profile.save(); setTimeout(() => this.state === "playing" && this.gorilla(CARDS.first, true, 3600), 1800); }
@@ -1465,6 +1471,7 @@ class Game {
                 this.world.splash(this.x, 0, 24, 1.3);
                 this.fx.safe = Math.max(this.fx.safe, 1.2);
                 this.flight = null;
+                this.clearChosen();
                 this.fx.fly = 0;
                 this.world.noPickups = false;
                 return;
@@ -1491,11 +1498,13 @@ class Game {
                 this.camKick.dip = -0.35;
                 tg.haptic("medium");
                 this.fx.safe = Math.max(this.fx.safe, 1.2); // фора, чтобы не сесть на препятствие
+                this.clearChosen();
             }
             this.y = 0;
             clipT = lerp(c.touch, c.end, (f.e - f.dur - LAND_AIR) / LAND_GROUND);
         } else { // дальше бежит
             this.flight = null;
+            this.clearChosen();
             this.fx.fly = 0;
             this.rat.userData.clipT = null;
             this.world.noPickups = false;
@@ -2442,7 +2451,8 @@ class Game {
         if (!npc) { this.nextVentAt += 30; return; }
         // следующие стена и порыв — не раньше, чем ветер стихнет и герой отбежит (раньше стены шли каждые ~160 м,
         // и правило «стены не ближе 110 м» откладывало вентилятор бесконечно)
-        this.nextWallAt = Math.max(this.nextWallAt, this.nextVentAt + VENT.after + VENT.gap / 2);
+        // на скорости — с запасом: вопрос виден за 75 м, и выбранный ответ ветер не должен сносить с полосы
+        this.nextWallAt = Math.max(this.nextWallAt, this.nextVentAt + VENT.after + Math.max(VENT.gap / 2, this.wallClear().before + 30));
         this.nextWindAt = Math.max(this.nextWindAt, this.nextVentAt + VENT.gap);
         this.nextVentAt += a + Math.random() * (b - a);
         const side = Math.random() < 0.5 ? -1 : 1;
@@ -2540,10 +2550,30 @@ class Game {
     }
 
     // выбор ответа в замедлении: герой встаёт на полосу ответа, скорость возвращается
+    // Сколько метров перед стеной и после неё дорога пустая. На скорости — по времени: перед стеной ~1.8 с (прочитать вопрос
+    // и перестроиться), после — ~1.4 с (отбежать от таблички). На старте (13 м/с) — прежние 28 и 34 м, на 30 м/с — 54 и 42 м
+    wallClear() {
+        const v = Math.max(this.speed || 0, BALANCE.speedStart);
+        return { before: Math.max(28, v * 1.8), after: Math.max(34, v * 1.4) };
+    }
+
+    // после полёта: стену отодвинули за точку посадки, а под героем успели встать ряды — дорога к выбранному ответу снова свободна
+    clearChosen() {
+        for (const w of this.walls) if (w.chosen && !w.answered && w.chosenLane != null) this.world.clearLane(w.chosenLane, w.plates[0].position.z, 2);
+    }
+
+    nearWall(z) {
+        const c = this.world.wallClear || this.wallClear();
+        return this.walls.some((w) => { const wz = w.plates[0].position.z; return z > wz - c.after && z < wz + c.before; });
+    }
+
     chooseAnswer(w, lane) {
         if (!w || w.chosen || w.answered) return;
         w.chosen = true;
         this.chooseLock = this.runTime + 0.35;
+        // ответ выбран заранее (кнопкой, пока стена ещё далеко) — дорога к табличке по этой полосе свободна
+        w.chosenLane = lane;
+        this.world.clearLane(lane, w.plates[0].position.z, 2);
         if (lane !== this.lane) { this.prevLane = this.lane; this.lane = lane; }
         [...$("wq-ans").children].forEach((el) => el.classList.toggle("pick", +el.dataset.lane === lane));
         this.audio.play("swipe");

@@ -145,24 +145,22 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 @keyframes back-in { from { opacity: 0; transform: translateX(-12px); } }
 /* Строка кошельков всегда в ширину экрана: три кошелька, рекорд и настройки. Раньше на 375 px она была 397 px
    и выталкивала шестерёнку за край; теперь всё компактнее, а если места всё равно мало — числа сжимаются с «…» */
-.hub-top { display: flex; gap: 5px; align-items: center; min-width: 0; }
-.cur {
-    display: inline-flex; align-items: center; gap: 5px; min-width: 0;
-    padding: 5px 10px 5px 5px; border-radius: 999px;
-    background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line);
-    font: 600 13px/1 var(--font-display); font-variant-numeric: tabular-nums;
-}
-.cur .ico-usdt { width: 18px; height: 18px; }
+/* верхняя полоса — наклонные плашки, как полоски HP в бою: кошелёк с красной кромкой слева, рекорд и настройки справа.
+   Плашка наклонена (skewX), её содержимое — обратно прямо (.plate-in и значок шестерёнки) */
+.hub-top { display: flex; gap: 8px; align-items: center; min-width: 0; padding: 0 3px; }
+.plate { transform: skewX(-14deg); background: rgba(0, 0, 0, .7); border: 1px solid rgba(255, 255, 255, .12); border-radius: 4px; }
+.plate > .plate-in, .gear.plate > svg { transform: skewX(14deg); }
+.cur { min-width: 0; border-left: 3px solid var(--red); }
+.cur .plate-in { display: flex; align-items: center; gap: 7px; padding: 8px 16px 8px 12px; font: 700 15px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.cur .ico-usdt { width: 18px; height: 18px; flex: none; }
 .cur b, .hub-best b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* рекорд — подпись над числом, как «USDT | Очки» в забеге: так он вдвое уже */
-.hub-best {
-    margin-left: auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
-    font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); white-space: nowrap;
-}
-.hub-best b { max-width: 100%; color: var(--text); font: 700 14px/1 var(--font-display); letter-spacing: 0; }
+.hub-best { margin-left: auto; min-width: 0; }
+.hub-best .plate-in { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding: 6px 14px; font-size: 10px; line-height: 1; color: var(--muted); white-space: nowrap; }
+.hub-best b { max-width: 100%; color: var(--text); font: 700 14px/1 var(--font-display); }
 @media (max-width: 340px) { /* iPhone SE и похожие: иначе все числа сжимаются до «…» */
-    .hub-top { gap: 4px; } .cur { gap: 3px; padding: 4px 7px 4px 4px; font-size: 11.5px; } .cur .ico-usdt { width: 16px; height: 16px; }
-    .hub-best { font-size: 8px; } .hub-best b { font-size: 12px; } .gear { width: 30px; height: 30px; margin-left: 2px; }
+    .hub-top { gap: 6px; } .cur .plate-in { gap: 5px; padding: 7px 11px 7px 9px; font-size: 13px; } .cur .ico-usdt { width: 16px; height: 16px; }
+    .hub-best .plate-in { padding: 5px 10px; font-size: 9px; } .hub-best b { font-size: 12px; } .gear { width: 34px; height: 32px; }
 }
 .chap {
     padding: 10px 12px; border-radius: 16px; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line);
@@ -189,10 +187,15 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 #view-run .grow { flex: 1; min-height: 40px; }
 /* «ПОКОРИТЕЛЬ» в Unbounded шириной ~8,8 своего кегля: кегль — от ширины без полей (32 px), с запасом (÷9,2).
    Было 10,6vw — на 375 px слово выходило на 350 px из 343 и «Ь» обрезался */
-.word { margin: 4px 0 0; font: 800 clamp(24px, calc((100vw - 32px) / 9.2), 50px)/1 var(--font-display); text-transform: uppercase; letter-spacing: -0.02em; }
-.word span { display: block; }
-.word .metal { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.word .outline { color: transparent; -webkit-text-stroke: 1.4px var(--red); font-size: 1.3em; }
+/* логотип (вариант Б «Табло обменника»): «ПОКОРИТЕЛЬ» сплошным белым, под ним «P2P 3.0» — красная плашка-ценник
+   с чёрным текстом, рядом «Игра к курсу». --wsz — кегль слова, плашка — 0.9 от него */
+#view-run .brand { --wsz: clamp(24px, calc((100vw - 32px) / 9.2), 50px); }
+.word { margin: 4px 0 0; font: 800 var(--wsz, 38px)/1 var(--font-display); text-transform: uppercase; letter-spacing: -0.02em; color: #fff; }
+.brand-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.brand-plate { padding: .14em .34em .16em; border-radius: 8px; background: var(--red); color: #0a0a0a; font-size: .9em; letter-spacing: -0.01em;
+    box-shadow: 0 10px 30px -8px rgba(227, 52, 58, .7); }
+.brand-sub { font: 600 13px/1.25 var(--font-body); text-transform: none; letter-spacing: 0; color: #fff; }
+.brand-sub span { display: block; color: var(--muted); font-weight: 500; }
 
 /* Герои (вариант B): карусель со «щелчком» по карточкам */
 /* на коротком экране (360×640 в полноэкранном Telegram) раздел прокручивается — кнопка «Выкупить» не уходит за край */
@@ -274,7 +277,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 @keyframes nudge { 50% { transform: translateX(4px); } }
 @keyframes shine { 0%, 55% { transform: translateX(-140%); } 85%, 100% { transform: translateX(400%); } }
 @media (max-height: 700px) {
-    .word { font-size: 28px; } #view-run .brand .label { display: none; }
+    #view-run .brand { --wsz: 28px; }
     .tile { min-height: 70px; padding: 11px; } .tile:not(.tile-run) .tile-sub { display: none; }
     .tile-run { min-height: 62px; } .tiles-note { display: none; }
 }
@@ -802,9 +805,9 @@ html.tg, html.tg body { background: #000; }
 .chest-note { border-left-color: #e9c25a; }
 
 /* ---- настройки ---- */
-.gear { flex: none; width: 34px; height: 34px; margin-left: 4px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: rgba(0, 0, 0, .6); color: #fff; cursor: pointer; }
+.gear { flex: none; width: 38px; height: 34px; padding: 0; display: grid; place-items: center; color: #fff; cursor: pointer; }
 .gear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.gear:active { transform: scale(.9); }
+.gear:active { transform: skewX(-14deg) scale(.9); }
 .set-row { gap: 14px; }
 .switch { flex: none; position: relative; width: 52px; height: 30px; padding: 0; border-radius: 99px; border: 0; background: rgba(255, 255, 255, .15); cursor: pointer; transition: background .2s; }
 .switch i { position: absolute; left: 3px; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.3, 1.4, .5, 1); }
@@ -842,6 +845,12 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
 .vent-q.warn { animation: none; border-color: rgba(255, 255, 255, .2); box-shadow: none; }
 .vent-bar { height: 3px; margin-top: 8px; border-radius: 2px; background: rgba(255, 255, 255, .15); overflow: hidden; }
 .vent-bar i { display: block; height: 100%; background: #e8ecef; transform-origin: left; }
+
+/* девушка с картой: реплика над головой («Держи карту Сбера!»), полоска снизу — цвет банка (--bc); место ставит js/cards.js */
+.card-bubble { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; transform-origin: 50% 100%;
+    padding: 6px 11px 7px; border-radius: 12px; background: rgba(250, 250, 250, .96); color: #111;
+    font: 700 12px/1.1 var(--font-body); white-space: nowrap; border-bottom: 3px solid var(--bc, var(--red)); box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
+.card-bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--bc, var(--red)); }
 
 /* ---- задержание «Протокол скуки»: красно-синие мигалки по краям экрана и штамп ---- */
 .arrest-fx .stamp-line { position: absolute; bottom: 22%; left: 8%; right: 8%; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: #fff; text-shadow: 0 2px 8px #000; animation: stamp-in .35s 1.2s both; }
