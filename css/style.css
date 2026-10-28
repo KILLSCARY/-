@@ -1107,14 +1107,14 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .talk { position: fixed; left: 0; right: 0; top: calc(112px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); z-index: 21;
     height: 120px; pointer-events: none; }
 .t-face { position: absolute; top: 8px; left: -6px; width: 84px; height: 84px; font-style: normal; transform-origin: 0 100%;
-    animation: t-peek-l .45s cubic-bezier(.2, 1.4, .4, 1) both, t-bob 1.6s ease-in-out .45s 4 alternate; }
+    animation: t-peek-l .7s cubic-bezier(.2, 1.3, .4, 1) both, t-bob 1.8s ease-in-out .7s 4 alternate; }
 .talk[data-who="gorilla"] .t-face { display: grid; place-items: center; font-size: 66px; line-height: 1; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
 .talk[data-who="gorilla"] .t-face::before { content: "🦍"; transform: rotate(14deg); }
 .talk:not([data-who="gorilla"]) .t-face { left: auto; right: -10px; width: 88px; height: 88px; top: 6px; border-radius: 50%; transform-origin: 100% 100%;
     background: #2a0a0c var(--face) 50% var(--fy, 30%)/230% auto no-repeat; border: 3px solid var(--tc, #fff); box-shadow: 0 8px 20px rgba(0, 0, 0, .55);
     animation-name: t-peek-r, t-bob; }
 .t-bubble { position: absolute; top: 10px; left: 80px; right: 12px; padding: 10px 14px 12px; border-radius: 18px; background: #fff; color: #111;
-    box-shadow: 0 0 0 3px #111, 0 10px 24px rgba(0, 0, 0, .5); animation: t-pop .3s .12s cubic-bezier(.2, 1.4, .4, 1) both; }
+    box-shadow: 0 0 0 3px #111, 0 10px 24px rgba(0, 0, 0, .5); animation: t-pop .5s .25s cubic-bezier(.2, 1.3, .4, 1) both; }
 .t-bubble::before { content: ""; position: absolute; left: -13px; top: 30px; border: 9px solid transparent; border-right: 14px solid #111; border-left: 0; }
 .t-bubble::after { content: ""; position: absolute; left: -8px; top: 32px; border: 7px solid transparent; border-right: 11px solid #fff; border-left: 0; }
 .talk:not([data-who="gorilla"]) .t-bubble { left: 12px; right: 88px; }
@@ -1142,3 +1142,10 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .f-flash.on { animation: f-flash .35s ease-out; }
 @keyframes f-flash { from { opacity: .85; } to { opacity: 0; } }
 .fight .f-top { z-index: 3; }
+/* уход реплики: облачко сжимается, персонаж прячется за край */
+.talk.out .t-bubble { animation: t-pop-out .4s ease-in both; }
+.talk.out .t-face { animation: t-hide-l .5s ease-in both; }
+.talk.out:not([data-who="gorilla"]) .t-face { animation-name: t-hide-r; }
+@keyframes t-pop-out { to { opacity: 0; transform: scale(.7); } }
+@keyframes t-hide-l { to { transform: translateX(-110%) rotate(-20deg); } }
+@keyframes t-hide-r { to { transform: translateX(120%) rotate(20deg); } }

@@ -1632,6 +1632,8 @@ class Game {
     // реплика персонажа (Горилла, Мизулина, Спиди) — плашка сверху
     speech(who, text, ms = 3200, good = false, face = null) {
         const el = $("gorilla");
+        ms = ms * 1.35 + 600; // висит подольше: успеть прочитать на бегу (плюс время на появление)
+        el.classList.remove("out");
         $("g-text").textContent = text;
         $("g-who").textContent = who;
         const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
@@ -1645,7 +1647,7 @@ class Game {
         el.classList.toggle("ok", good);
         el.hidden = false;
         clearTimeout(this.gorillaT);
-        this.gorillaT = setTimeout(() => (el.hidden = true), ms);
+        this.gorillaT = setTimeout(() => { el.classList.add("out"); this.gorillaT = setTimeout(() => { el.hidden = true; el.classList.remove("out"); }, 550); }, ms); // уходит плавно
     }
 
     // табличка с вводом числа: забег замирает, ответ — с клавиатуры (пробелы и «₽» не считаются)

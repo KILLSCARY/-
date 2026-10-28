@@ -121,7 +121,7 @@ function fitText(g, text, maxW, size, font) {
 
 // несколько строк по центру блока: подбираем размер, чтобы влезло по ширине и высоте
 function wrapText(g, text, cx, top, maxW, maxH, font) {
-    for (let s = 64; s >= 26; s -= 2) {
+    for (let s = 60; s >= 26; s -= 2) {
         g.font = font.replace("{s}", s);
         const words = text.split(" "), lines = [];
         let line = "";
@@ -131,7 +131,7 @@ function wrapText(g, text, cx, top, maxW, maxH, font) {
         }
         lines.push(line);
         const lh = s * 1.15;
-        if (lines.length * lh <= maxH && lines.every((l) => g.measureText(l).width <= maxW)) {
+        if (s <= 26 || (lines.length * lh <= maxH && lines.every((l) => g.measureText(l).width <= maxW))) { // не влезло и мелко — всё равно пишем
             const y0 = top + (maxH - lines.length * lh) / 2 + s * 0.9;
             g.textAlign = "center";
             lines.forEach((l, i) => g.fillText(l, cx, y0 + i * lh));
@@ -1709,34 +1709,47 @@ export class World {
         this.scene.add(arch);
         this.obstacles.push(arch);
         // таблички на полосах: стекло в неоне, стрелка полосы, ответ; под ними светящаяся планка и пятно на асфальте
-        const plateGeo = new THREE.PlaneGeometry(1.86, 1.5);
+        // табличка-ответ: плотная карточка (без размытого неона — текст читается издалека), сверху цветная плашка
+        // с направлением, ниже крупный ответ, подобранный по размеру. Два варианта — карточки шире (стоят на крайних полосах)
+        const two = answers.length === 2;
+        const PW = two ? 2.5 : 1.86, PH = 1.5, CW = two ? 680 : 512, CH = 412;
+        const plateGeo = new THREE.PlaneGeometry(PW, PH);
         plateGeo.userData.own = true;
-        const arrows = ["◀", "▲", "▶"];
-        // два варианта (таблички глав) — на крайних полосах, три — на всех
+        const dirs = [["◀", "ВЛЕВО"], ["▲", "ПРЯМО"], ["▶", "ВПРАВО"]];
         answers.forEach((text, i) => {
-            const lane = answers.length === 2 ? i * 2 : i;
+            const lane = two ? i * 2 : i;
             const g = new THREE.Group();
-            const board = new THREE.Mesh(plateGeo, textMat(512, 412, (c, w, h) => {
-                const m = 30, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m;
-                glass(c, x, y, bw, bh, 30);
-                neon(c, x, y, bw, bh, 30, 7);
-                // стрелка: куда свайпать за этим ответом
-                c.save(); c.shadowColor = col; c.shadowBlur = 16; c.fillStyle = col;
-                c.beginPath(); c.arc(w / 2, y + 2, 26, 0, Math.PI * 2); c.fill(); c.restore();
-                c.fillStyle = "#0d0d10"; c.font = '900 26px Arial, sans-serif'; c.textAlign = "center";
-                c.fillText(arrows[lane], w / 2, y + 11);
-                c.fillStyle = "#f4f4f4";
-                wrapText(c, text, w / 2, y + 36, bw - 44, bh - 82, '800 {s}px "Inter Tight", Arial, sans-serif');
-                // подпись типа внизу, разреженно
-                c.fillStyle = col; c.globalAlpha = 0.85;
-                c.font = '700 19px "Inter Tight", Arial, sans-serif';
-                if ("letterSpacing" in c) c.letterSpacing = "4px";
-                c.fillText(`${type.tag} · ${type.name.toUpperCase()}`, w / 2, y + bh - 16);
+            const board = new THREE.Mesh(plateGeo, textMat(CW, CH, (c, w, h) => {
+                const m = 22, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m, r = 34;
+                // тень-ореол и корпус
+                c.save(); c.shadowColor = col; c.shadowBlur = 22;
+                c.fillStyle = "#0c0c11"; roundRect(c, x, y, bw, bh, r); c.fill(); c.restore();
+                const body = c.createLinearGradient(0, y, 0, y + bh);
+                body.addColorStop(0, "#22222c"); body.addColorStop(1, "#0b0b10");
+                c.fillStyle = body; roundRect(c, x, y, bw, bh, r); c.fill();
+                // шапка цвета страха: стрелка и куда бежать
+                const hh = 66;
+                c.save(); roundRect(c, x, y, bw, bh, r); c.clip();
+                c.fillStyle = col; c.fillRect(x, y, bw, hh);
+                c.fillStyle = "rgba(255,255,255,.18)"; c.fillRect(x, y, bw, 6); // блик
+                c.restore();
+                c.fillStyle = "#0d0d10"; c.textAlign = "center";
+                c.font = '900 30px "Unbounded", "Arial Black", sans-serif';
+                if ("letterSpacing" in c) c.letterSpacing = "3px";
+                c.fillText(`${dirs[lane][0]}  ${dirs[lane][1]}`, w / 2, y + 45);
+                if ("letterSpacing" in c) c.letterSpacing = "0px";
+                // обводка цветом страха
+                c.strokeStyle = col; c.lineWidth = 6; roundRect(c, x + 3, y + 3, bw - 6, bh - 6, r - 3); c.stroke();
+                // ответ: белый, крупно, по центру оставшейся части
+                c.fillStyle = "#ffffff";
+                c.save(); c.shadowColor = "rgba(0,0,0,.6)"; c.shadowBlur = 6; c.shadowOffsetY = 2;
+                wrapText(c, text, w / 2, y + hh + 14, bw - 56, bh - hh - 34, '800 {s}px "Inter Tight", Arial, sans-serif');
+                c.restore();
             }));
             board.position.y = 1.32;
             g.add(board);
             const bar = new THREE.Mesh(this.geo.box, lightMat); // неоновая планка под табличкой
-            bar.scale.set(1.3, 0.045, 0.05);
+            bar.scale.set(PW * 0.7, 0.045, 0.05);
             bar.position.set(0, 0.6, 0.02);
             g.add(bar);
             const pole = new THREE.Mesh(this.geo.box, this.mat.pole);
