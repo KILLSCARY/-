@@ -1788,6 +1788,7 @@ class Game {
         tg.haptic("heavy");
         this.audio.play("record");
         $("bs-ph").style.backgroundImage = `url(${opp.portrait})`;
+        for (const [k, v] of [["--bh", opp.splash?.h], ["--fx", opp.splash?.fx], ["--fy", opp.splash?.fy]]) $("bs-ph").style[v == null ? "removeProperty" : "setProperty"](k, v); // кадр портрета у каждого босса свой
         $("bs-hero").style.backgroundImage = `url(${FIGHTERS.mouse.portrait})`;
         $("bs-name").textContent = opp.name;
         $("bs-hero-name").textContent = FIGHTERS.mouse.name;

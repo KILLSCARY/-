@@ -662,7 +662,7 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, // yaw — корпус к камере, удары видны portrait: "img/heroes/speedy.webp", hp: 100,
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, // yaw — корпус к камере, удары видны
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем
@@ -693,7 +693,7 @@ export const FIGHTERS = {
             examKo: "Сдал. Дальше уже не игра, а твой первый шаг." } },
     // Мизулина — свои 13 боевых клипов (idle_fight, jab, cross, hook, uppercut, low/high/spin/jump_kick, block, hit, ko, win).
     // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=2", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp", hp: 95,
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=2", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp", hp: 95, splash: { h: 62, fx: 0.46, fy: 0.22 },
         koHold: 0.98, // нокаут: лежит в последнем кадре
         moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
             jab: { clip: "jab", from: 0.25, to: 1.0, hit: 0.53, speed: 1 },
@@ -713,7 +713,7 @@ export const FIGHTERS = {
             heavy: ["Запрещено!", "Блокирую!", "Это незаконно!", "Где документы?"],
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", model: "models/cop_fight.glb?v=1", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 110,
+    cop: { name: "Полиция", short: "Полиция", model: "models/cop_fight.glb?v=1", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 110, splash: { h: 62, fx: 0.49, fy: 0.2 },
         moves: null, dmg: { jab: 4, cross: 5, hook: 7, heavy: 12, super: 30 }, punchTime: 0.46,
         ai: { every: [[1.2, 2.1], [1.0, 1.8], [0.9, 1.6]], block: [0.14, 0.2, 0.25], heavy: [0.2, 0.22, 0.26], combo: [0.18, 0.22, 0.28], third: [0.08, 0.14, 0.2] },
         telegraph: [0.85, 0.75, 0.65],

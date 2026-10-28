@@ -938,7 +938,8 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .bs-img { position: absolute; background: center/100% 100% no-repeat; aspect-ratio: 720 / 477; animation: bs-push 2.6s linear both;
     -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent); mask-image: radial-gradient(closest-side, #000 72%, transparent); }
 .bs-l .bs-img { height: 56vh; left: calc(28vw - 28vh * 720 / 477); top: calc(50vh - 56vh * 0.6); }  /* лицо Спиди — в 60% высоты картинки */
-.bs-r .bs-img { height: 74vh; left: calc(72vw - 37vh * 720 / 477); top: calc(31vh - 74vh * 0.13); } /* лицо Павла — в 13% высоты */
+/* портрет босса: --bh — высота (vh), --fx/--fy — где лицо на картинке (доли); по умолчанию — фото Павла (лицо в 13% высоты) */
+.bs-r .bs-img { --bh: 74; --fx: .5; --fy: .13; height: calc(var(--bh) * 1vh); left: calc(72vw - var(--bh) * 1vh * 720 / 477 * var(--fx)); top: calc(34vh - var(--bh) * 1vh * var(--fy)); }
 @keyframes bs-push { from { transform: scale(1.12); } to { transform: scale(1); } }
 /* тонировка: герой — холодный, босс — красный; к шву темнее */
 .bs-l::after, .bs-r::after { content: ""; position: absolute; inset: 0; }
@@ -962,13 +963,13 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .bs-plate { position: absolute; padding: 8px 16px 9px; background: rgba(8, 2, 4, .85); border: 1.5px solid; max-width: 70vw; }
 .bs-plate small { display: block; font: 700 9px/1 var(--font-display); letter-spacing: .28em; text-transform: uppercase; opacity: .75; margin-bottom: 4px; }
 .bs-plate b { display: block; font: 900 min(5.4vw, 22px)/1.05 var(--font-display); text-transform: uppercase; color: #fff; }
-.bs-pl { left: 0; top: 26%; padding-left: 18px; border-color: #5aa8ff; border-left: 0; color: #9fd0ff; transform: skewX(-12deg); transform-origin: left;
+.bs-pl { left: 0; top: calc(env(safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px) + 150px); /* под заголовком «БОСС», с учётом панели Telegram */ padding-left: 18px; border-color: #5aa8ff; border-left: 0; color: #9fd0ff; transform: skewX(-12deg); transform-origin: left;
     animation: bs-plate-l .4s .7s cubic-bezier(.2, .9, .3, 1.1) both; box-shadow: 0 0 20px rgba(90, 168, 255, .35); }
 .bs-pr { right: 0; bottom: 21%; padding-right: 18px; text-align: right; border-color: #ff4a50; border-right: 0; color: #ff9a9e; transform: skewX(-12deg); transform-origin: right;
     animation: bs-plate-r .4s .78s cubic-bezier(.2, .9, .3, 1.1) both; box-shadow: 0 0 20px rgba(255, 74, 80, .4); }
 @keyframes bs-plate-l { from { transform: skewX(-12deg) translateX(-110%); } }
 @keyframes bs-plate-r { from { transform: skewX(-12deg) translateX(110%); } }
-.bs-quote { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 7%); width: min(86vw, 380px); margin: 0; transform: translateX(-50%);
+.bs-quote { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 7%); width: min(86vw, 380px); margin: 0; transform: translateX(-50%); text-wrap: balance; overflow-wrap: anywhere;
     text-align: center; font-size: 14px; line-height: 1.35; font-style: italic; color: #fff; text-shadow: 0 2px 8px #000; animation: bs-fade .4s 1.15s both; }
 @keyframes bs-fade { from { opacity: 0; transform: translate(-50%, 8px); } }
 /* выход: половины разъезжаются, вспышка */
