@@ -1228,7 +1228,12 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .rate-rules summary { cursor: pointer; color: #fff; font-weight: 600; margin-bottom: 6px; }
 .rate-rules p { margin: 3px 0; display: flex; justify-content: space-between; }
 .rate-tasks { display: grid; gap: 6px; }
-.rate-tasks .btn { width: 100%; min-height: 0; padding: 11px 14px; font-size: 13px; line-height: 1.2; }
+.rate-task { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 14px 16px; border-radius: 16px;
+    border: 1px solid var(--line); background: var(--card); color: #fff; font: 600 14px var(--font-body); text-align: left; cursor: pointer; }
+.rate-task b { flex: none; padding: 5px 10px; border-radius: 99px; background: rgba(255, 214, 90, .14); color: #ffd65a; font: 700 13px var(--font-display); }
+.rate-task:active { transform: scale(.98); }
+.rate-task.done { color: var(--muted); }
+.rate-task.done b { background: rgba(53, 227, 155, .14); color: #35e39b; }
 .rate-rules { text-align: left; }
 
 /* загрузка боя: пока качаются модели бойцов и собираются шейдеры — не «зависший» экран */

@@ -199,7 +199,9 @@ export class Hub {
         this.renderRateTasks();
         const r = await prize.top(50);
         if (!r || r.status !== 200) {
-            list.innerHTML = `<p class="rate-empty">${r?.status === 0 && r.error === "no_telegram" ? "Рейтинг работает в Telegram — открой игру через бота." : "Рейтинг сейчас недоступен. Попробуй позже."}</p>`;
+            // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети
+            const why = r?.status === 401 ? "сервер не узнал Telegram-аккаунт" : r?.status === 404 ? "сервер рейтинга не найден" : r?.status ? `ошибка ${r.status}` : "нет связи с сервером";
+            list.innerHTML = `<p class="rate-empty">${r?.status === 0 && r.error === "no_telegram" ? "Рейтинг работает в Telegram — открой игру через бота." : `Рейтинг сейчас недоступен (${why}). Попробуй позже.`}</p>`;
             return;
         }
         const me = r.me || {};
@@ -226,8 +228,9 @@ export class Hub {
             ["store", "Заглянуть в NS Store", 10, () => { this.task("store"); this.openStore(); }],
         ]) {
             const b = document.createElement("button");
-            b.className = done[id] ? "btn" : "btn btn-main";
-            b.textContent = done[id] ? `✓ ${label}` : `${label} · +${pts}`;
+            b.className = `rate-task${done[id] ? " done" : ""}`;
+            b.innerHTML = `<span></span><b>${done[id] ? "✓" : `+${pts}`}</b>`;
+            b.firstChild.textContent = label;
             b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); };
             box.append(b);
         }
