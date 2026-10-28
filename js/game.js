@@ -1975,7 +1975,7 @@ class Game {
         if (this.chaser) this.chaser.visible = false;
         this.stumble = 0;
         this.rat.visible = false;
-        for (const id of ["wall-q", "wind-q"]) $(id).hidden = true;
+        for (const id of ["wall-q", "wind-q", "mode"]) if ($(id)) $(id).hidden = true; // и окно «Режим забега» — не поверх боя
         const n = this.questions ? this.charges(s) : 0;
         this.state = "fight";
         this.clock.getDelta();
@@ -1983,7 +1983,7 @@ class Game {
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
         // заряды главы: +5% HP за каждый, с трёх — супер на 30% со старта
         this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam,
-            bonus: exam ? {} : { hp: Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
+            bonus: exam ? {} : { hp: Math.min(20, Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n)), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
             onEnd: (win) => this.endStoryFight(win) });
     }
 
