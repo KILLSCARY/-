@@ -230,6 +230,7 @@ class Game {
         this.storyOk = 0; // верных ответов в этом забеге
         this.storyQ = 0; // сколько табличек главы уже выставлено в этом забеге
         this.pendingInput = null; // табличка с вводом числа: откроется, когда герой до неё добежит
+        this.starsT = 0;
         this.storyCatch = false; // глава 1: Мизулина догоняет по сценарию (ролик перед боем)
         this.grudgeTold = false;
         clearTimeout(this.gorillaT); if ($("gorilla")) $("gorilla").hidden = true;
@@ -327,10 +328,14 @@ class Game {
         setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 500);
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
         const st = this.story;
+        const nb = this.nextBoss();
+        if (!st && nb) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(nb.text, false, 5200), 900);
         if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla((st.chase && !this.grudge && st.chaseHint) || st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
         this.chaserSaid = false;
         const lines = HERO_LINES[this.heroId];
-        if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.speech(CHARACTERS.find((c) => c.id === this.heroId)?.name, pick(lines), 3000); }, 2600);
+        // реплика героя — после подсказки Гориллы о главе или боссе (она выходит на старте), а не поверх неё
+        const told = this.questions && (this.story || this.nextBoss());
+        if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.speech(CHARACTERS.find((c) => c.id === this.heroId)?.name, pick(lines), 3000); }, told ? 9500 : 2600);
         this.state = "playing";
         this.renderBoosts(); // кнопки бустов оживают со стартом
         this.audio.music("run");
@@ -798,6 +803,7 @@ class Game {
             : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
+        this.updateStars(dt);
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
 
@@ -1141,6 +1147,7 @@ class Game {
         if (side) this.lane = this.prevLane;
         else { o.visible = false; o.userData.type = "decor"; }
         this.stumble = BALANCE.stumbleTime * (this.grudge ? CHASE_GRUDGE.speed : 1); // «из принципа» — дольше на хвосте
+        this.starsT = 2.2; // звёздочки над головой — «оглушило»
         this.slowLeft = BALANCE.stumbleSlow;
         this.fx.safe = Math.max(this.fx.safe, 1);
         this.audio.play("hit");
@@ -1188,6 +1195,40 @@ class Game {
         c.position.z += (z - c.position.z) * Math.min(1, dt * (this.storyCatch ? 3 : 1.5));
         c.position.x += (this.x + c.userData.side * (this.storyCatch ? 0.5 : 1.0) - c.position.x) * Math.min(1, dt * 4);
         if (c.userData.mixer) { c.rotation.y = Math.PI; c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14)); }
+    }
+
+    // Звёздочки над головой после удара: пять жёлтых звёзд кружат вокруг головы и гаснут
+    updateStars(dt) {
+        const on = (this.starsT || 0) > 0 && (this.state === "playing" || this.state === "over" || this.state === "paused");
+        if (!on) { if (this.stars) this.stars.visible = false; return; }
+        if (!this.stars) {
+            const c = document.createElement("canvas");
+            c.width = c.height = 64;
+            const g = c.getContext("2d");
+            g.translate(32, 32);
+            g.beginPath();
+            for (let i = 0; i < 10; i++) { const r = i % 2 ? 11 : 28, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+            g.closePath();
+            g.fillStyle = "#ffd94a"; g.shadowColor = "#fff2a0"; g.shadowBlur = 8; g.fill();
+            g.lineWidth = 3; g.strokeStyle = "#a86a00"; g.stroke();
+            const tex = new THREE.CanvasTexture(c);
+            tex.encoding = THREE.sRGBEncoding;
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, toneMapped: false });
+            this.stars = new THREE.Group();
+            for (let i = 0; i < 5; i++) { const sp = new THREE.Sprite(mat); sp.scale.setScalar(0.24); this.stars.add(sp); }
+            this.stars.userData.mat = mat;
+            this.scene.add(this.stars);
+        }
+        this.starsT -= dt;
+        const st = this.stars, p = this.rat.position, k = Math.min(1, this.starsT / 0.4);
+        st.visible = true;
+        st.position.set(p.x, p.y + 1.85, p.z);
+        st.userData.mat.opacity = k;
+        st.children.forEach((sp, i) => {
+            const a = this.t * 5 + (i / 5) * Math.PI * 2;
+            sp.position.set(Math.cos(a) * 0.38, Math.sin(this.t * 7 + i) * 0.05, Math.sin(a) * 0.38);
+            sp.material.rotation = this.t * 4 + i;
+        });
     }
 
     // удар: тряска камеры на shake секунд и рывок угла обзора на fov градусов
@@ -1628,6 +1669,15 @@ class Game {
         return s && this.profile.chapter().index >= (s.chapter || 1) - 1 ? s : null;
     }
 
+    // Следующий босс, пока его глава не открыта: кто, в какой главе и сколько ещё заработать (USDT за все забеги, не очки)
+    nextBoss() {
+        const s = STORIES[this.profile.data.story || 0];
+        if (!s || this.story) return null;
+        const need = Math.max(0, CHAPTERS[(s.chapter || 1) - 2]?.goal - this.profile.data.earned) || 0;
+        const name = FIGHTERS[s.opponent].name;
+        return { s, name, need, text: `Следующий босс — ${name}, глава ${s.chapter}. Заработай ещё ${fmt(need)} USDT за забеги — очки не в счёт.` };
+    }
+
     // Мизулина побеждена — дальше бегает «из принципа»
     get grudge() { return !!this.profile.data.mizBeaten; }
 
@@ -1697,6 +1747,9 @@ class Game {
         $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : "18%");
         for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
+        // карточка вопроса сверху — облачко под ней, а не поверх
+        const q = $("wall-q");
+        el.style.top = q && !q.hidden ? `${Math.round(q.getBoundingClientRect().bottom + 6)}px` : "";
         el.hidden = false;
         clearTimeout(this.gorillaT);
         this.gorillaT = setTimeout(() => { el.classList.add("out"); this.gorillaT = setTimeout(() => { el.hidden = true; el.classList.remove("out"); }, 550); }, ms); // уходит плавно

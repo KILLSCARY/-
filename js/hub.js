@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -81,7 +81,8 @@ export class Hub {
         $("tile-heroes-sub").textContent = hero?.name ?? "";
         $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
         $("tile-chap-name").textContent = ch.done ? "Сезон 1" : `Глава ${ch.index + 1}`;
-        $("tile-chap-sub").textContent = ch.done ? "пройден" : `${ch.name} · ${Math.floor(Math.min(1, ch.earned / ch.goal) * 100)}%`;
+        const nb = this.game.nextBoss?.();
+        $("tile-chap-sub").textContent = ch.done ? "пройден" : nb ? `${ch.name} · босс в гл. ${nb.s.chapter}` : `${ch.name} · ${Math.floor(Math.min(1, ch.earned / ch.goal) * 100)}%`;
         $("tile-chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
         $("tile-earned").textContent = `${fmt(p.data.earned || 0)} USDT`;
         document.querySelector(".hub").dataset.tab = this.current;
@@ -178,7 +179,7 @@ export class Hub {
             return `<div class="card chapter st-${st}">
                 <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>
                 <div class="card-main"><span class="card-tag${st === "now" ? " on" : ""}">${tag}</span><h3>${c.name}</h3><p>${line}</p>
-                ${c.place ? `<p class="ch-place">${c.place}</p>` : ""}${phrase}
+                ${c.place ? `<p class="ch-place">${c.place}</p>` : ""}${c.boss ? `<p class="ch-place">Босс: ${FIGHTERS[c.boss]?.name}${st !== "done" ? " — глава засчитывается победой" : ""}</p>` : ""}${phrase}
                 ${st === "locked" ? "" : `<div class="bar"><i style="width:${k * 100}%"></i></div>`}</div></div>`;
         }).join("") + (this.p.phrases().length ? `<div class="card card-note"><div class="card-main"><h3>Кодовые фразы</h3>
             <p>Назови их менеджеру отдела продаж — он подберёт, что тебе подойдёт.</p><button class="btn-small" id="btn-manager">Написать менеджеру →</button></div></div>` : "") + (ch.done ? `<div class="card card-note"><div class="card-main"><h3>Сезон 1 пройден</h3><p>Все главы открыты. Новые — в следующем сезоне.</p></div></div>` : "");
