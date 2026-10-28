@@ -638,9 +638,22 @@ export const FIGHTERS = {
         lines: { intro: "Возражения слышал все. Теперь покажи, что ты их прошёл.", final: "Последний раунд. Ответь, как будто это уже твоя жизнь.",
             heavy: ["Сейчас будет больно!", "Это «я подумаю»?", "Держи возражение!", "Дорого? А так?"],
             roundWon: "Почти. Соберись.", roundLost: "Неплохо… Ещё раунд.", lose: "Почти. Возвращайся, когда будешь готов. Я подожду." } },
-    // Мизулина и полицейский: модели забега, на скелет перенесены боевые клипы Павла (те же имена)
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=1", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp", hp: 95,
-        moves: null, dmg: { jab: 4, cross: 4, hook: 6, heavy: 11, super: 30 }, punchTime: 0.46,
+    // Мизулина — свои 13 боевых клипов (idle_fight, jab, cross, hook, uppercut, low/high/spin/jump_kick, block, hit, ko, win).
+    // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=2", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp", hp: 95,
+        koHold: 0.98, // нокаут: лежит в последнем кадре
+        moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
+            jab: { clip: "jab", from: 0.25, to: 1.0, hit: 0.53, speed: 1 },
+            cross: { clip: "cross", from: 0.4, to: 1.1, hit: 0.67, speed: 1 },
+            hook: { clip: "uppercut", from: 0.3, to: 0.95, hit: 0.67, speed: 1 },
+            heavyWind: { clip: "high_kick", from: 0.4, to: 0.95, fit: true }, heavy: { clip: "high_kick", from: 0.95, to: 1.6, hit: 1.0, speed: 1 },
+            knee: { clip: "jump_kick", from: 0.25, to: 0.95, hit: 0.53, speed: 1.1, air: true },
+            block: { clip: "block", from: 0.35, to: 0.8, fit: true },
+            dodge: { clip: "hit", from: 0.1, to: 0.9, fit: true },
+            hit: { clip: "hit", from: 0, to: 1.0, fit: true },
+            recoil: { clip: "hit", from: 0.1, to: 0.7, fit: true },
+            win: { clip: "win", from: 0, to: 3.0, loop: true } },
+        dmg: { jab: 4, cross: 4, hook: 6, heavy: 11, super: 30 }, punchTime: 0.46,
         ai: { every: [[1.3, 2.2], [1.1, 1.9], [0.95, 1.7]], block: [0.1, 0.15, 0.2], heavy: [0.18, 0.2, 0.24], combo: [0.15, 0.2, 0.25], third: [0.05, 0.1, 0.15] },
         telegraph: [0.9, 0.8, 0.7],
         lines: { intro: "Всё запрещу! Всё заблокирую!", final: "Последний раунд. Я вас всех заблокирую!",
@@ -654,7 +667,7 @@ export const FIGHTERS = {
             heavy: ["Стоять!", "Пройдёмте!", "Нарушаем?", "Руки!"],
             roundWon: "Вот так-то.", roundLost: "Крепкий… Ещё раунд.", lose: "Задержан. Приходи, когда разберёшься." } },
 };
-FIGHTERS.mizulina.moves = FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
+FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.

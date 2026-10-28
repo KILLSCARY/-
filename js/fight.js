@@ -176,7 +176,7 @@ export class Fight {
         base.play();
         if (!f.clips.idle) { base.timeScale = 0; base.time = 0; }
         // нокаут: g_ko (сборка Grok — валится навзничь на месте), иначе своё падение модели
-        const ko = list.find((a) => a.name === "g_ko") || list.find((a) => a.name === "dead");
+        const ko = list.find((a) => a.name === "g_ko") || list.find((a) => a.name === "ko") || list.find((a) => a.name === "dead");
         if (ko) f.clips.ko = f.mixer.clipAction(ko);
         f.walk = list.find((a) => a.name === "walk" || a.name === "run");
         // приёмы из клипов боя (FIGHTERS[…].moves): каждый — кусок клипа [from, to], время ставим сами
@@ -503,7 +503,8 @@ export class Fight {
             f.mixer?.update(dt);
             // нокаут: в последних кадрах клипа падения боец снова стоит — замираем, пока лежит
             const ko = f.act === "ko" && f.clips.ko;
-            if (ko && ko.time > ko.getClip().duration * FIGHT.koHold) { ko.time = ko.getClip().duration * FIGHT.koHold; ko.paused = true; f.mixer.update(0); }
+            const hold = f.cfg.koHold ?? FIGHT.koHold;
+            if (ko && ko.time > ko.getClip().duration * hold) { ko.time = ko.getClip().duration * hold; ko.paused = true; f.mixer.update(0); }
             if (ko) { // и в нокауте: падает на месте, а не уезжает вместе с клипом; разворот — один раз по первому кадру,
                 this.pinHips(f); // иначе в кувырке линия бёдер крутится и корпус бы вертело
                 if (f.koYaw === undefined) { this.faceOpponent(f, false); f.koYaw = f.model.rotation.y; }
