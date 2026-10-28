@@ -1032,27 +1032,35 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* кнопки: слева блок и уклон, справа большой удар и супер со шкалой */
 .fb { position: absolute; left: 0; right: 0; bottom: calc(var(--tg-safe-area-inset-bottom, 0px) + env(safe-area-inset-bottom, 0px) + 18px); height: 170px; z-index: 2; transition: opacity .3s; }
 .fb.off { opacity: .25; pointer-events: none; }
-.fb-btn { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 50%; color: #fff; cursor: pointer;
-    background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .16), rgba(14, 6, 8, .88) 70%); border: 2px solid rgba(255, 255, 255, .35);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, .55); -webkit-tap-highlight-color: transparent; touch-action: none; transition: transform .08s; }
-.fb-btn:active { transform: scale(.9); }
-.fb-btn b { font: 900 13px/1 var(--font-display); letter-spacing: .04em; }
-.fb-btn span { font-size: 8.5px; opacity: .7; }
-.fb-punch { right: 18px; bottom: 10px; width: 104px; height: 104px; border-color: #ff4a50; background: radial-gradient(circle at 50% 30%, rgba(255, 90, 90, .55), rgba(120, 8, 14, .92) 72%);
-    box-shadow: 0 0 24px rgba(255, 60, 60, .45), 0 6px 18px rgba(0, 0, 0, .55); }
-.fb-punch b { font-size: 18px; }
-.fb-super { right: 132px; bottom: 76px; width: 68px; height: 68px; --k: 0;
-    background: conic-gradient(#ffd65a calc(var(--k) * 360deg), rgba(255, 255, 255, .12) 0) border-box; border: 3px solid transparent; }
-.fb-super::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, rgba(255, 214, 90, .25), rgba(14, 6, 8, .95) 70%); }
-.fb-super b { position: relative; font-size: 11px; color: #ffd65a; }
-.fb-super.full { box-shadow: 0 0 22px rgba(255, 214, 90, .8); animation: f-ready .7s ease-in-out 3 alternate; }
-.fb-super.full::before { background: radial-gradient(circle at 50% 30%, rgba(255, 230, 140, .9), rgba(200, 120, 0, .95) 72%); }
-.fb-super.full b { color: #2a1600; }
-@keyframes f-ready { to { transform: scale(1.12); } }
-.fb-block { left: 18px; bottom: 10px; width: 92px; height: 92px; border-color: #5aa8ff; background: radial-gradient(circle at 50% 30%, rgba(90, 168, 255, .45), rgba(8, 20, 50, .9) 72%); }
-.fb-dodge { left: 116px; bottom: 70px; width: 64px; height: 64px; }
-.fb-dodge b { font-size: 11px; }
-@media (max-width: 350px) { .fb-punch { width: 92px; height: 92px; } .fb-super { right: 116px; } .fb-dodge { left: 104px; } .fb-block { width: 82px; height: 82px; } }
+/* кнопки боя: тёмное стекло, неоновый обод своего цвета (--ac), иконка и подпись; нажатие — «вдавливается» */
+.fb-btn { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: 50%; color: #fff; cursor: pointer;
+    --ac: #fff; --glow: rgba(255, 255, 255, .25); border: 0; padding: 0; background: rgba(14, 8, 10, .9);
+    background: radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--ac) 38%, transparent), rgba(14, 8, 10, .9) 68%), rgba(14, 8, 10, .9);
+    box-shadow: inset 0 0 0 2.5px var(--ac), inset 0 2px 0 3px rgba(255, 255, 255, .12), 0 0 22px var(--glow), 0 5px 0 rgba(0, 0, 0, .55), 0 10px 22px rgba(0, 0, 0, .5);
+    -webkit-tap-highlight-color: transparent; touch-action: none; transition: transform .07s, box-shadow .07s; }
+.fb-btn:active { transform: translateY(4px) scale(.95); box-shadow: inset 0 0 0 2.5px var(--ac), inset 0 0 18px var(--glow), 0 0 30px var(--glow), 0 1px 0 rgba(0, 0, 0, .55); }
+.fb-btn svg { width: 40%; height: 40%; fill: #fff; filter: drop-shadow(0 0 6px var(--ac)); }
+.fb-btn svg .line, .fb-btn svg .cut { fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.fb-btn svg .cut { stroke: rgba(0, 0, 0, .35); stroke-width: 1.6; }
+.fb-btn b { font: 900 12px/1 var(--font-display); letter-spacing: .06em; text-shadow: 0 1px 0 #000; }
+.fb-btn span { font: 600 8px/1 var(--font-body); opacity: .65; margin-top: 2px; }
+.fb-punch { right: 16px; bottom: 6px; width: 108px; height: 108px; --ac: #ff4a50; --glow: rgba(255, 60, 70, .45); }
+.fb-punch b { font-size: 16px; }
+.fb-block { left: 16px; bottom: 6px; width: 96px; height: 96px; --ac: #4aa3ff; --glow: rgba(70, 150, 255, .4); }
+.fb-dodge { left: 120px; bottom: 74px; width: 66px; height: 66px; --ac: #b8c2cc; --glow: rgba(200, 210, 220, .2); }
+.fb-dodge b, .fb-super b { font-size: 9.5px; }
+/* супер: шкала заряда — дуга по ободу (--k от 0 до 1), полная — золото */
+.fb-super { right: 134px; bottom: 80px; width: 70px; height: 70px; --k: 0; --ac: rgba(255, 214, 90, .35); --glow: transparent; }
+.fb-super::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(#ffd65a calc(var(--k) * 360deg), rgba(255, 255, 255, .1) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
+.fb-super svg { fill: #ffd65a; opacity: .55; }
+.fb-super b { color: #ffd65a; opacity: .7; }
+.fb-super.full { --ac: #ffd65a; --glow: rgba(255, 214, 90, .75); background: radial-gradient(circle at 50% 30%, #ffe9a0, #d48a00 72%); animation: f-ready .6s ease-in-out 4 alternate; }
+.fb-super.full svg { fill: #2a1600; opacity: 1; filter: none; }
+.fb-super.full b { color: #2a1600; opacity: 1; text-shadow: none; }
+@keyframes f-ready { to { transform: scale(1.1); } }
+@media (max-width: 350px) { .fb-punch { width: 94px; height: 94px; } .fb-super { right: 118px; } .fb-dodge { left: 106px; } .fb-block { width: 84px; height: 84px; } }
 #story-win .btn, #story-lose .btn { width: 100%; margin-top: 8px; }
 .sl-ph { width: 96px; height: 96px; margin: 0 auto 10px; border-radius: 50%; background: #2a0a0c center 20%/cover; border: 3px solid #ff4a50; box-shadow: 0 0 24px rgba(255, 74, 80, .5); }
 .sl-card { text-align: center; }
