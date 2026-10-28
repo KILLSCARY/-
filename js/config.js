@@ -687,7 +687,7 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.4,
+    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse_fight.glb?v=4", height: 1.62, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.4,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.05, to: 0.28, period: 2.4 }, // стойка — спокойный кусок начала джеба (руки у лица) туда-обратно
@@ -756,6 +756,14 @@ FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // приёмы, урон и HP — как у Спиди
 for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
     model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait };
+// Ислам — коренастый, мышиная стойка на нём выглядела приседом: ему клипы Павла (человеческая боксёрская стойка), ростом ниже Мизулины
+FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.glb?v=2", height: 1.62, yaw: 0.6, lunge: 0.15, capWhite: 0,
+    moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.6 },
+        jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 }, cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 },
+        hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1.05 },
+        super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
+        superFin: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 0.8 }, // добивание — высокий удар ногой в замедлении
+        win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES } };
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,

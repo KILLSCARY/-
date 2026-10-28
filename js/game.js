@@ -245,6 +245,7 @@ class Game {
     // ---- забег ---------------------------------------------------------------------------
 
     resetRun() {
+        this.speechQ = []; this.speechNow = null; // реплики, ждущие, пока уберут карточку вопроса
         this.storyOk = 0; // верных ответов в этом забеге
         this.storyQ = 0; // сколько табличек главы уже выставлено в этом забеге
         this.pendingInput = null; // табличка с вводом числа: откроется, когда герой до неё добежит
@@ -1119,6 +1120,7 @@ class Game {
         this.world.update(dt, move, this.t);
         this.cards.update(dt, move);
         this.watchWall();
+        this.speechTick();
         this.watchWind(dt);
         this.watchVent(dt);
         // инспектор свистит, когда пробегаешь мимо поста ДПС
@@ -1838,8 +1840,35 @@ class Game {
     gorilla(text, good = false, ms = 4200) { this.speech("Горилла", text, ms, good); }
 
     // реплика персонажа (Горилла, Мизулина, Спиди) — плашка сверху
+    // карточка вопроса / ветра / вентилятора на экране — реплики ждут, чтобы не лезть поверх
+    cardUp() { return ["wall-q", "wind-q", "vent-q"].some((id) => $(id) && !$(id).hidden); }
+
+    // реплики в очереди: показываются, когда карточка ушла (устаревшие через 9 с — пропадают)
+    speechTick() {
+        const el = $("gorilla");
+        if (this.cardUp()) {
+            if (!el.hidden && !el.classList.contains("out")) { // карточка появилась поверх реплики — реплику убираем и показываем после
+                if (this.speechNow) this.speechQ = [...(this.speechQ || []), { ...this.speechNow, at: performance.now() }];
+                clearTimeout(this.gorillaT);
+                el.classList.add("out");
+                this.gorillaT = setTimeout(() => { el.hidden = true; el.classList.remove("out"); }, 400);
+            }
+            return;
+        }
+        if (!this.speechQ?.length || (!el.hidden && !el.classList.contains("out"))) return;
+        const now = performance.now();
+        this.speechQ = this.speechQ.filter((q) => now - q.at < 9000);
+        const q = this.speechQ.shift();
+        if (q) this.speech(...q.args);
+    }
+
     speech(who, text, ms = 3200, good = false, face = null) {
         const el = $("gorilla");
+        if (this.state === "playing" && this.cardUp()) { // поверх карточки не говорим — ждём, пока её уберут
+            (this.speechQ ||= []).push({ args: [who, text, ms, good, face], at: performance.now() });
+            return;
+        }
+        this.speechNow = { args: [who, text, ms, good, face] };
         ms = ms * 1.35 + 600; // висит подольше: успеть прочитать на бегу (плюс время на появление)
         el.classList.remove("out");
         $("g-text").textContent = text;
@@ -1853,12 +1882,9 @@ class Game {
         $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : "18%");
         for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
-        // карточка вопроса сверху — облачко под ней, а не поверх
-        const q = $("wall-q");
-        el.style.top = q && !q.hidden ? `${Math.round(q.getBoundingClientRect().bottom + 6)}px` : "";
         el.hidden = false;
         clearTimeout(this.gorillaT);
-        this.gorillaT = setTimeout(() => { el.classList.add("out"); this.gorillaT = setTimeout(() => { el.hidden = true; el.classList.remove("out"); }, 550); }, ms); // уходит плавно
+        this.gorillaT = setTimeout(() => { this.speechNow = null; el.classList.add("out"); this.gorillaT = setTimeout(() => { el.hidden = true; el.classList.remove("out"); }, 550); }, ms); // уходит плавно
     }
 
     // табличка с вводом числа: забег замирает, ответ — с клавиатуры (пробелы и «₽» не считаются)

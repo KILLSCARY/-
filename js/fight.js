@@ -219,6 +219,9 @@ export class Fight {
             // на клип — два действия (второе — на копии клипа): одно действие не играет два времени сразу,
             // а джеб и кросс — куски одного клипа, и переход между ними должен смешивать оба
             f.acts = {};
+            // базу гасим ДО действий приёмов: базой бывает первый клип файла (jab) — то же действие, что и стойка,
+            // и остановленная после play() стойка не играла: модель стояла в позе из файла (у Ислама — кадр бега)
+            if (f.base) { f.base.stop(); f.base = null; } // стойка — тоже кусок клипа (moves.idle)
             const parts = Object.values(f.cfg.moves).flatMap((m) => (m.seq ? [m, ...Object.values(m.seq)] : [m]));
             for (const m of parts) {
                 if (f.acts[m.clip]) continue;
@@ -229,7 +232,6 @@ export class Fight {
                 f.acts[m.clip] = [f.mixer.clipAction(clip), f.mixer.clipAction(twin)];
                 for (const a of f.acts[m.clip]) { a.play(); a.timeScale = 0; a.setEffectiveWeight(0); }
             }
-            if (f.base) { f.base.stop(); f.base = null; } // стойка — тоже кусок клипа (moves.idle)
             f.tracked = new Set();
             for (const pair of Object.values(f.acts)) for (const t of pair[0].getClip().tracks) f.tracked.add(t.name.slice(0, t.name.lastIndexOf(".")));
             f.moves = f.cfg.moves;
