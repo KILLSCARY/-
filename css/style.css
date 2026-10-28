@@ -1195,7 +1195,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 }
 .ico-fallback { display: inline-grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #4be0a6, #138a5f); color: #fff; font: 900 28px/1 var(--font-display); }
 .f-result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5, 4, 10, .72); z-index: 30; text-align: center; padding: 24px; animation: fres .35s ease-out; }
-.f-result b { font: 900 min(13vw, 56px)/1 var(--font-display); letter-spacing: .04em; }
+.f-result b { max-width: 100%; font: 900 min(9.5vw, 52px)/1 var(--font-display); letter-spacing: 0; white-space: nowrap; } /* «ПОРАЖЕНИЕ» — 9 широких букв: влезает и на 360 px */
 .f-result.lose b { color: #ff3a40; text-shadow: 0 5px 0 #3a0004, 0 0 30px rgba(255, 40, 40, .9); }
 .f-result.win b { color: #ffd65a; text-shadow: 0 5px 0 #3a2400, 0 0 30px rgba(233, 194, 90, .9); }
 .f-result span { font: 800 28px/1 var(--font-display); color: #fff; }
