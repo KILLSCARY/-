@@ -1024,7 +1024,15 @@ class Game {
             const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
-        if (!quiet && this.distance - SPAWN_Z >= this.nextWallAt) this.questions ? this.spawnWall() : this.spawnArch();
+        // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
+        if (this.flight) this.nextWallAt = Math.max(this.nextWallAt, this.distance - SPAWN_Z); // срок не «протухает» — после посадки стена встанет вдали, а не за спиной
+        else if (!quiet && this.distance - SPAWN_Z >= this.nextWallAt) this.questions ? this.spawnWall() : this.spawnArch();
+        // стена-вопрос впереди, а герой летит — садимся заранее, чтобы успеть ответить
+        if (this.flight && this.flight.e < this.flight.dur && this.walls.some((w) => !w.answered && !w.arch && w.plates[0].position.z > -55)) {
+            this.flight.dur = this.flight.e;
+            this.fx.fly = Math.min(this.fx.fly, 0.6);
+            this.hub.toast("Вопрос впереди — приземляемся");
+        }
         if (!quiet && this.distance - SPAWN_Z >= this.nextWindAt) this.spawnWind();
         if (!quiet && this.distance - SPAWN_Z >= this.nextVentAt) this.spawnVent();
         this.watchBoss(dt, move);

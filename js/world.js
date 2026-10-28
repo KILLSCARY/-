@@ -18,7 +18,7 @@ const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
 // размеры для столкновений процедурных препятствий: halfZ — полудлина, top — что перепрыгнуть, oncoming — едет навстречу (м/с)
 const OBSTACLE_STATS = {
-    dumpster: { halfZ: 0.55, top: 1.15 },
+    dumpster: { halfZ: 0.55, top: 0.75 }, // перепрыгнуть: прыжок до ~1.4 м, порог ниже крышки — окно прыжка ~0.45 с
     barrier: { halfZ: 0.3 },
     atm: { halfZ: 0.55 },
     car: { halfZ: 2.2, oncoming: 6 },
@@ -981,7 +981,7 @@ export class World {
             wheel.position.set(x, 0.08, zz);
             g.add(wheel);
         }
-        g.userData = { type: "dumpster", halfZ: 0.55, top: 1.15 };
+        g.userData = { type: "dumpster", halfZ: 0.55, top: OBSTACLE_STATS.dumpster.top };
         return g;
     }
 
