@@ -80,9 +80,9 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // lite — облегчённые модели из models/obj/lite (в ~3 раза меньше треугольников, текстуры 512 WebP);
 // npc — доля живых NPC со скелетом (девушки, кошки, стайки голубей): на слабом телефоне их меньше, остальные девушки — спрайты.
 export const QUALITY_TIERS = {
-    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], lite: false, far: 100, npc: 1 },
-    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], lite: true,  far: 80,  npc: 1 },
-    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], lite: true,  far: 62,  npc: 0.4 },
+    high:   { ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
+    medium: { ratio: 1.3,  reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 350, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 1 },
+    low:    { ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4 },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

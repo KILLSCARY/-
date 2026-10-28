@@ -101,7 +101,15 @@ export class Fight {
         rimR.position.set(1.8, 2.2, -2.4);
         const rimB = new THREE.PointLight(0x3a7bff, 2.4, 8);
         rimB.position.set(-1.8, 1.8, -2.0);
-        this.group.add(key, rimR, rimB);
+        // Каждый точечный свет считается для всей улицы (и пересобирает её шейдеры), поэтому контровые — только на
+        // высокой графике. На средней и слабой ключевым светом служит подсветка героя из забега (герой в бою скрыт).
+        if (game.tier.lights >= 4) this.group.add(key, rimR, rimB);
+        else if (game.rim) {
+            this.rimWas = { pos: game.rim.position.clone(), color: game.rim.color.getHex(), i: game.rim.intensity, d: game.rim.distance };
+            game.rim.position.set(-1.6, 2.0, 0.6); game.rim.color.setHex(0xffd2b0); game.rim.intensity = 1.1; game.rim.distance = 7;
+        }
+        // бойцы в паре метров от камеры: дальний конец улицы не нужен — меньше домов в кадре
+        this.farWas = game.camera.far; game.camera.far = 34; game.camera.updateProjectionMatrix();
         // световой круг на асфальте — «ринг»
         const ringTex = (() => {
             const c = document.createElement("canvas"); c.width = c.height = 256;
@@ -606,7 +614,9 @@ export class Fight {
     dispose() {
         $("fight").hidden = true;
         this.g.camera.fov = this.g.baseFov;
+        if (this.farWas) this.g.camera.far = this.farWas;
         this.g.camera.updateProjectionMatrix();
+        if (this.rimWas) { const r = this.g.rim; r.position.copy(this.rimWas.pos); r.color.setHex(this.rimWas.color); r.intensity = this.rimWas.i; r.distance = this.rimWas.d; }
         $("fb").classList.remove("off");
         for (const u of this.unbind || []) u();
         clearTimeout(this.sayT);
@@ -901,18 +911,23 @@ export class Fight {
     }
 
     hud() {
+        // DOM трогаем, только когда значение поменялось: запись стилей каждый кадр поверх WebGL — лишний пересчёт и нагрев
         const [h, o] = this.f;
-        $("f-hp-l").style.transform = `scaleX(${Math.max(0, h.hp / (h.hpMax || 1))})`;
-        $("f-hp-r").style.transform = `scaleX(${Math.max(0, o.hp / (o.hpMax || 1))})`;
-        $("f-dmg-l").style.transform = `scaleX(${Math.max(0, h.shown / (h.hpMax || 1))})`;
-        $("f-dmg-r").style.transform = `scaleX(${Math.max(0, o.shown / (o.hpMax || 1))})`;
-        $("f-time").textContent = Math.max(0, Math.ceil(this.timeLeft ?? FIGHT.roundTime));
-        $("f-time").classList.toggle("low", (this.timeLeft ?? 99) < 10 && this.phase === "fight");
-        const sv = this.superV / FIGHT.superMax;
-        $("fb-super").style.setProperty("--k", sv);
-        $("fb-super").classList.toggle("full", sv >= 1);
-        $("f-pips-l").innerHTML = Array.from({ length: FIGHT.winRounds }, (_, i) => `<i class="${i < this.wins[0] ? "on" : ""}"></i>`).join("");
-        $("f-pips-r").innerHTML = Array.from({ length: FIGHT.winRounds }, (_, i) => `<i class="${i < this.wins[1] ? "on" : ""}"></i>`).join("");
-        if (this.phase === "fight") $("fb").classList.remove("off");
+        const c = (this.hudC ||= {});
+        const set = (key, v, fn) => { if (c[key] !== v) { c[key] = v; fn(v); } };
+        const bar = (id, v) => set(id, Math.max(0, v).toFixed(3), (k) => { $(id).style.transform = `scaleX(${k})`; });
+        bar("f-hp-l", h.hp / (h.hpMax || 1));
+        bar("f-hp-r", o.hp / (o.hpMax || 1));
+        bar("f-dmg-l", h.shown / (h.hpMax || 1));
+        bar("f-dmg-r", o.shown / (o.hpMax || 1));
+        set("time", Math.max(0, Math.ceil(this.timeLeft ?? FIGHT.roundTime)), (v) => { $("f-time").textContent = v; });
+        set("low", (this.timeLeft ?? 99) < 10 && this.phase === "fight", (v) => $("f-time").classList.toggle("low", v));
+        const sv = Math.min(1, this.superV / FIGHT.superMax);
+        set("sv", sv.toFixed(2), (v) => { $("fb-super").style.setProperty("--k", v); $("fb-super").classList.toggle("full", sv >= 1); });
+        set("pips", this.wins.join(), () => {
+            $("f-pips-l").innerHTML = Array.from({ length: FIGHT.winRounds }, (_, i) => `<i class="${i < this.wins[0] ? "on" : ""}"></i>`).join("");
+            $("f-pips-r").innerHTML = Array.from({ length: FIGHT.winRounds }, (_, i) => `<i class="${i < this.wins[1] ? "on" : ""}"></i>`).join("");
+        });
+        set("fb", this.phase === "fight", (v) => { if (v) $("fb").classList.remove("off"); });
     }
 }

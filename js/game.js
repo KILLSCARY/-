@@ -899,7 +899,9 @@ class Game {
     // Потолок кадров: в забеге 60 (на 120-герцовых экранах иначе было бы 120), в меню 30–40,
     // когда сцену закрывает вкладка, пауза или проигрыш — 12. Меньше кадров — меньше нагрев.
     frameBudget() {
-        if (this.state === "playing" || this.state === "countdown" || this.state === "fight" || this.state === "bossintro") return 1000 / this.tier.fps[0];
+        // бой: камера почти стоит, а телефон греется — на средней и слабой графике хватает 40 и 30 кадров
+        if (this.state === "fight") return 1000 / Math.min(this.tier.fps[0], this.tier.fight || 60);
+        if (this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / this.tier.fps[0];
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / this.tier.fps[0]; // тряска при проигрыше — плавно
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
