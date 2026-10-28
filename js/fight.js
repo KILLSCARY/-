@@ -328,10 +328,14 @@ export class Fight {
         this.unbind.push(() => removeEventListener("keydown", kd), () => removeEventListener("keyup", ku));
     }
 
-    input(cmd) {
+    input(cmd, again = false) {
         if (this.phase !== "fight") return;
         const h = this.f[0];
         const free = h.act === "idle" || (h.act === "block" && cmd !== "block");
+        // буфер нажатий (как input buffer во Fray): удар/уклон, нажатый чуть раньше, чем боец освободился,
+        // не теряется — сработает, как только станет можно (окно FIGHT.buffer с)
+        if (!again && (cmd === "punch" || cmd === "dodge") && !(cmd === "punch" && h.act === "punch" && h.t > h.dur * 0.55) && (!free || h.cd > 0))
+            this.buf = { cmd, t: this.t };
         if (cmd === "punch") {
             // связка: следующий удар можно нажать в конце текущего — джеб, кросс, третий — с доворотом (сильнее)
             if (h.act === "punch" && h.t > h.dur * 0.55) { h.queued = true; return; }
@@ -654,6 +658,11 @@ export class Fight {
             }
             f.shown += (f.hp - f.shown) * Math.min(1, dt * (f.shown - f.hp > 0 ? 2.2 : 10)); // красный «след» урона
             this.pose(f, dt);
+        }
+        if (this.buf) { // отложенное нажатие: боец освободился — выполняем, устарело — забываем
+            const b = this.buf;
+            if (this.t - b.t > FIGHT.buffer) this.buf = null;
+            else if ((h.act === "idle" || h.act === "block") && h.cd <= 0) { this.buf = null; this.input(b.cmd, true); }
         }
         if (this.cineOn && h.act !== "super" && h.act !== "superFin") this.cine(false);
         this.camera(dt);
