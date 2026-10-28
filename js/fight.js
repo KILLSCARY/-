@@ -109,12 +109,12 @@ export class Fight {
         let left = 2;
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
             () => { if (--left === 0) this.ready(); });
-        // подсветка бойцов: тёплый слева-спереди, красный и синий контровые
+        // подсветка бойцов: тёплый слева-спереди, красный и оранжевый контровые
         const key = new THREE.PointLight(0xffd2b0, 0.45, 9); // мягко: белая шляпа Спиди не должна пересвечиваться
         key.position.set(-2.4, 2.2, 0.4);
         const rimR = new THREE.PointLight(0xff2a40, 3.2, 8);
         rimR.position.set(1.8, 2.2, -2.4);
-        const rimB = new THREE.PointLight(0x3a7bff, 2.4, 8);
+        const rimB = new THREE.PointLight(0xff8a1f, 2.4, 8);
         rimB.position.set(-1.8, 1.8, -2.0);
         // Каждый точечный свет считается для всей улицы (и пересобирает её шейдеры), поэтому контровые — только на
         // высокой графике. На средней и слабой ключевым светом служит подсветка героя из забега (герой в бою скрыт).
