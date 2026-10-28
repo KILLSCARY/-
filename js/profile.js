@@ -91,6 +91,7 @@ export class Profile {
     get usdt() { return this.data.usdt; }
     get cards() { return this.data.cards || 0; }
     addCards(n) { this.data.cards = Math.max(0, (this.data.cards || 0) + n); this.save(); }
+    setCards(n) { this.data.cards = Math.max(0, n | 0); this.save(); }
     payCards(n) { if (this.cards < n) return false; this.data.cards -= n; this.save(); return true; }
 
     // открыть набор: кладём его бусты в запас (SET_RUNS забегов) — один раз на профиль

@@ -23,13 +23,32 @@ if now - s < tonumber(ARGV[5]) * 1000 or (l > 0 and now - l < tonumber(ARGV[6]) 
 redis.call('HSET', KEYS[1], ARGV[1], s .. ':' .. (c + 1) .. ':' .. now)
 bal = redis.call('HINCRBY', KEYS[2], ARGV[2], 1)
 return {1, bal, tostring(c + 1)}`;
+// списать карты и положить перк — одним скриптом (KEYS[2] = p2p:pk:<id>)
 const CARD_SPEND_LUA = `local b = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0')
 local n = tonumber(ARGV[2])
 if b < n then return {0, b} end
-return {1, redis.call('HINCRBY', KEYS[1], ARGV[1], -n)}`;
+local nb = redis.call('HINCRBY', KEYS[1], ARGV[1], -n)
+if ARGV[3] and ARGV[3] ~= '' then redis.call('HINCRBY', KEYS[2], ARGV[3], 1) end
+return {1, nb}`;
+// старт забега: взять по одному каждого перка > 0 атомарно
+const PERK_TAKE_LUA = `local out = {}
+for i, k in ipairs(ARGV) do
+  local v = tonumber(redis.call('HGET', KEYS[1], k) or '0')
+  if v > 0 then redis.call('HINCRBY', KEYS[1], k, -1); table.insert(out, k) end
+end
+return out`;
+
+// Карты из кейса: openId — один раз (SADD), не больше cap раз за сутки, +n к балансу — одним скриптом
+const CASE_CARD_LUA = `local bal = tonumber(redis.call('HGET', KEYS[3], ARGV[2]) or '0')
+if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return {0, bal, 'dup'} end
+local d = tonumber(redis.call('GET', KEYS[2]) or '0')
+if d >= tonumber(ARGV[4]) then return {0, bal, 'day_limit'} end
+redis.call('SADD', KEYS[1], ARGV[1])
+redis.call('INCR', KEYS[2]); redis.call('EXPIRE', KEYS[2], 172800)
+return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 
 export function memoryStore() {
-    const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map();
+    const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
     return {
         kind: "memory",
@@ -54,8 +73,17 @@ export function memoryStore() {
             r.count++; r.last = ts; cards.set(id, bal + 1);
             return { ok: true, cards: bal + 1, count: r.count };
         },
+        async caseCardGrant(id, openId, n, day, cap) {
+            const bal = cards.get(id) || 0, k = `${id}:${day}`;
+            if (seenOpen.has(`${id}:${openId}`)) return { ok: false, reason: "dup", cards: bal };
+            if ((caseDay.get(k) || 0) >= cap) return { ok: false, reason: "day_limit", cards: bal };
+            seenOpen.add(`${id}:${openId}`); caseDay.set(k, (caseDay.get(k) || 0) + 1); cards.set(id, bal + n);
+            return { ok: true, cards: bal + n };
+        },
         async cardBalance(id) { return cards.get(id) || 0; },
-        async cardSpend(id, n) { const b = cards.get(id) || 0; if (b < n) return { ok: false, cards: b }; cards.set(id, b - n); return { ok: true, cards: b - n }; },
+        async cardSpend(id, n, item) { const b = cards.get(id) || 0; if (b < n) return { ok: false, cards: b }; cards.set(id, b - n); if (item) { const m = pk.get(id) || {}; m[item] = (m[item] || 0) + 1; pk.set(id, m); } return { ok: true, cards: b - n }; },
+        async perkTake(id, keys) { const m = pk.get(id) || {}, out = []; for (const k of keys) if (m[k] > 0) { m[k]--; out.push(k); } return out; },
+        async perks(id) { return { ...(pk.get(id) || {}) }; },
         async rewards(id) { return Object.fromEntries([...(rw.get(id) || [])].map(([k, v]) => [k, Number(v.split(":")[0])])); },
     };
 }
@@ -87,8 +115,14 @@ export function redisStore(url, token, fetchImpl = fetch) {
             const [ok, bal, x] = await cmd("EVAL", CARD_GRANT_LUA, "2", `p2p:cr:${id}`, "p2p:cards", runId, String(id), String(ts), String(cfg.perRun), String(cfg.firstSec), String(cfg.gapSec), String(cfg.runTtlSec));
             return Number(ok) ? { ok: true, cards: Number(bal), count: Number(x) } : { ok: false, reason: x, cards: Number(bal) };
         },
+        async caseCardGrant(id, openId, n, day, cap, ttl) {
+            const [ok, b, why] = await cmd("EVAL", CASE_CARD_LUA, "3", `p2p:co:${id}`, `p2p:cd:${id}:${day}`, "p2p:cards", openId, String(id), String(n), String(cap), String(ttl));
+            return Number(ok) ? { ok: true, cards: Number(b) } : { ok: false, reason: why, cards: Number(b) };
+        },
         async cardBalance(id) { return Number((await cmd("HGET", "p2p:cards", String(id))) || 0); },
-        async cardSpend(id, n) { const [ok, b] = await cmd("EVAL", CARD_SPEND_LUA, "1", "p2p:cards", String(id), String(n)); return { ok: Boolean(Number(ok)), cards: Number(b) }; },
+        async cardSpend(id, n, item = "") { const [ok, b] = await cmd("EVAL", CARD_SPEND_LUA, "2", "p2p:cards", `p2p:pk:${id}`, String(id), String(n), item); return { ok: Boolean(Number(ok)), cards: Number(b) }; },
+        async perkTake(id, keys) { return (await cmd("EVAL", PERK_TAKE_LUA, "1", `p2p:pk:${id}`, ...keys)) || []; },
+        async perks(id) { const a = (await cmd("HGETALL", `p2p:pk:${id}`)) || [], o = {}; for (let i = 0; i < a.length; i += 2) o[a[i]] = Number(a[i + 1]); return o; },
         async grant(id, key, amount, ts) { return Number(await cmd("HSETNX", `p2p:rw:${id}`, key, `${amount}:${ts}`)) === 1; },
         async rewards(id) {
             const a = (await cmd("HGETALL", `p2p:rw:${id}`)) || [];

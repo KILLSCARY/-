@@ -514,16 +514,18 @@ export const POWERUPS = {
 // дороги; perRun — максимум за забег: первая гарантированно после firstAt м, следующая через nextGap м; в погоне и в бою
 // не появляется. edge — насколько за крайней полосой стоит (м), spawnZ — где появляется, idleSpeed — темп «танца».
 // lines — что говорит девушка, когда герой забрал карту (cards_texts_v1)
-export const CARDS = { perRun: 2, firstAt: 1000, nextGap: [700, 1400], edge: 1.05, spawnZ: -70, idleSpeed: 0.45,
+export const CARDS = { perRun: 2, firstAt: 1000, nextGap: [700, 1400], edge: 1.05, spawnZ: -70, idleSpeed: 0.45, cardSize: 1.5, girlGlow: 0x5a3c08,
     lines: ["Лови!", "Аккуратнее с ней!", "Только не теряй!", "Быстрый какой…", "Это тебе на удачу"], missed: "Эх, не успел",
     first: "Карта — редкая валюта. Копи на бусты, которых нет за USDT" };
 // За Карты (economy_v7): на следующий забег, обмена на USDT нет
 // srv — id покупки на сервере (api/_lib/cards.mjs, CARD_PRICES): цены там должны совпадать с cards здесь
+export const CARD_DASH = { meters: 500, speed: 1.8 }; // «Рывок» за карты: первые 500 м быстрее и без урона
+export const CARDS_DURING_STORY_CHASE = false; // девушки с картой во время сюжетной погони Мизулиной (ждёт решения Гриши)
 export const CARD_SHOP = [
     { id: "x2", srv: "x2run", cards: 5, name: "Двойные USDT", text: "Весь забег USDT считаются вдвойне" },
     { id: "late", srv: "mizlate", cards: 8, name: "Фора", text: "Мизулина стартует на 10 секунд позже" },
     { id: "magnet", srv: "magnetrun", cards: 12, name: "Магнит на весь забег", text: "Монеты сами летят к тебе весь забег" },
-    { id: "dash", srv: "dash", cards: 15, name: "Рывок 500 м", text: "Старт сразу с 500 метров" },
+    { id: "dash", srv: "dash", cards: 15, name: "Рывок 500 м", text: "Первые 500 м — быстрее и без урона" },
 ];
 export const POWERUP_SPAWN = { chance: 0.08, gap: 8 };
 

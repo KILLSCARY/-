@@ -47,7 +47,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         const fresh = await store.grant(who.id, key, amount, now);
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
     }
-    if (["cards", "cardrun", "card", "cardbuy"].includes(action)) return handleCards(action, body, who, { store, env, now });
+    if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {
         const had = await store.place(who.id);

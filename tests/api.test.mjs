@@ -136,3 +136,29 @@ test("карты: покупка по серверной цене, без ухо
     assert.equal(r.json.price, 5); assert.equal(r.json.cards, 1);
     assert.equal((await run(store, "cardbuy", { initData: d, item: "usdt" }, T0)).status, 400);
 });
+
+test("карты из кейсов: Мерчант 1, Покоритель 2–3, openId один раз, лимит в сутки", async () => {
+    const store = memoryStore(), d = init(11);
+    const a = await run(store, "casecard", { initData: d, caseId: "merchant", openId: "open0001", n: 9 }, T0);
+    assert.deepEqual([a.json.n, a.json.cards], [1, 1]);
+    assert.equal((await run(store, "casecard", { initData: d, caseId: "merchant", openId: "open0001" }, T0)).json.error, "dup");
+    const b = await run(store, "casecard", { initData: d, caseId: "conqueror", openId: "open0002", n: 3 }, T0);
+    assert.deepEqual([b.json.n, b.json.cards], [3, 4]);
+    assert.equal((await run(store, "casecard", { initData: d, caseId: "conqueror", openId: "open0003", n: 0 }, T0)).json.n, 2);
+    assert.equal((await run(store, "casecard", { initData: d, caseId: "envelope", openId: "open0004" }, T0)).status, 400);
+    for (let i = 5; i < 7; i++) await run(store, "casecard", { initData: d, caseId: "merchant", openId: "open000" + i }, T0);
+    assert.equal((await run(store, "casecard", { initData: d, caseId: "merchant", openId: "open0009" }, T0)).json.error, "day_limit");
+    assert.equal((await run(store, "casecard", { initData: d, caseId: "merchant", openId: "open0010" }, T0 + 86_400_000)).json.ok, true);
+});
+
+test("перки за карты: cardbuy кладёт на сервер, cardrun списывает по одному", async () => {
+    const store = memoryStore(), d = init(12);
+    await store.caseCardGrant("12", "seed0001", 30, "d", 99);
+    assert.equal((await run(store, "cardbuy", { initData: d, item: "dash" }, T0)).json.perks.dash, 1);
+    await run(store, "cardbuy", { initData: d, item: "x2run" }, T0);
+    await run(store, "cardbuy", { initData: d, item: "x2run" }, T0);
+    const r1 = (await run(store, "cardrun", { initData: d }, T0)).json;
+    assert.deepEqual(r1.perks.sort(), ["dash", "x2run"]);
+    assert.deepEqual((await run(store, "cardrun", { initData: d }, T0 + 1000)).json.perks, ["x2run"]);
+    assert.deepEqual((await run(store, "cardrun", { initData: d }, T0 + 2000)).json.perks, []);
+});

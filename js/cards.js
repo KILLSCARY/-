@@ -4,34 +4,55 @@
 // во время погони Мизулиной, сюжетной погони и боя с боссом — не появляется (ждёт, пока станет тихо).
 // Девушки — пул (CARDS.perRun штук), модель — та же girl_npc.glb, что у прохожих, карта — одна общая геометрия.
 import * as THREE from "./vendor/three.module.js";
-import { CARDS, NPCS } from "./config.js";
+import { CARDS, NPCS, CARDS_DURING_STORY_CHASE } from "./config.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
+// обычная банковская карта без банка: чип, магнитная полоса сверху, пустые строки вместо номера и имени (v5 команды)
 function cardTexture() {
     const c = document.createElement("canvas");
     c.width = 256; c.height = 160;
     const x = c.getContext("2d");
+    const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }; // без roundRect — его нет на iOS 15
     const g = x.createLinearGradient(0, 0, 256, 160);
-    g.addColorStop(0, "#f7d774"); g.addColorStop(0.55, "#d9a43a"); g.addColorStop(1, "#8a5a17");
-    x.fillStyle = g; x.beginPath(); x.moveTo(18, 0); x.arcTo(256, 0, 256, 160, 18); x.arcTo(256, 160, 0, 160, 18); x.arcTo(0, 160, 0, 0, 18); x.arcTo(0, 0, 256, 0, 18); x.closePath(); x.fill(); // без roundRect — его нет на iOS 15
-    x.fillStyle = "#c9c9c9"; x.fillRect(28, 52, 44, 34);                 // чип
-    x.strokeStyle = "#7d7d7d"; x.lineWidth = 2; x.strokeRect(28, 52, 44, 34);
-    x.fillStyle = "#1f6e3e"; x.font = "bold 22px sans-serif";
-    x.fillText("•••• •••• •••• 2030", 28, 122);
-    x.fillStyle = "#35e39b"; x.beginPath(); x.arc(212, 128, 16, 0, 7); x.fill();
-    x.fillStyle = "#ffcf3a"; x.beginPath(); x.arc(232, 128, 16, 0, 7); x.fill();
+    g.addColorStop(0, "#ffe68a"); g.addColorStop(0.5, "#e0a93c"); g.addColorStop(1, "#9a5f1c");
+    x.fillStyle = g; rr(0, 0, 256, 160, 18); x.fill();
+    x.fillStyle = "#3a2410"; x.fillRect(0, 18, 256, 26);                       // магнитная полоса
+    x.fillStyle = "#d9d9d9"; rr(26, 62, 42, 32, 5); x.fill();                  // чип
+    x.strokeStyle = "#8a8a8a"; x.lineWidth = 2; x.strokeRect(34, 62, 0.1, 32); x.strokeRect(26, 78, 42, 0.1);
+    x.fillStyle = "rgba(31,110,62,.85)";                                       // зелёные строки — без цифр
+    rr(26, 110, 150, 10, 5); x.fill();
+    rr(26, 130, 90, 8, 4); x.fill();
+    x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 4; rr(3, 3, 250, 154, 16); x.stroke(); // блик по кромке
     const t = new THREE.CanvasTexture(c);
     t.encoding = THREE.sRGBEncoding;
     return t;
+}
+
+// мягкое тёплое свечение (аддитивный спрайт) — без источника света: число ламп в сцене не меняем
+function glowTexture() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,236,150,1)"); g.addColorStop(0.35, "rgba(255,200,70,.55)"); g.addColorStop(1, "rgba(255,170,40,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
 }
 
 export class CardGirls {
     constructor(game) {
         this.g = game;
         this.pool = [];
-        this.cardGeo = new THREE.BoxGeometry(0.34, 0.215, 0.012);
-        this.cardMat = new THREE.MeshStandardMaterial({ map: cardTexture(), metalness: 0.6, roughness: 0.25, emissive: 0x6a4a10, emissiveIntensity: 0.5 });
+        const k = CARDS.cardSize;
+        this.cardGeo = new THREE.BoxGeometry(0.34 * k, 0.215 * k, 0.014);
+        const tex = cardTexture();
+        // светится сама (emissiveMap) — читается и под красными и синими мигалками улицы
+        this.cardMat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 });
+        this.glowMat = new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffd36a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+        this.beamMat = new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        this.beamGeo = new THREE.CylinderGeometry(0.16, 0.24, 3.2, 16, 1, true); // тонкий луч
+        this.girlMats = new Map(); // свои материалы девушки с картой: тёплая подсветка (у прохожих — без)
+        this._q = new THREE.Quaternion();
         this.flying = [];
         this.reset();
     }
@@ -56,12 +77,30 @@ export class CardGirls {
         g.traverse((o) => { if (!hand && /RightHand$/.test(o.name)) hand = o; });
         if (hand) { // карта в правой руке: масштаб кости компенсируем (модель уменьшена через scale)
             const s = new THREE.Vector3(); hand.getWorldScale(s);
-            card.scale.setScalar(1 / (s.x || 1));
-            card.position.set(0, 12, 4); card.rotation.set(0.3, 0, 0.2);
+            card.scale.setScalar(1.6 / (s.x || 1)); // ×1.6 — читается издалека
+            card.position.set(0, 14, 6);
             hand.add(card);
+            g.userData.cardFace = true;
         } else { card.position.set(0.35, 1.05, 0.2); g.add(card); }
         g.userData.card = card;
         g.userData.cardHome = { p: card.position.clone(), r: card.rotation.clone(), s: card.scale.clone(), parent: card.parent };
+        // тёплая подсветка девушки: свой клон материала с золотым emissive
+        g.traverse((o) => {
+            if (!o.isMesh || o === card) return;
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            const warm = mats.map((m) => {
+                if (!this.girlMats.has(m)) { const c = m.clone(); c.emissive = new THREE.Color(CARDS.girlGlow); c.emissiveIntensity = 0.55; this.girlMats.set(m, c); }
+                return this.girlMats.get(m);
+            });
+            o.material = Array.isArray(o.material) ? warm : warm[0];
+        });
+        const glow = new THREE.Sprite(this.glowMat);
+        glow.scale.setScalar(0.9);
+        card.add(glow);
+        g.userData.cardGlow = glow;
+        const beam = new THREE.Mesh(this.beamGeo, this.beamMat);
+        beam.position.y = 1.6;
+        g.add(beam);
         g.add(this.halo());
         w.scene.add(g);
         this.pool.push(g);
@@ -70,14 +109,14 @@ export class CardGirls {
 
     // золотистое кольцо на асфальте — видно издалека, что у девушки карта
     halo() {
-        const r = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.6, 32), new THREE.MeshBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.55, depthWrite: false }));
+        const r = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.8, 32), new THREE.MeshBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
         r.rotation.x = -Math.PI / 2; r.position.y = 0.03;
         return r;
     }
 
     blocked() {
         const g = this.g;
-        return g.stumble > 0 || g.chaser?.visible || g.storyChasing?.() || g.bossCalm || g.bossFight || g.storyCatch;
+        return g.stumble > 0 || g.chaser?.visible || (!CARDS_DURING_STORY_CHASE && g.storyChasing?.()) || g.bossCalm || g.bossFight || g.storyCatch;
     }
 
     spawn(z) {
@@ -108,6 +147,11 @@ export class CardGirls {
             if (!p.userData.active) continue;
             p.position.z += move;
             p.userData.mixer?.update(dt);
+            if (p.userData.cardFace && !p.userData.taken) { // карта лицом к камере, как бы ни крутилась рука
+                const c = p.userData.card, cam = g.camera;
+                if (cam) { c.parent.getWorldQuaternion(this._q); c.quaternion.copy(this._q.invert().multiply(cam.quaternion)); }
+            }
+            if (p.userData.cardGlow) p.userData.cardGlow.material.opacity = 0.75 + Math.sin(performance.now() / 180) * 0.25;
             const u = p.userData;
             // пробегает мимо по соседней (крайней) полосе — карта его
             if (!u.taken && p.position.z > -0.8 && p.position.z < 1.2 && g.lane === u.lane && g.state === "playing") {

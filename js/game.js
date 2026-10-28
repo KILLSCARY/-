@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { CardGirls } from "./cards.js";
 import { prize } from "./prize.js";
@@ -330,7 +330,14 @@ class Game {
         this.resetRun();
         if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
-        prize.cardRun().then((r) => { if (this.runId === run && r?.runId) this.cardRunId = r.runId; });
+        prize.cardRun().then((r) => {
+            if (this.runId !== run || !r?.runId) return;
+            this.cardRunId = r.runId;
+            if (typeof r.cards === "number") this.profile.setCards(r.cards); // баланс ведёт сервер
+            this.cardPerks(r.perks || []); // сервер уже списал по одному каждого купленного
+            const left = this.profile.data.cardPerksSrv;
+            if (left) for (const id of r.perks || []) if (left[id] > 0) left[id]--;
+        });
         $("daily").hidden = true; // ежедневная награда не висит поверх забега (заберётся в меню)
         $("mode").hidden = true;
         this.show("hud");
@@ -377,18 +384,13 @@ class Game {
         const d = this.profile.data;
         if (d.x2runs > 0) { d.x2runs--; this.boostLeft = 600; this.hub.toast("В забеге: ×2 монеты"); this.profile.save(); } // «Финансовый Ебобо»
         // купленное за Карты — на этот забег (economy_v7)
-        const perks = d.cardPerks || {}, took = [];
-        const use = (id) => perks[id] > 0 && (perks[id]--, true);
-        if (use("x2")) { this.boostLeft = 1e6; took.push("двойные USDT"); }
-        if (use("magnet")) { this.fx.magnet = 1e6; took.push("магнит"); }
-        if (use("late")) { this.chaseLate = 10; took.push("Мизулина позже на 10 с"); }
-        if (use("dash")) { // старт с 500 м: все «следующие» отметки сдвигаем, иначе стены встанут за спиной
-            this.distance += 500;
-            for (const k of ["nextWallAt", "nextWindAt", "nextVentAt"]) if (this[k] != null) this[k] += 500;
-            if (this.cards) this.cards.nextAt += 500;
-            took.push("старт с 500 м");
+        this.dashTo = 0;
+        if (!prize.online) { // в Telegram купленное хранит сервер — придёт в ответе cardrun (cardPerks ниже)
+            const perks = d.cardPerks || {}, took = [];
+            for (const id of Object.keys(perks)) if (perks[id] > 0) { perks[id]--; took.push(id); }
+            this.cardPerks(took);
+            this.profile.save();
         }
-        if (took.length) { this.hub.toast(`За Карты: ${took.join(", ")}`); this.profile.save(); }
         this.renderBoosts();
         this.updateHud();
     }
@@ -747,7 +749,7 @@ class Game {
         const c = (this.hudCache ||= {});
         const text = (id, value) => { if (c[id] !== value) $(id).textContent = c[id] = value; };
         text("hud-usdt", fmt(this.usdt));
-        text("hud-cards", String(this.profile.cards));
+        text("hud-cards", `× ${this.profile.cards}`);
         this.hudScore = Math.max(this.hudScore || 0, this.score()); // счёт на экране только растёт
         text("hud-score", fmt(this.hudScore));
         const hurt = this.stumble > 0 && this.state === "playing";
@@ -1066,6 +1068,7 @@ class Game {
         }
         if (this.fx.turbo > 0) this.speed *= 1.3; // «Напор» / «Попутный ветер»
         if (this.fx.honey > 0) this.speed *= 1.15; // «Рывок»
+        if (this.dashTo && this.distance < this.dashTo) { this.speed *= CARD_DASH.speed; this.fx.safe = Math.max(this.fx.safe, 0.5); } // «Рывок» за карты
         if (this.bossFight) this.speed = this.bossFight.cfg.speed; // в бою — ровная скорость босса
         // перед стеной-возражением — почти остановка, пока игрок не выберет ответ (нажал карточку или свайп вверх);
         // 8 с не выбирает — бежим дальше
@@ -1308,6 +1311,20 @@ class Game {
     }
 
     // Карта собрана: девушка говорит, счётчик подпрыгивает; первая в жизни — подсказка Гориллы
+    // купленное за Карты — на этот забег (economy_v7); ids — локальные (x2, magnet, late, dash) или серверные (CARD_SHOP.srv)
+    cardPerks(ids) {
+        const has = (c) => ids.includes(c.id) || ids.includes(c.srv), got = [];
+        for (const c of CARD_SHOP) {
+            if (!has(c)) continue;
+            if (c.id === "x2") this.boostLeft = 1e6;
+            if (c.id === "magnet") this.fx.magnet = 1e6;
+            if (c.id === "late") this.chaseLate = 10;
+            if (c.id === "dash") this.dashTo = this.distance + CARD_DASH.meters;
+            got.push(c.name);
+        }
+        if (got.length) this.hub.toast(`За Карты: ${got.join(", ")}`);
+    }
+
     cardFx(line) {
         // сервер проверяет карту (забег этого игрока, не больше 2, не быстрее лимитов): отказ — карту забираем обратно
         if (this.cardRunId) prize.card(this.cardRunId).then((r) => { if (r?.status === 403) this.profile.addCards(-1); });
@@ -1335,7 +1352,7 @@ class Game {
         // «из принципа» Мизулина бежит на CHASE_GRUDGE.speed быстрее: держится ближе и отстаёт медленнее
         // (время погони stumbleTime то же — меняется только скорость её бега)
         const k = this.grudge ? CHASE_GRUDGE.speed : 1;
-        const z = (this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8 / k) / k; // в конце отстаёт
+        const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8 / k; // в конце отстаёт (медленнее, если «из принципа»)
         c.position.z += (z - c.position.z) * Math.min(1, dt * 4 * k);
         c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
         if (c.userData.mixer) { // бежит туда же, куда герой

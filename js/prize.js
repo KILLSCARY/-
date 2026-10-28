@@ -19,5 +19,7 @@ export const prize = {
     cardRun() { return tg.initData ? post({ action: "cardrun" }) : Promise.resolve(null); },
     card(runId) { return tg.initData ? post({ action: "card", runId }) : Promise.resolve(null); },
     cardBuy(item) { return tg.initData ? post({ action: "cardbuy", item }) : Promise.resolve(null); },
+    // карты из кейса: openId — один раз, сколько и как часто — проверяет сервер
+    caseCard(caseId, openId, n) { return tg.initData ? post({ action: "casecard", caseId, openId, n }) : Promise.resolve(null); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },
 };

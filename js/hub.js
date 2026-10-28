@@ -393,14 +393,14 @@ export class Hub {
                     const r = await prize.cardBuy(c.srv); // цену и баланс решает сервер; не ответил — покупка локально
                     b.disabled = false;
                     if (r?.status === 402) return this.toast(`Нужно ещё ${c.cards - (r.cards || 0)} Карт`);
-                    this.p.payCards(c.cards);
-                    perks[c.id] = (perks[c.id] || 0) + 1;
+                    if (r?.status === 200) { this.p.setCards(r.cards); this.p.data.cardPerksSrv = r.perks || {}; } // перк хранит сервер
+                    else { this.p.payCards(c.cards); perks[c.id] = (perks[c.id] || 0) + 1; }
                     this.p.save();
                     this.game.audio.play("buy");
                     this.toast(`${c.name} — в следующем забеге`);
                     this.render();
                 };
-                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card.svg" }, perks[c.id] ? `На следующие забеги: ${perks[c.id]}` : "", b);
+                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card.svg" }, (prize.online ? this.p.data.cardPerksSrv?.[c.srv] : perks[c.id]) ? `На следующие забеги: ${prize.online ? this.p.data.cardPerksSrv[c.srv] : perks[c.id]}` : "", b);
                 sc.querySelector(".btn-real")?.remove(); // настоящих «Карт» в магазине нет
                 box.append(sc);
             }
@@ -675,7 +675,7 @@ export class Hub {
         const items = Array.from({ length: WIN + 6 }, () => this.roll(c));
         const win = items[WIN];
         // приз — сразу в кошелёк: закрыли приложение посреди анимации — он уже начислен
-        const text = this.give(win);
+        const text = this.give(win, c);
         const co = $("co");
         co.style.setProperty("--cc", c.color);
         co.className = "co s-intro";
@@ -752,9 +752,14 @@ export class Hub {
         for (const c of CASES) if (c.video) fetch(c.video).catch(() => {});
     }
 
-    give(d) {
+    give(d, c) {
         if (d.amount) this.p.gift(d.amount);
-        if (d.cardsN) this.p.addCards(d.cardsN);
+        if (d.cardsN) { // карты из кейса — в Telegram начисляет сервер (openId один раз, лимит в сутки)
+            if (prize.online) {
+                const openId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+                prize.caseCard(c?.id, openId, d.cardsN).then((r) => { if (typeof r?.cards === "number") { this.p.setCards(r.cards); this.render?.(); } else if (r?.status !== 403) this.p.addCards(d.cardsN); });
+            } else this.p.addCards(d.cardsN);
+        }
         const got = [];
         if (d.boosts) for (let i = 0; i < d.boosts; i++) { const b = (d.boost && BOOSTS.find((x) => x.id === d.boost)) || pick(BOOSTS); this.p.addBoost(b.id); if (!d.boost) got.push(b.name); }
         if (d.all) for (const b of BOOSTS) this.p.addBoost(b.id);
