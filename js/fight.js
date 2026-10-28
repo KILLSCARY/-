@@ -880,7 +880,7 @@ export class Fight {
         if (ref || f.yaw0 === undefined) { if (ref) f.yaw0 = a; else return; }
         let d = f.yaw0 - a;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        f.model.rotation.y = d;
+        f.model.rotation.y = d + (f.cfg.yaw || 0) * f.dir; // cfg.yaw — доворот корпуса к камере (бьющая рука не за спиной)
         f.model.updateMatrixWorld(true);
     }
 

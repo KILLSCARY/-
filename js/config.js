@@ -654,7 +654,7 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, // yaw — корпус к камере, удары видны portrait: "img/heroes/speedy.webp", hp: 100,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем
@@ -717,7 +717,7 @@ FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
-export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
+export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, fov: 58, gap: 0.85, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
     stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
 // Крючки анимаций боя: первое найденное в glb имя клипа (без учёта регистра). Положи клип с таким именем в модель —
 // бой возьмёт его вместо процедурной анимации. idle — стойка (иначе idle/run модели + руки в защиту).
