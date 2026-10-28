@@ -510,6 +510,20 @@ export const POWERUPS = {
     testo: { name: "Тестобустер", text: "дикий памп, летишь!", hud: "ПАМП", time: 5, height: 4.2, color: 0x35e39b },
     choline: { name: "Холин", text: "мысли и USDT тянутся к тебе", hud: "ХОЛИН", time: 10, color: 0xf2c46b },
 };
+// «Карта» — редкая вторая валюта (js/cards.js, economy_v7: банковская карта, решение Гриши). Девушка с картой у края
+// дороги; perRun — максимум за забег: первая гарантированно после firstAt м, следующая через nextGap м; в погоне и в бою
+// не появляется. edge — насколько за крайней полосой стоит (м), spawnZ — где появляется, idleSpeed — темп «танца».
+// lines — что говорит девушка, когда герой забрал карту (cards_texts_v1)
+export const CARDS = { perRun: 2, firstAt: 1000, nextGap: [700, 1400], edge: 1.05, spawnZ: -70, idleSpeed: 0.45,
+    lines: ["Лови!", "Аккуратнее с ней!", "Только не теряй!", "Быстрый какой…", "Это тебе на удачу"], missed: "Эх, не успел",
+    first: "Карта — редкая валюта. Копи на бусты, которых нет за USDT" };
+// За Карты (economy_v7): на следующий забег, обмена на USDT нет
+export const CARD_SHOP = [
+    { id: "x2", cards: 5, name: "Двойные USDT", text: "Весь забег USDT считаются вдвойне" },
+    { id: "late", cards: 8, name: "Фора", text: "Мизулина стартует на 10 секунд позже" },
+    { id: "magnet", cards: 12, name: "Магнит на весь забег", text: "Монеты сами летят к тебе весь забег" },
+    { id: "dash", cards: 15, name: "Рывок 500 м", text: "Старт сразу с 500 метров" },
+];
 export const POWERUP_SPAWN = { chance: 0.08, gap: 8 };
 
 // Апелляция — продолжить забег после проигрыша, один раз за забег
@@ -535,9 +549,11 @@ export const CASES = [
         { r: "rare", w: 18, usdt: [3000, 3000] },
         { r: "rare", w: 10, level: 1 },
         { r: "epic", w: 10, usdt: [1500, 1500], all: true },
+        { r: "rare", w: 4, cards: 1 }, // редко — Карта (economy_v7)
         { r: "legend", w: 2, usdt: [13000, 13000], sub: "джекпот" }] },
     { id: "conqueror", name: "Кейс Покорителя", text: "Только редкое и лучше", color: "#ff8a1f", art: "img/cases/conqueror.webp", video: "video/case_conqueror.mp4", burst: 4.4, price: 9000, drops: [
         { r: "rare", w: 35, usdt: [4000, 6000] },
+        { r: "epic", w: 8, cards: [2, 3] }, // 2–3 Карты (economy_v7)
         { r: "rare", w: 20, level: 1 },
         { r: "epic", w: 35, usdt: [2400, 2400], all: true },
         { r: "legend", w: 10, usdt: [24500, 24500], sub: "сейф покорителя" }] },

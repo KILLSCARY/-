@@ -1,8 +1,9 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2 } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS } from "./config.js";
 import { Fight } from "./fight.js";
+import { CardGirls } from "./cards.js";
 import { prize } from "./prize.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -111,6 +112,7 @@ class Game {
 
         this.setupScene();
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
+        this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
@@ -265,6 +267,8 @@ class Game {
         this.hudScore = 0;
         this.usdt = 0;
         this.coinCount = 0;
+        this.cards?.reset();
+        this.chaseLate = 0; // «Фора» за Карты: Мизулина стартует позже
         this.credited = { usdt: 0 }; // сколько из этого забега уже зачислено в кошелёк
         this.appealUsed = false;
         this.boostLeft = 0;
@@ -369,6 +373,19 @@ class Game {
         this.boostsUsed = 0;
         const d = this.profile.data;
         if (d.x2runs > 0) { d.x2runs--; this.boostLeft = 600; this.hub.toast("В забеге: ×2 монеты"); this.profile.save(); } // «Финансовый Ебобо»
+        // купленное за Карты — на этот забег (economy_v7)
+        const perks = d.cardPerks || {}, took = [];
+        const use = (id) => perks[id] > 0 && (perks[id]--, true);
+        if (use("x2")) { this.boostLeft = 1e6; took.push("двойные USDT"); }
+        if (use("magnet")) { this.fx.magnet = 1e6; took.push("магнит"); }
+        if (use("late")) { this.chaseLate = 10; took.push("Мизулина позже на 10 с"); }
+        if (use("dash")) { // старт с 500 м: все «следующие» отметки сдвигаем, иначе стены встанут за спиной
+            this.distance += 500;
+            for (const k of ["nextWallAt", "nextWindAt", "nextVentAt"]) if (this[k] != null) this[k] += 500;
+            if (this.cards) this.cards.nextAt += 500;
+            took.push("старт с 500 м");
+        }
+        if (took.length) { this.hub.toast(`За Карты: ${took.join(", ")}`); this.profile.save(); }
         this.renderBoosts();
         this.updateHud();
     }
@@ -519,7 +536,9 @@ class Game {
         this.endBossFight();
         this.bossCalm = null;
         if (lostBoss) $("over-cause").textContent = `${lostBoss.name}: «${lostBoss.lose}»`;
-        $("over-wallet").innerHTML = `В кошелёк <b>+${fmt(du)} USDT</b> · всего ${fmt(this.profile.usdt)} USDT`;
+        $("over-wallet").innerHTML = `В кошелёк <b>+${fmt(du)} USDT</b> · всего ${fmt(this.profile.usdt)} USDT`
+            + (this.cards.got ? `<br>Карты <b>+${this.cards.got}</b> · всего ${this.profile.cards}` : "");
+        $("over-cards").textContent = this.cards.got;
         const appeal = $("btn-appeal"), canAppeal = this.profile.usdt >= APPEAL_PRICE;
         appeal.hidden = !APPEAL_ENABLED || this.appealUsed;
         appeal.disabled = !canAppeal;
@@ -725,6 +744,7 @@ class Game {
         const c = (this.hudCache ||= {});
         const text = (id, value) => { if (c[id] !== value) $(id).textContent = c[id] = value; };
         text("hud-usdt", fmt(this.usdt));
+        text("hud-cards", String(this.profile.cards));
         this.hudScore = Math.max(this.hudScore || 0, this.score()); // счёт на экране только растёт
         text("hud-score", fmt(this.hudScore));
         const hurt = this.stumble > 0 && this.state === "playing";
@@ -1097,6 +1117,7 @@ class Game {
         if (!quiet && this.distance - SPAWN_Z >= this.nextVentAt) this.spawnVent();
         this.watchBoss(dt, move);
         this.world.update(dt, move, this.t);
+        this.cards.update(dt, move);
         this.watchWall();
         this.watchWind(dt);
         this.watchVent(dt);
@@ -1281,6 +1302,18 @@ class Game {
         ], { duration: 420, easing: "cubic-bezier(.55, 0, .75, .45)" });
         a.onfinish = a.oncancel = () => { el.busy = false; el.style.display = "none"; this.pulseChip(chip); };
     }
+
+    // Карта собрана: девушка говорит, счётчик подпрыгивает; первая в жизни — подсказка Гориллы
+    cardFx(line) {
+        const chip = $("hud-cards").closest(".tk");
+        chip.classList.remove("got"); void chip.offsetWidth; chip.classList.add("got");
+        this.hub.toast(`«${line}» · +1 Карта`);
+        tg.haptic("success");
+        const d = this.profile.data;
+        if (!d.cardTold) { d.cardTold = true; this.profile.save(); setTimeout(() => this.state === "playing" && this.gorilla(CARDS.first, true, 3600), 1800); }
+    }
+
+    cardMissed() { if (this.state === "playing") this.hub.toast(CARDS.missed); }
 
     pulseChip(chip) {
         const now = performance.now();
@@ -1747,7 +1780,7 @@ class Game {
     get grudge() { return !!this.profile.data.mizBeaten; }
 
     // глава 1 до боя: Мизулина бежит следом
-    storyChasing() { const s = this.story; return !!(s?.chase && this.questions && !this.storyOn && this.state === "playing" && !this.profile.data.mizBeaten); }
+    storyChasing() { const s = this.story; return !!(s?.chase && this.questions && !this.storyOn && this.state === "playing" && !this.profile.data.mizBeaten && this.runTime >= (this.chaseLate || 0)); }
 
     storyList(s = this.story) { return [...s.questions, ...(s.practice ? [s.practice] : [])]; }
 

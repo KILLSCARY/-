@@ -7,7 +7,7 @@ const GIFT_TRX = { "test-2026-10-28": 10000 };
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
-    usdt: 0, trx: 0, earned: 0,
+    usdt: 0, trx: 0, earned: 0, cards: 0, cardPerks: {}, // cards — «Карты» (js/cards.js); cardPerks — купленное за Карты на следующий забег
     heroes: [],                                   // выкупленные (бесплатные в список не пишутся)
     next: Object.fromEntries(BOOSTS.map((b) => [b.id, 0])), // добавки, купленные на следующие забеги
     up: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 1])), // уровни прокачки
@@ -76,7 +76,7 @@ export class Profile {
         const d = this.data;
         d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
-        for (const k of ["usdt", "earned", "chests"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
+        for (const k of ["usdt", "earned", "chests", "cards"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         for (const id of Object.keys(d.next)) d.next[id] = Math.max(0, d.next[id] + (now.next[id] || 0) - (was.next[id] || 0));
         for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id], now.up[id] || 1);
         d.heroes = [...new Set([...d.heroes, ...now.heroes])];
@@ -89,6 +89,9 @@ export class Profile {
     }
 
     get usdt() { return this.data.usdt; }
+    get cards() { return this.data.cards || 0; }
+    addCards(n) { this.data.cards = (this.data.cards || 0) + n; this.save(); }
+    payCards(n) { if (this.cards < n) return false; this.data.cards -= n; this.save(); return true; }
 
     // открыть набор: кладём его бусты в запас (SET_RUNS забегов) — один раз на профиль
     unlockSet(id) {

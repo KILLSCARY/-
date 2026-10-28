@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -377,6 +377,27 @@ export class Hub {
                     this.toast("Взял! В забеге нажми на буст справа.");
                 })));
             }
+            // «За Карты» (economy_v7): редкая валюта с девушек у края дороги, срабатывает сама в следующем забеге
+            head(`<img class="ico-card" src="img/card.svg" alt=""> За Карты · у тебя ${this.p.cards}`, this.p.cards ? "Покупка срабатывает сама в следующем забеге. Обмена на USDT нет."
+                : "Карты выдают девушки на обочине. Пробегай рядом — и забирай");
+            const perks = (this.p.data.cardPerks ||= {});
+            for (const c of CARD_SHOP) {
+                const b = document.createElement("button");
+                b.className = "btn-small btn-card";
+                b.innerHTML = `<img class="ico-card" src="img/card.svg" alt=""> ${c.cards}`;
+                b.onclick = () => {
+                    if (this.p.cards < c.cards) return this.toast(`Нужно ещё ${c.cards - this.p.cards} Карт`);
+                    this.p.payCards(c.cards);
+                    perks[c.id] = (perks[c.id] || 0) + 1;
+                    this.p.save();
+                    this.game.audio.play("buy");
+                    this.toast(`${c.name} — в следующем забеге`);
+                    this.render();
+                };
+                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card.svg" }, perks[c.id] ? `На следующие забеги: ${perks[c.id]}` : "", b);
+                sc.querySelector(".btn-real")?.remove(); // настоящих «Карт» в магазине нет
+                box.append(sc);
+            }
         } else if (this.seg === "sets") {
             warn("Наборы — игровые", "Только для игры: открываются за игровую валюту и действия в игре, а не за настоящие деньги. Настоящий набор можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящий набор»</b>.");
             const n = document.createElement("div");
@@ -570,6 +591,7 @@ export class Hub {
 
     // тип награды → иконка. USDT — по сумме: монета / стопка / мешок
     kind(d) {
+        if (d.cards) return "cards";
         if (d.level) return d.maxed ? "usdt_m" : "level";
         if (d.all) return "all";
         if (d.boosts) return d.boost ? "boost:" + d.boost : "boost";
@@ -584,6 +606,7 @@ export class Hub {
             const j = (id) => BOOSTS.find((b) => b.id === id)?.art;
             return `<span class="item-ico ico-all">${img(j("berserk"), "j j1")}${img(j("fokus"), "j j2")}${img(CASE_ITEM_ART.usdt_s, "c")}</span>`;
         }
+        if (k === "cards") return img("img/card.svg");
         if (k.startsWith("boost")) {
             const b = BOOSTS.find((x) => x.id === k.split(":")[1]);
             return b ? img(b.art) : `<span class="item-ico ico-all ico-boosts">${img(BOOSTS[0].art, "j j1")}${img(BOOSTS[4].art, "j j2")}</span>`;
@@ -609,7 +632,8 @@ export class Hub {
         let r = Math.random() * c.drops.reduce((s, d) => s + d.w, 0);
         const d = c.drops.find((x) => (r -= x.w) < 0) || c.drops[0];
         // одна добавка — выбираем сразу, чтобы в ленте была её картинка
-        return { ...d, amount: d.usdt ? rnd(d.usdt[0], d.usdt[1]) : 0, boost: d.boosts === 1 ? pick(BOOSTS).id : null, ...this.rollLevel(d) };
+        return { ...d, amount: d.usdt ? rnd(d.usdt[0], d.usdt[1]) : 0, cardsN: Array.isArray(d.cards) ? rnd(d.cards[0], d.cards[1]) : d.cards || 0,
+            boost: d.boosts === 1 ? pick(BOOSTS).id : null, ...this.rollLevel(d) };
     }
 
     // уровень прокачки — тоже сразу: на максимуме в ленте «3 000 USDT / вместо уровня»
@@ -623,6 +647,7 @@ export class Hub {
     lines(d) {
         const n = (x) => `${String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0")}\u00a0USDT`;
         const sum = d.amount || (d.usdt ? d.usdt[1] : 0);
+        if (d.cards) { const c = d.cardsN ?? (Array.isArray(d.cards) ? d.cards[1] : d.cards); return [`+${c} ${c === 1 ? "Карта" : "Карты"}`, "редкая валюта"]; }
         if (d.level) return d.maxed ? [n(3000), "вместо уровня"] : ["+1 уровень", "прокачки"];
         if (d.all) return [n(sum), "+ все бусты"];
         if (d.boosts) { const b = d.boost && BOOSTS.find((x) => x.id === d.boost); return b ? [b.name, "добавка"] : [`${d.boosts} добавки`, "случайные"]; }
@@ -723,6 +748,7 @@ export class Hub {
 
     give(d) {
         if (d.amount) this.p.gift(d.amount);
+        if (d.cardsN) this.p.addCards(d.cardsN);
         const got = [];
         if (d.boosts) for (let i = 0; i < d.boosts; i++) { const b = (d.boost && BOOSTS.find((x) => x.id === d.boost)) || pick(BOOSTS); this.p.addBoost(b.id); if (!d.boost) got.push(b.name); }
         if (d.all) for (const b of BOOSTS) this.p.addBoost(b.id);
