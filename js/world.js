@@ -1281,7 +1281,7 @@ export class World {
         const side = i % 2 ? 1 : -1;
         const flock = new THREE.Group();
         flock.position.set(side * 3.7, 0.18, BEHIND_Z - 30 - i * (STREET_LEN / cfg.flocks));
-        const n = cfg.flock[0] + Math.floor(Math.random() * (cfg.flock[1] - cfg.flock[0] + 1));
+        const n = Math.min(this.tier.lite ? 3 : 9, cfg.flock[0] + Math.floor(Math.random() * (cfg.flock[1] - cfg.flock[0] + 1))); // на телефоне стайки меньше
         const pigeons = [];
         for (let k = 0; k < n; k++) {
             const p = this.makePigeon(m);

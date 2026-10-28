@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER } from "./config.js";
 import { Fight } from "./fight.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -175,7 +175,7 @@ class Game {
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
         if (!w || !h) return; // окно ещё не развернулось (Telegram, фоновая вкладка): буферы нулевого размера — ошибки WebGL
-        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1);
+        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1) * (this.heatScale || 1);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
         this.composer.setPixelRatio(ratio);
@@ -749,6 +749,14 @@ class Game {
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
+        // тепловой ограничитель: телефон долго держит 60 кадров — греется и сам начинает тормозить. После HEAT_AFTER с
+        // игры подряд рисуем в меньшем разрешении (почти незаметно на маленьком экране), сброс — после 2 мин в меню
+        if (this.tier.heat) {
+            if (this.state === "playing" || this.state === "fight") this.hot = (this.hot || 0) + dt;
+            else if (this.state === "menu") this.hot = Math.max(0, (this.hot || 0) - dt * (HEAT_AFTER / 120));
+            const want = this.hot > HEAT_AFTER ? 0.85 : 1;
+            if ((this.heatScale || 1) !== want && (want < 1 || this.state === "menu")) { this.heatScale = want; this.onResize(); }
+        }
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
