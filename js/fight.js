@@ -714,7 +714,8 @@ export class Fight {
         const key = this.moveOf(f) ? f.act : f.act === "win" && f.moves.win ? "win" : "idle";
         const mv = key === "idle" ? f.moves.idle : key === "win" ? f.moves.win : this.moveOf(f);
         let time;
-        if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
+        if ((key === "idle" || key === "win") && mv.loop) time = mv.from + ((this.t * (mv.speed || 1)) % (mv.to - mv.from)); // стойка по кругу
+        else if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
             const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) * Math.PI) / (mv.period || len * 2);
             time = mv.from + len * (0.5 - 0.5 * Math.cos(ph));
         } else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
@@ -747,7 +748,9 @@ export class Fight {
         const b = f.b, k = Math.min(1, f.t / (f.dur || 1)), fw = f.fwd, rt = f.right;
         const V = (x, y, z) => new THREE.Vector3().addScaledVector(rt, x).addScaledVector(UP, y).addScaledVector(fw, z);
         let dz = 0, dip = 0, sideX = 0;
-        if (f.act === "block") {
+        const own = !!this.moveOf(f); // у действия свой клип — позы из костей не нужны, только шаг корня
+        if (own) { if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k)); }
+        else if (f.act === "block") {
             const w = Math.min(smooth(f.t / 0.08), f.t > f.dur * 0.75 ? 1 - smooth((f.t - f.dur * 0.75) / (f.dur * 0.25)) : 1);
             aim(b.LeftArm, b.LeftForeArm, V(-0.25, -0.35, 0.75), w);
             aim(b.LeftForeArm, b.LeftHand, V(0.35, 1, 0.1), w);

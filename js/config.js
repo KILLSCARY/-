@@ -552,23 +552,30 @@ export const STORIES = [
 // foot — на какой высоте стоят кости стоп над асфальтом. Соперник: ai — по раундам [1, 2, 3]: every — пауза между
 // атаками (с), block — шанс поставить блок на удар героя, heavy/combo — доли хука с замахом и двоек; telegraph —
 // сколько длится замах хука (подсвечен — успей блок или уклон). Пока дерётся только Спиди (mouse).
+// Блок, уклон и попадание — клипы из сборки Grok (g_block, g_dodge, g_hit), перенесённые на скелеты наших моделей
+// (повороты костей с поправкой на исходную позу); fit — длину задаёт игра: блок держится, отдача — по силе удара
+const GUARD_MOVES = {
+    block: { clip: "g_block", from: 0.2, to: 1.0, fit: true },
+    dodge: { clip: "g_dodge", from: 0.05, to: 1.25, fit: true },
+    hit: { clip: "g_hit", from: 0, to: 1.1, fit: true },
+    recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
+};
 export const FIGHTERS = {
-    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=1", height: 1.5,
-        // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; fit — длину задаёт игра
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=3", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+        // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.4 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 }, hook: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 1.1 },
             super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
             superFin: { clip: "flykick", from: 1.6, to: 2.55, hit: 2.0, speed: 1.1, air: true }, // добивание супера — удар ногой в прыжке
-            win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 } }, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+            win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=1", height: 1.86,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=3", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 120,
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
-            // skick (хай-кик с подшагом) не берём: в клипе разбег с наклоном, а шагать боец не может — корпус ложится на соперника
             knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока: только сам удар коленом
-            win: { clip: "idle", from: 0, to: 4.4, speed: 1 } }, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 120,
+            win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 4, cross: 5, hook: 7, heavy: 15, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
         ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.25, 0.32, 0.4], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
         telegraph: [0.6, 0.52, 0.45],
