@@ -237,6 +237,9 @@ export class Hub {
         $("rate-me").textContent = "Твоё место";
         $("rate-me-sub").textContent = "";
         this.renderRateTasks();
+        // задания, отмеченные на телефоне до появления рейтинга (или без связи), — дослать: сервер засчитает один раз
+        const done = this.p.data.tasksDone || {};
+        await Promise.all(Object.keys(done).filter((id) => id !== "razbor").map((id) => prize.task(id)));
         const r = await prize.top(50);
         if (!r || r.status !== 200) {
             // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети

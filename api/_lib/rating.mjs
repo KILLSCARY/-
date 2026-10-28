@@ -30,6 +30,16 @@ export function rewardPoints(key) {
     return { pts: 0 };
 }
 
+// Один раз на игрока: очки за то, что сервер выдал до появления рейтинга — боссы, таблички, место в сотне, карты на балансе
+export async function backfill(store, who, now) {
+    if (!store.lbOnce || !(await store.lbOnce(who.id, now))) return;
+    const rw = await store.rewards(who.id);
+    for (const key of Object.keys(rw)) { const r = rewardPoints(key); await score(store, who, r.pts, r.stat); }
+    if (await store.place(who.id)) await score(store, who, RATING.top100, "tasks");
+    const cards = await store.cardBalance(who.id);
+    if (cards > 0) await score(store, who, RATING.card * cards, "cards", cards);
+}
+
 export async function handleRating(action, body, who, { store, now }) {
     if (action === "task") {
         const id = String(body.task || "");

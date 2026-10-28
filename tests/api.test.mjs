@@ -205,3 +205,12 @@ test("заявка: уходит в чат менеджеров, очки тол
     const again = await ap({ contact: "@igrok" }, T0 + 700_000, tgOk);
     assert.equal(again.status, 200); assert.equal(again.json.points, 0); // вторая заявка доходит, очки — один раз
 });
+
+test("рейтинг: прошлые награды засчитываются один раз при первом открытии", async () => {
+    const store = memoryStore(), d = init(301);
+    await store.grant("301", "boss:1", 3000, T0); await store.grant("301", "sign:1.2", 250, T0); // выдано до появления рейтинга
+    const a = (await run(store, "top", { initData: d }, T0 + 1000)).json;
+    assert.equal(a.me.score, 120); assert.equal(a.me.bosses, 1);
+    const b = (await run(store, "top", { initData: d }, T0 + 2000)).json;
+    assert.equal(b.me.score, 120); // второй раз — не добавляет
+});

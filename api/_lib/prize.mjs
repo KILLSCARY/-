@@ -4,7 +4,7 @@ import { verifyInitData } from "./telegram.mjs";
 import { prizeConfig, EVENT_RE, BOSS_MIN_RUN_SEC } from "./config.mjs";
 import { rewardAmount } from "./rewards.mjs";
 import { handleCards } from "./cards.mjs";
-import { handleRating, score, rewardPoints, RATING } from "./rating.mjs";
+import { handleRating, score, rewardPoints, RATING, backfill } from "./rating.mjs";
 import { handleLead } from "./leads.mjs";
 
 export function checkChain(events, cfg) {
@@ -31,6 +31,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
     }
     const who = verifyInitData(body?.initData, env.BOT_TOKEN, cfg.initDataMaxAgeSec, now);
     if (!who) return { status: 401, json: { error: "bad_init_data" } };
+    await backfill(store, who, now); // первый запрос игрока — прошлые награды в рейтинг (до новых начислений, без двойного счёта)
     if (action === "event") {
         const ev = String(body.event || "");
         if (!EVENT_RE.test(ev)) return { status: 400, json: { error: "bad_event" } };
