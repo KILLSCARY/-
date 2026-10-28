@@ -193,7 +193,7 @@ export const CHARACTERS = [
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=3", height: 1.8, portrait: "img/heroes/pavel.webp",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle" }, flyClip: { loop: true, speed: 1.3 } },
-    { id: "islam", name: "Ислам", url: "models/islam.glb?v=2", height: 1.8, portrait: "img/heroes/islam.webp",
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
@@ -301,7 +301,7 @@ export const CHAPTER_BOSSES = [
         mid: "В Тюмени холодно, а мы горячие!",
         win: "Вот это хватка. Миллион сам себя не соберёт — но ты соберёшь.",
         lose: "Рано тебе в промзону. Возвращайся." },
-    { id: "islam", name: "Ислам", model: "models/islam.glb?v=2", height: 1.8, clip: "run", portrait: "img/heroes/islam.webp",
+    { id: "islam", name: "Ислам", model: "models/islam.glb?v=4", height: 1.8, clip: "run", portrait: "img/heroes/islam.webp",
         throw: "barrier", need: 12, every: [1.2, 0.95, 0.8], speed: 20, vary: ["double", "wind"],
         intro: "Не сейчас? Ветер ждать не будет.",
         mid: "Крыши — это наш спортзал. Держись!",
