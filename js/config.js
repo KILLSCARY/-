@@ -571,15 +571,16 @@ export const FIGHTERS = {
             superFin: { clip: "flykick", from: 1.6, to: 2.55, hit: 2.0, speed: 1.1, air: true }, // добивание супера — удар ногой в прыжке
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 130,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 125,
         moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
             knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока: только сам удар коленом
             win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES },
-        dmg: { jab: 4, cross: 5, hook: 7, heavy: 15, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
-        ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.25, 0.32, 0.4], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
-        telegraph: [0.6, 0.52, 0.45],
+        dmg: { jab: 4, cross: 5, hook: 7, heavy: 13, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
+        // сложность по раундам: человек не бот — паузы длиннее, блоков меньше, замах хука видно дольше
+        ai: { every: [[1.1, 2.0], [0.95, 1.75], [0.8, 1.5]], block: [0.16, 0.22, 0.28], heavy: [0.2, 0.24, 0.28], combo: [0.2, 0.25, 0.3], third: [0.1, 0.18, 0.25] },
+        telegraph: [0.8, 0.7, 0.6],
         lines: { intro: "Возражения слышал все. Теперь покажи, что ты их прошёл.", final: "Последний раунд. Ответь, как будто это уже твоя жизнь.",
             heavy: ["Сейчас будет больно!", "Это «я подумаю»?", "Держи возражение!", "Дорого? А так?"],
             roundWon: "Почти. Соберись.", roundLost: "Неплохо… Ещё раунд.", lose: "Почти. Возвращайся, когда будешь готов. Я подожду." } },

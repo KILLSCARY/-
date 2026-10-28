@@ -186,6 +186,8 @@ export class Fight {
                 for (const a of f.acts[m.clip]) { a.play(); a.timeScale = 0; a.setEffectiveWeight(0); }
             }
             if (f.base) { f.base.stop(); f.base = null; } // стойка — тоже кусок клипа (moves.idle)
+            f.tracked = new Set();
+            for (const pair of Object.values(f.acts)) for (const t of pair[0].getClip().tracks) f.tracked.add(t.name.slice(0, t.name.lastIndexOf(".")));
             f.moves = f.cfg.moves;
         }
         f.proc = !f.clips.punch; // процедурные удары, пока нет своих клипов
@@ -434,7 +436,7 @@ export class Fight {
             // кто долбит без пауз — нарывается на блок: шанс растёт с каждым ударом подряд
             ai.spam = this.t - (ai.lastHeroPunch ?? -9) < 0.95 ? (ai.spam || 0) + 1 : 0;
             ai.lastHeroPunch = this.t;
-            const p = Math.min(0.88, ai.block + ai.spam * 0.13);
+            const p = Math.min(0.8, ai.block + ai.spam * 0.13);
             if ((o.act === "idle" || o.act === "block") && Math.random() < p) { this.act(o, "block", 0.55); ai.next = Math.min(ai.next, 0.35); }
         }
         if (h.act !== "punch") h.seen = false;
@@ -742,9 +744,10 @@ export class Fight {
         }
         f.cur.time = time;
         f.blend = Math.min(1, f.blend + dt / 0.12);
-        // кости — в исходную позу: при сжатии модели из клипов выкинуты дорожки костей, которые в них не двигаются,
-        // и миксер их не перезаписывает — без сброса повороты позы отдачи копятся кадр за кадром и тело «ломается»
-        for (const [bone, q, p] of f.rest) { bone.quaternion.copy(q); bone.position.copy(p); }
+        // кости без дорожек в клипах — в исходную позу (иначе повороты поз из костей копились бы кадр за кадром).
+        // Кости с дорожками НЕ трогаем: миксер three.js пишет в кость, только если значение изменилось с прошлого кадра,
+        // и при стоящем времени клипа (стойка, удержание блока) сброшенная кость так и оставалась бы в исходной позе — тряска
+        for (const [bone, q, p] of f.rest) if (!f.tracked.has(bone.name)) { bone.quaternion.copy(q); bone.position.copy(p); }
         for (const [name, pair] of Object.entries(f.acts)) pair.forEach((a, slot) => {
             let w = 0;
             if (name === f.cur.clip && slot === f.cur.slot) { w = f.blend; a.time = time; }
@@ -759,7 +762,12 @@ export class Fight {
         const V = (x, y, z) => new THREE.Vector3().addScaledVector(rt, x).addScaledVector(UP, y).addScaledVector(fw, z);
         let dz = 0, dip = 0, sideX = 0;
         const own = !!this.moveOf(f); // у действия свой клип — позы из костей не нужны, только шаг корня
-        if (own) { if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k)); }
+        if (own) {
+            if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k));
+            // удар — с подшагом к сопернику: кулак (нога) доходит до цели, к моменту удара — дальше всего
+            const lunge = { punch: 0.16, heavy: 0.24, knee: 0.22, super: 0.2, superFin: 0.26 }[f.act];
+            if (lunge) dz += lunge * bell(k, Math.max(0.15, Math.min(0.85, f.hitAt ?? 0.45)), 1);
+        }
         else if (f.act === "block") {
             const w = Math.min(smooth(f.t / 0.08), f.t > f.dur * 0.75 ? 1 - smooth((f.t - f.dur * 0.75) / (f.dur * 0.25)) : 1);
             aim(b.LeftArm, b.LeftForeArm, V(-0.25, -0.35, 0.75), w);
@@ -868,7 +876,8 @@ export class Fight {
         this.zoom = (this.zoom ?? 1) + (zoom - (this.zoom ?? 1)) * Math.min(1, dt * 3);
         const d = (portrait ? 1 : 0.8) * this.zoom;
         // вид сбоку, как в Tekken: герой справа, соперник слева, оба в рост
-        const pos = (this.v1 ||= new THREE.Vector3()).set(-3.45 * d, 1.2, 0.35 * d);
+        // камера дальше и чуть выше: видно и руки, и ноги обоих, удары читаются
+        const pos = (this.v1 ||= new THREE.Vector3()).set(-4.5 * d, 1.45, 0.55 * d);
         const from = (this.v2 ||= new THREE.Vector3()).set(0, portrait ? 3.3 : 2.5, 5.0);
         cam.position.lerpVectors(from, pos, k);
         if (ko) { // нокаут: камера выше и сбоку от упавшего — его видно из-за победителя
@@ -884,7 +893,7 @@ export class Fight {
             cam.position.x += (Math.random() - 0.5) * this.shake * 0.5;
             cam.position.y += (Math.random() - 0.5) * this.shake * 0.5;
         }
-        const look = (this.v3 ||= new THREE.Vector3()).set(0, portrait ? 1.02 : 0.95, -0.02);
+        const look = (this.v3 ||= new THREE.Vector3()).set(0, portrait ? 1.0 : 0.95, -0.02);
         if (ko) { const l = this.f.find((f) => f.act === "ko"); look.lerp(new THREE.Vector3(0, 0.45, l.z + l.dir * 0.45), smooth(this.koK)); }
         cam.lookAt(look.lerp((this.v4 ||= new THREE.Vector3()).set(0, 0.9, -8), 1 - k));
         const fov = portrait ? FIGHT.fov : this.g.baseFov;
