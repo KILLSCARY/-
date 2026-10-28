@@ -48,6 +48,7 @@
                     <button class="tile" data-go="cases"><b class="badge" id="tile-cases-badge" hidden>1</b><span class="n">03</span><span><span class="tile-name">Кейсы</span><span class="tile-sub" id="tile-cases-sub"></span></span></button>
                     <button class="tile" data-go="shop"><span class="n">04</span><span><span class="tile-name">NS Store</span><span class="tile-sub" id="tile-shop-sub"></span></span></button>
                     <button class="tile tile-chap" data-go="chapters"><span class="n">05</span><span><span class="tile-name" id="tile-chap-name">Глава 1</span><span class="tile-sub" id="tile-chap-sub"></span></span><span class="bar"><i id="tile-chap-bar"></i></span></button>
+                    <button class="tile tile-rate" id="tile-rate"><span class="n">06</span><span><span class="tile-name">Рейтинг</span><span class="tile-sub" id="tile-rate-sub">Карты, боссы, задания</span></span><span class="arr" aria-hidden="true">→</span></button>
                     <p class="tiles-note">Заработано всего<b id="tile-earned">0</b></p>
                 </div>
             </div>
@@ -110,6 +111,18 @@
     </section>
 
     <!-- ежедневная награда: 7 дней подряд, на 7-й — герой на пробу -->
+    <!-- рейтинг игроков: очки считает сервер (api/_lib/rating.mjs) -->
+    <div id="rating" class="modal" hidden>
+        <div class="modal-card rate-card">
+            <button class="rate-x" id="rate-x" aria-label="Закрыть">✕</button>
+            <p class="label">Рейтинг игроков</p>
+            <h2 class="sheet-title" id="rate-me">Твоё место</h2>
+            <p class="sheet-sub" id="rate-me-sub"></p>
+            <div class="rate-list" id="rate-list"></div>
+            <details class="rate-rules"><summary>За что очки</summary><div id="rate-rules"></div></details>
+            <div class="rate-tasks" id="rate-tasks"></div>
+        </div>
+    </div>
     <div id="daily" class="modal" hidden>
         <div class="modal-card">
             <p class="label">Ежедневный вход</p>

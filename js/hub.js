@@ -26,6 +26,7 @@ export class Hub {
         });
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
+        $("tile-rate").onclick = () => this.showRating();
         this.focus = null; // герой в центре карусели «Героев»
         $("btn-case-ok").onclick = () => {
             const v = $("co-video");
@@ -175,6 +176,66 @@ export class Hub {
         $("btn-mode-noq").onclick = () => pickMode(false);
     }
 
+    // разовое задание для рейтинга: очки даёт сервер (один раз), отметку «сделано» помним сами
+    task(id) {
+        const d = this.p.data, done = (d.tasksDone ||= {});
+        if (!done[id]) { done[id] = 1; this.p.save(); }
+        prize.task(id);
+    }
+
+    // «Записаться на разбор»: чат с менеджером + задание рейтинга
+    razbor(extra = "") {
+        this.task("razbor");
+        tg.open(this.managerLink(extra));
+    }
+
+    // ---- рейтинг игроков (очки считает сервер) ----
+    async showRating() {
+        $("rating").hidden = false;
+        $("rate-x").onclick = () => ($("rating").hidden = true);
+        $("rating").onclick = (e) => { if (e.target.id === "rating") $("rating").hidden = true; };
+        const list = $("rate-list"), n = (x) => fmt(x || 0);
+        const stats = (r) => [r.cards && `карт ${r.cards}`, r.bosses && `боссов ${r.bosses}`, r.signs && `табличек ${r.signs}`, r.tasks && `заданий ${r.tasks}`].filter(Boolean).join(" · ") || "только начал";
+        list.innerHTML = `<p class="rate-empty">Загружаем…</p>`;
+        $("rate-me").textContent = "Твоё место";
+        $("rate-me-sub").textContent = "";
+        this.renderRateTasks();
+        const r = await prize.top(50);
+        if (!r || r.status !== 200) {
+            list.innerHTML = `<p class="rate-empty">${r?.status === 0 && r.error === "no_telegram" ? "Рейтинг работает в Telegram — открой игру через бота." : "Рейтинг сейчас недоступен. Попробуй позже."}</p>`;
+            return;
+        }
+        const me = r.me || {};
+        $("rate-me").textContent = me.rank ? `Ты №${me.rank}` : "Тебя пока нет в рейтинге";
+        $("rate-me-sub").textContent = me.rank ? `${n(me.score)} очков · ${stats(me)}` : "Собери карту, победи босса или выполни задание — и попадёшь в таблицу.";
+        $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Карты, боссы, задания";
+        list.innerHTML = r.top.length ? r.top.map((x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="nm"><b></b><span>${stats(x)}</span></span><span class="sc">${n(x.score)}</span></div>`).join("")
+            : `<p class="rate-empty">Пока никого — будь первым!</p>`;
+        [...list.querySelectorAll(".nm b")].forEach((b, i) => (b.textContent = r.top[i].name)); // имя — текстом, не HTML
+        const R = r.rules;
+        if (R) $("rate-rules").innerHTML = [["Карта", R.card], ["Мизулина", R.boss[1]], ["Полиция", R.boss[2]], ["Инаков", R.boss[3]], ["Верная табличка (первый раз)", R.sign], ["Место в первой сотне", R.top100],
+            ["Записаться на разбор", R.tasks.razbor], ["Анкета Гориллы", R.tasks.anketa], ["Позвать друга", R.tasks.invite], ["Заглянуть в NS Store", R.tasks.store]]
+            .map(([t, v]) => `<p><span>${t}</span><b>+${v}</b></p>`).join("");
+    }
+
+    // задания рейтинга — кнопками; сделанные помечены
+    renderRateTasks() {
+        const done = this.p.data.tasksDone || {};
+        const box = $("rate-tasks");
+        box.innerHTML = "";
+        for (const [id, label, pts, go] of [
+            ["razbor", "Записаться на разбор", 50, () => this.razbor()],
+            ["invite", "Позвать друга", 20, () => { this.task("invite"); tg.share("Бегу «Воронку» — залетай!", LINKS.bot); }],
+            ["store", "Заглянуть в NS Store", 10, () => { this.task("store"); this.openStore(); }],
+        ]) {
+            const b = document.createElement("button");
+            b.className = done[id] ? "btn" : "btn btn-main";
+            b.textContent = done[id] ? `✓ ${label}` : `${label} · +${pts}`;
+            b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); };
+            box.append(b);
+        }
+    }
+
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)
     managerLink(extra = "") {
         const phrases = this.p.phrases(), weak = this.p.weakType();
@@ -205,7 +266,7 @@ export class Hub {
         }).join("") + (this.p.phrases().length ? `<div class="card card-note"><div class="card-main"><h3>Кодовые фразы</h3>
             <p>Назови их менеджеру отдела продаж — он подберёт, что тебе подойдёт.</p><button class="btn-small" id="btn-manager">Написать менеджеру →</button></div></div>` : "") + (ch.done ? `<div class="card card-note"><div class="card-main"><h3>Сезон 1 пройден</h3><p>Все главы открыты. Новые — в следующем сезоне.</p></div></div>` : "");
         const mb = $("btn-manager");
-        if (mb) mb.onclick = () => tg.open(this.managerLink());
+        if (mb) mb.onclick = () => this.razbor();
     }
 
     // ---- герои: карусель ----
@@ -312,9 +373,9 @@ export class Hub {
             b.textContent = u.btn;
             b.disabled = u.act === "boss";
             b.onclick = () => {
-                if (u.act === "subscribe") tg.open(NS_STORE_URL);
-                else if (u.act === "invite") tg.share("Бегу «Воронку» — залетай!", LINKS.bot);
-                else if (u.act === "razbor") tg.open(this.managerLink());
+                if (u.act === "subscribe") { this.task("store"); tg.open(NS_STORE_URL); }
+                else if (u.act === "invite") { this.task("invite"); tg.share("Бегу «Воронку» — залетай!", LINKS.bot); }
+                else if (u.act === "razbor") this.razbor();
                 // проверить подписку и приглашение из мини-аппа нельзя — открываем после действия
                 setTimeout(() => {
                     if (!this.p.unlockHero(c.id)) return;
@@ -504,6 +565,7 @@ export class Hub {
     }
 
     openStore() {
+        this.task("store");
         const wa = window.Telegram?.WebApp;
         if (wa?.openTelegramLink) wa.openTelegramLink(NS_STORE_URL);
         else window.open(NS_STORE_URL, "_blank");

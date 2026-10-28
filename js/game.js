@@ -581,7 +581,7 @@ class Game {
                 + (this.questions ? `<p>Кодовая фраза</p><b>${done.phrase}</b>
                 <button class="btn-small" id="btn-phrase">${done.final ? "Забрать разбор →" : "Назвать менеджеру →"}</button>` : `<p>${chapter < CHAPTERS.length ? `Дальше: ${CHAPTERS[chapter].name}` : "Сезон 1 пройден!"}</p>`);
             const bp = $("btn-phrase");
-            if (bp) bp.onclick = () => tg.open(this.hub.managerLink());
+            if (bp) bp.onclick = () => this.hub.razbor();
         }
         setTimeout(() => {
             if (this.state !== "over") return;
@@ -1710,7 +1710,7 @@ class Game {
         if (cfg.final && this.questions) {
             const b = document.createElement("button");
             b.className = "btn"; b.textContent = "Забрать разбор →";
-            b.onclick = () => tg.open(this.hub.managerLink());
+            b.onclick = () => this.hub.razbor();
             ans.appendChild(b);
         }
         if (this.questions) { // вопрос сделки: верно — бонус, неверно — без штрафа
@@ -2097,7 +2097,7 @@ class Game {
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
         $("sw-next-text").textContent = next ? `Страх ${next.fear}. Таблички главы — заряды против босса.` : "";
-        $("btn-razbor").onclick = () => tg.open(this.hub.managerLink());
+        $("btn-razbor").onclick = () => this.hub.razbor();
         $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
         $("story-win").hidden = false;
     }
@@ -2165,7 +2165,7 @@ class Game {
         $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
-        $("btn-fn").onclick = () => tg.open(this.hub.managerLink(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`));
+        $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);
         $("btn-fn-menu").onclick = () => ($("final").hidden = true);
         $("final").hidden = false;
     }
@@ -2175,7 +2175,7 @@ class Game {
         const d = this.profile.data, box = $("ak-a");
         let i = 0;
         const step = () => {
-            if (i >= list.length) { $("anketa").hidden = true; this.profile.save(); return then?.(); }
+            if (i >= list.length) { $("anketa").hidden = true; this.profile.save(); if (list === GORILLA.anketa) this.hub.task("anketa"); return then?.(); }
             const q = list[i];
             $("ak-step").textContent = list.length > 1 ? `${title} ${i + 1}/${list.length}` : title;
             $("ak-q").textContent = q.q;

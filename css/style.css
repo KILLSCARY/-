@@ -1209,3 +1209,25 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 @keyframes card-got { 0% { transform: scale(1); } 35% { transform: scale(1.35); filter: drop-shadow(0 0 10px #ffcf3a); } 100% { transform: scale(1); } }
 .btn-card { background: linear-gradient(180deg, #f7d774, #c98f2a); color: #2a1a00; }
 .card-note h3 .ico-card { width: 26px; height: 18px; }
+
+/* ---- рейтинг игроков ---- */
+.tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 64px; animation-delay: .35s; }
+.tile-rate .arr { margin-left: auto; color: var(--muted); }
+.rate-card { position: relative; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.rate-x { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: #fff; font-size: 14px; cursor: pointer; }
+.rate-list { display: grid; gap: 6px; margin: 4px 0 12px; }
+.rate-row { text-align: left; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+.rate-row.me { border-color: var(--red); background: rgba(227, 52, 58, .12); }
+.rate-row .pl { font: 700 14px var(--font-display); color: var(--muted); text-align: center; }
+.rate-row.p1 .pl { color: #ffd65a; } .rate-row.p2 .pl { color: #d8dde3; } .rate-row.p3 .pl { color: #d08a4a; }
+.rate-row .nm { min-width: 0; }
+.rate-row .nm b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rate-row .nm span { font-size: 11px; color: var(--muted); }
+.rate-row .sc { font: 700 15px var(--font-display); }
+.rate-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
+.rate-rules { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.rate-rules summary { cursor: pointer; color: #fff; font-weight: 600; margin-bottom: 6px; }
+.rate-rules p { margin: 3px 0; display: flex; justify-content: space-between; }
+.rate-tasks { display: grid; gap: 6px; }
+.rate-tasks .btn { width: 100%; min-height: 0; padding: 11px 14px; font-size: 13px; line-height: 1.2; }
+.rate-rules { text-align: left; }

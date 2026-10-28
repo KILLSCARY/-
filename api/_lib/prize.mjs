@@ -4,6 +4,7 @@ import { verifyInitData } from "./telegram.mjs";
 import { prizeConfig, EVENT_RE, BOSS_MIN_RUN_SEC } from "./config.mjs";
 import { rewardAmount } from "./rewards.mjs";
 import { handleCards } from "./cards.mjs";
+import { handleRating, score, rewardPoints, RATING } from "./rating.mjs";
 
 export function checkChain(events, cfg) {
     let prev = null, first = null;
@@ -45,9 +46,11 @@ export async function handle(action, body, { store, env = process.env, now = Dat
             if (!started || now - started < BOSS_MIN_RUN_SEC(env) * 1000) return { status: 403, json: { error: "chain", reason: `missing:run:${ch}` } };
         }
         const fresh = await store.grant(who.id, key, amount, now);
+        if (fresh) { const r = rewardPoints(key); await score(store, who, r.pts, r.stat); } // рейтинг — только за первую выдачу
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
+    if (action === "task" || action === "top") return handleRating(action, body, who, { store, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {
         const had = await store.place(who.id);
@@ -55,7 +58,8 @@ export async function handle(action, body, { store, env = process.env, now = Dat
             const chk = checkChain(await store.events(who.id), cfg);
             if (!chk.ok) return { status: 403, json: { error: "chain", reason: chk.reason } };
         }
-        const { place } = await store.claim(who.id, cfg.total);
+        const { place, fresh } = await store.claim(who.id, cfg.total);
+        if (fresh) await score(store, who, RATING.top100, "tasks");
         const c = await counter();
         if (!place) return { status: 200, json: { ...c, place: 0, soldOut: true } };
         return { status: 200, json: { ...c, place, left: cfg.total - place } };

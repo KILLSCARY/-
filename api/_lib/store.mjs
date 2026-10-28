@@ -1,3 +1,4 @@
+import { STATS } from "./rating.mjs";
 // Хранилище: Upstash Redis / Vercel KV по REST (env KV_REST_API_URL+KV_REST_API_TOKEN или
 // UPSTASH_REDIS_REST_URL+UPSTASH_REDIS_REST_TOKEN); без них — память процесса (только для локальной разработки).
 // Ключи: p2p:ev:<tgId> — hash событие → первая метка времени (мс); p2p:claim — hash tgId → место; p2p:taken — счётчик;
@@ -50,8 +51,22 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
+    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set();
     return {
         kind: "memory",
+        // рейтинг (api/_lib/rating.mjs)
+        async lbAdd(id, pts, name, stat, n = 1) { lb.set(id, (lb.get(id) || 0) + pts); lbn.set(id, name); if (stat) lbs.set(`${id}:${stat}`, (lbs.get(`${id}:${stat}`) || 0) + n); },
+        async lbName(id, name) { if (lb.has(id)) lbn.set(id, name); },
+        async lbTop(n) {
+            return [...lb].sort((a, b) => b[1] - a[1]).slice(0, n)
+                .map(([id, score], i) => ({ id, rank: i + 1, score, name: lbn.get(id) || "Игрок", ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) }));
+        },
+        async lbMe(id) {
+            if (!lb.has(id)) return { rank: 0, score: 0 };
+            const score = lb.get(id), rank = [...lb.values()].filter((v) => v > score).length + 1;
+            return { rank, score, ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) };
+        },
+        async taskOnce(id, task) { const k = `${id}:${task}`; if (tk.has(k)) return false; tk.add(k); return true; },
         async addEvent(id, event, ts) { const m = ev.get(id) || new Map(); if (!m.has(event)) m.set(event, ts); ev.set(id, m); },
         async events(id) { return Object.fromEntries(ev.get(id) || []); },
         async claim(id, total) { // атомарно в пределах процесса (JS однопоточный)
@@ -95,8 +110,34 @@ export function redisStore(url, token, fetchImpl = fetch) {
         if (j.error) throw new Error(j.error);
         return j.result;
     };
+    const statsOf = async (ids) => {
+        if (!ids.length) return [];
+        const v = (await cmd("HMGET", "p2p:lbs", ...ids.flatMap((id) => STATS.map((s) => `${id}:${s}`)))) || [];
+        return ids.map((_, i) => Object.fromEntries(STATS.map((s, j) => [s, Number(v[i * STATS.length + j] || 0)])));
+    };
     return {
         kind: "redis",
+        async lbAdd(id, pts, name, stat, n = 1) {
+            await cmd("ZINCRBY", "p2p:lb", String(pts), String(id));
+            await cmd("HSET", "p2p:lbn", String(id), name);
+            if (stat) await cmd("HINCRBY", "p2p:lbs", `${id}:${stat}`, String(n));
+        },
+        async lbName(id, name) { if ((await cmd("ZSCORE", "p2p:lb", String(id))) != null) await cmd("HSET", "p2p:lbn", String(id), name); },
+        async lbTop(n) {
+            const a = (await cmd("ZREVRANGE", "p2p:lb", "0", String(n - 1), "WITHSCORES")) || [];
+            const ids = [], scores = [];
+            for (let i = 0; i < a.length; i += 2) { ids.push(a[i]); scores.push(Number(a[i + 1])); }
+            if (!ids.length) return [];
+            const names = (await cmd("HMGET", "p2p:lbn", ...ids)) || [], st = await statsOf(ids);
+            return ids.map((id, i) => ({ id, rank: i + 1, score: scores[i], name: names[i] || "Игрок", ...st[i] }));
+        },
+        async lbMe(id) {
+            const s = await cmd("ZSCORE", "p2p:lb", String(id));
+            if (s == null) return { rank: 0, score: 0 };
+            const r = await cmd("ZREVRANK", "p2p:lb", String(id));
+            return { rank: Number(r) + 1, score: Number(s), ...(await statsOf([String(id)]))[0] };
+        },
+        async taskOnce(id, task, ts) { return Number(await cmd("HSETNX", `p2p:tk:${id}`, task, String(ts || Date.now()))) === 1; },
         async addEvent(id, event, ts) { await cmd("HSETNX", `p2p:ev:${id}`, event, String(ts)); },
         async events(id) {
             const a = (await cmd("HGETALL", `p2p:ev:${id}`)) || [];

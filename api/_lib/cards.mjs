@@ -1,3 +1,4 @@
+import { score, RATING } from "./rating.mjs";
 // «Карта» — редкая валюта, баланс ведёт сервер (Telegram ID из подписанного initData).
 // Забег: cardrun → сервер выдаёт runId и сам засекает старт. card {runId} — +1, только если: забег этого игрока,
 // не больше CARDS_SRV.perRun за забег, с начала забега прошло ≥ firstSec (первая девушка — после 1000 м),
@@ -29,6 +30,7 @@ export async function handleCards(action, body, who, { store, env = process.env,
         if (!/^[a-z0-9]{6,24}$/.test(runId)) return { status: 400, json: { error: "bad_run" } };
         const r = await store.cardGrant(who.id, runId, now, cfg);
         if (!r.ok) return { status: 403, json: { error: r.reason, cards: r.cards } };
+        await score(store, who, RATING.card, "cards");
         return { status: 200, json: { ok: true, cards: r.cards, inRun: r.count } };
     }
     if (action === "casecard") {
@@ -40,6 +42,7 @@ export async function handleCards(action, body, who, { store, env = process.env,
         const day = new Date(now).toISOString().slice(0, 10);
         const r = await store.caseCardGrant(who.id, openId, n, day, cfg.caseDaily, cfg.runTtlSec);
         if (!r.ok) return { status: 403, json: { error: r.reason, cards: r.cards } };
+        await score(store, who, RATING.card * n, "cards", n);
         return { status: 200, json: { ok: true, n, cards: r.cards } };
     }
     if (action === "cardbuy") {

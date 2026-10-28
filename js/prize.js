@@ -21,5 +21,8 @@ export const prize = {
     cardBuy(item) { return tg.initData ? post({ action: "cardbuy", item }) : Promise.resolve(null); },
     // карты из кейса: openId — один раз, сколько и как часто — проверяет сервер
     caseCard(caseId, openId, n) { return tg.initData ? post({ action: "casecard", caseId, openId, n }) : Promise.resolve(null); },
+    // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)
+    top(n = 50) { return tg.initData ? post({ action: "top", n }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
+    task(id) { if (tg.initData) post({ action: "task", task: id }); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },
 };

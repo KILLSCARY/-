@@ -162,3 +162,26 @@ test("перки за карты: cardbuy кладёт на сервер, cardru
     assert.deepEqual((await run(store, "cardrun", { initData: d }, T0 + 1000)).json.perks, ["x2run"]);
     assert.deepEqual((await run(store, "cardrun", { initData: d }, T0 + 2000)).json.perks, []);
 });
+
+// ---- рейтинг ----
+test("рейтинг: очки за карту, босса, табличку и задание — один раз; таблица по убыванию", async () => {
+    const store = memoryStore(), a = init(101), b = init(102);
+    // игрок A: карта в забеге (+10) и задание «разбор» (+50), повтор задания — без очков
+    const { runId } = (await run(store, "cardrun", { initData: a }, T0)).json;
+    assert.equal((await run(store, "card", { initData: a, runId }, T0 + 45_000)).status, 200);
+    assert.equal((await run(store, "task", { initData: a, task: "razbor" }, T0)).json.points, 50);
+    assert.equal((await run(store, "task", { initData: a, task: "razbor" }, T0)).json.points, 0);
+    assert.equal((await run(store, "task", { initData: a, task: "usdt" }, T0)).status, 400);
+    // игрок B: босс главы 1 (+100) и табличка (+20); повтор награды очков не даёт
+    await run(store, "event", { initData: b, event: "run:1" }, T0);
+    assert.equal((await run(store, "reward", { initData: b, key: "boss:1" }, T0 + 60_000)).json.granted, true);
+    await run(store, "reward", { initData: b, key: "boss:1" }, T0 + 70_000);
+    await run(store, "reward", { initData: b, key: "sign:1.1" }, T0 + 80_000);
+    const r = (await run(store, "top", { initData: a }, T0 + 90_000)).json;
+    assert.deepEqual(r.top.map((x) => [x.id, x.score]), [["102", 120], ["101", 60]]);
+    assert.equal(r.top[0].bosses, 1); assert.equal(r.top[0].signs, 1); assert.equal(r.top[1].cards, 1); assert.equal(r.top[1].tasks, 1);
+    assert.equal(r.me.rank, 2); assert.equal(r.me.score, 60);
+    assert.equal(r.top[0].name, "Игрок");
+    // новичок без очков — вне таблицы, место 0
+    assert.equal((await run(store, "top", { initData: init(103) }, T0)).json.me.rank, 0);
+});
