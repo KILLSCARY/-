@@ -1780,7 +1780,8 @@ class Game {
             if (first) {
                 d.quiz[q.id] = 1;
                 if (prize.online) { // награду выдаёт сервер один раз на Telegram ID
-                    prize.reward(`sign:${q.id}`).then((r) => { if (r.granted) this.profile.earn(r.amount); });
+                    // сервер не настроен или недоступен (не 200) — начисляем сами, как раньше: игрок не теряет награду
+                    prize.reward(`sign:${q.id}`).then((r) => { if (r.granted) this.profile.earn(r.amount); else if (r.status !== 200) this.profile.earn(s.answerUsdt); });
                 } else this.usdt += s.answerUsdt;
                 this.profile.save();
             }
@@ -1983,7 +1984,7 @@ class Game {
         if (!paid) {
             d.bossPaid[s.id] = 1;
             if (prize.online) { // сумму и «уже выдано» решает сервер: переустановка/чистка профиля не даст второй раз
-                prize.reward(`boss:${s.id}`).then((r) => { if (r.granted) this.profile.gift(r.amount); else if (r.status === 0 || r.status >= 500) (d.rewardRetry ||= []).push(`boss:${s.id}`), this.profile.save(); });
+                prize.reward(`boss:${s.id}`).then((r) => { if (r.granted) this.profile.gift(r.amount); else if (r.status !== 200) this.profile.gift(s.reward.usdt); }); // сервер не ответил — начисляем сами
             } else this.profile.gift(s.reward.usdt);
         }
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
