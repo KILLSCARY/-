@@ -1326,8 +1326,11 @@ class Game {
     chase(dt) {
         this.stumble -= dt;
         const c = this.chaser;
-        const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8; // в конце отстаёт
-        c.position.z += (z - c.position.z) * Math.min(1, dt * 4 * (this.grudge ? CHASE_GRUDGE.speed : 1));
+        // «из принципа» Мизулина бежит на CHASE_GRUDGE.speed быстрее: держится ближе и отстаёт медленнее
+        // (время погони stumbleTime то же — меняется только скорость её бега)
+        const k = this.grudge ? CHASE_GRUDGE.speed : 1;
+        const z = (this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8 / k) / k; // в конце отстаёт
+        c.position.z += (z - c.position.z) * Math.min(1, dt * 4 * k);
         c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
         if (c.userData.mixer) { // бежит туда же, куда герой
             c.rotation.y = Math.PI;
