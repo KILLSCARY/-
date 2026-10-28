@@ -118,6 +118,7 @@ class Game {
         if (this.settings.quality && this.settings.quality !== "auto" && QUALITY_TIERS[this.settings.quality]) this.quality = this.settings.quality; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
         this.tier = QUALITY_TIERS[this.quality];
 
+        this.bootWatch(); // стартовый экран загрузки — до готовности героя, улицы и моделей
         this.setupScene();
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
         this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
@@ -1031,6 +1032,40 @@ class Game {
     }
 
     // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
+    // Стартовая загрузка: экран #boot (виден сразу из HTML) держим, пока не загружен герой и не затихли
+    // загрузки моделей/текстур (DefaultLoadingManager), потом собираем шейдеры под ним — меню открывается без подлагиваний.
+    // Страховка — не дольше 15 с (плохая сеть): дальше догрузится в фоне.
+    bootWatch() {
+        const M = THREE.DefaultLoadingManager, t0 = performance.now();
+        let done = 0, total = 0, quietSince = performance.now(), shown = 0.04;
+        const prev = M.onProgress;
+        M.onProgress = (url, l, t) => { done = l; total = t; if (l < t) quietSince = 0; else quietSince = performance.now(); prev?.(url, l, t); };
+        M.onStart = () => { quietSince = 0; };
+        const bar = $("boot-bar"), sub = $("boot-sub");
+        const tick = () => {
+            const now = performance.now(), boot = $("boot");
+            if (!boot || boot.classList.contains("out")) return;
+            const hero = !this.heroLoading && !!this.heroes?.[this.heroId];
+            const quiet = quietSince && now - quietSince > 600;
+            const pct = Math.min(0.96, 0.08 + (hero ? 0.42 : 0) + 0.5 * (total ? done / total : 0));
+            shown = Math.max(shown, pct);
+            bar.style.width = `${Math.round(shown * 100)}%`;
+            sub.textContent = !hero ? "Загружаем героя…" : !quiet ? "Загружаем улицу…" : "Готовим графику…";
+            if ((hero && quiet && now - t0 > 900) || now - t0 > 15000) {
+                bar.style.width = "100%";
+                // шейдеры всей сцены — сейчас, под экраном загрузки, а не первым кадром меню
+                setTimeout(() => {
+                    try { this.renderer.compile(this.scene, this.camera); } catch {}
+                    boot.classList.add("out");
+                    setTimeout(() => boot.remove(), 500);
+                }, 50);
+                return;
+            }
+            setTimeout(tick, 150);
+        };
+        setTimeout(tick, 150);
+    }
+
     selectHero(id) {
         this.heroId = id;
         try { localStorage.setItem("p2p_hero", id); } catch {}

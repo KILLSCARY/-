@@ -1253,3 +1253,14 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .lead-err { margin: 10px 0 0; color: #ff8a8a; font-size: 13px; }
 .lead-card .btn-main { margin-top: 14px; box-shadow: none; }
 .lead-card .btn-ghost { margin-top: 4px; }
+
+/* стартовая загрузка — поверх всего, пока сцена не готова (game.js bootDone) */
+.boot { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center;
+    background: radial-gradient(70% 50% at 50% 45%, rgba(227, 52, 58, .22), rgba(5, 5, 7, 0) 70%), #050507; color: #fff; transition: opacity .45s ease; }
+.boot.out { opacity: 0; pointer-events: none; }
+.boot-kick { margin: 0; font: 700 12px var(--font-ui, sans-serif); letter-spacing: .2em; text-transform: uppercase; color: var(--red, #e3343a); }
+.boot-title { margin: 0 0 10px; font: 900 34px/1 var(--font-display, sans-serif); text-transform: uppercase; }
+.boot-title span { display: block; margin-top: 6px; color: transparent; -webkit-text-stroke: 1.5px var(--red, #e3343a); font-size: 42px; }
+.boot-bar { width: 200px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.boot-bar i { display: block; height: 100%; width: 4%; border-radius: 4px; background: linear-gradient(90deg, var(--red, #e3343a), #ffd65a); transition: width .3s ease; }
+.boot-sub { margin: 0; font-size: 13px; color: rgba(255, 255, 255, .6); }

@@ -10,6 +10,14 @@
 </head>
 <body>
     <canvas id="game"></canvas>
+    <!-- стартовая загрузка: видна сразу (до скриптов), пока не загрузятся герой, улица и модели -->
+    <div id="boot" class="boot">
+        <p class="boot-kick">Игра к курсу</p>
+        <h1 class="boot-title">Покоритель<span>P2P 3.0</span></h1>
+        <i class="f-spin"></i>
+        <div class="boot-bar"><i id="boot-bar"></i></div>
+        <p class="boot-sub" id="boot-sub">Загружаем улицу…</p>
+    </div>
     <!-- Иконка Tether (USDT): используется через <use href="#ico-usdt"> -->
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
         <symbol id="ico-usdt" viewBox="0 0 32 32">
