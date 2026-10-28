@@ -514,13 +514,13 @@ export const POWERUPS = {
 // дороги; perRun — максимум за забег: первая гарантированно после firstAt м, следующая через nextGap м; в погоне и в бою
 // не появляется. edge — насколько за крайней полосой стоит (м), spawnZ — где появляется, idleSpeed — темп «танца».
 // lines — что говорит девушка, когда герой забрал карту (cards_texts_v1)
-export const CARDS = { perRun: 2, firstAt: 1000, nextGap: [700, 1400], edge: 1.05, spawnZ: -70, idleSpeed: 0.45, cardSize: 1.5, girlGlow: 0x5a3c08,
+export const CARDS = { perRun: 2, firstAt: 300, nextGap: [500, 800], edge: 1.05, spawnZ: -70, idleSpeed: 0.45, cardSize: 1.5, girlGlow: 0x5a3c08,
     lines: ["Лови!", "Аккуратнее с ней!", "Только не теряй!", "Быстрый какой…", "Это тебе на удачу"], missed: "Эх, не успел",
     first: "Карта — редкая валюта. Копи на бусты, которых нет за USDT" };
 // За Карты (economy_v7): на следующий забег, обмена на USDT нет
 // srv — id покупки на сервере (api/_lib/cards.mjs, CARD_PRICES): цены там должны совпадать с cards здесь
 export const CARD_DASH = { meters: 500, speed: 1.8 }; // «Рывок» за карты: первые 500 м быстрее и без урона
-export const CARDS_DURING_STORY_CHASE = false; // девушки с картой во время сюжетной погони Мизулиной (ждёт решения Гриши)
+export const CARDS_DURING_STORY_CHASE = true; // девушки с картой во время сюжетной погони Мизулиной (ждёт решения Гриши)
 export const CARD_SHOP = [
     { id: "x2", srv: "x2run", cards: 5, name: "Двойные USDT", text: "Весь забег USDT считаются вдвойне" },
     { id: "late", srv: "mizlate", cards: 8, name: "Фора", text: "Мизулина стартует на 10 секунд позже" },
@@ -701,14 +701,14 @@ export const FIGHTERS = {
             superFin: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 0.8 }, // добивание супера — апперкот в замедлении
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 100, hpRounds: [100, 120, 120], lunge: 0.1,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true, hold: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
             knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока: только сам удар коленом
             win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES },
-        dmg: { jab: 6, cross: 6, hook: 7, heavy: 14, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
-        ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.35, 0.45, 0.55], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
+        dmg: { jab: 5, cross: 5, hook: 6, heavy: 11, super: 26 }, punchTime: 0.48, // бьёт тяжелее и медленнее Спиди (ослаблен по плейтесту)
+        ai: { every: [[1.2, 2.0], [1.0, 1.8], [0.85, 1.5]], block: [0.25, 0.32, 0.4], heavy: [0.16, 0.2, 0.24], combo: [0.18, 0.22, 0.27], third: [0.1, 0.16, 0.22] },
         telegraph: [0.6, 0.52, 0.45],
         lines: { intro: "Возражения слышал все. Теперь покажи, что ты их прошёл.", final: "Последний раунд. Ответь, как будто это уже твоя жизнь.",
             heavy: ["Сейчас будет больно!", "Это «я подумаю»?", "Держи возражение!", "Дорого? А так?"],
@@ -720,7 +720,7 @@ export const FIGHTERS = {
             examKo: "Сдал. Дальше уже не игра, а твой первый шаг." } },
     // Мизулина — свои 13 боевых клипов (idle_fight, jab, cross, hook, uppercut, low/high/spin/jump_kick, block, hit, ko, win).
     // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 95, splash: { h: 62, fx: 0.5, fy: 0.2 },
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, splash: { h: 62, fx: 0.5, fy: 0.2 },
         koHold: 0.98, // нокаут: лежит в последнем кадре
         moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
             jab: { clip: "jab", from: 0.25, to: 1.0, hit: 0.53, speed: 1 },
@@ -734,8 +734,9 @@ export const FIGHTERS = {
             hit: { clip: "hit", from: 0, to: 1.0, fit: true },
             recoil: { clip: "hit", from: 0.1, to: 0.7, fit: true },
             win: { clip: "win", from: 0, to: 3.0, loop: true } },
-        dmg: { jab: 4, cross: 4, hook: 6, heavy: 11, super: 30 }, punchTime: 0.46,
-        ai: { every: [[1.3, 2.2], [1.1, 1.9], [0.95, 1.7]], block: [0.1, 0.15, 0.2], heavy: [0.18, 0.2, 0.24], combo: [0.15, 0.2, 0.25], third: [0.05, 0.1, 0.15] },
+        // ослаблена по плейтесту: меньше HP и урона, атакует и блокирует реже
+        dmg: { jab: 3, cross: 3, hook: 5, heavy: 8, super: 24 }, punchTime: 0.5,
+        ai: { every: [[1.6, 2.6], [1.4, 2.3], [1.2, 2.0]], block: [0.06, 0.1, 0.14], heavy: [0.12, 0.15, 0.18], combo: [0.1, 0.14, 0.18], third: [0.03, 0.06, 0.1] },
         telegraph: [0.9, 0.8, 0.7],
         lines: { intro: "Всё запрещу! Всё заблокирую!", final: "Последний раунд. Я вас всех заблокирую!",
             heavy: ["Запрещено!", "Блокирую!", "Это незаконно!", "Где документы?"],
@@ -746,9 +747,9 @@ export const FIGHTERS = {
             blockIn: "Не положено!", blockHold: ["Жду документы…", "Я подожду", "Всё фиксирую"], blockOut: "Так, продолжим проверку!",
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", model: "models/cop_fight.glb?v=1", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 110, splash: { h: 62, fx: 0.49, fy: 0.2 },
-        moves: null, dmg: { jab: 4, cross: 5, hook: 7, heavy: 12, super: 30 }, punchTime: 0.46,
-        ai: { every: [[1.2, 2.1], [1.0, 1.8], [0.9, 1.6]], block: [0.14, 0.2, 0.25], heavy: [0.2, 0.22, 0.26], combo: [0.18, 0.22, 0.28], third: [0.08, 0.14, 0.2] },
+    cop: { name: "Полиция", short: "Полиция", model: "models/cop_fight.glb?v=1", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
+        moves: null, dmg: { jab: 3, cross: 4, hook: 5, heavy: 9, super: 24 }, punchTime: 0.5, // ослаблен по плейтесту
+        ai: { every: [[1.5, 2.5], [1.3, 2.2], [1.1, 1.9]], block: [0.1, 0.14, 0.18], heavy: [0.14, 0.16, 0.2], combo: [0.12, 0.16, 0.2], third: [0.05, 0.09, 0.13] },
         telegraph: [0.85, 0.75, 0.65],
         lines: { intro: "Документики! Чем занимаемся?", final: "Последний раунд. Пройдёмте.",
             heavy: ["Стоять!", "Пройдёмте!", "Нарушаем?", "Руки!"],

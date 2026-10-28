@@ -124,7 +124,8 @@ export class CardGirls {
 
     blocked() {
         const g = this.g;
-        return g.stumble > 0 || g.chaser?.visible || (!CARDS_DURING_STORY_CHASE && g.storyChasing?.()) || g.bossCalm || g.bossFight || g.storyCatch;
+        const story = g.storyChasing?.(); // сюжетная погоня Мизулиной идёт почти весь забег главы 1 — девушки появляются и в ней
+        return g.stumble > 0 || (g.chaser?.visible && !(CARDS_DURING_STORY_CHASE && story)) || (!CARDS_DURING_STORY_CHASE && story) || g.bossCalm || g.bossFight || g.storyCatch;
     }
 
     spawn(z) {
@@ -140,6 +141,7 @@ export class CardGirls {
         card.position.copy(h.p); card.rotation.copy(h.r); card.scale.copy(h.s); card.visible = true;
         Object.assign(girl.userData, { active: true, lane: side, taken: false, missed: false });
         girl.visible = true;
+        this.g.hub?.toast(`Девушка с картой ${side ? "справа →" : "← слева"} — беги к краю!`); // подсказка: где она и что делать
         return true;
     }
 

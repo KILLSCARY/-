@@ -1,13 +1,13 @@
 import { score, RATING } from "./rating.mjs";
 // «Карта» — редкая валюта, баланс ведёт сервер (Telegram ID из подписанного initData).
 // Забег: cardrun → сервер выдаёт runId и сам засекает старт. card {runId} — +1, только если: забег этого игрока,
-// не больше CARDS_SRV.perRun за забег, с начала забега прошло ≥ firstSec (первая девушка — после 1000 м),
+// не больше CARDS_SRV.perRun за забег, с начала забега прошло ≥ firstSec (первая девушка — около 300 м),
 // между картами ≥ gapSec. cardbuy {item} — цена берётся только из CARD_PRICES сервера. Обмена карт на USDT нет.
 const num = (v, d) => (v != null && v !== "" && !Number.isNaN(Number(v)) ? Number(v) : d);
 export const cardsConfig = (env = process.env) => ({
     perRun: num(env.CARDS_PER_RUN, 2),
-    firstSec: num(env.CARDS_FIRST_SEC, 40),  // 1000 м на стартовой скорости — больше 40 с
-    gapSec: num(env.CARDS_GAP_SEC, 25),      // вторая — через 700+ м
+    firstSec: num(env.CARDS_FIRST_SEC, 15),  // 300 м на стартовой скорости (13 м/с) — больше 20 с
+    gapSec: num(env.CARDS_GAP_SEC, 12),      // вторая — через 500+ м
     caseDaily: num(env.CARDS_CASE_DAILY, 5), // сколько раз в сутки кейс может дать карты
     runTtlSec: num(env.CARDS_RUN_TTL_SEC, 3 * 3600),
 });
