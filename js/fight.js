@@ -134,10 +134,10 @@ export class Fight {
         this.ring.position.set(0, 0.03, 0);
         this.group.add(this.ring);
 
-        $("f-name-l").textContent = this.heroCfg.name;
+        $("f-name-l").textContent = this.heroCfg.short || this.heroCfg.name;
         $("f-name-r").textContent = this.oppCfg.name;
-        $("f-ph-l").style.backgroundImage = this.heroCfg.portrait ? `url(${this.heroCfg.portrait})` : "";
-        $("f-ph-r").style.backgroundImage = this.oppCfg.portrait ? `url(${this.oppCfg.portrait})` : "";
+        { const el = $("f-ph-l"); if (el) el.style.backgroundImage = this.heroCfg.portrait ? `url(${this.heroCfg.portrait})` : ""; }
+        { const el = $("f-ph-r"); if (el) el.style.backgroundImage = this.oppCfg.portrait ? `url(${this.oppCfg.portrait})` : ""; }
         $("fight").hidden = false;
         $("fight").classList.toggle("exam", !!this.exam);
         $("f-exam").hidden = true;
@@ -360,6 +360,18 @@ export class Fight {
     }
 
     act(f, act, time) {
+        const L = this.oppCfg?.lines;
+        // реплики соперника под приём (v2.7 §13.3), не чаще раза в 3 с
+        const ml = L?.moveLines, key = act === "punch" ? (f.combo === 2 ? "hook" : "punch") : act;
+        if (ml?.[key] && f === this.f?.[1] && act !== "block" && this.t - (this.mlT ?? -9) > 3 && (key === "win" || Math.random() < 0.6)) { this.mlT = this.t; this.say(pick(ml[key])); }
+        if (L?.blockIn && f === this.f?.[1]) { // реплики блока Мизулиной
+            const now = performance.now();
+            if (act === "block" && f.act !== "block") {
+                if (!this.blockSaidAt || now - this.blockSaidAt > 6000) { this.say(L.blockIn); this.blockHoldI = 0; }
+                else this.say(L.blockHold[(this.blockHoldI = ((this.blockHoldI ?? -1) + 1)) % L.blockHold.length]);
+                this.blockSaidAt = now;
+            }
+        }
         f.act = act; f.t = 0; f.dur = time; f.hitDone = false; f.queued = false; f.hitsDone = 0;
         const mv = this.moveOf(f, act);
         if (mv && !mv.fit) f.dur = (mv.to - mv.from) / (mv.speed || 1); // длина — по клипу
@@ -401,7 +413,7 @@ export class Fight {
             def.kb = 0.12;
             def.t = Math.min(def.t, def.dur * 0.5);
             this.popText(def, "БЛОК", "block");
-            this.spark(contact, 0.45, 0x9fd8ff);
+            this.spark(contact, 0.45, 0xe8ecef);
             this.g.audio?.play("coin");
             this.act(att, "recoil", kind === "heavy" ? FIGHT.recoilTime * 1.4 : FIGHT.recoilTime);
             st[key + "_blk"] = (st[key + "_blk"] || 0) + 1;

@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -377,10 +377,6 @@ export class Hub {
                     this.toast("Взял! В забеге нажми на буст справа.");
                 })));
             }
-            const appeal = document.createElement("div");
-            appeal.className = "card card-note";
-            appeal.innerHTML = `<div class="card-main"><h3>Апелляция</h3><p>Второй шанс после проигрыша — кнопка на экране проигрыша, ${fmt(APPEAL_PRICE)} USDT. Одна валюта — USDT: монеты на дороге, кейсы и награды.</p></div>`;
-            box.append(appeal);
         } else if (this.seg === "sets") {
             warn("Наборы — игровые", "Только для игры: открываются за игровую валюту и действия в игре, а не за настоящие деньги. Настоящий набор можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящий набор»</b>.");
             const n = document.createElement("div");
@@ -572,17 +568,27 @@ export class Hub {
         return c.art ? `<img src="${c.art}" alt="" draggable="false">` : `<div class="case-ph"><i></i><b></b></div>`;
     }
 
-    // тип награды → иконка (картинка из CASE_ITEM_ART или заглушка)
+    // тип награды → иконка. USDT — по сумме: монета / стопка / мешок
     kind(d) {
-        // d.amount есть только у выпавшей награды, у награды из списка — d.usdt (иначе «легенда» на витрине — с иконкой TRX)
-        return d.level ? "level" : d.all ? "all" : d.boosts ? "boost" : d.trx && !d.amount && !d.usdt ? "trx" : "usdt";
+        if (d.level) return d.maxed ? "usdt_m" : "level";
+        if (d.all) return "all";
+        if (d.boosts) return d.boost ? "boost:" + d.boost : "boost";
+        const a = d.amount || (d.usdt ? d.usdt[1] : 0);
+        return a >= USDT_TIERS.xl ? "usdt_xl" : a >= USDT_TIERS.l ? "usdt_l" : a >= USDT_TIERS.m ? "usdt_m" : "usdt_s";
     }
 
     itemIcon(k) {
-        if (CASE_ITEM_ART[k]) return `<img class="item-ico" src="${CASE_ITEM_ART[k]}" alt="" draggable="false">`;
-        if (k === "usdt") return `<svg class="item-ico"><use href="#ico-usdt"/></svg>`;
-        if (k === "trx") return `<svg class="item-ico"><use href="#ico-trx"/></svg>`;
-        return `<span class="item-ico ph-${k}"></span>`;
+        // картинки наград (img/cases/items) могут быть ещё не загружены — тогда монета-заглушка вместо битой иконки
+        const img = (src, cls = "item-ico") => `<img class="${cls}" src="${src}" alt="" draggable="false" onerror="this.outerHTML='<span class=&quot;${cls} ico-fallback&quot;>₮</span>'">`;
+        if (k === "all") { // монета + веер баночек (Тестобустер, Холин)
+            const j = (id) => BOOSTS.find((b) => b.id === id)?.art;
+            return `<span class="item-ico ico-all">${img(j("berserk"), "j j1")}${img(j("fokus"), "j j2")}${img(CASE_ITEM_ART.usdt_s, "c")}</span>`;
+        }
+        if (k.startsWith("boost")) {
+            const b = BOOSTS.find((x) => x.id === k.split(":")[1]);
+            return b ? img(b.art) : `<span class="item-ico ico-all ico-boosts">${img(BOOSTS[0].art, "j j1")}${img(BOOSTS[4].art, "j j2")}</span>`;
+        }
+        return img(CASE_ITEM_ART[k] || CASE_ITEM_ART.usdt_s);
     }
 
     oddsBar(c) {
@@ -602,21 +608,34 @@ export class Hub {
     roll(c) {
         let r = Math.random() * c.drops.reduce((s, d) => s + d.w, 0);
         const d = c.drops.find((x) => (r -= x.w) < 0) || c.drops[0];
-        return { ...d, amount: d.usdt ? rnd(d.usdt[0], d.usdt[1]) : 0 };
+        // одна добавка — выбираем сразу, чтобы в ленте была её картинка
+        return { ...d, amount: d.usdt ? rnd(d.usdt[0], d.usdt[1]) : 0, boost: d.boosts === 1 ? pick(BOOSTS).id : null, ...this.rollLevel(d) };
     }
 
-    label(d) {
-        const parts = [];
-        if (d.amount) parts.push(`${fmt(d.amount)} USDT`);
-        if (d.trx) parts.push(`${fmt(d.trx * 300)} USDT`);
-        if (d.boosts) parts.push(d.boosts > 1 ? `${d.boosts} добавки` : "Добавка");
-        if (d.all) parts.push("Все добавки");
-        if (d.level) parts.push("Уровень прокачки");
-        return parts.join(" + ");
+    // уровень прокачки — тоже сразу: на максимуме в ленте «3 000 USDT / вместо уровня»
+    rollLevel(d) {
+        if (!d.level) return {};
+        const id = pick(Object.keys(UPGRADES));
+        return { up: id, maxed: this.p.level(id) >= UPGRADES[id].times.length };
+    }
+
+    // подписи — две строки (captions.md), тысячи через неразрывный пробел
+    lines(d) {
+        const n = (x) => `${String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0")}\u00a0USDT`;
+        const sum = d.amount || (d.usdt ? d.usdt[1] : 0);
+        if (d.level) return d.maxed ? [n(3000), "вместо уровня"] : ["+1 уровень", "прокачки"];
+        if (d.all) return [n(sum), "+ все бусты"];
+        if (d.boosts) { const b = d.boost && BOOSTS.find((x) => x.id === d.boost); return b ? [b.name, "добавка"] : [`${d.boosts} добавки`, "случайные"]; }
+        return [n(sum), d.sub || ""];
+    }
+
+    label(d, html = false) {
+        const [a, b] = this.lines(d);
+        return html ? (b ? `${a}<br><small>${b}</small>` : a) : [a, b].filter(Boolean).join(" ");
     }
 
     cellHtml(d) {
-        return `<div class="cell" style="--rc:${RARITY[d.r].color}">${this.itemIcon(this.kind(d))}<span>${this.label(d)}</span></div>`;
+        return `<div class="cell" style="--rc:${RARITY[d.r].color}">${this.itemIcon(this.kind(d))}<span>${this.label(d, true)}</span></div>`;
     }
 
     // Открытие: кейс трясётся (1.2 с) → вспышка → лента крутится 4.2 с → выигрыш подсвечивается, всплывает приз
@@ -629,6 +648,7 @@ export class Hub {
         const co = $("co");
         co.style.setProperty("--cc", c.color);
         co.className = "co s-intro";
+        co.dataset.case = c.id;
         $("case-title").textContent = c.name;
         $("case-label").textContent = "Открытие";
         $("case-result").textContent = "";
@@ -657,8 +677,8 @@ export class Hub {
             strip.children[WIN].classList.add("win");
             co.className = `co s-win r-${win.r}`;
             co.style.setProperty("--rc", RARITY[win.r].color);
-            $("case-label").textContent = RARITY[win.r].name;
-            $("co-prize").innerHTML = `<div class="prize">${this.itemIcon(this.kind(win))}<b>${this.label(win)}</b><span>${RARITY[win.r].name}</span>
+            $("case-label").textContent = RARITY_TITLE[win.r];
+            $("co-prize").innerHTML = `<div class="prize">${this.itemIcon(this.kind(win))}<b>${this.label(win, true)}</b><span>${RARITY[win.r].name}</span>
                 <i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i></div>`;
             $("case-result").textContent = text.replace(this.label(win), "").trim();
             $("btn-case-ok").disabled = false;
@@ -702,12 +722,12 @@ export class Hub {
     }
 
     give(d) {
-        if (d.amount || d.trx) this.p.gift((d.amount || 0) + (d.trx || 0) * 300); // TRX больше нет — по курсу ×300 в USDT
+        if (d.amount) this.p.gift(d.amount);
         const got = [];
-        if (d.boosts) for (let i = 0; i < d.boosts; i++) { const b = pick(BOOSTS); this.p.addBoost(b.id); got.push(b.name); }
+        if (d.boosts) for (let i = 0; i < d.boosts; i++) { const b = (d.boost && BOOSTS.find((x) => x.id === d.boost)) || pick(BOOSTS); this.p.addBoost(b.id); if (!d.boost) got.push(b.name); }
         if (d.all) for (const b of BOOSTS) this.p.addBoost(b.id);
         if (d.level) {
-            const id = pick(Object.keys(UPGRADES));
+            const id = d.up || pick(Object.keys(UPGRADES));
             if (this.p.levelUp(id)) got.push(`${UPGRADES[id].name}: уровень ${this.p.level(id)}`);
             else { this.p.gift(3000); got.push("прокачка уже на максимуме — 3 000 USDT"); }
         }

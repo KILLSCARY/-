@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2 } from "./config.js";
 import { Fight } from "./fight.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -66,6 +66,20 @@ function weakDevice() {
     } catch {
         return false;
     }
+}
+
+// v2.8 §14.2: «2 000», «2,000», «2000 руб», «2к», «2k», «2 тыс. руб», «1,5к» → число
+function parseAnswer(raw) {
+    let t = String(raw).toLowerCase().replace(/\u00a0/g, " ").replace(/₽|руб[а-я.]*|р\.?$/g, "").trim();
+    let mul = 1;
+    const m = t.match(/(к|k|тыс[а-я.]*)\s*$/);
+    if (m) { mul = 1000; t = t.slice(0, m.index); }
+    t = t.replace(/\s+/g, "").replace(/\.$/, "");
+    if (mul > 1) t = t.replace(",", "."); // «1,5к» — дробь
+    else if (/^\d{1,3}([.,]\d{3})+$/.test(t)) t = t.replace(/[.,]/g, ""); // разделители тысяч
+    else t = t.replace(",", ".");
+    const v = Number(t) * mul;
+    return Number.isFinite(v) ? Math.round(v) : NaN;
 }
 
 class Game {
@@ -232,6 +246,7 @@ class Game {
         this.pendingInput = null; // табличка с вводом числа: откроется, когда герой до неё добежит
         this.starsT = 0;
         this.storyCatch = false; // глава 1: Мизулина догоняет по сценарию (ролик перед боем)
+        this.hintSaid = false; this.storyWaitT = 0; this.afterSpawned = false;
         this.grudgeTold = false;
         clearTimeout(this.gorillaT); if ($("gorilla")) $("gorilla").hidden = true;
         this.storyOn = false;
@@ -329,7 +344,9 @@ class Game {
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
         const st = this.story;
         const nb = this.nextBoss();
-        if (!st && nb) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(nb.text, false, 5200), 900);
+        const ch2 = !st && this.questions && this.profile.chapter().index === 1; // глава 2: намёк «Горилла = Павел» (v2.7 §13.2)
+        if (ch2) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(GORILLA_HINT_CH2, false, 3400), 900);
+        if (!st && nb) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(nb.text, false, 5200), ch2 ? 5600 : 900);
         if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla((st.chase && !this.grudge && st.chaseHint) || st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
         this.chaserSaid = false;
         const lines = HERO_LINES[this.heroId];
@@ -401,7 +418,7 @@ class Game {
 
     // Апелляция: продолжить с того же места за USDT (валюта одна), один раз за забег
     appeal() {
-        if (this.state !== "over" || this.appealUsed || !this.profile.pay({ usdt: APPEAL_PRICE })) return;
+        if (!APPEAL_ENABLED || this.state !== "over" || this.appealUsed || !this.profile.pay({ usdt: APPEAL_PRICE })) return;
         // сцена задержания: Мизулина застыла в жесте «протокол» (бег остановлен), а класс arresting прячет
         // бусты и плашки добавок. Без этого после апелляции за героем ехала застывшая фигура, а кнопок бустов не было
         this.endArrest();
@@ -502,7 +519,7 @@ class Game {
         if (lostBoss) $("over-cause").textContent = `${lostBoss.name}: «${lostBoss.lose}»`;
         $("over-wallet").innerHTML = `В кошелёк <b>+${fmt(du)} USDT</b> · всего ${fmt(this.profile.usdt)} USDT`;
         const appeal = $("btn-appeal"), canAppeal = this.profile.usdt >= APPEAL_PRICE;
-        appeal.hidden = this.appealUsed;
+        appeal.hidden = !APPEAL_ENABLED || this.appealUsed;
         appeal.disabled = !canAppeal;
         $("appeal-sub").textContent = canAppeal ? "Продолжить с того же места" : `Нужно ${fmt(APPEAL_PRICE)} USDT`;
         $("appeal-price").textContent = `${fmt(APPEAL_PRICE)} USDT`;
@@ -720,7 +737,7 @@ class Game {
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
             { id: "honey", name: "Рывок", left: this.fx.honey, color: "#f0a33a" },
             { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
-            { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#3dd1ff" },
+            { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#35e39b" },
             { id: "ram", name: "Таран", left: this.ram > 0 ? Infinity : 0, color: "#ffffff" },
         ]);
     }
@@ -1149,7 +1166,7 @@ class Game {
         const side = Math.abs(target - this.x) > 0.35 && Math.abs(o.position.x - target) < 0.3;
         if (side) this.lane = this.prevLane;
         else { o.visible = false; o.userData.type = "decor"; }
-        this.stumble = BALANCE.stumbleTime * (this.grudge ? CHASE_GRUDGE.speed : 1); // «из принципа» — дольше на хвосте
+        this.stumble = BALANCE.stumbleTime; // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
         this.starsT = 2.2; // звёздочки над головой — «оглушило»
         this.slowLeft = BALANCE.stumbleSlow;
         this.fx.safe = Math.max(this.fx.safe, 1);
@@ -1275,11 +1292,11 @@ class Game {
         this.stumble -= dt;
         const c = this.chaser;
         const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8; // в конце отстаёт
-        c.position.z += (z - c.position.z) * Math.min(1, dt * 4);
+        c.position.z += (z - c.position.z) * Math.min(1, dt * 4 * (this.grudge ? CHASE_GRUDGE.speed : 1));
         c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
         if (c.userData.mixer) { // бежит туда же, куда герой
             c.rotation.y = Math.PI;
-            c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14));
+            c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14) * (this.grudge ? CHASE_GRUDGE.speed : 1));
         } else {
             c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
             c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
@@ -1376,6 +1393,14 @@ class Game {
     // ---- стены-возражения -------------------------------------------------------------------
     // Вопрос текущей главы (её общая стена) — с долей WALLS.chapterWall, иначе случайный из банка, не повторяя прошлый
     spawnWall() {
+        const pend = this.questions && !this.afterSpawned && STORIES.find((x) => x.id === this.profile.data.afterPending && x.after);
+        if (pend) { // 1.4 ещё не отвечена — первой стеной этого забега
+            this.afterSpawned = true; // ставим один раз за забег
+            const z = -(this.nextWallAt - this.distance);
+            this.nextWallAt += WALLS.every[0] + Math.random() * (WALLS.every[1] - WALLS.every[0]);
+            this.gorilla(pend.afterLead || pend.afterKo, false, 3600);
+            return this.spawnAfterWall(pend, z);
+        }
         if (this.story && !this.storyOn) return this.spawnStoryWall();
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = WALLS.every;
@@ -1734,6 +1759,7 @@ class Game {
     // ответ на табличку главы: ok — верно; null — проскочил мимо
     storyAnswer(q, ok, s = this.story) {
         const d = this.profile.data;
+        if (q === s.after && ok !== null && d.afterPending === s.id) { delete d.afterPending; this.profile.save(); } // 1.4 отвечена
         if (ok) {
             this.storyOk++;
             const first = q !== s.practice && !(d.quiz ||= {})[q.id]; // 1.4 после боя — тоже с наградой
@@ -1746,6 +1772,7 @@ class Game {
             this.hub.toast(q === s.practice ? "Верно! Теперь — в бой" : first && post ? `Верно! +${fmt(s.answerUsdt)} USDT` : first ? `Верно! +${fmt(s.answerUsdt)} USDT · заряд ${n}/${s.questions.length} против: ${FIGHTERS[s.opponent].name}`
                 : "Верно! Уже засчитано — это тренировка");
             if (q.ok) this.gorilla(q.ok, true);
+            if (q.line) setTimeout(() => this.speech(q.line[0], q.line[1], 2800, false, FIGHTERS.pavel.portrait), 1200);
             this.audio.play("boost");
             tg.haptic("success");
         } else {
@@ -1794,7 +1821,7 @@ class Game {
         $("quiz-input").hidden = false;
         setTimeout(() => inp.focus(), 250);
         const done = () => {
-            const v = Number(inp.value.replace(/[\s₽.,]/g, "").replace(/руб.*/i, ""));
+            const v = parseAnswer(inp.value);
             if (!inp.value.trim()) return;
             $("quiz-input").hidden = true;
             inp.blur();
@@ -1814,6 +1841,8 @@ class Game {
         if (!s || this.storyOn || this.state !== "playing" || this.flight) return;
         if (this.pendingInput && this.distance >= this.pendingInput.at - 12) return this.openInput(this.pendingInput.q);
         const ready = this.questions ? this.storyQ >= this.storyList(s).length && !this.walls.length && !this.pendingInput : this.distance >= (s.noqDistance || 450);
+        if (ready && s.hint && !this.hintSaid) { this.hintSaid = true; this.gorilla(s.hint, false, 2600); this.storyWaitT = performance.now() + 2600; return; } // намёк «Горилла = Павел»
+        if (ready && this.storyWaitT && performance.now() < this.storyWaitT) return;
         if (ready) s.chase && this.questions && !this.profile.data.mizBeaten ? this.catchScene() : this.startStoryFight();
     }
 
@@ -1967,16 +1996,14 @@ class Game {
         this.walls = [];
         this.show("hud");
         this.hub.toast(`${s.badge ? `Значок «${s.badge}»` : "Победа"}${paid ? "" : ` · +${fmt(s.reward.usdt)} USDT`}`);
-        this.gorilla(s.afterKo, true, 3600);
+        this.gorilla(s.afterKo, true, 3000);
+        if (s.afterLead) setTimeout(() => this.state === "playing" && this.gorilla(s.afterLead, false, 3600), 5200);
+        this.profile.data.afterPending = s.id; // 1.4 висит, пока не ответишь (обрыв забега — встанет в следующем)
+        this.profile.save();
         // табличка 1.4 — первой, следом таблички новой главы
-        const q = s.after, z = -70;
-        const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
-        const wall = this.world.addWall({ ...q, type: s.type }, order.map((i) => q.a[i]), order.indexOf(0), z);
-        wall.story = q; wall.storyOf = s; wall.boss = 0;
-        this.walls.push(wall);
-        this.world.noCars = true;
+        this.spawnAfterWall(s, -70);
+        this.afterSpawned = true;
         this.nextWallAt = this.distance + 70 + WALLS.every[0];
-        this.nextRowZ = Math.min(this.nextRowZ, z - 36);
         this.state = "countdown";
         const run = this.runId, cd = $("countdown");
         cd.hidden = false;
@@ -1990,6 +2017,17 @@ class Game {
         this.audio.music("run");
         this.state = "playing";
         this.clock.getDelta();
+    }
+
+    // табличка «после боя» (1.4): ставится сразу после победы, а если забег оборвался до ответа — первой в следующем
+    spawnAfterWall(s, z) {
+        const q = s.after;
+        const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
+        const wall = this.world.addWall({ ...q, type: s.type }, order.map((i) => q.a[i]), order.indexOf(0), z);
+        wall.story = q; wall.storyOf = s; wall.boss = 0;
+        this.walls.push(wall);
+        this.world.noCars = true;
+        this.nextRowZ = Math.min(this.nextRowZ, z - 36);
     }
 
     // Горилла перед финалом: любой ответ ведёт к финальному экрану
@@ -2428,13 +2466,13 @@ class Game {
             o.userData.type = "decor";
             this.world.flash(o.position.clone().setY(1.2), true);
             this.world.splash(this.x, 0, 18, 1.1);
-            this.usdt += WALLS.reward * (this.boostLeft > 0 ? 2 : 1);
+            if (WALLS.reward) this.usdt += WALLS.reward * (this.boostLeft > 0 ? 2 : 1);
             this.audio.play("boost");
             tg.haptic("success");
             if (this.wallStreak % WALLS.streak === 0) {
                 this.boostLeft = Math.max(this.boostLeft, WALLS.streakTime);
                 this.hub.toast(`Серия ${this.wallStreak}! ×2 USDT на ${WALLS.streakTime} с`);
-            } else this.hub.toast(`Верно! +${WALLS.reward} USDT`);
+            } else this.hub.toast(WALLS.reward ? `Верно! +${WALLS.reward} USDT` : "Верно!");
             return false;
         }
         if (this.ram > 0 || this.wallForgive > 0) { // «Таран» Саши или прощённая ошибка Ислама — как верный ответ
@@ -2443,7 +2481,7 @@ class Game {
             o.userData.correct = true;
             w.answered = false;
             const r = this.answer(o);
-            this.hub.toast(`${how}! +${WALLS.reward} USDT`);
+            this.hub.toast(WALLS.reward ? `${how}! +${WALLS.reward} USDT` : `${how}!`);
             return r;
         }
         st.fail++;
