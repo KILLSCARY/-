@@ -566,8 +566,8 @@ export const FIGHTERS = {
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
-            heavyWind2: { clip: "skick", from: 0.0, to: 0.33, fit: true }, heavy2: { clip: "skick", from: 0.33, to: 1.2, hit: 0.47, speed: 0.95 }, // раунд 3: хай-кик с подшагом
-            knee: { clip: "knee", from: 0.25, to: 1.0, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока
+            // skick (хай-кик с подшагом) не берём: в клипе разбег с наклоном, а шагать боец не может — корпус ложится на соперника
+            knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока: только сам удар коленом
             win: { clip: "idle", from: 0, to: 4.4, speed: 1 } }, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 120,
         dmg: { jab: 4, cross: 5, hook: 7, heavy: 15, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
         ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.25, 0.32, 0.4], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },

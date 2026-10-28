@@ -149,7 +149,10 @@ export class Fight {
                 o.material = o.material.clone(); // вспышка при попадании — только у этого бойца
                 if (o.material.emissive) f.mats.push(o.material);
             }
-            if (o.isBone) f.b[o.name.replace(/^mixamorig:?/, "")] = o;
+            if (o.isBone) {
+                f.b[o.name.replace(/^mixamorig:?/, "")] = o;
+                (f.rest ||= []).push([o, o.quaternion.clone(), o.position.clone()]);
+            }
         });
         f.model = m;
         f.root.add(m);
@@ -454,7 +457,7 @@ export class Fight {
         const rage = 1 + (1 - o.hp / o.hpMax) * 0.35;
         const r = Math.random();
         if (r < ai.heavy) {
-            o.heavyVar = this.round >= 3 && o.moves?.heavy2 && Math.random() < 0.5 ? 2 : 0; // в финальном раунде — и с прыжка
+            o.heavyVar = this.round >= 3 && o.moves?.heavy2 && Math.random() < 0.5 ? 2 : 0; // второй тяжёлый (moves.heavy2), если задан
             this.act(o, "heavyWind", c.telegraph[Math.min(this.round, 3) - 1]);
             if (Math.random() < 0.5) this.say(pick(c.lines.heavy));
         } else if (r < ai.heavy + ai.combo) this.queueAi([["punch", 0], ["punch", 0.05], ...(Math.random() < ai.third ? [["punch", 0.05]] : [])]);
@@ -724,6 +727,9 @@ export class Fight {
         }
         f.cur.time = time;
         f.blend = Math.min(1, f.blend + dt / 0.12);
+        // кости — в исходную позу: при сжатии модели из клипов выкинуты дорожки костей, которые в них не двигаются,
+        // и миксер их не перезаписывает — без сброса повороты позы отдачи копятся кадр за кадром и тело «ломается»
+        for (const [bone, q, p] of f.rest) { bone.quaternion.copy(q); bone.position.copy(p); }
         for (const [name, pair] of Object.entries(f.acts)) pair.forEach((a, slot) => {
             let w = 0;
             if (name === f.cur.clip && slot === f.cur.slot) { w = f.blend; a.time = time; }
@@ -755,12 +761,13 @@ export class Fight {
             twist(b.Spine1, rt, 0.25 * w);
             dip += 0.12 * w; sideX = -0.25 * w; dz -= 0.15 * w;
         } else if (f.act === "hit" || f.act === "recoil") {
-            const w = 1 - smooth(k), back = f.act === "hit" ? 0.5 : 0.3;
-            // вокруг своей оси «вправо» на +угол — корпус и голова откидываются назад
-            twist(b.Spine, rt, back * 0.5 * w);
-            twist(b.Spine2, rt, back * 0.6 * w);
-            twist(b.Neck, rt, back * 0.8 * w);
-            if (f.act === "hit") twist(b.Spine1, UP, (f.hitSide || 1) * 0.35 * w);
+            // вокруг своей оси «вправо» на +угол — корпус и голова откидываются назад. Повороты по цепочке
+            // складываются (поясница + грудь + шея), поэтому всего не больше ~20° — иначе тело ломается
+            const w = 1 - smooth(k), back = f.act === "hit" ? 0.36 : 0.22;
+            twist(b.Spine, rt, back * 0.35 * w);
+            twist(b.Spine2, rt, back * 0.35 * w);
+            twist(b.Neck, rt, back * 0.3 * w);
+            if (f.act === "hit") twist(b.Spine1, UP, (f.hitSide || 1) * 0.18 * w);
             dz -= (f.act === "hit" ? f.kb : 0.18) * w;
         }
         this.place(f, dz, dip, sideX, dt);
