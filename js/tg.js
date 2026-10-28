@@ -16,6 +16,8 @@ function cloudGet(key, timeout = 2500) {
 export const tg = {
     inTelegram,
     user: inTelegram ? wa.initDataUnsafe?.user ?? null : null,
+    // параметр ссылки t.me/bot/app?startapp=… (q — с вопросами, noq — без); в браузере — ?startapp=… в адресе
+    startParam: (inTelegram ? wa.initDataUnsafe?.start_param : null) || new URLSearchParams(location.search).get("startapp") || "",
 
     // На телефоне — во весь экран (Bot API 8.0+): без шапки Telegram, вертикально, свайп вниз не закрывает игру.
     // Отступы под «чёлку» и кнопки Telegram страница берёт из CSS-переменных --tg-safe-area-inset-* и

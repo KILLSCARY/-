@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_GEM_PRICES, GEMS, DAILY, SETS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -66,8 +66,6 @@ export class Hub {
     render() {
         const p = this.p;
         $("w-usdt").textContent = short(p.usdt);
-        $("w-trx").textContent = short(p.trx);
-        $("w-gems").textContent = short(p.gems);
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
@@ -102,6 +100,7 @@ export class Hub {
             { id: "music", name: "Музыка", text: "Треки в меню и в забеге", on: g.audio.musicOn },
             { id: "sfx", name: "Звуки", text: "Монеты, удары, свистки, шум улицы", on: g.audio.sfxOn },
             { id: "vibro", name: "Вибрация", text: "Отклик телефона на действия", on: tg.vibro },
+            { id: "questions", name: "Вопросы-возражения", text: "Стены с вопросами, кодовые фразы и экзамен Инакова. Выкл — просто раннер с арками профита", on: g.questions },
         ];
         const q = g.settings.quality || "auto";
         box.innerHTML = toggles.map((t) => `<div class="card set-row"><div class="card-main"><h3>${t.name}</h3><p>${t.text}</p></div>
@@ -118,7 +117,7 @@ export class Hub {
         if (st.claimed || this.game.state !== "menu") return;
         $("daily-day").textContent = st.day;
         $("daily-grid").innerHTML = DAILY.map((r, i) => {
-            const label = r.usdt ? `${ICON.usdt}<b>${r.usdt}</b>` : r.gems ? `${ICON.gem}<b>${r.gems}</b>` : `<span class="dg-hero">★</span><b>Герой</b>`;
+            const label = r.usdt ? `${ICON.usdt}<b>${r.usdt}</b>` : `<span class="dg-hero">★</span><b>Набор</b>`;
             const cls = i + 1 < st.day ? "done" : i + 1 === st.day ? "now" : "";
             return `<div class="dg ${cls}"><span>День ${i + 1}</span>${label}</div>`;
         }).join("");
@@ -129,18 +128,29 @@ export class Hub {
             if (!day) return;
             const r = DAILY[day - 1];
             if (r.usdt) { this.p.gift(r.usdt); this.toast(`+${r.usdt} USDT`); }
-            if (r.gems) { this.p.addGems(r.gems); this.toast(`+${r.gems} кристаллов`); }
-            if (r.trial) { // герой на пробу — из тех, кого ещё нет
-                const id = pick(Object.keys(HERO_PRICES).filter((h) => !this.p.data.heroes.includes(h)));
-                if (id) {
-                    this.p.data.trial = { id, until: Date.now() + r.trial * 36e5 };
-                    this.p.save();
-                    this.toast(`${CHARACTERS.find((c) => c.id === id)?.name} на пробу на ${r.trial} ч!`);
-                } else { this.p.addGems(15); this.toast("+15 кристаллов"); }
+            if (r.set) { // 7-й день — набор (уже есть — 1000 USDT)
+                const st = SETS.find((x) => x.id === r.set);
+                if (this.p.unlockSet(r.set)) this.toast(`Набор «${st.name}» — в запасе!`);
+                else { this.p.gift(1000); this.toast("+1000 USDT"); }
             }
             this.game.audio.play("chest");
             this.render();
         };
+    }
+
+    // первый вход: выбрать режим (по умолчанию — с вопросами)
+    showMode() {
+        if (this.game.state !== "menu") return;
+        $("mode").hidden = false;
+        const pickMode = (q) => {
+            this.game.setSetting("questions", q);
+            this.game.setSetting("modeChosen", true);
+            $("mode").hidden = true;
+            this.toast(q ? "Режим: с вопросами" : "Режим: просто бежать. Сменить — в настройках");
+            setTimeout(() => this.showDaily(), 500);
+        };
+        $("btn-mode-q").onclick = () => pickMode(true);
+        $("btn-mode-noq").onclick = () => pickMode(false);
     }
 
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)
@@ -158,10 +168,11 @@ export class Hub {
             const from = i ? CHAPTERS[i - 1].goal : 0;
             const k = st === "done" ? 1 : st === "now" ? Math.min(1, earned / c.goal) : 0; // как на плитке 05: заработано / цель
             const tag = st === "done" ? "Пройдена" : st === "now" ? "Сейчас" : "Закрыта";
-            const line = st === "done" ? `Заработано ${fmt(c.goal)} USDT`
-                : st === "now" ? `${fmt(earned)} из ${fmt(c.goal)} USDT, осталось ${fmt(c.goal - earned)}`
-                : `Откроется на ${fmt(from)} USDT`;
-            const phrase = st === "done" ? `<p class="ch-phrase">Кодовая фраза <b>${c.phrase}</b></p>` : `<p class="ch-phrase">Кодовая фраза откроется после главы</p>`;
+            const boss = CHAPTER_BOSSES[i];
+            const line = st === "done" ? `Босс ${boss.name} побеждён`
+                : st === "now" ? (earned >= c.goal ? `Цель набрана — финиш: победи босса «${boss.name}» в забеге` : `${fmt(earned)} из ${fmt(c.goal)} USDT, затем босс «${boss.name}»`)
+                : `Откроется после главы ${i}`;
+            const phrase = !this.game.questions ? "" : st === "done" ? `<p class="ch-phrase">Кодовая фраза <b>${c.phrase}</b></p>` : `<p class="ch-phrase">Кодовая фраза откроется после главы</p>`;
             return `<div class="card chapter st-${st}">
                 <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>
                 <div class="card-main"><span class="card-tag${st === "now" ? " on" : ""}">${tag}</span><h3>${c.name}</h3><p>${line}</p>
@@ -193,7 +204,7 @@ export class Hub {
             box.innerHTML = list.map((c) => {
                 const st = this.heroState(c);
                 const tag = st === "play" ? (c.id === this.game.heroId ? "В забеге" : "В команде")
-                    : st === "buy" ? `Выкуп · ${fmt(HERO_PRICES[c.id])}` : st === "locked" ? "На связи" : "Скоро";
+                    : st === "buy" ? (HERO_UNLOCKS[c.id]?.btn || "Закрыт") : st === "locked" ? "На связи" : "Скоро";
                 const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
                 return `<div class="hcard st-${st}" data-id="${c.id}">
                     <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
@@ -259,51 +270,41 @@ export class Hub {
         if (!box || !c) return;
         const st = this.heroState(c);
         const on = st === "play" && c.id === this.game.heroId;
-        const price = HERO_PRICES[c.id];
-        const share = st === "buy" ? Math.min(1, this.p.usdt / price) : 0;
+        const u = HERO_UNLOCKS[c.id];
         const skill = HERO_SKILLS[c.id];
         const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
             : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
         const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
-        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Выкуп" : st === "locked" ? "На связи" : "Скоро"}</p>
+        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Открывается действием" : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
-            ${st === "buy" ? `<div class="lock-row"><span>${fmt(Math.min(this.p.usdt, price))} / ${fmt(price)} USDT</span><b>${Math.floor(share * 100)}%</b></div><div class="bar"><i style="width:${share * 100}%"></i></div>` : ""}`;
+            ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : ""}</div>` : ""}`;
         const b = document.createElement("button");
         b.className = "btn btn-main";
         if (st === "play") {
             b.textContent = on ? "Выбран" : "Выбрать";
             b.disabled = on;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); };
-        } else if (st === "buy") {
-            b.innerHTML = share >= 1 ? `Выкупить за ${ICON.usdt} ${fmt(price)}` : `Ещё ${ICON.usdt} ${fmt(price - this.p.usdt)}`;
-            b.disabled = share < 1;
+        } else if (st === "buy" && u) { // открыть действием (shop_v6): подписка, приглашение, разбор; босс — в забеге
+            b.textContent = u.btn;
+            b.disabled = u.act === "boss";
             b.onclick = () => {
-                if (!this.p.buyHero(c.id)) return;
-                this.game.audio.play("buy");
-                this.toast(`${c.name} в команде!`);
-                this.game.selectHero(c.id);
-                this.render();
+                if (u.act === "subscribe") tg.open(NS_STORE_URL);
+                else if (u.act === "invite") tg.share("Бегу «Воронку» — залетай!", LINKS.bot);
+                else if (u.act === "razbor") tg.open(this.managerLink());
+                // проверить подписку и приглашение из мини-аппа нельзя — открываем после действия
+                setTimeout(() => {
+                    if (!this.p.unlockHero(c.id)) return;
+                    this.game.audio.play("buy");
+                    this.toast(`${c.name} в команде!`);
+                    this.game.selectHero(c.id);
+                    this.render();
+                }, 800);
             };
         } else {
             b.textContent = st === "soon" ? "Скоро" : "Не бегает";
             b.disabled = true;
         }
         box.append(b);
-        const gp = HERO_GEM_PRICES[c.id];
-        if (gp && (st === "buy" || trial)) { // выкуп за кристаллы
-            const g = document.createElement("button");
-            g.className = "btn";
-            g.innerHTML = `Выкупить за ${ICON.gem} ${gp}`;
-            g.disabled = this.p.gems < gp;
-            g.onclick = () => {
-                if (!this.p.buyHero(c.id, true)) return;
-                this.game.audio.play("buy");
-                this.toast(`${c.name} в команде!`);
-                this.game.selectHero(c.id);
-                this.render();
-            };
-            box.append(g);
-        }
     }
 
     // плитка 01 «Забег»: пока модель героя грузится — ждём
@@ -345,40 +346,32 @@ export class Hub {
                     this.toast("Взял! В забеге нажми на буст справа.");
                 })));
             }
-            head("Наборы", "Паки бустов за кристаллы. Настоящий набор — в @Nesuschiystore.");
-            for (const st of SETS) {
-                const owned = st.skin && (this.p.data.skins || []).includes(st.skin);
-                const btn = owned ? Object.assign(document.createElement("button"), { className: "btn-small is-on", textContent: "Есть", disabled: true })
-                    : this.priceButton({ gems: st.gems }, () => {
-                        for (const [id, n] of Object.entries(st.give || {})) this.p.addBoost(id, n);
-                        if (st.x2runs) this.p.data.x2runs = (this.p.data.x2runs || 0) + st.x2runs;
-                        if (st.restore) this.p.data.restore = (this.p.data.restore || 0) + 1;
-                        if (st.skin) (this.p.data.skins ||= []).push(st.skin);
-                        this.p.save();
-                        this.toast(`${st.name} — в запасе`);
-                    });
-                box.append(this.storeCard(st, "", btn));
-            }
             const appeal = document.createElement("div");
             appeal.className = "card card-note";
-            appeal.innerHTML = `<div class="card-main"><h3>Апелляция</h3><p>Второй шанс после проигрыша — кнопка на экране проигрыша, ${APPEAL_PRICE} TRX. TRX дают монеты TRX на дороге и кейсы.</p></div>`;
+            appeal.innerHTML = `<div class="card-main"><h3>Апелляция</h3><p>Второй шанс после проигрыша — кнопка на экране проигрыша, ${fmt(APPEAL_PRICE)} USDT. Одна валюта — USDT: монеты на дороге, кейсы и награды.</p></div>`;
             box.append(appeal);
-        } else if (this.seg === "gems") {
-            const note = document.createElement("div");
-            note.className = "card card-note";
-            note.innerHTML = `<div class="card-main"><h3>Кристаллы</h3><p>Твёрдая валюта: выкуп героев и редкое. Ещё дают за главу (${GEMS.chapter}), экзамен Инакова без ошибок и ежедневный вход.</p></div>`;
-            box.append(note);
-            for (const pk of GEMS.packs) {
-                if (pk.once && (this.p.data.packs || []).includes(pk.id)) continue;
-                const card = document.createElement("div");
-                card.className = `card gem-pack${pk.once ? " gem-starter" : ""}`;
-                card.innerHTML = `<div class="gem-ico">${ICON.gem}<b>${pk.gems}</b></div><div class="card-main">${pk.once ? '<span class="card-tag on">Один раз · выгодно</span>' : ""}<h3>${pk.name}</h3><p>${pk.gems} кристаллов${pk.hero ? " + герой" : ""}</p></div>`;
-                // реальная оплата (Telegram Stars или кошелёк USDT) ещё не подключена — заглушка
-                const b = document.createElement("button");
-                b.className = "btn-small";
-                b.textContent = `${pk.price} USDT`;
-                b.onclick = () => this.toast("Оплата скоро: Telegram Stars или кошелёк USDT");
-                card.append(b);
+        } else if (this.seg === "sets") {
+            const n = document.createElement("div");
+            n.className = "card card-note";
+            n.innerHTML = `<div class="card-main"><h3>Наборы</h3><p>Не продаются — открываются действиями: экзамен, кодовое слово от менеджера, 7 дней входа. Набор — бусты на ${3} забега. Настоящий — в @Nesuschiystore.</p></div>`;
+            box.append(n);
+            for (const st of SETS) {
+                const owned = this.p.hasSet(st.id);
+                const card = this.storeCard({ ...st, text: `${st.text}. ${owned ? "Открыт" : st.how}` }, "", Object.assign(document.createElement("button"), { className: "btn-small" + (owned ? " is-on" : ""), textContent: owned ? "Есть" : "Закрыт", disabled: true }));
+                if (!owned && st.unlock === "code") {
+                    const row = document.createElement("div");
+                    row.className = "set-code";
+                    row.innerHTML = `<input placeholder="Кодовое слово" maxlength="32"><button class="btn-small">Ввести</button>`;
+                    row.querySelector("button").onclick = () => {
+                        const v = row.querySelector("input").value.trim().toUpperCase().replace(/Ё/g, "Е");
+                        if (!(st.codes || []).includes(v)) return this.toast("Не то слово. Спроси у менеджера");
+                        this.p.unlockSet(st.id);
+                        this.game.audio.play("buy");
+                        this.toast(`${st.name} — открыт!`);
+                        this.render();
+                    };
+                    card.append(row);
+                }
                 box.append(card);
             }
         } else {
@@ -475,23 +468,10 @@ export class Hub {
             };
             return b;
         }
-        if (price.gems) {
-            const b = document.createElement("button");
-            b.className = "btn-small";
-            b.innerHTML = `${ICON.gem} ${fmt(price.gems)}`;
-            b.disabled = this.p.gems < price.gems;
-            b.onclick = () => {
-                if (!this.p.pay({ gems: price.gems })) return;
-                this.game.audio.play("buy");
-                onBuy();
-                this.render();
-            };
-            return b;
-        }
         const b = document.createElement("button");
-        b.className = "btn-small" + (price.trx ? " btn-trx" : "");
-        b.innerHTML = price.trx ? `${ICON.trx} ${price.trx}` : `${ICON.usdt} ${fmt(price.usdt)}`;
-        const enough = price.trx ? this.p.trx >= price.trx : this.p.usdt >= price.usdt;
+        b.className = "btn-small";
+        b.innerHTML = `${ICON.usdt} ${fmt(price.usdt)}`;
+        const enough = this.p.usdt >= price.usdt;
         b.disabled = !enough;
         b.onclick = () => {
             if (!this.p.pay(price)) return;
@@ -531,7 +511,7 @@ export class Hub {
             const kinds = [...new Set(c.drops.map((d) => this.kind(d)))];
             card.innerHTML = `<div class="case-art">${this.caseArt(c)}</div>
                 <div class="case-info">
-                    <span class="card-tag on">${c.free ? "Бесплатно" : c.priceTrx ? "За TRX" : "За USDT"}</span>
+                    <span class="card-tag on">${c.free ? "Бесплатно" : "За USDT"}</span>
                     <h3>${c.name}</h3>
                     <p>${c.text}</p>
                     <div class="odds-bar">${this.oddsBar(c)}</div>
@@ -547,7 +527,7 @@ export class Hub {
                 btn.textContent = left > 0 ? `через ${Math.floor(left / 3600000)} ч ${Math.ceil((left % 3600000) / 60000)} мин` : "Открыть бесплатно";
                 btn.onclick = () => { this.p.data.freeAt = Date.now(); this.p.save(); this.open(c); };
             } else {
-                btn = this.priceButton(c.priceTrx ? { trx: c.priceTrx } : { usdt: c.price }, () => this.open(c));
+                btn = this.priceButton({ usdt: c.price }, () => this.open(c));
             }
             btn.classList.add("case-buy");
             card.querySelector(".case-info").append(btn);
@@ -596,7 +576,7 @@ export class Hub {
     label(d) {
         const parts = [];
         if (d.amount) parts.push(`${fmt(d.amount)} USDT`);
-        if (d.trx) parts.push(`${d.trx} TRX`);
+        if (d.trx) parts.push(`${fmt(d.trx * 300)} USDT`);
         if (d.boosts) parts.push(d.boosts > 1 ? `${d.boosts} добавки` : "Добавка");
         if (d.all) parts.push("Все добавки");
         if (d.level) parts.push("Уровень прокачки");
@@ -690,7 +670,7 @@ export class Hub {
     }
 
     give(d) {
-        if (d.amount || d.trx) this.p.gift(d.amount, d.trx || 0);
+        if (d.amount || d.trx) this.p.gift((d.amount || 0) + (d.trx || 0) * 300); // TRX больше нет — по курсу ×300 в USDT
         const got = [];
         if (d.boosts) for (let i = 0; i < d.boosts; i++) { const b = pick(BOOSTS); this.p.addBoost(b.id); got.push(b.name); }
         if (d.all) for (const b of BOOSTS) this.p.addBoost(b.id);

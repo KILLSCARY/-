@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT, TRX), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_PRICES, HERO_GEM_PRICES, BOOSTS, BOOST_LIMIT, UPGRADES, BOSS, GRANTS } from "./config.js";
+import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS } from "./config.js";
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
@@ -10,9 +10,9 @@ const EMPTY = () => ({
     next: Object.fromEntries(BOOSTS.map((b) => [b.id, 0])), // добавки, купленные на следующие забеги
     up: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 1])), // уровни прокачки
     freeAt: 0,                                    // когда последний раз открыт бесплатный кейс
-    gems: 0,                                      // кристаллы
-    chests: 0,                                    // сундуки Инакова (бесплатное открытие кейса)
-    packs: [],                                    // купленные разовые паки кристаллов
+    chests: 0,                                    // сундуки за боссов (бесплатное открытие кейса)
+    beaten: null,                                 // сколько боссов глав побеждено (null — старый профиль, см. load)
+    sets: [],                                     // открытые наборы (действуют SET_RUNS забегов, выдаются один раз)
     daily: { day: 0, last: "" },                  // ежедневный вход: день серии, дата последней награды
     trial: null,                                  // герой на пробу: { id, until }
 });
@@ -38,14 +38,13 @@ export class Profile {
         });
     }
 
-    // разовые начисления из GRANTS, которых этот аккаунт ещё не получал; возвращает выданные
+    // разовые начисления из GRANTS, которых этот аккаунт ещё не получал; возвращает выданные. Валюта одна — USDT
+    // (trx и gems у старых начислений — только для истории, см. load)
     applyGrants() {
         const got = (this.data.grants ||= []);
         const fresh = GRANTS.filter((g) => !got.includes(g.id));
         for (const g of fresh) {
             this.data.usdt += g.usdt || 0;
-            this.data.trx += g.trx || 0;
-            this.data.gems = this.gems + (g.gems || 0);
             got.push(g.id);
         }
         if (fresh.length) this.save();
@@ -54,13 +53,27 @@ export class Profile {
 
     load(saved) {
         if (saved) this.data = { ...EMPTY(), ...saved, next: { ...EMPTY().next, ...saved.next }, up: { ...EMPTY().up, ...saved.up } };
+        // TRX больше нет — остаток в USDT по ×300. Подарочные TRX тестового начисления (GRANTS[].trx) не считаем:
+        // иначе 10 000 тестовых TRX превратились бы ещё в 3 000 000 USDT
+        if (this.data.trx > 0) {
+            const gifted = GRANTS.filter((g) => (this.data.grants || []).includes(g.id)).reduce((s, g) => s + (g.trx || 0), 0);
+            this.data.usdt += Math.max(0, this.data.trx - gifted) * 300;
+            this.data.trx = 0;
+        }
+        // старый профиль (главы шли по заработку): пройденные главы считаем побеждёнными, кроме финала
+        if (this.data.beaten == null) {
+            const e = this.data.earned || 0;
+            this.data.beaten = CHAPTERS.filter((c) => !c.final && e >= c.goal).length;
+        }
     }
 
     // перенести изменения этой сессии (было → стало) на профиль из облака
     carry(was, now) {
         if (now.t === was.t) return;
         const d = this.data;
-        for (const k of ["usdt", "trx", "earned", "gems", "chests"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
+        d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
+        d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
+        for (const k of ["usdt", "trx", "earned", "chests"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         for (const id of Object.keys(d.next)) d.next[id] = Math.max(0, d.next[id] + (now.next[id] || 0) - (was.next[id] || 0));
         for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id], now.up[id] || 1);
         d.heroes = [...new Set([...d.heroes, ...now.heroes])];
@@ -74,11 +87,34 @@ export class Profile {
 
     get usdt() { return this.data.usdt; }
     get trx() { return this.data.trx; }
-    get gems() { return this.data.gems || 0; }
 
-    addGems(n) {
-        this.data.gems = this.gems + n;
+    // открыть набор: кладём его бусты в запас (SET_RUNS забегов) — один раз на профиль
+    unlockSet(id) {
+        const st = SETS.find((x) => x.id === id);
+        if (!st || (this.data.sets ||= []).includes(id)) return false;
+        this.data.sets.push(id);
+        for (const [b, n] of Object.entries(st.give || {})) this.data.next[b] = (this.data.next[b] || 0) + n;
+        if (st.x2runs) this.data.x2runs = (this.data.x2runs || 0) + st.x2runs;
         this.save();
+        return true;
+    }
+    hasSet(id) { return (this.data.sets || []).includes(id); }
+
+    // победа над боссом текущей главы: глава засчитана
+    beatBoss() {
+        const i = this.chapter().index;
+        if (i >= CHAPTERS.length) return null;
+        this.data.beaten = i + 1;
+        this.data.chests = (this.data.chests || 0) + 1;
+        if (CHAPTERS[i].final) this.unlockSet("gberserk");
+        for (const [id, u] of Object.entries(HERO_UNLOCKS)) if (u.act === "boss" && this.data.beaten >= u.chapter && !this.data.heroes.includes(id)) this.data.heroes.push(id);
+        this.save();
+        return i + 1;
+    }
+    // босс главы ждёт: цель главы набрана, а босс не побеждён
+    bossReady() {
+        const ch = this.chapter();
+        return !ch.done && this.data.earned >= ch.goal;
     }
 
     // ежедневный вход: какой сегодня день серии и забрана ли награда
@@ -104,15 +140,12 @@ export class Profile {
         return t && t.until > Date.now() ? t.id : null;
     }
 
-    // доход: в кошелёк и в «заработано за всё время»; возвращает номер главы, если открылась новая
-    earn(usdt, trx = 0) {
-        const before = this.chapter().index;
+    // доход: в кошелёк и в «заработано за всё время». Главы двигает только победа над боссом (beatBoss).
+    earn(usdt) {
         this.data.usdt += usdt;
         this.data.earned += usdt;
-        this.data.trx += trx;
         this.save();
-        const after = this.chapter().index;
-        return after > before ? after : null;
+        return null;
     }
 
     // стены-возражения: верные и неверные ответы по типам клиентов за всё время
@@ -140,23 +173,22 @@ export class Profile {
     // кодовые фразы пройденных глав
     phrases() {
         const list = CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean);
-        if (this.data.exam) list.push(BOSS.phrase);
+        // старый экзамен (до боссов глав) сдан — его кодовое слово то же, что у финала
+        const exam = CHAPTERS.find((c) => c.final)?.phrase;
+        if (this.data.exam && exam && !list.includes(exam)) list.push(exam);
         return list;
     }
 
     // награда из кейса: в кошелёк, но не в «заработано» — главы двигают только забеги
-    gift(usdt = 0, trx = 0) {
+    gift(usdt = 0) {
         this.data.usdt += usdt;
-        this.data.trx += trx;
         this.save();
     }
 
     // списать цену; false — не хватает
-    pay({ usdt = 0, trx = 0, gems = 0 }) {
-        if (this.data.usdt < usdt || this.data.trx < trx || this.gems < gems) return false;
+    pay({ usdt = 0 }) {
+        if (this.data.usdt < usdt) return false;
         this.data.usdt -= usdt;
-        this.data.trx -= trx;
-        this.data.gems = this.gems - gems;
         this.save();
         return true;
     }
@@ -164,21 +196,20 @@ export class Profile {
     // текущая глава: index (0…), прогресс до её цели; после последней — финал
     chapter() {
         const e = this.data.earned;
-        let index = CHAPTERS.findIndex((c) => e < c.goal);
-        if (index < 0) index = CHAPTERS.length;
+        const index = Math.min(CHAPTERS.length, this.data.beaten || 0);
         const goal = CHAPTERS[Math.min(index, CHAPTERS.length - 1)].goal;
         return { index, name: CHAPTERS[Math.min(index, CHAPTERS.length - 1)].name, earned: e, goal, done: index >= CHAPTERS.length };
     }
 
     owns(heroId) {
         if (this.trialHero() === heroId) return true;
-        return !(heroId in HERO_PRICES) || this.data.heroes.includes(heroId);
+        return !(heroId in HERO_UNLOCKS) || this.data.heroes.includes(heroId);
     }
 
-    // выкуп за USDT или за кристаллы (gems: true — цена из HERO_GEM_PRICES)
-    buyHero(heroId, gems = false) {
-        if (this.data.heroes.includes(heroId) || !(heroId in HERO_PRICES)) return false;
-        if (!this.pay(gems ? { gems: HERO_GEM_PRICES[heroId] } : { usdt: HERO_PRICES[heroId] })) return false;
+    // открыть героя действием (подписка, приглашение, разбор); за босса — сам в beatBoss
+    unlockHero(heroId) {
+        const u = HERO_UNLOCKS[heroId];
+        if (!u || this.data.heroes.includes(heroId) || u.act === "boss") return false;
         this.data.heroes.push(heroId);
         this.save();
         return true;

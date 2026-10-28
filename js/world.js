@@ -1382,6 +1382,57 @@ export class World {
         return this.islam ? this.rig(this.islam, WIND.npc.idle, { islam: true }) : null;
     }
 
+    // Большой напольный вентилятор («Ислам вентилирует»): подставка, стойка, решётка-кольцо, три лопасти на роторе
+    // (крутит игра — userData.rotor). Дует вдоль своей +Z: к дороге его разворачивает игра. Геометрии свои — own.
+    makeFan() {
+        const g = new THREE.Group(), own = (m) => { m.geometry.userData.own = true; return m; };
+        const dark = this.mat.pole, chrome = this.mat.chrome;
+        const base = own(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.08, 20), dark));
+        base.position.y = 0.04;
+        const pole = own(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.065, 1.15, 10), chrome));
+        pole.position.y = 0.62;
+        const head = new THREE.Group();
+        head.position.y = 1.3;
+        const motor = own(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.32, 16), dark));
+        motor.rotation.x = Math.PI / 2;
+        motor.position.z = -0.18;
+        const rotor = new THREE.Group();
+        rotor.position.z = 0.04;
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b4, metalness: 0.6, roughness: 0.35 });
+        bladeMat.userData.own = true;
+        for (let i = 0; i < 3; i++) {
+            const arm = new THREE.Group();
+            arm.rotation.z = (i / 3) * Math.PI * 2;
+            const blade = own(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.46, 0.015), bladeMat));
+            blade.position.y = 0.27;
+            blade.rotation.y = 0.45; // наклон лопасти — видно, что винт
+            arm.add(blade);
+            rotor.add(arm);
+        }
+        const hub = own(new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), chrome));
+        rotor.add(hub);
+        head.add(motor, rotor);
+        for (const z of [0.12, -0.04]) { // решётка: два кольца и спицы спереди
+            const ring = own(new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.018, 6, 40), chrome));
+            ring.position.z = z;
+            head.add(ring);
+        }
+        for (let i = 0; i < 8; i++) {
+            const spoke = own(new THREE.Mesh(new THREE.BoxGeometry(0.012, 1.1, 0.012), chrome));
+            spoke.rotation.z = (i / 8) * Math.PI;
+            spoke.position.z = 0.12;
+            head.add(spoke);
+        }
+        const ledMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.3, 0.3) });
+        ledMat.userData.own = true;
+        const led = own(new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), ledMat));
+        led.position.set(0, 0.1, 0.42);
+        g.add(base, pole, head, led);
+        g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+        g.userData = { type: "decor", fan: true, rotor, led };
+        return g;
+    }
+
     // поток ветра изо рта Ислама: штрихи и облачка летят конусом через дорогу
     buildWind() {
         const n = 40, pos = new Float32Array(n * 6);

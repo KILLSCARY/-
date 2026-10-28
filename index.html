@@ -31,8 +31,6 @@
         <div class="hub" data-tab="run">
             <div class="hub-top">
                 <span class="cur"><svg class="ico-usdt" aria-label="USDT"><use href="#ico-usdt"/></svg><b id="w-usdt">0</b></span>
-                <span class="cur"><svg class="ico-usdt" aria-label="TRX"><use href="#ico-trx"/></svg><b id="w-trx">0</b></span>
-                <span class="cur"><svg class="ico-usdt" aria-label="Кристаллы"><use href="#ico-gem"/></svg><b id="w-gems">0</b></span>
                 <span class="hub-best"><span>Рекорд</span><b id="menu-best">0</b></span>
                 <button id="btn-settings" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></button>
             </div>
@@ -78,7 +76,7 @@
                 <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Добавки и прокачка</p></div>
                 <h2 class="sheet-title">NS Store</h2>
                 <p class="sheet-sub">Магазин добавок Паши. Купленное срабатывает в следующем забеге.</p>
-                <div class="seg seg3"><button data-seg="boosts" class="on">Добавки</button><button data-seg="up">Прокачка</button><button data-seg="gems">Кристаллы</button></div>
+                <div class="seg seg3"><button data-seg="boosts" class="on">Бусты</button><button data-seg="sets">Наборы</button><button data-seg="up">Прокачка</button></div>
                 <div id="shop-list" class="cards"></div>
             </div>
             <!-- Главы сюжета: пройденные, текущая с прогрессом, закрытые -->
@@ -120,9 +118,20 @@
         <div class="modal-card">
             <p class="label">Ежедневный вход</p>
             <h2 class="sheet-title">День <span id="daily-day">1</span> из 7</h2>
-            <p class="sheet-sub">Заходи каждый день — награда растёт. На 7-й день — герой на пробу на сутки.</p>
+            <p class="sheet-sub">Заходи каждый день — награда растёт. На 7-й день — набор «Королевский Сон».</p>
             <div class="daily-grid" id="daily-grid"></div>
             <button id="btn-daily" class="btn btn-main btn-shine">Забрать</button>
+        </div>
+    </div>
+
+    <!-- первый вход: режим игры (по умолчанию — с вопросами; потом меняется в настройках) -->
+    <div id="mode" class="modal" hidden>
+        <div class="modal-card">
+            <p class="label">Как играем?</p>
+            <h2 class="sheet-title">Режим забега</h2>
+            <p class="sheet-sub">С вопросами — стены-возражения, кодовые фразы для менеджера и экзамен Инакова. Без вопросов — просто раннер: арки профита и боссы глав.</p>
+            <button id="btn-mode-q" class="btn btn-main btn-shine">С вопросами</button>
+            <button id="btn-mode-noq" class="btn">Просто бежать</button>
         </div>
     </div>
 
@@ -152,8 +161,14 @@
         <div id="boost-bar" class="boost-bar"><button id="btn-skill" class="bst bst-skill" hidden><img id="sk-img" alt=""><b id="sk-name"></b><i id="sk-left">1</i></button></div>
         <!-- порыв ветра от Ислама: тапай, чтобы удержаться -->
         <div id="wind-q" class="wind-q" hidden><b id="wind-title">Ислам дует!</b><span id="wind-sub">Тапай, чтобы удержаться</span><div class="wind-taps" id="wind-taps"></div></div>
+        <!-- «Ислам вентилирует»: сверху (на дороге препятствия — героя не закрываем); полоска — сколько ещё дует -->
+        <div id="vent-q" class="wind-q vent-q" hidden><b id="vent-title">Ислам вентилирует!</b><span id="vent-sub">Свайпай против ветра</span><div class="vent-bar"><i id="vent-bar"></i></div></div>
         <!-- стена-возражение впереди: тип клиента и вопрос; таблички с ответами — на полосах -->
         <div id="wall-q" class="wall-q" hidden><span id="wq-type"></span><b id="wq-text"></b><div class="wq-ans" id="wq-ans"></div><i id="wq-hint">Беги в правильный ответ</i></div>
+        <!-- босс главы: портрет, реплика, сколько козырей собрано -->
+        <div id="boss-hud" class="boss-hud" hidden><div class="bh-ph" id="bh-ph"></div><div class="bh-main"><span id="bh-name"></span><b id="bh-line"></b><div class="bh-bar"><i id="bh-bar"></i></div><span id="bh-count"></span></div></div>
+        <!-- победа над боссом и вопрос сделки (стоп-кадр) -->
+        <div id="deal" class="modal deal" hidden><div class="modal-card"><p class="label" id="deal-label"></p><h2 class="sheet-title" id="deal-title"></h2><p class="sheet-sub" id="deal-text"></p><div id="deal-phrase"></div><div class="deal-ans" id="deal-ans"></div><button id="btn-deal" class="btn btn-main btn-shine">Бежать дальше</button></div></div>
         <div id="countdown" hidden></div>
     </section>
 
@@ -181,14 +196,13 @@
             <div class="over-stats">
                 <div class="st o-in" style="--i:2"><span class="n">01</span><b id="over-usdt">0</b><span class="st-cap"><svg class="ico-usdt" aria-hidden="true"><use href="#ico-usdt"/></svg>USDT</span></div>
                 <div class="st o-in" style="--i:3"><span class="n">02</span><b id="over-dist">0</b><span class="st-cap">метров</span></div>
-                <div class="st o-in" style="--i:4"><span class="n">03</span><b id="over-trx">0</b><span class="st-cap"><svg class="ico-usdt" aria-hidden="true"><use href="#ico-trx"/></svg>TRX</span></div>
             </div>
             <p id="over-wallet" class="wallet-line o-in" style="--i:5"></p>
             <div id="over-phrase" class="phrase-card o-in" style="--i:5" hidden></div>
             <button id="btn-appeal" class="appeal o-in" style="--i:6" hidden>
-                <svg class="ico-usdt" aria-hidden="true"><use href="#ico-trx"/></svg>
+                <svg class="ico-usdt" aria-hidden="true"><use href="#ico-usdt"/></svg>
                 <span class="appeal-text"><b>Апелляция</b><span id="appeal-sub">Продолжить с того же места</span></span>
-                <span class="price" id="appeal-price">2 TRX</span>
+                <span class="price" id="appeal-price">1500 USDT</span>
             </button>
             <button id="btn-again" class="btn btn-main btn-shine o-in" style="--i:7">Ещё раз</button>
             <div class="over-row o-in" style="--i:8">
