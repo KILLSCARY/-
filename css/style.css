@@ -677,6 +677,7 @@ html.tg, html.tg body { background: #000; }
 .wall-q b { display: block; margin: 4px 0 3px; font: 800 17px/1.15 var(--font-display); text-transform: uppercase; }
 .wall-q i { font-style: normal; font-size: 11px; color: var(--muted); }
 .wq-ans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 6px; }
+.wq-ans.two { grid-template-columns: repeat(2, 1fr); }
 .wq-ans button {
     display: grid; place-items: center; min-height: 46px; padding: 6px; border-radius: 12px; font-style: normal;
     font-size: 11.5px; font-weight: 600; line-height: 1.2; color: #fff; background: rgba(255, 255, 255, .06);
@@ -1060,3 +1061,23 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .sw-ph b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-14deg); padding: 2px 8px; border: 3px solid #ffd65a; border-radius: 8px;
     font: 900 22px/1 var(--font-display); color: #ffd65a; background: rgba(0, 0, 0, .55); text-shadow: 0 0 10px rgba(255, 214, 90, .8); }
 #story-win .sw-next { margin-top: 14px; opacity: .85; }
+
+/* ---- v2.5: Горилла, ввод числа, анкета, финал ---- */
+.gorilla { position: fixed; left: 12px; right: 12px; top: calc(118px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); z-index: 21;
+    display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 16px; background: rgba(12, 10, 8, .92);
+    box-shadow: 0 0 0 1px rgba(233, 194, 90, .55), 0 10px 30px rgba(0, 0, 0, .5); pointer-events: none; animation: g-in .3s ease-out; }
+.gorilla .g-ph, .g-big { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-style: normal; font-size: 30px;
+    background: radial-gradient(circle at 50% 35%, #4a3a1a, #120c04 75%); box-shadow: 0 0 0 2px #e9c25a; }
+.gorilla .g-ph::before, .g-big::before { content: "🦍"; }
+.g-big { font-size: 60px; }
+.g-big { width: 96px; height: 96px; border-radius: 50%; border-color: #e9c25a; margin: 0 auto 10px; }
+.gorilla b { font: 800 12px/1 var(--font-display); color: #e9c25a; letter-spacing: .04em; text-transform: uppercase; }
+.gorilla p { margin: 4px 0 0; font: 600 14px/1.3 var(--font-body); color: #fff; }
+.gorilla.ok { box-shadow: 0 0 0 1px rgba(53, 227, 155, .6), 0 10px 30px rgba(0, 0, 0, .5); }
+@keyframes g-in { from { opacity: 0; transform: translateY(-10px); } }
+.qi-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+.qi-row input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 14px; border: 2px solid rgba(233, 194, 90, .6); background: rgba(0, 0, 0, .45); color: #fff;
+    font: 800 24px/1 var(--font-display); text-align: center; outline: none; }
+.qi-row span { font: 800 22px/1 var(--font-display); color: #e9c25a; }
+#quiz-input .btn, #anketa .btn, #final .btn { width: 100%; margin-top: 8px; }
+.ak-a { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }

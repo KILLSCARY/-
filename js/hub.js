@@ -1,7 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -154,9 +154,12 @@ export class Hub {
     }
 
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)
-    managerLink() {
+    managerLink(extra = "") {
         const phrases = this.p.phrases(), weak = this.p.weakType();
-        const text = `Привет! Я из игры «Покоритель P2P 3.0».${phrases.length ? ` Мои кодовые фразы: ${phrases.join(", ")}.` : ""}${weak ? ` Код: ${CLIENT_TYPES[weak].tag}` : ""}`;
+        // анкета Гориллы (доход, опыт, капитал, цель) уходит менеджеру вместе с заявкой
+        const ak = this.p.data.anketa || {};
+        const anketa = Object.keys(ak).length ? ` Анкета: ${GORILLA.anketa.filter((q) => ak[q.id]).map((q) => `${q.q} ${ak[q.id]}`).join("; ")}.` : "";
+        const text = `Привет! Я из игры «Покоритель P2P 3.0».${extra ? ` ${extra}` : ""}${phrases.length ? ` Мои кодовые фразы: ${phrases.join(", ")}.` : ""}${weak ? ` Код: ${CLIENT_TYPES[weak].tag}` : ""}${anketa}`;
         return `${LINKS.manager}?text=${encodeURIComponent(text)}`;
     }
 

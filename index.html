@@ -184,6 +184,28 @@
         <button id="btn-sw-menu" class="btn">В меню</button>
         <div class="card card-note sw-next"><div class="card-main"><span class="card-tag">Скоро</span><h3 id="sw-next"></h3><p id="sw-next-text"></p></div></div>
     </div></div>
+    <!-- v2.5: реплика Гориллы, ввод числа на табличке, анкета перед первым забегом, вопрос перед финалом и финал -->
+    <div id="gorilla" class="gorilla" hidden><i class="g-ph"></i><div><b>Горилла</b><p id="g-text"></p></div></div>
+    <div id="quiz-input" class="modal" hidden><div class="modal-card sl-card">
+        <p class="label" id="qi-label">Табличка</p>
+        <h2 class="sheet-title" id="qi-q"></h2>
+        <div class="qi-row"><input id="qi-val" type="text" inputmode="numeric" autocomplete="off" placeholder="Сумма"><span id="qi-unit">₽</span></div>
+        <button id="btn-qi" class="btn btn-main btn-shine">Ответить</button>
+    </div></div>
+    <div id="anketa" class="modal" hidden><div class="modal-card sl-card">
+        <div class="sl-ph g-big"></div>
+        <p class="label">Горилла · <span id="ak-step"></span></p>
+        <h2 class="sheet-title" id="ak-q"></h2>
+        <div id="ak-a" class="ak-a"></div>
+    </div></div>
+    <div id="final" class="modal" hidden><div class="modal-card sl-card">
+        <div class="sl-ph sw-ph" id="fn-ph"><b>10 USDT</b></div>
+        <p class="label">Воронка пройдена</p>
+        <h2 class="sheet-title" id="fn-title">Ты прошёл Воронку до конца</h2>
+        <p class="sheet-sub" id="fn-text"></p>
+        <button id="btn-fn" class="btn btn-main btn-shine">Забрать 10 USDT, записаться на созвон</button>
+        <button id="btn-fn-menu" class="btn">В меню</button>
+    </div></div>
     <!-- задержание: мигалки по краям и штамп -->
     <div id="arrest" class="arrest-fx" hidden><b class="stamp">Протокол<br>скуки</b><p class="stamp-line">Протокол: слишком много «подумаю». Бежим ещё раз? Очки и монеты сохранены.</p></div>
 

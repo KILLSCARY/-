@@ -1712,7 +1712,9 @@ export class World {
         const plateGeo = new THREE.PlaneGeometry(1.86, 1.5);
         plateGeo.userData.own = true;
         const arrows = ["◀", "▲", "▶"];
-        answers.forEach((text, lane) => {
+        // два варианта (таблички глав) — на крайних полосах, три — на всех
+        answers.forEach((text, i) => {
+            const lane = answers.length === 2 ? i * 2 : i;
             const g = new THREE.Group();
             const board = new THREE.Mesh(plateGeo, textMat(512, 412, (c, w, h) => {
                 const m = 30, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m;
@@ -1751,7 +1753,7 @@ export class World {
             glow.position.set(0, 0.02, 0.9);
             g.add(glow);
             g.position.set(this.lanes[lane], 0, z);
-            g.userData = { type: "answer", halfZ: 0.35, wall, correct: lane === correct, lane, text };
+            g.userData = { type: "answer", halfZ: 0.35, wall, correct: i === correct, lane, text };
             this.scene.add(g);
             this.obstacles.push(g);
             wall.plates.push(g);
