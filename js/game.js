@@ -755,7 +755,7 @@ class Game {
             : this.state === "menu" ? "run"
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
-            : this.state === "countdown" || this.state === "paused" ? "idle" : "run";
+            : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.moon.position.set(this.x - 4, 12, -14);
@@ -1692,29 +1692,34 @@ class Game {
         this.state = "bossintro";
         const c = this.ensureChaser();
         c.visible = true;
-        // подбегает вплотную (в bossintro кадр рисуется, но забег стоит — двигаем сами)
-        const t0 = performance.now();
-        await new Promise((res) => {
-            const step = () => {
-                const k = Math.min(1, (performance.now() - t0) / 900);
-                c.position.z += (0.9 - c.position.z) * 0.2;
-                c.position.x += (this.x + 0.45 - c.position.x) * 0.2;
-                c.userData.mixer?.update(1 / 60);
-                if (k < 1) requestAnimationFrame(step); else res();
-            };
-            step();
-        });
-        if (this.runId !== run) return;
-        const cast = this.world.chaserModel?.gltf.animations.find((x) => x.name === CHASER.arrest);
-        if (cast && c.userData.mixer) { c.userData.mixer.stopAllAction(); const a = c.userData.mixer.clipAction(cast); a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); }
+        // Спиди останавливается (поза idle), Мизулина подбегает вплотную и хватает — её анимацию крутим сами, пока идёт ролик
+        const mixer = c.userData.mixer, anims = this.world.chaserModel?.gltf.animations || [];
+        let last = performance.now(), live = true;
+        const tick = () => {
+            if (!live) return;
+            const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000);
+            last = now;
+            c.position.z += (0.95 - c.position.z) * Math.min(1, dt * 5);
+            c.position.x += (this.x + 0.35 - c.position.x) * Math.min(1, dt * 5);
+            c.rotation.y = Math.PI;
+            mixer?.update(dt);
+            requestAnimationFrame(tick);
+        };
+        tick();
+        await wait(800);
+        if (this.runId !== run) { live = false; return; }
+        const cast = anims.find((x) => x.name === CHASER.arrest);
+        if (cast && mixer) { mixer.stopAllAction(); const a = mixer.clipAction(cast); a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); }
         this.audio.play("whistle");
         tg.haptic("heavy");
         this.kick(0.3, 6);
-        this.speech("Мизулина", s.catchLine, 1800);
+        this.speech("Мизулина", s.catchLine, 1900);
         await wait(1500);
         $("fade").classList.add("on");
         await wait(600);
-        if (cast && c.userData.mixer) { c.userData.mixer.stopAllAction(); c.userData.mixer.clipAction(this.world.chaserModel.gltf.animations.find((x) => x.name === CHASER.run)).play(); }
+        live = false;
+        const runClip = anims.find((x) => x.name === CHASER.run);
+        if (mixer && runClip) { mixer.stopAllAction(); mixer.clipAction(runClip).play(); }
         c.visible = false;
         this.storyCatch = false;
         this.startStoryFight(true);

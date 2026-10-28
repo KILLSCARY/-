@@ -657,10 +657,12 @@ export const FIGHTERS = {
     mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
-        moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
-            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 }, hook: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 1.1 },
+        moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем
+            jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
+            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 },
+            hook: { clip: "hkick", from: 0.05, to: 0.95, hit: 0.47, speed: 1.0 }, // третий в связке — боковой ногой, его видно издалека
             super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
-            superFin: { clip: "flykick", from: 1.6, to: 2.55, hit: 2.0, speed: 1.1, air: true }, // добивание супера — удар ногой в прыжке
+            superFin: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 0.8 }, // добивание супера — апперкот в замедлении
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
     pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 125,

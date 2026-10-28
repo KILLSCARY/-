@@ -316,6 +316,7 @@ export class Fight {
             if (!free) return;
             this.superV = 0;
             this.act(h, "super", FIGHT.superTime);
+            this.cine(true);
             this.big("СУПЕР!", "gold");
             clearTimeout(this.bigT);
             this.bigT = setTimeout(() => { if (this.phase === "fight") this.big(""); }, 900);
@@ -411,7 +412,9 @@ export class Fight {
         def.hitSide = att.hand ? 1 : -1;
         this.spark(contact, kind === "jab" ? 0.6 : kind === "super" ? 1.4 : 0.9, kind === "super" ? 0xffd65a : 0xffffff);
         this.popText(def, counter ? `КОНТР −${dmg}` : `−${dmg}`, counter || kind === "heavy" || kind === "super" || kind === "hook" ? "crit" : "");
-        this.stop = kind === "jab" ? 0.045 : kind === "super" ? 0.16 : 0.09; // стоп-кадр — удар «чувствуется»
+        this.stop = kind === "jab" ? 0.07 : kind === "super" ? 0.32 : 0.12; // стоп-кадр — удар «чувствуется»
+        this.punchIn = kind === "jab" ? 0.03 : kind === "super" ? 0.12 : 0.06; // камера на миг «вздрагивает» к удару
+        if (kind === "super") { this.slow = 0.2; this.flashScreen(); }
         this.shake = kind === "jab" ? 0.05 : kind === "super" ? 0.3 : 0.16;
         this.g.audio?.play(kind === "jab" || kind === "cross" ? "hit" : "crash");
         if (def === this.f[0]) tg.haptic(kind === "jab" ? "light" : "heavy");
@@ -597,7 +600,7 @@ export class Fight {
             f.t += dt;
             if (f.act !== "idle" && f.act !== "ko" && f.act !== "win" && f.t >= f.dur) {
                 if (f.act === "heavyWind") { this.act(f, "heavy", FIGHT.heavyTime); this.pose(f, dt); continue; }
-                if (f.act === "super") { f.superN = -1; if (f.moves?.superFin) { this.act(f, "superFin", 0.8); this.pose(f, dt); continue; } }
+                if (f.act === "super") { f.superN = -1; if (f.moves?.superFin) { this.act(f, "superFin", 0.8); if (f === h) this.slow = 0.35; this.pose(f, dt); continue; } }
                 const q = f.queued;
                 f.act = "idle"; f.t = 0;
                 if (q && f === h) this.punch(f);
@@ -605,9 +608,15 @@ export class Fight {
             f.shown += (f.hp - f.shown) * Math.min(1, dt * (f.shown - f.hp > 0 ? 2.2 : 10)); // красный «след» урона
             this.pose(f, dt);
         }
+        if (this.cineOn && h.act !== "super" && h.act !== "superFin") this.cine(false);
         this.camera(dt);
         this.hud();
     }
+
+    // супер — как в кино: чёрные полосы сверху и снизу, камера ближе
+    cine(on) { this.cineOn = on; $("fight").classList.toggle("cine", on); }
+
+    flashScreen() { const el = $("f-flash"); el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); }
 
     inReach(a, d) { return Math.abs(a.z - d.z) < FIGHT.gap + 0.35; }
 
@@ -650,7 +659,7 @@ export class Fight {
 
     dispose() {
         $("fight").hidden = true;
-        $("fight").classList.remove("exam");
+        $("fight").classList.remove("exam", "cine");
         $("f-exam").hidden = true;
         this.g.camera.fov = this.g.baseFov;
         if (this.farWas) this.g.camera.far = this.farWas;
@@ -920,8 +929,9 @@ export class Fight {
         const cam = this.g.camera, portrait = cam.aspect < 0.8;
         const k = smooth(this.camT / 1.4);
         const ko = this.phase === "roundEnd" && this.f.some((f) => f.act === "ko");
-        const sup = this.f[0].act === "super";
-        const zoom = ko ? 0.7 : sup ? 0.82 : 1;
+        const sup = this.f[0].act === "super", fin = this.f[0].act === "superFin";
+        if (this.punchIn) this.punchIn = Math.max(0, this.punchIn - dt * 0.6);
+        const zoom = (ko ? 0.7 : fin ? 0.62 : sup ? 0.78 : 1) - (this.punchIn || 0);
         this.zoom = (this.zoom ?? 1) + (zoom - (this.zoom ?? 1)) * Math.min(1, dt * 3);
         const d = (portrait ? 1 : 0.8) * this.zoom;
         // вид сбоку, как в Tekken: герой справа, соперник слева, оба в рост

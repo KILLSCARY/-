@@ -1106,18 +1106,18 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* ---- реплики: персонаж выглядывает из-за края экрана и говорит в облачке (Горилла — слева, остальные — справа) ---- */
 .talk { position: fixed; left: 0; right: 0; top: calc(112px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); z-index: 21;
     height: 120px; pointer-events: none; }
-.t-face { position: absolute; top: 0; left: -22px; width: 118px; height: 118px; font-style: normal; transform-origin: 0 100%;
+.t-face { position: absolute; top: 8px; left: -6px; width: 84px; height: 84px; font-style: normal; transform-origin: 0 100%;
     animation: t-peek-l .45s cubic-bezier(.2, 1.4, .4, 1) both, t-bob 1.6s ease-in-out .45s 4 alternate; }
-.talk[data-who="gorilla"] .t-face { display: grid; place-items: center; font-size: 104px; line-height: 1; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
+.talk[data-who="gorilla"] .t-face { display: grid; place-items: center; font-size: 66px; line-height: 1; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
 .talk[data-who="gorilla"] .t-face::before { content: "🦍"; transform: rotate(14deg); }
-.talk:not([data-who="gorilla"]) .t-face { left: auto; right: -18px; width: 104px; height: 104px; top: 6px; border-radius: 50%; transform-origin: 100% 100%;
+.talk:not([data-who="gorilla"]) .t-face { left: auto; right: -10px; width: 88px; height: 88px; top: 6px; border-radius: 50%; transform-origin: 100% 100%;
     background: #2a0a0c var(--face) 50% var(--fy, 30%)/230% auto no-repeat; border: 3px solid var(--tc, #fff); box-shadow: 0 8px 20px rgba(0, 0, 0, .55);
     animation-name: t-peek-r, t-bob; }
-.t-bubble { position: absolute; top: 10px; left: 92px; right: 12px; padding: 10px 14px 12px; border-radius: 18px; background: #fff; color: #111;
+.t-bubble { position: absolute; top: 10px; left: 80px; right: 12px; padding: 10px 14px 12px; border-radius: 18px; background: #fff; color: #111;
     box-shadow: 0 0 0 3px #111, 0 10px 24px rgba(0, 0, 0, .5); animation: t-pop .3s .12s cubic-bezier(.2, 1.4, .4, 1) both; }
 .t-bubble::before { content: ""; position: absolute; left: -13px; top: 30px; border: 9px solid transparent; border-right: 14px solid #111; border-left: 0; }
 .t-bubble::after { content: ""; position: absolute; left: -8px; top: 32px; border: 7px solid transparent; border-right: 11px solid #fff; border-left: 0; }
-.talk:not([data-who="gorilla"]) .t-bubble { left: 12px; right: 96px; }
+.talk:not([data-who="gorilla"]) .t-bubble { left: 12px; right: 88px; }
 .talk:not([data-who="gorilla"]) .t-bubble::before { left: auto; right: -13px; border-right: 0; border-left: 14px solid #111; }
 .talk:not([data-who="gorilla"]) .t-bubble::after { left: auto; right: -8px; border-right: 0; border-left: 11px solid #fff; }
 .t-bubble b { display: inline-block; margin-bottom: 4px; padding: 3px 8px; border-radius: 6px; background: var(--tc, #e9c25a); color: #111;
@@ -1132,3 +1132,13 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 @keyframes t-pop { from { opacity: 0; transform: scale(.6); } }
 @keyframes t-bob { to { transform: rotate(-4deg) translateY(2px); } }
 @media (prefers-reduced-motion: reduce) { .t-face, .t-bubble { animation: none; } }
+
+/* супер: киношные полосы и вспышка удара */
+.fight::before, .fight::after { content: ""; position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 1; pointer-events: none; transition: height .35s ease-out; }
+.fight::before { top: 0; } .fight::after { bottom: 0; }
+.fight.cine::before, .fight.cine::after { height: 11vh; }
+.fight.cine .fb { opacity: .35; }
+.f-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 2; }
+.f-flash.on { animation: f-flash .35s ease-out; }
+@keyframes f-flash { from { opacity: .85; } to { opacity: 0; } }
+.fight .f-top { z-index: 3; }
