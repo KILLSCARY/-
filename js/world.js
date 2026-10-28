@@ -878,17 +878,22 @@ export class World {
     }
 
     // брызги из луж: пул мелких капель
+    // Одно облако точек на все капли (раньше — 80 отдельных белых шариков: 80 вызовов отрисовки, а свечение
+    // раздувало их в белые пятна у ног). Капли мелкие, мягкие, полупрозрачные, цвета ночного неба, без свечения.
     buildSplash() {
+        const N = 80;
         this.drops = [];
-        const geo = new THREE.SphereGeometry(0.04, 5, 4);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xffdcdc, transparent: true, opacity: 0.75 });
-        for (let i = 0; i < 80; i++) {
-            const d = new THREE.Mesh(geo, mat);
-            d.visible = false;
-            d.userData.v = new THREE.Vector3();
-            this.scene.add(d);
-            this.drops.push(d);
-        }
+        for (let i = 0; i < N; i++) this.drops.push({ visible: false, position: new THREE.Vector3(0, -50, 0), userData: { v: new THREE.Vector3() } });
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 3).fill(-50), 3));
+        const dot = canvasTex(32, 32, (g, w) => {
+            const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+            r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.5, "rgba(255,255,255,.5)"); r.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = r; g.fillRect(0, 0, w, w);
+        });
+        this.dropPoints = new THREE.Points(geo, new THREE.PointsMaterial({ map: dot, size: 0.07, color: 0xb9b0e0, transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false }));
+        this.dropPoints.frustumCulled = false;
+        this.scene.add(this.dropPoints);
         this.nextDrop = 0;
 
         // кольца волны на луже (подкат, приземление) и вспышки собранных монет — свои пулы,
@@ -1958,15 +1963,20 @@ export class World {
             if (c.position.z > DESPAWN_Z) this.removeCoin(i);
         }
 
-        for (const d of this.drops) {
-            if (!d.visible) continue;
+        const dp = this.dropPoints.geometry.attributes.position;
+        let any = false;
+        this.drops.forEach((d, i) => {
+            if (!d.visible) { if (dp.array[i * 3 + 1] !== -50) { dp.setXYZ(i, 0, -50, 0); any = true; } return; }
             const v = d.userData.v;
             v.y -= 14 * dt;
             d.position.x += v.x * dt;
             d.position.y += v.y * dt;
             d.position.z += v.z * dt + move;
             if (d.position.y < 0) d.visible = false;
-        }
+            dp.setXYZ(i, d.position.x, d.visible ? d.position.y : -50, d.position.z);
+            any = true;
+        });
+        if (any) dp.needsUpdate = true;
         for (const r of this.rings) {
             if (!r.visible) continue;
             const u = r.userData;
