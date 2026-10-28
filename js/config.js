@@ -718,7 +718,7 @@ export const FIGHTERS = {
             examKo: "Сдал. Дальше уже не игра, а твой первый шаг." } },
     // Мизулина — свои 13 боевых клипов (idle_fight, jab, cross, hook, uppercut, low/high/spin/jump_kick, block, hit, ko, win).
     // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp", hp: 95, splash: { h: 62, fx: 0.46, fy: 0.22 },
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 95, splash: { h: 62, fx: 0.5, fy: 0.2 },
         koHold: 0.98, // нокаут: лежит в последнем кадре
         moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
             jab: { clip: "jab", from: 0.25, to: 1.0, hit: 0.53, speed: 1 },

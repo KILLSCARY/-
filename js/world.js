@@ -1261,7 +1261,7 @@ export class World {
         Object.assign(g.userData, { billboard: false, swapped: true, mixer: npc.userData.mixer, npc: "girl" });
         if (walking) { // гуляют своей дорожкой у стен — там ничего не стоит (банкоматы, урны, посты — ближе к дороге)
             const dir = pick([-1, 1]);
-            g.position.x = Math.sign(g.position.x) * rnd(5.6, 6.0);
+            g.position.x = Math.sign(g.position.x) * rnd(5.25, 5.4); // перед выступами домов (они с 5.7)
             delete g.userData.foot;
             g.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
             g.rotation.y = dir > 0 ? 0 : Math.PI; // модель смотрит в +Z
@@ -1271,10 +1271,44 @@ export class World {
         if (!this.critters.includes(g)) this.critters.push(g);
     }
 
+    // низкие части декора на тротуаре у стен (ступени, выступы, урны) — коробки относительно своего объекта, считаются один раз
+    walkBoxes(o) {
+        if (o.userData.walkBoxes) return o.userData.walkBoxes;
+        const out = [];
+        o.updateMatrixWorld(true);
+        const b = new THREE.Box3();
+        o.traverse((m) => {
+            if (!m.isMesh || m.isSkinnedMesh || m.isInstancedMesh) return;
+            b.setFromObject(m);
+            if (b.isEmpty() || b.min.y > 0.6 || b.max.y < 0.12) return; // выше головы кота или плоское покрытие
+            const band = (lo, hi) => b.max.x > lo && b.min.x < hi;
+            if (!band(4.8, 6.6) && !band(-6.6, -4.8)) return; // не на дорожке у стен
+            out.push({ x0: b.min.x, x1: b.max.x, z0: b.min.z - o.position.z, z1: b.max.z - o.position.z });
+        });
+        return (o.userData.walkBoxes = out);
+    }
+
+    // гуляющий упрётся в декор в ближайшие ~0.6 м?
+    walkBlocked(w) {
+        const hit = (z) => {
+            const x = w.position.x;
+            for (const o of this.scenery) {
+                if (o === w || o.userData.walk !== undefined) continue;
+                for (const b of this.walkBoxes(o)) {
+                    if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > o.position.z + b.z0 - 0.1 && z < o.position.z + b.z1 + 0.1) return true;
+                }
+            }
+            for (const o of this.obstacles) if (Math.abs(o.position.z - z) < 0.6 && Math.abs(o.position.x - x) < 0.7) return true; // урны, банкоматы у тротуара
+            return false;
+        };
+        // уже стоит внутри (так появился) — идёт дальше, чтобы выйти, а не дёргается на месте
+        return !hit(w.position.z) && hit(w.position.z + Math.sign(w.userData.walk) * 0.6);
+    }
+
     makeCat(m, cfg) {
         const side = pick([-1, 1]), dir = pick([-1, 1]);
         const cat = this.rig(m, cfg.walk);
-        cat.position.set(side * rnd(5.6, 6.1), 0.18, BEHIND_Z - rnd(0, STREET_LEN)); // дорожка у стен, как у гуляющих
+        cat.position.set(side * rnd(5.25, 5.4), 0.18, BEHIND_Z - rnd(0, STREET_LEN)); // дорожка у стен, как у гуляющих
         cat.userData.walk = dir * cfg.speed * rnd(0.8, 1.2);
         cat.userData.npc = "cat";
         cat.rotation.y = dir > 0 ? 0 : Math.PI;
@@ -1940,8 +1974,16 @@ export class World {
 
         // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
         for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
+        this.walkCheck = (this.walkCheck || 0) + 1;
         for (const o of this.critters) {
-            if (o.userData.walk) o.position.z += o.userData.walk * dt; // гуляют вдоль тротуара
+            if (o.userData.walk) {
+                // впереди ступени, выступ или урна — разворачивается (проверка раз в 8 кадров), а не идёт сквозь
+                if (this.walkCheck % 8 === 0 && o.position.z > -80 && o.position.z < 10 && this.walkBlocked(o)) {
+                    o.userData.walk *= -1;
+                    o.rotation.y = o.userData.walk > 0 ? 0 : Math.PI;
+                }
+                o.position.z += o.userData.walk * dt; // гуляют вдоль тротуара
+            }
             if (o.visible && o.position.z > -70 && o.position.z < 8) o.userData.mixer?.update(dt);
         }
         this.updateFlocks(dt, t);
