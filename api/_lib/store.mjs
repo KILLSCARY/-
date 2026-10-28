@@ -10,8 +10,26 @@ n = redis.call('INCR', KEYS[2])
 redis.call('HSET', KEYS[1], ARGV[1], n)
 return {n, 1}`;
 
+// p2p:cr:<tgId> — hash runId → «старт:сколько:последняя» (TTL), p2p:cards — hash tgId → баланс «Карт»
+const CARD_GRANT_LUA = `local v = redis.call('HGET', KEYS[1], ARGV[1])
+local bal = tonumber(redis.call('HGET', KEYS[2], ARGV[2]) or '0')
+if not v then return {0, bal, 'no_run'} end
+local s, c, l = string.match(v, '(%d+):(%d+):(%d+)')
+s = tonumber(s); c = tonumber(c); l = tonumber(l)
+local now = tonumber(ARGV[3])
+if now - s > tonumber(ARGV[7]) * 1000 then return {0, bal, 'no_run'} end
+if c >= tonumber(ARGV[4]) then return {0, bal, 'run_limit'} end
+if now - s < tonumber(ARGV[5]) * 1000 or (l > 0 and now - l < tonumber(ARGV[6]) * 1000) then return {0, bal, 'too_fast'} end
+redis.call('HSET', KEYS[1], ARGV[1], s .. ':' .. (c + 1) .. ':' .. now)
+bal = redis.call('HINCRBY', KEYS[2], ARGV[2], 1)
+return {1, bal, tostring(c + 1)}`;
+const CARD_SPEND_LUA = `local b = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0')
+local n = tonumber(ARGV[2])
+if b < n then return {0, b} end
+return {1, redis.call('HINCRBY', KEYS[1], ARGV[1], -n)}`;
+
 export function memoryStore() {
-    const ev = new Map(), claims = new Map(), rw = new Map();
+    const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map();
     let taken = 0;
     return {
         kind: "memory",
@@ -26,6 +44,18 @@ export function memoryStore() {
         async place(id) { return claims.get(id) || 0; },
         async taken() { return taken; },
         async grant(id, key, amount, ts) { const m = rw.get(id) || new Map(); rw.set(id, m); if (m.has(key)) return false; m.set(key, `${amount}:${ts}`); return true; },
+        // «Карта»: забеги (runId → {start, count, last}) и баланс; JS однопоточный — проверка и запись атомарны
+        async cardRunStart(id, runId, ts) { const m = cr.get(id) || new Map(); cr.set(id, m); m.set(runId, { start: ts, count: 0, last: 0 }); },
+        async cardGrant(id, runId, ts, cfg) {
+            const r = cr.get(id)?.get(runId), bal = cards.get(id) || 0;
+            if (!r || ts - r.start > cfg.runTtlSec * 1000) return { ok: false, reason: "no_run", cards: bal };
+            if (r.count >= cfg.perRun) return { ok: false, reason: "run_limit", cards: bal };
+            if (ts - r.start < cfg.firstSec * 1000 || (r.last && ts - r.last < cfg.gapSec * 1000)) return { ok: false, reason: "too_fast", cards: bal };
+            r.count++; r.last = ts; cards.set(id, bal + 1);
+            return { ok: true, cards: bal + 1, count: r.count };
+        },
+        async cardBalance(id) { return cards.get(id) || 0; },
+        async cardSpend(id, n) { const b = cards.get(id) || 0; if (b < n) return { ok: false, cards: b }; cards.set(id, b - n); return { ok: true, cards: b - n }; },
         async rewards(id) { return Object.fromEntries([...(rw.get(id) || [])].map(([k, v]) => [k, Number(v.split(":")[0])])); },
     };
 }
@@ -52,6 +82,13 @@ export function redisStore(url, token, fetchImpl = fetch) {
         },
         async place(id) { return Number((await cmd("HGET", "p2p:claim", id)) || 0); },
         async taken() { return Number((await cmd("GET", "p2p:taken")) || 0); },
+        async cardRunStart(id, runId, ts, ttl) { await cmd("HSET", `p2p:cr:${id}`, runId, `${ts}:0:0`); await cmd("EXPIRE", `p2p:cr:${id}`, String(ttl)); },
+        async cardGrant(id, runId, ts, cfg) {
+            const [ok, bal, x] = await cmd("EVAL", CARD_GRANT_LUA, "2", `p2p:cr:${id}`, "p2p:cards", runId, String(id), String(ts), String(cfg.perRun), String(cfg.firstSec), String(cfg.gapSec), String(cfg.runTtlSec));
+            return Number(ok) ? { ok: true, cards: Number(bal), count: Number(x) } : { ok: false, reason: x, cards: Number(bal) };
+        },
+        async cardBalance(id) { return Number((await cmd("HGET", "p2p:cards", String(id))) || 0); },
+        async cardSpend(id, n) { const [ok, b] = await cmd("EVAL", CARD_SPEND_LUA, "1", "p2p:cards", String(id), String(n)); return { ok: Boolean(Number(ok)), cards: Number(b) }; },
         async grant(id, key, amount, ts) { return Number(await cmd("HSETNX", `p2p:rw:${id}`, key, `${amount}:${ts}`)) === 1; },
         async rewards(id) {
             const a = (await cmd("HGETALL", `p2p:rw:${id}`)) || [];

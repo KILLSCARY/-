@@ -110,3 +110,29 @@ test("награды босса и табличек — один раз, сум�
     assert.equal((await run(store, "reward", { initData: "x", key: "boss:1" }, T0)).status, 401);
     assert.deepEqual((await run(store, "rewards", { initData: d }, T0)).json.rewards, { "boss:1": 3000, "boss:3": 12000, "sign:1.4": 250 });
 });
+
+// ---- «Карта» ----
+test("карты: не больше 2 за забег, только после старта и не быстрее лимитов", async () => {
+    const store = memoryStore(), d = init(7);
+    assert.equal((await run(store, "card", { initData: d, runId: "nosuchrun1" }, T0)).json.error, "no_run");
+    const { runId } = (await run(store, "cardrun", { initData: d }, T0)).json;
+    assert.equal((await run(store, "card", { initData: d, runId }, T0 + 10_000)).json.error, "too_fast");
+    assert.equal((await run(store, "card", { initData: d, runId }, T0 + 45_000)).json.cards, 1);
+    assert.equal((await run(store, "card", { initData: d, runId }, T0 + 50_000)).json.error, "too_fast");
+    assert.equal((await run(store, "card", { initData: d, runId }, T0 + 80_000)).json.cards, 2);
+    assert.equal((await run(store, "card", { initData: d, runId }, T0 + 200_000)).json.error, "run_limit");
+    assert.equal((await run(store, "card", { initData: init(8), runId }, T0 + 200_000)).json.error, "no_run"); // чужой забег
+    assert.equal((await run(store, "cards", { initData: d }, T0)).json.cards, 2);
+});
+test("карты: покупка по серверной цене, без ухода в минус", async () => {
+    const store = memoryStore(), d = init(9);
+    for (let i = 0; i < 3; i++) {
+        const { runId } = (await run(store, "cardrun", { initData: d }, T0 + i * 1e6)).json;
+        await run(store, "card", { initData: d, runId }, T0 + i * 1e6 + 45_000);
+        await run(store, "card", { initData: d, runId }, T0 + i * 1e6 + 80_000);
+    }
+    assert.equal((await run(store, "cardbuy", { initData: d, item: "dash" }, T0)).status, 402);
+    const r = await run(store, "cardbuy", { initData: d, item: "x2run", price: 0 }, T0);
+    assert.equal(r.json.price, 5); assert.equal(r.json.cards, 1);
+    assert.equal((await run(store, "cardbuy", { initData: d, item: "usdt" }, T0)).status, 400);
+});

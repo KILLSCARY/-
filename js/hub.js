@@ -1,6 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
+import { prize } from "./prize.js";
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -385,8 +386,13 @@ export class Hub {
                 const b = document.createElement("button");
                 b.className = "btn-small btn-card";
                 b.innerHTML = `<img class="ico-card" src="img/card.svg" alt=""> ${c.cards}`;
-                b.onclick = () => {
+                b.onclick = async () => {
                     if (this.p.cards < c.cards) return this.toast(`Нужно ещё ${c.cards - this.p.cards} Карт`);
+                    if (b.disabled) return;
+                    b.disabled = true;
+                    const r = await prize.cardBuy(c.srv); // цену и баланс решает сервер; не ответил — покупка локально
+                    b.disabled = false;
+                    if (r?.status === 402) return this.toast(`Нужно ещё ${c.cards - (r.cards || 0)} Карт`);
                     this.p.payCards(c.cards);
                     perks[c.id] = (perks[c.id] || 0) + 1;
                     this.p.save();

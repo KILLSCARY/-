@@ -329,6 +329,8 @@ class Game {
         this.audio.unlock();
         this.resetRun();
         if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
+        this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
+        prize.cardRun().then((r) => { if (this.runId === run && r?.runId) this.cardRunId = r.runId; });
         $("daily").hidden = true; // ежедневная награда не висит поверх забега (заберётся в меню)
         $("mode").hidden = true;
         this.show("hud");
@@ -1307,6 +1309,8 @@ class Game {
 
     // Карта собрана: девушка говорит, счётчик подпрыгивает; первая в жизни — подсказка Гориллы
     cardFx(line) {
+        // сервер проверяет карту (забег этого игрока, не больше 2, не быстрее лимитов): отказ — карту забираем обратно
+        if (this.cardRunId) prize.card(this.cardRunId).then((r) => { if (r?.status === 403) this.profile.addCards(-1); });
         const chip = $("hud-cards").closest(".tk");
         chip.classList.remove("got"); void chip.offsetWidth; chip.classList.add("got");
         this.hub.toast(`«${line}» · +1 Карта`);

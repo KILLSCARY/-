@@ -15,5 +15,9 @@ export const prize = {
     async counter() {
         try { const r = await fetch(`${API}?initData=${encodeURIComponent(tg.initData || "")}`); return r.ok ? await r.json() : null; } catch { return null; }
     },
+    // «Карта»: баланс и выдачу проверяет сервер. cardRun — старт забега (runId), card — +1 за девушку, cardBuy — покупка
+    cardRun() { return tg.initData ? post({ action: "cardrun" }) : Promise.resolve(null); },
+    card(runId) { return tg.initData ? post({ action: "card", runId }) : Promise.resolve(null); },
+    cardBuy(item) { return tg.initData ? post({ action: "cardbuy", item }) : Promise.resolve(null); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },
 };

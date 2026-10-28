@@ -3,6 +3,7 @@
 import { verifyInitData } from "./telegram.mjs";
 import { prizeConfig, EVENT_RE, BOSS_MIN_RUN_SEC } from "./config.mjs";
 import { rewardAmount } from "./rewards.mjs";
+import { handleCards } from "./cards.mjs";
 
 export function checkChain(events, cfg) {
     let prev = null, first = null;
@@ -46,6 +47,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         const fresh = await store.grant(who.id, key, amount, now);
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
     }
+    if (["cards", "cardrun", "card", "cardbuy"].includes(action)) return handleCards(action, body, who, { store, env, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {
         const had = await store.place(who.id);
