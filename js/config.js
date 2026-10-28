@@ -433,7 +433,7 @@ export const QUESTIONS = [
 export const HERO_UNLOCKS = {
     denchik: { act: "subscribe", text: "Подпишись на @Nesuschiystore", btn: "Подписаться" },
     islam: { act: "invite", text: "Пригласи друга в игру", btn: "Пригласить друга" },
-    sasha: { act: "boss", chapter: 3, text: "Победи босса главы 3 «Первый миллион»", btn: "Пройди главу 3" },
+    sasha: { act: "boss", chapter: 3, text: "Пройди главу 3 «Первый миллион»", btn: "Пройди главу 3" },
     pavel: { act: "razbor", text: "Запишись на бесплатный разбор", btn: "Записаться на разбор" },
 };
 export const HERO_PRICES = {}; // совместимость: выкупа за USDT больше нет
@@ -538,4 +538,46 @@ export const RARITY = {
     rare: { name: "Редкое", color: "#3d8bff" },
     epic: { name: "Эпическое", color: "#b05cff" },
     legend: { name: "Легендарное", color: "#e9c25a" },
+};
+
+// ---- Сюжеты и бой 1 на 1 (вместо боссов глав) ---------------------------------------------------------
+// Сюжет: забег со стенами-возражениями до quota верных ответов (ошибка счёт не сбрасывает), потом «БОСС» и бой.
+// Без вопросов — бой после noqDistance метров. Проиграл — сюжет с начала (забег + возражения заново).
+// Следующие сюжеты (Мизулина и др.) — новые записи: opponent — ключ в FIGHTERS.
+export const STORIES = [
+    { id: 1, name: "Сюжет 1", title: "Экзамен Инакова", opponent: "pavel", quota: 5, noqDistance: 450,
+        reward: { usdt: 3000 }, next: "Сюжет 2 — скоро", nextText: "Бой с Мизулиной и другими героями. Следи за обновлениями." },
+];
+// Бойцы. model — glb, hp; dmg — урон: jab (левой), cross (правой), hook (третий в связке), heavy (хук с замахом), super.
+// foot — на какой высоте стоят кости стоп над асфальтом. Соперник: ai — по раундам [1, 2, 3]: every — пауза между
+// атаками (с), block — шанс поставить блок на удар героя, heavy/combo — доли хука с замахом и двоек; telegraph —
+// сколько длится замах хука (подсвечен — успей блок или уклон). Пока дерётся только Спиди (mouse).
+export const FIGHTERS = {
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse.glb?v=4", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+        dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel.glb?v=3", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 140,
+        dmg: { jab: 4, cross: 5, hook: 7, heavy: 15, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
+        ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.25, 0.32, 0.4], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
+        telegraph: [0.6, 0.52, 0.45],
+        lines: { intro: "Возражения слышал все. Теперь покажи, что ты их прошёл.", final: "Последний раунд. Ответь, как будто это уже твоя жизнь.",
+            heavy: ["Сейчас будет больно!", "Это «я подумаю»?", "Держи возражение!", "Дорого? А так?"],
+            roundWon: "Почти. Соберись.", roundLost: "Неплохо… Ещё раунд.", lose: "Почти. Возвращайся, когда будешь готов. Я подожду." } },
+};
+// Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
+// тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
+// superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
+export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, gap: 1.05, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
+    stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
+// Крючки анимаций боя: первое найденное в glb имя клипа (без учёта регистра). Положи клип с таким именем в модель —
+// бой возьмёт его вместо процедурной анимации. idle — стойка (иначе idle/run модели + руки в защиту).
+export const FIGHT_CLIPS = {
+    idle: ["idle_fight", "fight_idle", "fighting_idle", "boxing_idle"],
+    punch: ["punch", "jab", "cross", "hook"],
+    heavy: ["heavy", "punch_heavy", "kick", "uppercut"],
+    block: ["block", "guard"],
+    dodge: ["dodge", "evade"],
+    hit: ["hit", "hit_reaction", "hurt", "damage"],
+    super: ["super", "special", "combo"],
+    ko: ["ko", "knockout", "dead"],
+    win: ["win", "victory", "taunt"],
 };

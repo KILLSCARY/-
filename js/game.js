@@ -1,7 +1,8 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS } from "./config.js";
+import { Fight } from "./fight.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -194,6 +195,8 @@ class Game {
     // ---- забег ---------------------------------------------------------------------------
 
     resetRun() {
+        this.storyOk = 0; // верных ответов в этом забеге (квота сюжета)
+        this.storyOn = false;
         this.world.clear();
         this.lane = 1;
         this.x = 0;
@@ -721,6 +724,12 @@ class Game {
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
 
+        if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
+            this.world.update(dt, 0, this.t);
+            this.fight?.update(dt);
+            this.composer.render();
+            return;
+        }
         if (this.state === "playing") this.step(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
@@ -890,7 +899,7 @@ class Game {
     // Потолок кадров: в забеге 60 (на 120-герцовых экранах иначе было бы 120), в меню 30–40,
     // когда сцену закрывает вкладка, пауза или проигрыш — 12. Меньше кадров — меньше нагрев.
     frameBudget() {
-        if (this.state === "playing" || this.state === "countdown") return 1000 / this.tier.fps[0];
+        if (this.state === "playing" || this.state === "countdown" || this.state === "fight" || this.state === "bossintro") return 1000 / this.tier.fps[0];
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / this.tier.fps[0]; // тряска при проигрыше — плавно
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
@@ -1236,6 +1245,7 @@ class Game {
     // ---- стены-возражения -------------------------------------------------------------------
     // Вопрос текущей главы (её общая стена) — с долей WALLS.chapterWall, иначе случайный из банка, не повторяя прошлый
     spawnWall() {
+        if (this.story && this.storyOk >= this.story.quota && !this.storyOn) { this.nextWallAt += 200; return; } // квота набрана — дальше бой
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = WALLS.every;
         // старый экзамен на ~900 м убран: экзамен Инакова — часть финального боя (spawnExamWall)
@@ -1257,6 +1267,7 @@ class Game {
     // босс стоит впереди лицом к герою и бросает препятствия на полосы (перед броском — красная полоса),
     // на свободной полосе — козыри. Собрал cfg.need козырей — победа, глава засчитана. Поймали — босс ждёт.
     watchBoss(dt, move) {
+        return this.watchStory(); // боссы глав выключены: один босс — Павел Инаков в бою 1 на 1 (старый код ниже не используется)
         const p = this.profile;
         if (!this.bossFight && !this.bossCalm && !this.bossTried) {
             const ch = p.chapter();
@@ -1519,6 +1530,100 @@ class Game {
         this.walls.push(wall);
         this.world.noCars = true;
         this.nextRowZ = Math.min(this.nextRowZ, z - 16);
+    }
+
+    // ---- сюжет: квота верных ответов → «БОСС» → бой 1 на 1 ----------------------------------------
+    get story() { return STORIES[this.profile.data.story || 0] || null; }
+
+    storyHit() {
+        const s = this.story;
+        if (!s || this.storyOn || !this.questions) return;
+        this.storyOk++;
+        if (this.storyOk < s.quota) setTimeout(() => this.state === "playing" && this.hub.toast(`Возражений закрыто ${this.storyOk}/${s.quota} — потом ${FIGHTERS[s.opponent].name}`), 900);
+    }
+
+    watchStory() {
+        const s = this.story;
+        if (!s || this.storyOn || this.state !== "playing" || this.flight) return;
+        const ready = this.questions ? this.storyOk >= s.quota && !this.walls.length : this.distance >= s.noqDistance;
+        if (ready) this.startStoryFight();
+    }
+
+    async startStoryFight() {
+        const s = this.story, opp = FIGHTERS[s.opponent];
+        this.storyOn = true;
+        this.state = "bossintro";
+        tg.haptic("heavy");
+        this.audio.play("record");
+        $("bs-ph").style.backgroundImage = `url(${opp.portrait})`;
+        $("bs-hero").style.backgroundImage = `url(${FIGHTERS.mouse.portrait})`;
+        $("bs-name").textContent = opp.name;
+        $("boss-splash").hidden = false;
+        $("hud").hidden = true;
+        await wait(2300);
+        $("boss-splash").hidden = true;
+        // улица пустая: без препятствий, монет, погони и карточек — только бойцы
+        this.world.clear();
+        this.walls = [];
+        this.wind = null;
+        this.world.blowWind?.(null);
+        if (this.chaser) this.chaser.visible = false;
+        this.stumble = 0;
+        this.rat.visible = false;
+        for (const id of ["wall-q", "wind-q"]) $(id).hidden = true;
+        const ok = this.storyOk;
+        this.state = "fight";
+        this.clock.getDelta();
+        // верные ответы в забеге — заряд супера и запас HP
+        this.fight = new Fight(this, { hero: "mouse", opponent: s.opponent, bonus: { super: ok * FIGHT.superPerAnswer, hp: ok * FIGHT.hpPerAnswer },
+            onEnd: (win) => this.endStoryFight(win) });
+    }
+
+    endStoryFight(win) {
+        const s = this.story;
+        this.fight = null;
+        this.rat.visible = true;
+        const du = this.usdt - this.credited.usdt; // заработанное в забеге — в кошелёк в любом случае
+        this.credited = { usdt: this.usdt, trx: 0 };
+        if (du) this.profile.earn(du);
+        tg.guardClose(false);
+        if (!win) { // проиграл — сюжет с начала: снова забег и возражения
+            this.state = "menu";
+            this.audio.music("menu");
+            this.resetRun();
+            this.renderMenu();
+            this.show("menu");
+            const opp = FIGHTERS[s.opponent];
+            $("sl-title").textContent = `${opp.name} победил`;
+            $("sl-text").textContent = `«${opp.lines.lose}» Сюжет начнётся заново: ${s.quota} возражений и бой.`;
+            $("sl-ph").style.backgroundImage = `url(${opp.portrait})`;
+            $("btn-sl-again").onclick = () => { $("story-lose").hidden = true; this.start(); };
+            $("btn-sl-menu").onclick = () => ($("story-lose").hidden = true);
+            $("story-lose").hidden = false;
+            return;
+        }
+        this.profile.data.story = (this.profile.data.story || 0) + 1;
+        this.profile.data.exam = true;
+        if (CHAPTERS[this.profile.chapter().index]?.final) this.profile.beatBoss(); // финал сезона — это и есть бой
+        this.profile.gift(s.reward.usdt);
+        this.profile.save();
+        tg.haptic("success");
+        this.audio.play("boost");
+        this.state = "menu";
+        this.audio.music("menu");
+        this.resetRun();
+        this.renderMenu();
+        this.show("menu");
+        $("sw-ph").style.backgroundImage = `url(${FIGHTERS[s.opponent].portrait})`;
+        $("sw-label").textContent = `${s.name} пройден`;
+        $("sw-title").textContent = `${FIGHTERS[s.opponent].name} повержен!`;
+        $("sw-text").textContent = `Награда: +${fmt(s.reward.usdt)} USDT. Забери бесплатный разбор у менеджера — кодовое слово ВОРОНКА ПРОЙДЕНА.`;
+        const next = STORIES[this.profile.data.story];
+        $("sw-next").textContent = next ? next.name : s.next;
+        $("sw-next-text").textContent = next ? next.title : s.nextText;
+        $("btn-razbor").onclick = () => tg.open(this.hub.managerLink());
+        $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
+        $("story-win").hidden = false;
     }
 
     // ---- задержание (поймала погоня) ----------------------------------------------------------
@@ -1892,6 +1997,7 @@ class Game {
         if (w.boss && this.boss) this.boss[o.userData.correct || this.ram > 0 || this.wallForgive > 0 ? "ok" : "fail"]++;
         if (o.userData.correct) {
             st.ok++;
+            this.storyHit();
             this.wallStreak++;
             o.visible = false;
             o.userData.type = "decor";

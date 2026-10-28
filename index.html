@@ -135,6 +135,43 @@
         </div>
     </div>
 
+
+    <!-- бой 1 на 1: «БОСС», полоски HP, раунды, супер; управление — тап/свайпы по всему экрану -->
+    <div id="boss-splash" class="boss-splash" hidden><div class="bs-stripe"></div><div class="bs-ph bs-l" id="bs-hero"></div><div class="bs-ph bs-r" id="bs-ph"></div><b class="bs-title">БОСС</b><span class="bs-vs">VS</span><span class="bs-name" id="bs-name"></span></div>
+    <section id="fight" class="fight" hidden>
+        <div class="f-top">
+            <div class="f-side l"><div class="f-ph" id="f-ph-l"></div><div class="f-col"><span class="f-name" id="f-name-l"></span><div class="f-bar"><i class="dmg" id="f-dmg-l"></i><i class="hp" id="f-hp-l"></i></div><span class="f-pips" id="f-pips-l"></span></div></div>
+            <b class="f-time" id="f-time">35</b>
+            <div class="f-side r"><div class="f-col"><span class="f-name" id="f-name-r"></span><div class="f-bar"><i class="dmg" id="f-dmg-r"></i><i class="hp" id="f-hp-r"></i></div><span class="f-pips" id="f-pips-r"></span></div><div class="f-ph" id="f-ph-r"></div></div>
+        </div>
+        <p class="f-say" id="f-say" hidden></p>
+        <b class="f-big" id="f-big" hidden></b>
+        <b class="f-warn" id="f-warn" hidden>ЗАМАХ! БЛОК или УКЛОН</b>
+        <p class="f-hint" id="f-hint" hidden></p>
+        <div class="fb" id="fb">
+            <button class="fb-btn fb-block" id="fb-block"><b>БЛОК</b><span>держи</span></button>
+            <button class="fb-btn fb-dodge" id="fb-dodge"><b>УКЛОН</b></button>
+            <button class="fb-btn fb-super" id="fb-super"><b>СУПЕР</b></button>
+            <button class="fb-btn fb-punch" id="fb-punch"><b>УДАР</b><span>жми чаще — связка</span></button>
+        </div>
+    </section>
+    <div id="story-lose" class="modal" hidden><div class="modal-card sl-card">
+        <div class="sl-ph" id="sl-ph"></div>
+        <p class="label">Поражение</p>
+        <h2 class="sheet-title" id="sl-title"></h2>
+        <p class="sheet-sub" id="sl-text"></p>
+        <button id="btn-sl-again" class="btn btn-main btn-shine">Ещё раз</button>
+        <button id="btn-sl-menu" class="btn">В меню</button>
+    </div></div>
+    <div id="story-win" class="modal" hidden><div class="modal-card sl-card">
+        <div class="sl-ph sw-ph" id="sw-ph"><b>K.O.</b></div>
+        <p class="label" id="sw-label">Сюжет 1 пройден</p>
+        <h2 class="sheet-title" id="sw-title"></h2>
+        <p class="sheet-sub" id="sw-text"></p>
+        <button id="btn-razbor" class="btn btn-main btn-shine">Забрать разбор</button>
+        <button id="btn-sw-menu" class="btn">В меню</button>
+        <div class="card card-note sw-next"><div class="card-main"><span class="card-tag">Скоро</span><h3 id="sw-next"></h3><p id="sw-next-text"></p></div></div>
+    </div></div>
     <!-- задержание: мигалки по краям и штамп -->
     <div id="arrest" class="arrest-fx" hidden><b class="stamp">Протокол<br>скуки</b><p class="stamp-line">Протокол: слишком много «подумаю». Бежим ещё раз? Очки и монеты сохранены.</p></div>
 

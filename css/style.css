@@ -915,3 +915,99 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .set-code input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .35); color: #fff; font: inherit; text-transform: uppercase; }
 .lane-warn { position: absolute; top: 38%; bottom: 0; width: 33.33%; pointer-events: none; z-index: 2;
     background: linear-gradient(180deg, rgba(227, 52, 58, 0), rgba(227, 52, 58, .55)); box-shadow: inset 0 0 0 2px rgba(227, 52, 58, .5); }
+
+/* ---- бой 1 на 1 ---- */
+/* заставка «БОСС»: портреты съезжаются, полоса через экран, VS */
+.boss-splash { position: fixed; inset: 0; z-index: 40; overflow: hidden; pointer-events: none; background: radial-gradient(120% 80% at 50% 50%, rgba(90, 0, 8, .82), rgba(0, 0, 0, .94)); animation: fade .2s ease-out both; }
+.bs-stripe { position: absolute; left: -10%; right: -10%; top: 41%; height: 18%; background: linear-gradient(90deg, transparent, #e3343a 20%, #ff5a3a 50%, #e3343a 80%, transparent);
+    transform: rotate(-8deg) scaleX(0); animation: bs-stripe .45s .15s cubic-bezier(.2, .8, .2, 1) forwards; box-shadow: 0 0 60px rgba(227, 52, 58, .7); }
+@keyframes bs-stripe { to { transform: rotate(-8deg) scaleX(1); } }
+.bs-ph { position: absolute; top: 18%; width: 46vw; height: 62vh; max-width: 260px; background: center 20%/cover no-repeat; filter: drop-shadow(0 0 22px rgba(0, 0, 0, .8)); }
+.bs-l { left: 0; transform: translateX(-110%); animation: bs-in-l .5s .05s cubic-bezier(.2, .9, .2, 1) forwards; -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent); mask-image: linear-gradient(90deg, #000 70%, transparent); }
+.bs-r { right: 0; transform: translateX(110%); animation: bs-in-r .5s .05s cubic-bezier(.2, .9, .2, 1) forwards; -webkit-mask-image: linear-gradient(270deg, #000 70%, transparent); mask-image: linear-gradient(270deg, #000 70%, transparent); }
+@keyframes bs-in-l { to { transform: translateX(0); } }
+@keyframes bs-in-r { to { transform: translateX(0); } }
+.bs-title { position: absolute; left: 0; right: 0; top: 42.5%; text-align: center; font: 900 min(22vw, 110px)/1 var(--font-display); letter-spacing: .06em; color: #fff;
+    text-shadow: 0 6px 0 #5a0008, 0 0 40px rgba(255, 60, 60, .9); transform: scale(2.4); opacity: 0; animation: f-pop .45s .45s cubic-bezier(.2, .9, .25, 1.3) forwards; }
+.bs-vs { position: absolute; left: 0; right: 0; top: 33%; text-align: center; font: 900 34px/1 var(--font-display); color: #ffd65a; text-shadow: 0 0 18px #e9a400; opacity: 0; animation: bs-fade .3s .7s forwards; }
+.bs-name { position: absolute; left: 0; right: 0; top: 64%; text-align: center; font: 800 18px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: #fff; opacity: 0; animation: bs-fade .3s .8s forwards; }
+@keyframes bs-fade { to { opacity: 1; } }
+
+.fight { position: fixed; inset: 0; z-index: 35; touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; }
+.fight::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(130% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, .55)); }
+/* полоски HP: скошенные, жёлтая жизнь и красный «след» урона, портреты в рамках, раунды ромбами */
+.f-top { position: absolute; left: 8px; right: 8px; top: calc(var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px) + env(safe-area-inset-top, 0px) + 10px);
+    display: flex; align-items: flex-start; gap: 6px; z-index: 2; }
+.f-side { flex: 1; display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.f-side.r { flex-direction: row; }
+.f-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.f-side.r .f-col { align-items: flex-end; }
+.f-name { font: 800 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    text-shadow: 0 1px 4px #000; }
+.f-ph { width: 44px; height: 44px; flex: none; border-radius: 10px; background: #2a0a0c center 20%/cover; border: 2px solid #ffd65a; box-shadow: 0 0 14px rgba(255, 214, 90, .35); }
+.f-side.r .f-ph { border-color: #ff4a50; box-shadow: 0 0 14px rgba(255, 74, 80, .4); }
+.f-bar { position: relative; width: 100%; height: 16px; background: rgba(20, 4, 6, .85); border: 1.5px solid rgba(255, 255, 255, .55); transform: skewX(-18deg); overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
+.f-side.r .f-bar { transform: skewX(18deg); }
+.f-bar i { position: absolute; inset: 0; transform-origin: left; }
+.f-side.r .f-bar i { transform-origin: right; }
+.f-bar .dmg { background: #ff2a35; }
+.f-bar .hp { background: linear-gradient(180deg, #fff5a8, #ffd23a 45%, #e99a00); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .15); }
+.f-pips { display: flex; gap: 5px; }
+.f-pips i { width: 10px; height: 10px; transform: rotate(45deg); border: 1.5px solid #ffd65a; background: rgba(0, 0, 0, .5); }
+.f-pips i.on { background: #ffd65a; box-shadow: 0 0 8px #ffd65a; }
+.f-time { flex: none; width: 50px; height: 46px; display: grid; place-items: center; font: 900 26px/1 var(--font-display); color: #fff;
+    background: rgba(10, 2, 4, .85); clip-path: polygon(20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%, 0 50%); text-shadow: 0 0 10px rgba(227, 52, 58, .9); }
+.f-time.low { color: #ff4a50; }
+/* надписи по центру: РАУНД, БОЙ!, K.O. */
+.f-big { position: absolute; left: 0; right: 0; top: 36%; text-align: center; font: 900 min(15vw, 64px)/1 var(--font-display); letter-spacing: .04em; color: #fff;
+    text-shadow: 0 5px 0 #000, 0 0 30px rgba(227, 52, 58, .9); pointer-events: none; z-index: 3; }
+.f-big.red { color: #ff3a40; text-shadow: 0 5px 0 #3a0004, 0 0 30px rgba(255, 40, 40, .9); }
+.f-big.gold { color: #ffd65a; text-shadow: 0 5px 0 #3a2400, 0 0 30px rgba(233, 194, 90, .9); }
+.f-big.pop { animation: f-pop .45s cubic-bezier(.2, .9, .25, 1.3) both; }
+@keyframes f-pop { from { transform: scale(2.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.f-say { position: absolute; left: 50%; transform: translateX(-50%); width: min(86vw, 360px); top: calc(var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px) + env(safe-area-inset-top, 0px) + 84px);
+    margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(12, 4, 6, .82); border-left: 3px solid #ff4a50; font-size: 13px; line-height: 1.3; color: #fff; pointer-events: none; z-index: 2; }
+.f-say b { display: block; font: 800 10px/1.2 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: #ff6a6f; margin-bottom: 2px; }
+.f-say.in { animation: fade .2s ease-out; }
+.f-warn { position: absolute; left: 0; right: 0; top: 56%; text-align: center; font: 900 17px/1.2 var(--font-display); color: #ffb020; text-shadow: 0 0 14px #ff7a00, 0 2px 0 #000; pointer-events: none; z-index: 3; animation: f-blink .18s steps(2) infinite; }
+@keyframes f-blink { 50% { opacity: .45; } }
+.f-hint { position: absolute; left: 0; right: 0; bottom: 200px; margin: 0; text-align: center; font-size: 13px; color: #ffd65a; text-shadow: 0 1px 6px #000; pointer-events: none; z-index: 3; }
+.f-pop { position: absolute; transform: translate(-50%, -50%); font: 900 22px/1 var(--font-display); color: #fff; text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 60, 60, .9); pointer-events: none; z-index: 3;
+    animation: f-up .8s ease-out both; white-space: nowrap; }
+.f-pop.crit { font-size: 30px; color: #ffd65a; }
+.f-pop.block { color: #9fd8ff; font-size: 16px; text-shadow: 0 2px 0 #000, 0 0 10px #3a8bff; }
+.f-pop.miss { color: #c8c8c8; font-size: 16px; }
+@keyframes f-up { 0% { opacity: 0; transform: translate(-50%, -30%) scale(1.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -160%); } }
+/* кнопки: слева блок и уклон, справа большой удар и супер со шкалой */
+.fb { position: absolute; left: 0; right: 0; bottom: calc(var(--tg-safe-area-inset-bottom, 0px) + env(safe-area-inset-bottom, 0px) + 18px); height: 170px; z-index: 2; transition: opacity .3s; }
+.fb.off { opacity: .25; pointer-events: none; }
+.fb-btn { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 50%; color: #fff; cursor: pointer;
+    background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .16), rgba(14, 6, 8, .88) 70%); border: 2px solid rgba(255, 255, 255, .35);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .55); -webkit-tap-highlight-color: transparent; touch-action: none; transition: transform .08s; }
+.fb-btn:active { transform: scale(.9); }
+.fb-btn b { font: 900 13px/1 var(--font-display); letter-spacing: .04em; }
+.fb-btn span { font-size: 8.5px; opacity: .7; }
+.fb-punch { right: 18px; bottom: 10px; width: 104px; height: 104px; border-color: #ff4a50; background: radial-gradient(circle at 50% 30%, rgba(255, 90, 90, .55), rgba(120, 8, 14, .92) 72%);
+    box-shadow: 0 0 24px rgba(255, 60, 60, .45), 0 6px 18px rgba(0, 0, 0, .55); }
+.fb-punch b { font-size: 18px; }
+.fb-super { right: 132px; bottom: 76px; width: 68px; height: 68px; --k: 0;
+    background: conic-gradient(#ffd65a calc(var(--k) * 360deg), rgba(255, 255, 255, .12) 0) border-box; border: 3px solid transparent; }
+.fb-super::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, rgba(255, 214, 90, .25), rgba(14, 6, 8, .95) 70%); }
+.fb-super b { position: relative; font-size: 11px; color: #ffd65a; }
+.fb-super.full { box-shadow: 0 0 22px rgba(255, 214, 90, .8); animation: f-ready .7s ease-in-out 3 alternate; }
+.fb-super.full::before { background: radial-gradient(circle at 50% 30%, rgba(255, 230, 140, .9), rgba(200, 120, 0, .95) 72%); }
+.fb-super.full b { color: #2a1600; }
+@keyframes f-ready { to { transform: scale(1.12); } }
+.fb-block { left: 18px; bottom: 10px; width: 92px; height: 92px; border-color: #5aa8ff; background: radial-gradient(circle at 50% 30%, rgba(90, 168, 255, .45), rgba(8, 20, 50, .9) 72%); }
+.fb-dodge { left: 116px; bottom: 70px; width: 64px; height: 64px; }
+.fb-dodge b { font-size: 11px; }
+@media (max-width: 350px) { .fb-punch { width: 92px; height: 92px; } .fb-super { right: 116px; } .fb-dodge { left: 104px; } .fb-block { width: 82px; height: 82px; } }
+#story-win .btn, #story-lose .btn { width: 100%; margin-top: 8px; }
+.sl-ph { width: 96px; height: 96px; margin: 0 auto 10px; border-radius: 50%; background: #2a0a0c center 20%/cover; border: 3px solid #ff4a50; box-shadow: 0 0 24px rgba(255, 74, 80, .5); }
+.sl-card { text-align: center; }
+.sw-ph { position: relative; filter: none; border-color: #ffd65a; box-shadow: 0 0 28px rgba(255, 214, 90, .55); }
+.sw-ph::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: inherit; filter: grayscale(1) brightness(.7); }
+.sw-ph b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-14deg); padding: 2px 8px; border: 3px solid #ffd65a; border-radius: 8px;
+    font: 900 22px/1 var(--font-display); color: #ffd65a; background: rgba(0, 0, 0, .55); text-shadow: 0 0 10px rgba(255, 214, 90, .8); }
+#story-win .sw-next { margin-top: 14px; opacity: .85; }

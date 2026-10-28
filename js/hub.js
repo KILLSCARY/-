@@ -168,10 +168,9 @@ export class Hub {
             const from = i ? CHAPTERS[i - 1].goal : 0;
             const k = st === "done" ? 1 : st === "now" ? Math.min(1, earned / c.goal) : 0; // как на плитке 05: заработано / цель
             const tag = st === "done" ? "Пройдена" : st === "now" ? "Сейчас" : "Закрыта";
-            const boss = CHAPTER_BOSSES[i];
-            const line = st === "done" ? `Босс ${boss.name} побеждён`
-                : st === "now" ? (earned >= c.goal ? `Цель набрана — финиш: победи босса «${boss.name}» в забеге` : `${fmt(earned)} из ${fmt(c.goal)} USDT, затем босс «${boss.name}»`)
-                : `Откроется после главы ${i}`;
+            const line = st === "done" ? `Заработано ${fmt(c.goal)} USDT`
+                : st === "now" ? `${fmt(earned)} из ${fmt(c.goal)} USDT, осталось ${fmt(Math.max(0, c.goal - earned))}`
+                : `Откроется на ${fmt(from)} USDT`;
             const phrase = !this.game.questions ? "" : st === "done" ? `<p class="ch-phrase">Кодовая фраза <b>${c.phrase}</b></p>` : `<p class="ch-phrase">Кодовая фраза откроется после главы</p>`;
             return `<div class="card chapter st-${st}">
                 <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>

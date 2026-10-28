@@ -11,6 +11,7 @@ const EMPTY = () => ({
     up: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 1])), // уровни прокачки
     freeAt: 0,                                    // когда последний раз открыт бесплатный кейс
     chests: 0,                                    // сундуки за боссов (бесплатное открытие кейса)
+    story: 0,                                     // сколько сюжетов пройдено (бой 1 на 1)
     beaten: null,                                 // сколько боссов глав побеждено (null — старый профиль, см. load)
     sets: [],                                     // открытые наборы (действуют SET_RUNS забегов, выдаются один раз)
     daily: { day: 0, last: "" },                  // ежедневный вход: день серии, дата последней награды
@@ -140,12 +141,15 @@ export class Profile {
         return t && t.until > Date.now() ? t.id : null;
     }
 
-    // доход: в кошелёк и в «заработано за всё время». Главы двигает только победа над боссом (beatBoss).
+    // доход: в кошелёк и в «заработано за всё время». Глава засчитывается по цели (beatBoss).
     earn(usdt) {
         this.data.usdt += usdt;
         this.data.earned += usdt;
+        // боссов глав больше нет: глава засчитывается, как только набрана её цель (финал — победой в сюжете)
+        let ch = this.chapter(), done = null;
+        while (!ch.done && !CHAPTERS[ch.index].final && this.data.earned >= ch.goal) { done = this.beatBoss(); ch = this.chapter(); }
         this.save();
-        return null;
+        return done;
     }
 
     // стены-возражения: верные и неверные ответы по типам клиентов за всё время
