@@ -14,16 +14,24 @@ function cardTexture() {
     c.width = 256; c.height = 160;
     const x = c.getContext("2d");
     const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }; // без roundRect — его нет на iOS 15
+    // тёмный графит, красная волна, золотой чип, значок бесконтакта — как иконка img/card.svg
     const g = x.createLinearGradient(0, 0, 256, 160);
-    g.addColorStop(0, "#ffe68a"); g.addColorStop(0.5, "#e0a93c"); g.addColorStop(1, "#9a5f1c");
-    x.fillStyle = g; rr(0, 0, 256, 160, 18); x.fill();
-    x.fillStyle = "#3a2410"; x.fillRect(0, 18, 256, 26);                       // магнитная полоса
-    x.fillStyle = "#d9d9d9"; rr(26, 62, 42, 32, 5); x.fill();                  // чип
-    x.strokeStyle = "#8a8a8a"; x.lineWidth = 2; x.strokeRect(34, 62, 0.1, 32); x.strokeRect(26, 78, 42, 0.1);
-    x.fillStyle = "rgba(31,110,62,.85)";                                       // зелёные строки — без цифр
-    rr(26, 110, 150, 10, 5); x.fill();
-    rr(26, 130, 90, 8, 4); x.fill();
-    x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 4; rr(3, 3, 250, 154, 16); x.stroke(); // блик по кромке
+    g.addColorStop(0, "#3a3a44"); g.addColorStop(0.55, "#1e1e25"); g.addColorStop(1, "#0f0f13");
+    x.fillStyle = g; rr(0, 0, 256, 160, 20); x.fill();
+    x.save(); rr(0, 0, 256, 160, 20); x.clip();
+    const r = x.createLinearGradient(90, 160, 256, 50);
+    r.addColorStop(0, "#ff4a4f"); r.addColorStop(1, "#b3141b");
+    x.fillStyle = r; x.beginPath(); x.moveTo(88, 160); x.bezierCurveTo(136, 118, 178, 78, 256, 60); x.lineTo(256, 160); x.closePath(); x.fill();
+    x.restore();
+    const gold = x.createLinearGradient(32, 50, 76, 86);
+    gold.addColorStop(0, "#fbe7a1"); gold.addColorStop(0.5, "#e2b65a"); gold.addColorStop(1, "#a87a2a");
+    x.fillStyle = gold; rr(32, 50, 44, 34, 7); x.fill();                        // чип
+    x.strokeStyle = "#8a6220"; x.lineWidth = 2; x.beginPath(); x.moveTo(32, 67); x.lineTo(76, 67); x.moveTo(47, 50); x.lineTo(47, 84); x.moveTo(61, 50); x.lineTo(61, 84); x.stroke();
+    x.strokeStyle = "rgba(255,255,255,.8)"; x.lineWidth = 4; x.lineCap = "round"; // бесконтакт
+    for (const [rad, a] of [[14, 0.62], [24, 0.6], [34, 0.58]]) { x.beginPath(); x.arc(88, 67, rad, -a, a); x.stroke(); }
+    x.fillStyle = "rgba(255,255,255,.8)"; rr(32, 112, 40, 8, 4); x.fill(); x.fillStyle = "rgba(255,255,255,.45)"; rr(80, 112, 40, 8, 4); x.fill();
+    x.fillStyle = "#fff"; x.font = "900 26px Arial Black, Arial, sans-serif"; x.textAlign = "right"; x.fillText("P2P", 228, 40);
+    x.strokeStyle = "rgba(255,255,255,.35)"; x.lineWidth = 3; rr(2, 2, 252, 156, 18); x.stroke(); // кромка
     const t = new THREE.CanvasTexture(c);
     t.encoding = THREE.sRGBEncoding;
     return t;

@@ -1203,12 +1203,12 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 @keyframes fres { from { opacity: 0; transform: scale(1.08); } }
 
 /* «Карта» — редкая валюта: золото с зелёным, без синего */
-.ico-card { width: 22px; height: 15px; vertical-align: -2px; margin-right: 3px; }
+.ico-card { width: 24px; height: 15px; vertical-align: -2px; margin-right: 3px; }
 .tk-cards b { color: #ffcf3a; }
 .tk-cards.got { animation: card-got .6s ease-out; }
 @keyframes card-got { 0% { transform: scale(1); } 35% { transform: scale(1.35); filter: drop-shadow(0 0 10px #ffcf3a); } 100% { transform: scale(1); } }
 .btn-card { background: linear-gradient(180deg, #f7d774, #c98f2a); color: #2a1a00; }
-.card-note h3 .ico-card { width: 26px; height: 18px; }
+.card-note h3 .ico-card { width: 29px; height: 18px; }
 
 /* ---- рейтинг игроков ---- */
 .tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 64px; animation-delay: .35s; }

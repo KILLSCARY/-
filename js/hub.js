@@ -437,13 +437,13 @@ export class Hub {
                 })));
             }
             // «За Карты» (economy_v7): редкая валюта с девушек у края дороги, срабатывает сама в следующем забеге
-            head(`<img class="ico-card" src="img/card.svg" alt=""> За Карты · у тебя ${this.p.cards}`, this.p.cards ? "Покупка срабатывает сама в следующем забеге. Обмена на USDT нет."
+            head(`<img class="ico-card" src="img/card.svg?v=2" alt=""> За Карты · у тебя ${this.p.cards}`, this.p.cards ? "Покупка срабатывает сама в следующем забеге. Обмена на USDT нет."
                 : "Карты выдают девушки на обочине. Пробегай рядом — и забирай");
             const perks = (this.p.data.cardPerks ||= {});
             for (const c of CARD_SHOP) {
                 const b = document.createElement("button");
                 b.className = "btn-small btn-card";
-                b.innerHTML = `<img class="ico-card" src="img/card.svg" alt=""> ${c.cards}`;
+                b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> ${c.cards}`;
                 b.onclick = async () => {
                     if (this.p.cards < c.cards) return this.toast(`Нужно ещё ${c.cards - this.p.cards} Карт`);
                     if (b.disabled) return;
@@ -458,7 +458,7 @@ export class Hub {
                     this.toast(`${c.name} — в следующем забеге`);
                     this.render();
                 };
-                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card.svg" }, (prize.online ? this.p.data.cardPerksSrv?.[c.srv] : perks[c.id]) ? `На следующие забеги: ${prize.online ? this.p.data.cardPerksSrv[c.srv] : perks[c.id]}` : "", b);
+                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card_art.svg?v=2" }, (prize.online ? this.p.data.cardPerksSrv?.[c.srv] : perks[c.id]) ? `На следующие забеги: ${prize.online ? this.p.data.cardPerksSrv[c.srv] : perks[c.id]}` : "", b);
                 sc.querySelector(".btn-real")?.remove(); // настоящих «Карт» в магазине нет
                 box.append(sc);
             }
@@ -671,7 +671,7 @@ export class Hub {
             const j = (id) => BOOSTS.find((b) => b.id === id)?.art;
             return `<span class="item-ico ico-all">${img(j("berserk"), "j j1")}${img(j("fokus"), "j j2")}${img(CASE_ITEM_ART.usdt_s, "c")}</span>`;
         }
-        if (k === "cards") return img("img/card.svg");
+        if (k === "cards") return img("img/card_art.svg?v=2");
         if (k.startsWith("boost")) {
             const b = BOOSTS.find((x) => x.id === k.split(":")[1]);
             return b ? img(b.art) : `<span class="item-ico ico-all ico-boosts">${img(BOOSTS[0].art, "j j1")}${img(BOOSTS[4].art, "j j2")}</span>`;
