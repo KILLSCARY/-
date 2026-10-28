@@ -111,9 +111,12 @@ export class Hub {
             + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
             <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
-        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом (после короткого разгона) и все герои открыты.</p>
-            <div class="seg seg-test">${STORIES.map((st, i) => `<button data-fight="${i}">${FIGHTERS[st.opponent].short || FIGHTERS[st.opponent].name}${st.exam ? " · экзамен" : ""}</button>`).join("")}</div>
-            <button class="btn-small" id="btn-all-heroes">Открыть всех героев</button></div></div>
+        // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
+        const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
+        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
+            <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];
+                return `<button class="test-boss" data-fight="${i}"><i style="background-image:url(${f.portrait})"></i><b>${f.short || f.name}</b><span>${st.exam ? "Экзамен" : `Глава ${st.chapter}`}</span></button>`; }).join("")}</div>
+            <button class="btn-small btn-ghost" id="btn-all-heroes"${allOwned ? " disabled" : ""}>${allOwned ? "Все герои открыты" : "Открыть всех героев"}</button></div></div>
             <div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
             <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>`);
         for (const b of box.querySelectorAll("[data-fight]")) b.onclick = () => { this.tab("run"); g.testFight(+b.dataset.fight); };
@@ -122,6 +125,7 @@ export class Hub {
             d.heroes = [...new Set([...(d.heroes || []), ...CHARACTERS.map((c) => c.id)])];
             this.p.save();
             this.toast("Все герои открыты");
+            Object.assign($("btn-all-heroes"), { disabled: true, textContent: "Все герои открыты" });
         };
         const reset = $("btn-reset-story");
         reset.onclick = () => {

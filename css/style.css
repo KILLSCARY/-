@@ -1175,8 +1175,18 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* звёздочки — рисуются в 3D (Game.updateStars), здесь ничего */
 
 /* настройки: тестовые бои и «пройти всё заново» */
-.seg-test { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.seg-test button { flex: 1 1 auto; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06); color: #fff; font: 700 12px var(--font-body); cursor: pointer; }
+/* «Для теста»: служебная карточка (пунктир), боссы — три плитки с портретом и главой, герои — кнопка-контур */
+.set-test { border-style: dashed; border-color: rgba(255, 255, 255, .2); }
+.test-bosses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 8px; }
+.test-boss { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px 9px; border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .05); color: #fff; cursor: pointer; transition: transform .12s, border-color .2s, background .2s; }
+.test-boss i { width: 46px; height: 46px; margin-bottom: 2px; border-radius: 50%; background: #222 center 18% / cover; box-shadow: 0 0 0 2px rgba(227, 52, 58, .8), 0 6px 16px rgba(0, 0, 0, .5); }
+.test-boss b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13px/1.15 var(--font-body); }
+.test-boss span { font-size: 11px; color: var(--muted); }
+.test-boss:hover { border-color: rgba(227, 52, 58, .6); background: rgba(227, 52, 58, .08); }
+.test-boss:active { transform: scale(.96); }
+.btn-ghost { justify-content: center; background: transparent; border: 1px solid rgba(255, 255, 255, .22); color: #fff; }
+.btn-ghost:disabled { opacity: .45; }
 .btn-danger { background: #e3343a !important; color: #fff !important; }
 
 /* ---- иконки наград кейсов (case-icons): стекло + неон, рамка редкости вокруг всей ячейки ---- */
