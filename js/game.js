@@ -3,6 +3,7 @@
 
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2 } from "./config.js";
 import { Fight } from "./fight.js";
+import { prize } from "./prize.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -85,6 +86,7 @@ function parseAnswer(raw) {
 class Game {
     constructor() {
         window.game = this; // удобно для отладки из консоли
+        setTimeout(() => this.syncRewards?.(), 1500);
         this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
@@ -262,9 +264,8 @@ class Game {
         this.distance = 0;
         this.hudScore = 0;
         this.usdt = 0;
-        this.trx = 0;
         this.coinCount = 0;
-        this.credited = { usdt: 0, trx: 0 }; // сколько из этого забега уже зачислено в кошелёк
+        this.credited = { usdt: 0 }; // сколько из этого забега уже зачислено в кошелёк
         this.appealUsed = false;
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
@@ -322,6 +323,7 @@ class Game {
         const run = this.runId = (this.runId || 0) + 1;
         this.audio.unlock();
         this.resetRun();
+        if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
         $("daily").hidden = true; // ежедневная награда не висит поверх забега (заберётся в меню)
         $("mode").hidden = true;
         this.show("hud");
@@ -444,7 +446,7 @@ class Game {
         this.endArrest();
         if (this.state === "paused") {
             const du = this.usdt - this.credited.usdt;
-            this.credited = { usdt: this.usdt, trx: 0 };
+            this.credited = { usdt: this.usdt };
             if (du) {
                 this.profile.earn(du);
                 this.hub.toast(`В кошелёк +${fmt(du)} USDT`);
@@ -510,7 +512,7 @@ class Game {
         }
         // в кошелёк — то, что ещё не зачислено (после апелляции забег продолжается)
         const du = this.usdt - this.credited.usdt;
-        this.credited = { usdt: this.usdt, trx: 0 };
+        this.credited = { usdt: this.usdt };
         this.profile.earn(du);
         // проиграл боссу — он ждёт в следующем забеге
         const lostBoss = this.bossFight?.cfg;
@@ -1691,6 +1693,18 @@ class Game {
     // ---- сюжет v2.5: таблички главы (страх босса) → практика → «БОСС» → бой 1 на 1 -------------------
     // Верный ответ засчитывается один раз (profile.data.quiz): +USDT главы и заряд против босса.
     // Ошибка — реплика Гориллы с пояснением, без удара и без заряда; табличку можно пересдать в следующем забеге.
+    // флаги наград с сервера: что уже выдано на этот Telegram ID; повтор неудавшихся по сети запросов
+    async syncRewards() {
+        const d = this.profile.data, r = await prize.rewards();
+        if (!r?.rewards) return;
+        for (const k of Object.keys(r.rewards)) {
+            const [kind, id] = k.split(":");
+            if (kind === "boss") (d.bossPaid ||= {})[id] = 1; else (d.quiz ||= {})[id] = 1;
+        }
+        for (const k of d.rewardRetry?.splice(0) || []) { const g = await prize.reward(k); if (g.granted) this.profile.gift(g.amount); }
+        this.profile.save();
+    }
+
     // сюжет босса идёт, когда игрок дошёл до его главы; до тех пор — обычные забеги
     get story() {
         const s = STORIES[this.profile.data.story || 0];
@@ -1759,13 +1773,15 @@ class Game {
     // ответ на табличку главы: ok — верно; null — проскочил мимо
     storyAnswer(q, ok, s = this.story) {
         const d = this.profile.data;
-        if (q === s.after && ok !== null && d.afterPending === s.id) { delete d.afterPending; this.profile.save(); } // 1.4 отвечена
+        if (q === s.after && ok && d.afterPending === s.id) { delete d.afterPending; this.profile.save(); } // 1.4 висит до верного ответа
         if (ok) {
             this.storyOk++;
             const first = q !== s.practice && !(d.quiz ||= {})[q.id]; // 1.4 после боя — тоже с наградой
             if (first) {
                 d.quiz[q.id] = 1;
-                this.usdt += s.answerUsdt;
+                if (prize.online) { // награду выдаёт сервер один раз на Telegram ID
+                    prize.reward(`sign:${q.id}`).then((r) => { if (r.granted) this.profile.earn(r.amount); });
+                } else this.usdt += s.answerUsdt;
                 this.profile.save();
             }
             const n = this.charges(s), post = q === s.after;
@@ -1939,7 +1955,7 @@ class Game {
         this.fight = null;
         this.rat.visible = true;
         const du = this.usdt - this.credited.usdt; // заработанное в забеге — в кошелёк в любом случае
-        this.credited = { usdt: this.usdt, trx: 0 };
+        this.credited = { usdt: this.usdt };
         if (du) this.profile.earn(du);
         tg.guardClose(false);
         if (!win) { // проиграл — сюжет с начала: снова забег и возражения
@@ -1963,7 +1979,13 @@ class Game {
         if (s.final) d.exam = true;
         if (CHAPTERS[this.profile.chapter().index]?.boss === s.opponent) this.profile.beatBoss(); // глава босса засчитана
         const paid = (d.bossPaid ||= {})[s.id]; // награда за босса — только за первую победу
-        if (!paid) { d.bossPaid[s.id] = 1; this.profile.gift(s.reward.usdt); }
+        prize.event(`boss:${s.opponent}`);
+        if (!paid) {
+            d.bossPaid[s.id] = 1;
+            if (prize.online) { // сумму и «уже выдано» решает сервер: переустановка/чистка профиля не даст второй раз
+                prize.reward(`boss:${s.id}`).then((r) => { if (r.granted) this.profile.gift(r.amount); else if (r.status === 0 || r.status >= 500) (d.rewardRetry ||= []).push(`boss:${s.id}`), this.profile.save(); });
+            } else this.profile.gift(s.reward.usdt);
+        }
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
         if (s.chase) d.mizBeaten = true;
         this.profile.save();
@@ -2039,14 +2061,13 @@ class Game {
     // Финал: первая сотня получает по 10 USDT за созвон. Место выдаёт сервер (LINKS.top100), без него — без номера
     async showFinal() {
         const d = this.profile.data;
-        if (!d.place && LINKS.top100) {
-            try {
-                const r = await fetch(LINKS.top100, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: tg.user?.id || null }) });
-                const j = await r.json();
-                d.place = j.place; d.left = j.left; this.profile.save();
-            } catch (e) { /* нет связи — покажем без номера */ }
+        let soldOut = false;
+        if (!d.place && prize.online) { // место выдаёт /api/prize по подписанному initData и цепочке run→boss
+            const r = await prize.claim();
+            if (r.place > 0) { d.place = r.place; d.left = r.left; this.profile.save(); }
+            soldOut = Boolean(r.soldOut);
         }
-        const full = d.place && d.place > GORILLA.top;
+        const full = soldOut || (d.place && d.place > GORILLA.top);
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
         $("fn-title").textContent = "Ты прошёл Воронку до конца";
         $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."

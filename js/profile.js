@@ -1,7 +1,9 @@
-// Профиль игрока: кошелёк (USDT, TRX), всё заработанное (по нему идут главы), купленные герои,
+// Профиль игрока: кошелёк (USDT; старые TRX пересчитаны ×300 при загрузке), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
 import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS } from "./config.js";
+// TRX, выданные бесплатно прежними начислениями (строки из GRANTS уже убраны): при пересчёте TRX → USDT не считаем
+const GIFT_TRX = { "test-2026-10-28": 10000 };
 import { tg } from "./tg.js";
 
 const EMPTY = () => ({
@@ -52,12 +54,12 @@ export class Profile {
         return fresh;
     }
 
-    load(saved) {
+    load(saved) { // пересчёт TRX → USDT разовый: после него trx = 0 и уходит в облако
         if (saved) this.data = { ...EMPTY(), ...saved, next: { ...EMPTY().next, ...saved.next }, up: { ...EMPTY().up, ...saved.up } };
-        // TRX больше нет — остаток в USDT по ×300. Подарочные TRX тестового начисления (GRANTS[].trx) не считаем:
+        // TRX больше нет — остаток в USDT по ×300. Подарочные TRX тестового начисления (GIFT_TRX) не считаем:
         // иначе 10 000 тестовых TRX превратились бы ещё в 3 000 000 USDT
         if (this.data.trx > 0) {
-            const gifted = GRANTS.filter((g) => (this.data.grants || []).includes(g.id)).reduce((s, g) => s + (g.trx || 0), 0);
+            const gifted = (this.data.grants || []).reduce((s, id) => s + (GIFT_TRX[id] || 0), 0);
             this.data.usdt += Math.max(0, this.data.trx - gifted) * 300;
             this.data.trx = 0;
         }
@@ -74,7 +76,7 @@ export class Profile {
         const d = this.data;
         d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
-        for (const k of ["usdt", "trx", "earned", "chests"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
+        for (const k of ["usdt", "earned", "chests"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         for (const id of Object.keys(d.next)) d.next[id] = Math.max(0, d.next[id] + (now.next[id] || 0) - (was.next[id] || 0));
         for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id], now.up[id] || 1);
         d.heroes = [...new Set([...d.heroes, ...now.heroes])];
@@ -87,7 +89,6 @@ export class Profile {
     }
 
     get usdt() { return this.data.usdt; }
-    get trx() { return this.data.trx; }
 
     // открыть набор: кладём его бусты в запас (SET_RUNS забегов) — один раз на профиль
     unlockSet(id) {

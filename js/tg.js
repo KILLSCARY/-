@@ -16,6 +16,7 @@ function cloudGet(key, timeout = 2500) {
 export const tg = {
     inTelegram,
     user: inTelegram ? wa.initDataUnsafe?.user ?? null : null,
+    initData: inTelegram ? wa.initData : "", // подписанная строка — для сервера наград (/api/prize)
     // параметр ссылки t.me/bot/app?startapp=… (q — с вопросами, noq — без); в браузере — ?startapp=… в адресе
     startParam: (inTelegram ? wa.initDataUnsafe?.start_param : null) || new URLSearchParams(location.search).get("startapp") || "",
 

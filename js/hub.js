@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
 // в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
 const short = (n) => n < 1e5 ? fmt(n) : n < 1e6 ? `${Math.floor(n / 1000)} тыс` : `${(Math.floor(n / 1e5) / 10).toLocaleString("ru-RU")} млн`;
-const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', trx: '<svg class="ico-usdt"><use href="#ico-trx"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
+const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 

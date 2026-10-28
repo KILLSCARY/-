@@ -61,6 +61,20 @@ function sparkTexture() {
     return sparkTex;
 }
 
+// время, где бёдра ниже всего (во второй половине клипа нокаута); иначе — доля FIGHT.koHold
+function koLowest(clip) {
+    const tr = clip.tracks.find((t) => /hips\.position$/i.test(t.name));
+    let best = clip.duration * FIGHT.koHold;
+    if (!tr) return best;
+    let minY = Infinity;
+    for (let i = 0; i < tr.times.length; i++) {
+        if (tr.times[i] < clip.duration * 0.4) continue;
+        const y = tr.values[i * 3 + 1];
+        if (y < minY - 1e-4) { minY = y; best = tr.times[i]; }
+    }
+    return best;
+}
+
 export class Fight {
     // opts: { hero, opponent, bonus: { super, hp }, onEnd(win) }
     constructor(game, opts) {
@@ -134,7 +148,7 @@ export class Fight {
         this.ring.position.set(0, 0.03, 0);
         this.group.add(this.ring);
 
-        $("f-name-l").textContent = this.heroCfg.short || this.heroCfg.name;
+        $("f-name-l").textContent = this.heroCfg.short || this.heroCfg.name; // в шапке боя — «Спиди»
         $("f-name-r").textContent = this.oppCfg.name;
         { const el = $("f-ph-l"); if (el) el.style.backgroundImage = this.heroCfg.portrait ? `url(${this.heroCfg.portrait})` : ""; }
         { const el = $("f-ph-r"); if (el) el.style.backgroundImage = this.oppCfg.portrait ? `url(${this.oppCfg.portrait})` : ""; }
@@ -173,6 +187,9 @@ export class Fight {
                 o.frustumCulled = false;
                 o.castShadow = true;
                 o.material = o.material.clone(); // вспышка при попадании — только у этого бойца
+                const cap = f.cfg.capWhite; // белая шляпа Спиди пересвечивается — гасим только почти белые пиксели текстуры
+                if (cap) o.material.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>",
+                    `#include <map_fragment>\n float wl = min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b)); diffuseColor.rgb *= mix(1.0, ${cap.toFixed(2)}, smoothstep(0.55, 0.9, wl));`); };
                 if (o.material.emissive) f.mats.push(o.material);
             }
             if (o.isBone) {
@@ -227,6 +244,9 @@ export class Fight {
 
     startRound() {
         this.round++;
+        if (this.round > 1) this.superV = 0; // супер не переносится в следующий раунд
+        const rh = this.oppCfg.hpRounds;
+        if (rh) this.f[1].hpMax = rh[Math.min(this.round, rh.length) - 1];
         for (const f of this.f) {
             f.hp = f.hpMax; f.shown = f.hpMax; f.act = "idle"; f.t = 0; f.cd = 0; f.combo = 0; f.kb = 0; f.z = f.home;
             if (f.clips.ko) f.clips.ko.stop();
@@ -372,7 +392,7 @@ export class Fight {
                 this.blockSaidAt = now;
             }
         }
-        f.act = act; f.t = 0; f.dur = time; f.hitDone = false; f.queued = false; f.hitsDone = 0;
+        f.act = act; f.actId = (f.actId || 0) + 1; f.t = 0; f.dur = time; f.hitDone = false; f.queued = false; f.hitsDone = 0;
         const mv = this.moveOf(f, act);
         if (mv && !mv.fit) f.dur = (mv.to - mv.from) / (mv.speed || 1); // длина — по клипу
         f.hitAt = mv?.hit !== undefined ? (mv.hit - mv.from) / (mv.to - mv.from) : null;
@@ -425,7 +445,7 @@ export class Fight {
         def.lastHit = this.t;
         // броня: лёгкие удары не сбивают замах хука — только урон
         // и начатый удар лёгким не сбить — размен: оба получают
-        const armor = (kind === "jab" || kind === "cross") && (def.act === "heavyWind" || def.act === "heavy" || (def.act === "punch" && def.t > def.dur * 0.2));
+        const armor = def.act === "super" || def.act === "superFin" || (kind === "jab" || kind === "cross") && (def.act === "heavyWind" || def.act === "heavy" || (def.act === "punch" && def.t > def.dur * 0.2));
         if (armor) { def.flash = 0.6; this.popText(def, `−${dmg}`, ""); this.spark(contact, 0.5, 0xffffff); this.g.audio?.play("hit"); return dmg; }
         this.act(def, "hit", FIGHT.stun[kind]);
         def.kb = kind === "jab" ? 0.1 : kind === "cross" ? 0.16 : kind === "super" ? 0.6 : 0.32;
@@ -485,8 +505,8 @@ export class Fight {
         if (this.spamT) this.spamT = Math.max(0, this.spamT - dt);
         ai.guard -= dt;
         // реакция на удар героя: ставит блок с вероятностью ai.block (чем дольше герой долбит, тем охотнее)
-        if (h.act === "punch" && h.t < 0.05 && !h.seen) {
-            h.seen = true;
+        if (h.act === "punch" && h.seen !== h.actId) { // каждый удар серии — отдельно (в связке act не возвращается в idle)
+            h.seen = h.actId;
             // кто долбит без пауз — нарывается на блок: шанс растёт с каждым ударом подряд
             ai.spam = this.t - (ai.lastHeroPunch ?? -9) < 0.95 ? (ai.spam || 0) + 1 : 0;
             ai.lastHeroPunch = this.t;
@@ -499,10 +519,9 @@ export class Fight {
                 if (!this.spamTold) { this.spamTold = true; this.g.gorilla?.("Не спамь. Жди окно.", false, 2600); }
                 return;
             }
-            const p = Math.min(0.8, ai.block + ai.spam * 0.13);
-            if ((o.act === "idle" || o.act === "block") && Math.random() < p) { this.act(o, "block", 0.55); ai.next = Math.min(ai.next, 0.35); }
+            const p = Math.min(0.9, ai.block + ai.spam * 0.18);
+            if ((o.act === "idle" || o.act === "block" || o.act === "hit") && Math.random() < p) { this.act(o, "block", 0.55); ai.next = Math.min(ai.next, 0.35); }
         }
-        if (h.act !== "punch") h.seen = false;
         // наказание: герой ударил в блок и отлетел — сразу двойка
         if (h.act === "recoil" && !h.punished && (o.act === "idle" || o.act === "block")) {
             h.punished = true;
@@ -513,11 +532,14 @@ export class Fight {
         if (h.act !== "recoil") h.punished = false;
         // пропустил три подряд — закрывается и отвечает
         if (this.t - (o.lastHit || 0) > 1.1) o.streak = 0;
-        if (o.streak >= 3 && o.act === "idle") {
+        // 4 удара подряд — окно контратаки: выходит из оглушения, закрывается и сразу отвечает (серия без пауз не проходит)
+        if (o.streak >= 4 && (o.act === "idle" || o.act === "hit")) {
             o.streak = 0;
-            this.act(o, "block", 0.45);
-            this.queueAi([["punch", 0.3]]);
-            ai.next = 0.9;
+            this.act(o, "block", 0.4);
+            this.popText(o, "КОНТРАТАКА", "crit"); (this.stats ||= {}).counterWin = (this.stats.counterWin || 0) + 1;
+            this.queueAi(Math.random() < 0.5 ? [["punch", 0.05], ["punch", 0.05]] : [["punch", 0.05]]);
+            ai.spam = Math.max(ai.spam || 0, 3);
+            ai.next = 0.7;
         }
         if (o.act !== "idle" || ai.next > 0) return this.runQueue();
         const rage = 1 + (1 - o.hp / o.hpMax) * 0.35;
@@ -546,6 +568,7 @@ export class Fight {
     }
 
     update(dt) {
+        if (this.phase === "end" && !this.left) { this.t += dt; for (const f of this.f) { f.mixer?.update(dt); this.pose(f, dt); } this.camera(dt); return; }
         if (this.phase === "end") return;
         if (this.bot) this.bot(dt);
         // стоп-кадр и замедление
@@ -558,8 +581,8 @@ export class Fight {
             f.mixer?.update(dt);
             // нокаут: в последних кадрах клипа падения боец снова стоит — замираем, пока лежит
             const ko = f.act === "ko" && f.clips.ko;
-            const hold = f.cfg.koHold ?? FIGHT.koHold;
-            if (ko && ko.time > ko.getClip().duration * hold) { ko.time = ko.getClip().duration * hold; ko.paused = true; f.mixer.update(0); }
+            if (ko && f.koStop == null) f.koStop = f.cfg.koHold != null ? ko.getClip().duration * f.cfg.koHold : koLowest(ko.getClip()); // лежит в самой низкой точке бёдер
+            if (ko && ko.time > f.koStop) { ko.time = f.koStop; ko.paused = true; f.mixer.update(0); }
             if (ko) { // и в нокауте: падает на месте, а не уезжает вместе с клипом; разворот — один раз по первому кадру,
                 this.pinHips(f); // иначе в кувырке линия бёдер крутится и корпус бы вертело
                 if (f.koYaw === undefined) { this.faceOpponent(f, false); f.koYaw = f.model.rotation.y; }
@@ -611,7 +634,7 @@ export class Fight {
         } else if (this.phase === "roundEnd") {
             this.endT -= dt;
             // «K.O.» и реплика — когда падение уже началось
-            if (this.koBig && (this.koBig.t -= dt) <= 0) { const k = this.koBig; this.koBig = null; this.big("K.O.", k.cls); if (k.line) this.say(k.line); }
+            if (this.koBig && (this.koBig.t -= dt) <= 0) { const k = this.koBig; this.koBig = null; this.big("K.O.", k.cls); this.shake = 0.25; if (k.line) this.say(k.line); }
             if (this.endT <= 0) {
                 if (this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
                 else this.startRound();
@@ -639,7 +662,17 @@ export class Fight {
 
     flashScreen() { const el = $("f-flash"); el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); }
 
-    inReach(a, d) { return Math.abs(a.z - d.z) < FIGHT.gap + 0.35; }
+    // попадание — только если бьющая рука/нога реально дошла до корпуса или головы соперника
+    inReach(a, d) {
+        if (!a.b?.Hips || !d.b?.Hips) return Math.abs(a.z - d.z) < FIGHT.gap + 0.1;
+        const P = (b) => b ? b.getWorldPosition(new THREE.Vector3()) : null;
+        const limbs = [a.b.LeftHand, a.b.RightHand, a.b.LeftFoot, a.b.RightFoot, a.b.LeftToeBase, a.b.RightToeBase].map(P).filter(Boolean);
+        const tgt = [d.b.Head, d.b.Neck, d.b.Spine2, d.b.Spine1, d.b.Spine, d.b.Hips].map(P).filter(Boolean);
+        let best = Infinity;
+        for (const l of limbs) for (const t of tgt) best = Math.min(best, Math.hypot(l.x - t.x, l.z - t.z) + Math.max(0, Math.abs(l.y - t.y) - 0.35));
+        (this.reach ||= []).push(best); ((this.reachBy ||= {})[a === this.f[0] ? "h" : "o"] ||= []).push(+best.toFixed(2));
+        return best < FIGHT.contact;
+    }
 
     endRound() {
         const [h, o] = this.f;
@@ -660,12 +693,12 @@ export class Fight {
         winner.act = "win"; winner.t = 0;
         const last = !!this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds;
         const L = this.oppCfg.lines;
-        if (ko) { this.big(""); this.koBig = { t: 0.45, cls: heroWon ? "gold" : "red", line: heroWon && last ? (this.exam ? L.examKo : L.ko) : null }; }
+        if (ko) { this.big(""); this.koBig = { t: 1.0, cls: heroWon ? "gold" : "red", line: heroWon && last ? (this.exam ? L.examKo : L.ko) : null }; }
         else this.big("ВРЕМЯ!", heroWon ? "gold" : "red");
         if (!last) this.say(heroWon ? L.roundLost : L.roundWon);
         if (this.exam) { $("f-exam").hidden = true; this.exam.q = null; }
         this.phase = "roundEnd";
-        this.endT = last ? (this.exam && heroWon ? 4.2 : 3.2) : 2.6;
+        this.endT = (last ? (this.exam && heroWon ? 4.2 : 3.2) : 2.6) + (ko ? 0.8 : 0);
         this.g.audio?.play(heroWon ? "record" : "crash");
         $("fb").classList.add("off");
     }
@@ -674,6 +707,20 @@ export class Fight {
         this.phase = "end";
         const win = this.wins[0] > this.wins[1];
         this.big("");
+        if (!this.outro) { // экран итога боя: поражение / победа, затем выход
+            this.outro = true;
+            const el = document.createElement("div");
+            el.className = `f-result ${win ? "win" : "lose"}`;
+            el.innerHTML = `<b>${win ? "ПОБЕДА" : "ПОРАЖЕНИЕ"}</b><span>${this.wins[0]} : ${this.wins[1]}</span><p></p><button class="btn btn-main">Дальше</button>`;
+            el.querySelector("p").textContent = win ? "Права P2P отстояны." : `«${this.oppCfg.lines.lose}»`;
+            $("fight").appendChild(el);
+            this.g.audio?.play(win ? "record" : "crash");
+            const go = () => { if (this.left) return; this.left = true; el.remove(); this.finish(); };
+            el.querySelector("button").onclick = go;
+            this.outroT = setTimeout(go, this.fast ? 10 : 4500);
+            return;
+        }
+        clearTimeout(this.outroT);
         this.dispose();
         this.opts.onEnd(win, { rounds: this.wins.slice() });
     }
@@ -814,7 +861,8 @@ export class Fight {
         else if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
             const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) * Math.PI) / (mv.period || len * 2 || 1);
             time = len > 0 ? mv.from + len * (0.5 - 0.5 * Math.cos(ph)) : mv.from;
-        } else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
+        } else if (mv.hold) time = Math.min(mv.to, mv.from + f.t * (mv.speed || 1)); // замах в своём темпе, дальше держит
+        else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
         const id = key === "punch" ? `p${f.combo}${f.hand}` : key + (f.heavyVar || "");
         if (f.segId !== id) { // переход: прошлый кусок гаснет за 0.12 с; тот же клип — на втором слоте
             f.prev = f.cur || null;
@@ -844,9 +892,8 @@ export class Fight {
         const own = !!this.moveOf(f); // у действия свой клип — позы из костей не нужны, только шаг корня
         if (own) {
             if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k));
-            // удар — с подшагом к сопернику: кулак (нога) доходит до цели, к моменту удара — дальше всего
-            const lunge = { punch: 0.16, heavy: 0.24, knee: 0.22, super: 0.2, superFin: 0.26 }[f.act];
-            if (lunge) dz += lunge * bell(k, Math.max(0.15, Math.min(0.85, f.hitAt ?? 0.45)), 1);
+            if (f.act === "punch" || f.act === "knee" || f.act === "super" || f.act === "superFin") dz += (f.cfg.lunge ?? 0.16) * bell(k, Math.min(0.8, Math.max(0.2, (f.hitAt ?? 0.5) - 0.05)), 1); // шаг в удар — кулак должен достать
+            if (f.act === "heavy" || f.act === "heavyWind") dz -= 0.28 * (f.act === "heavy" ? bell(k, 0.35, 1) : smooth(k)); // нога не проходит сквозь соперника
         }
         else if (f.act === "block") {
             const w = Math.min(smooth(f.t / 0.08), f.t > f.dur * 0.75 ? 1 - smooth((f.t - f.dur * 0.75) / (f.dur * 0.25)) : 1);
@@ -902,7 +949,9 @@ export class Fight {
         if (ref || f.yaw0 === undefined) { if (ref) f.yaw0 = a; else return; }
         let d = f.yaw0 - a;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        f.model.rotation.y = d + (f.cfg.yaw || 0) * f.dir; // cfg.yaw — доворот корпуса к камере (бьющая рука не за спиной)
+        d = Math.max(-0.3, Math.min(0.3, d)); // не больше ~17°: в ударах ногами линия бёдер крутится, корпус не заваливаем
+        f.faceD = f.faceD === undefined ? d : f.faceD + (d - f.faceD) * 0.25;
+        f.model.rotation.y = f.faceD + (f.cfg.yaw || 0) * f.dir; // cfg.yaw — доворот корпуса к камере
         f.model.updateMatrixWorld(true);
     }
 

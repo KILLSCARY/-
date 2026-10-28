@@ -146,7 +146,7 @@ export const MODELS = {
     coin: [{ url: "models/obj/coin_usdt.glb", axis: "x", size: 0.62 }],
     testo: [{ url: "models/obj/testo.glb", axis: "y", size: 0.8 }],     // баночка тестобустера — полёт
     choline: [{ url: "models/obj/choline.glb", axis: "y", size: 0.8 }], // баночка холина — магнит
-    boost: [{ url: "models/obj/coin_trx.glb", axis: "x", size: 0.85 }],
+    // boost (×2): своей модели нет — золотая монета USDT «×2» строится в World (TRX-монета убрана)
     bin: [{ url: "models/obj/trash1.glb", axis: "y", size: 0.95 }],
     // неоновая вывеска «ОБМЕН 24/7» над подъездами (модель смотрит в +Z, разворот к дороге — в makeBuilding); glow — самосвечение
     sign: [
@@ -249,7 +249,7 @@ export const SOUNDS = {
     sfx: {
         swipe: { urls: ["audio/swipe1.mp3", "audio/swipe2.mp3", "audio/swipe3.mp3"], volume: 0.6 }, // полоса, прыжок, подкат
         hit: { urls: ["audio/crash.mp3", "audio/crash2.mp3"], volume: 0.9 },
-        boost: { urls: ["audio/coin_trx.mp3"], volume: 0.8 }, // монета TRX ×2
+        boost: { urls: ["audio/purchase.mp3"], volume: 0.7 }, // золотая монета ×2 и прочие «бонусы»
         whistle: { urls: ["audio/police_whistle.mp3"], volume: 0.6 }, // пробегаешь мимо ДПС
         busted: { urls: ["audio/police.mp3"], volume: 0.6 }, // поймал ДПС
         record: { urls: ["audio/achievement.mp3"], volume: 0.8 }, // новый рекорд, новая глава
@@ -671,27 +671,26 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, // yaw — корпус к камере, удары видны
+    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.4,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
-        moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем
+        moves: { idle: { clip: "jab", from: 0.05, to: 0.28, period: 2.4 }, // стойка — спокойный кусок начала джеба (руки у лица) туда-обратно
             jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
-            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 },
+            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 }, 
             hook: { clip: "hkick", from: 0.05, to: 0.95, hit: 0.47, speed: 1.0 }, // третий в связке — боковой ногой, его видно издалека
             super: { clip: "combo5", from: 0.5, to: 2.62, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
             superFin: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 0.8 }, // добивание супера — апперкот в замедлении
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
-        dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 125,
-        moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
+        dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30 } },
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 100, hpRounds: [100, 120, 120], lunge: 0.1,
+        moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
-            heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
+            heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true, hold: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
             knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 }, // наказание вплотную после блока: только сам удар коленом
             win: { clip: "idle", from: 0, to: 4.4, speed: 1 }, ...GUARD_MOVES },
-        dmg: { jab: 4, cross: 5, hook: 7, heavy: 13, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
-        // сложность по раундам: человек не бот — паузы длиннее, блоков меньше, замах хука видно дольше
-        ai: { every: [[1.1, 2.0], [0.95, 1.75], [0.8, 1.5]], block: [0.16, 0.22, 0.28], heavy: [0.2, 0.24, 0.28], combo: [0.2, 0.25, 0.3], third: [0.1, 0.18, 0.25] },
-        telegraph: [0.8, 0.7, 0.6],
+        dmg: { jab: 6, cross: 6, hook: 7, heavy: 14, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
+        ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.35, 0.45, 0.55], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
+        telegraph: [0.6, 0.52, 0.45],
         lines: { intro: "Возражения слышал все. Теперь покажи, что ты их прошёл.", final: "Последний раунд. Ответь, как будто это уже твоя жизнь.",
             heavy: ["Сейчас будет больно!", "Это «я подумаю»?", "Держи возражение!", "Дорого? А так?"],
             roundWon: "Почти. Соберись.", roundLost: "Неплохо… Ещё раунд.", lose: "Почти. Возвращайся, когда будешь готов. Я подожду.",
@@ -744,8 +743,8 @@ export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mou
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
-export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 35, fov: 58, gap: 0.85, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
-    stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
+export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 60, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
+    stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3 };
 // Крючки анимаций боя: первое найденное в glb имя клипа (без учёта регистра). Положи клип с таким именем в модель —
 // бой возьмёт его вместо процедурной анимации. idle — стойка (иначе idle/run модели + руки в защиту).
 export const FIGHT_CLIPS = {

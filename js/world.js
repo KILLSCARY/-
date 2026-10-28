@@ -949,7 +949,7 @@ export class World {
         }
     }
 
-    // вспышка на месте собранной монеты; gold — монета TRX
+    // вспышка на месте собранной монеты; gold — золотая монета ×2
     flash(pos, gold = false) {
         const f = this.flashes[this.nextFlash];
         this.nextFlash = (this.nextFlash + 1) % this.flashes.length;
@@ -1110,7 +1110,7 @@ export class World {
 
     makeCoin(boost = false) {
         const t = this.modelFor(boost ? "boost" : "coin");
-        if (t) { // 3D-монета Tether (USDT) или Tron (TRX — бонус ×2)
+        if (t) { // 3D-монета Tether (USDT)
             const g = new THREE.Group();
             g.add(t.clone());
             g.children[0].position.y -= t.userData.cfg.size / 2; // центр монеты — в точке спавна
