@@ -562,7 +562,7 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=3", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=4", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, // стойка — один кадр из начала джеба (руки у лица), дышит корнем jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
@@ -571,7 +571,7 @@ export const FIGHTERS = {
             superFin: { clip: "flykick", from: 1.6, to: 2.55, hit: 2.0, speed: 1.1, air: true }, // добивание супера — удар ногой в прыжке
             win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 }, ...GUARD_MOVES },
         dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=3", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 130,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=4", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 130,
         moves: { idle: { clip: "jab", from: 0.1, to: 0.1 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
