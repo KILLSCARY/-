@@ -553,9 +553,18 @@ export const STORIES = [
 // атаками (с), block — шанс поставить блок на удар героя, heavy/combo — доли хука с замахом и двоек; telegraph —
 // сколько длится замах хука (подсвечен — успей блок или уклон). Пока дерётся только Спиди (mouse).
 export const FIGHTERS = {
-    mouse: { name: "Спиди Гонзалес", model: "models/mouse.glb?v=4", height: 1.5, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
+    mouse: { name: "Спиди Гонзалес", model: "models/mouse_fight.glb?v=1", height: 1.5,
+        // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; fit — длину задаёт игра
+        moves: { idle: { clip: "jab", from: 0.05, to: 1.4, speed: 0.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 },
+            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 }, hook: { clip: "upper", from: 0.2, to: 1.0, hit: 0.67, speed: 1.1 },
+            super: { clip: "combo5", from: 0.5, to: 2.95, hits: [0.8, 1.4, 1.73, 2.0, 2.27, 2.53], speed: 1.1 },
+            win: { clip: "practice", from: 0.2, to: 3.2, speed: 1 } }, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100,
         dmg: { jab: 5, cross: 6, hook: 10, heavy: 12, super: 30 } },
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel.glb?v=3", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 140,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=1", height: 1.86,
+        moves: { idle: { clip: "jab", from: 0.05, to: 1.4, speed: 0.7 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
+            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
+            heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
+            win: { clip: "idle", from: 0, to: 4.4, speed: 1 } }, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 128,
         dmg: { jab: 4, cross: 5, hook: 7, heavy: 15, super: 30 }, punchTime: 0.46, // бьёт тяжелее и медленнее Спиди
         ai: { every: [[0.9, 1.7], [0.75, 1.45], [0.6, 1.2]], block: [0.25, 0.32, 0.4], heavy: [0.22, 0.27, 0.32], combo: [0.25, 0.3, 0.36], third: [0.15, 0.25, 0.35] },
         telegraph: [0.6, 0.52, 0.45],
