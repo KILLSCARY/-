@@ -146,7 +146,13 @@ export class Fight {
     attach(f, gltf) {
         const m = cloneSkinned(gltf.scene);
         m.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
+        let box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
+        // у сеток со сжатием gltfpack габариты скина бывают в других единицах (у Мизулины вышло ×100) —
+        // тогда рост берём по костям: от стоп до макушки
+        const bones = new THREE.Box3();
+        m.traverse((o) => { if (o.isBone) bones.expandByPoint(o.getWorldPosition(new THREE.Vector3())); });
+        const bh = bones.getSize(new THREE.Vector3()).y;
+        if (bh > 0 && (size.y / bh > 1.6 || size.y / bh < 0.6)) { box = bones; size = bones.getSize(new THREE.Vector3()); box.min.y -= size.y * 0.02; size.y *= 1.04; }
         const k = f.cfg.height / (size.y || 1);
         m.scale.setScalar(k);
         m.position.set(0, -box.min.y * k, 0);
