@@ -169,16 +169,19 @@ export class Fight {
         f.walk = list.find((a) => a.name === "walk" || a.name === "run");
         // приёмы из клипов боя (FIGHTERS[…].moves): каждый — кусок клипа [from, to], время ставим сами
         if (f.cfg.moves) {
+            // на клип — два действия (второе — на копии клипа): одно действие не играет два времени сразу,
+            // а джеб и кросс — куски одного клипа, и переход между ними должен смешивать оба
             f.acts = {};
             for (const m of Object.values(f.cfg.moves)) {
                 if (f.acts[m.clip]) continue;
                 const clip = list.find((a) => a.name === m.clip);
                 if (!clip) continue;
-                const a = f.mixer.clipAction(clip);
-                a.play(); a.timeScale = 0; a.setEffectiveWeight(0);
-                f.acts[m.clip] = a;
+                const twin = clip.clone();
+                twin.name = `${clip.name}#2`;
+                f.acts[m.clip] = [f.mixer.clipAction(clip), f.mixer.clipAction(twin)];
+                for (const a of f.acts[m.clip]) { a.play(); a.timeScale = 0; a.setEffectiveWeight(0); }
             }
-            if (f.base && !f.acts[f.base.getClip().name]) { f.base.stop(); f.base = null; }
+            if (f.base) { f.base.stop(); f.base = null; } // стойка — тоже кусок клипа (moves.idle)
             f.moves = f.cfg.moves;
         }
         f.proc = !f.clips.punch; // процедурные удары, пока нет своих клипов
@@ -198,7 +201,7 @@ export class Fight {
             if (f.clips.win) f.clips.win.stop();
             f.base?.reset().play();
             if (f.base && f.base !== f.clips.idle) { f.base.timeScale = 0; f.base.time = 0; }
-            f.seg = null;
+            f.cur = null; f.prev = null; f.segId = null;
         }
         this.timeLeft = FIGHT.roundTime;
         // ИИ: раунд за раундом злее (FIGHTERS[…].ai)
@@ -313,6 +316,7 @@ export class Fight {
     moveOf(f, act = f.act) {
         if (!f.moves) return null;
         if (act === "punch") return f.moves[f.combo === 2 ? "hook" : f.hand ? "cross" : "jab"] || null;
+        if ((act === "heavyWind" || act === "heavy") && f.heavyVar) return f.moves[act + f.heavyVar] || f.moves[act] || null;
         return f.moves[act] || null;
     }
 
@@ -335,7 +339,7 @@ export class Fight {
     // удар att → def; kind: jab, cross, hook, heavy, super. Возвращает урон.
     strike(att, def, kind) {
         const c = att.cfg.dmg, counter = def.act === "recoil"; // по открытому после блока или промаха — контр, урон ×1.5
-        const unstoppable = kind === "super" || att.act === "super"; // серию супера не заблокировать и не уклониться
+        const unstoppable = kind === "super" || att.act === "super" || att.act === "superFin"; // серию супера не заблокировать и не уклониться
         const dmg = Math.round(c[kind] * (counter ? FIGHT.counter : 1));
         const st = (this.stats ||= {}), key = `${att === this.f[0] ? "h" : "o"}_${kind}`;
         const contact = this.fistPos(att, kind === "heavy" ? 1 : att.hand);
@@ -434,7 +438,8 @@ export class Fight {
         if (h.act === "recoil" && !h.punished && (o.act === "idle" || o.act === "block")) {
             h.punished = true;
             o.act = "idle";
-            this.queueAi([["punch", 0.04], ["punch", 0.05]]);
+            if (o.moves?.knee && Math.random() < 0.5) this.act(o, "knee", 0.6); // вплотную — коленом
+            else this.queueAi([["punch", 0.04], ["punch", 0.05]]);
         }
         if (h.act !== "recoil") h.punished = false;
         // пропустил три подряд — закрывается и отвечает
@@ -449,6 +454,7 @@ export class Fight {
         const rage = 1 + (1 - o.hp / o.hpMax) * 0.35;
         const r = Math.random();
         if (r < ai.heavy) {
+            o.heavyVar = this.round >= 3 && o.moves?.heavy2 && Math.random() < 0.5 ? 2 : 0; // в финальном раунде — и с прыжка
             this.act(o, "heavyWind", c.telegraph[Math.min(this.round, 3) - 1]);
             if (Math.random() < 0.5) this.say(pick(c.lines.heavy));
         } else if (r < ai.heavy + ai.combo) this.queueAi([["punch", 0], ["punch", 0.05], ...(Math.random() < ai.third ? [["punch", 0.05]] : [])]);
@@ -479,7 +485,12 @@ export class Fight {
         dt *= this.slow;
         this.t += dt;
         this.camT += dt;
-        for (const f of this.f) f.mixer?.update(dt);
+        for (const f of this.f) {
+            f.mixer?.update(dt);
+            // нокаут: в последних кадрах клипа падения боец снова стоит — замираем, пока лежит
+            const ko = f.act === "ko" && f.clips.ko;
+            if (ko && ko.time > ko.getClip().duration * FIGHT.koHold) { ko.time = ko.getClip().duration * FIGHT.koHold; ko.paused = true; f.mixer.update(0); }
+        }
         this.updateSparks(dt);
         if (this.phase === "load") { this.camera(dt); return; }
         const [h, o] = this.f;
@@ -500,9 +511,11 @@ export class Fight {
                     if (this.inReach(a, d)) this.strike(a, d, a.combo === 2 ? "hook" : a.hand ? "cross" : "jab");
                 }
                 if (a.act === "heavy" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.38)) { a.hitDone = true; if (this.inReach(a, d)) this.strike(a, d, "heavy"); }
+                if (a.act === "knee" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.4)) { a.hitDone = true; if (this.inReach(a, d)) this.strike(a, d, "hook"); }
+                if (a.act === "superFin" && !a.hitDone && a.t > a.dur * (a.hitAt ?? 0.5)) { a.hitDone = true; this.strike(a, d, "super"); }
                 if (a.act === "super" && a.hitsAt) { // серия из клипа: последний — супер
                     while (a.act === "super" && a.hitsAt && a.hitsDone < a.hitsAt.length && a.t > a.dur * a.hitsAt[a.hitsDone]) {
-                        const last = ++a.hitsDone === a.hitsAt.length;
+                        const last = ++a.hitsDone === a.hitsAt.length && !a.moves?.superFin; // с добиванием серия — лёгкие, супер — в нём
                         a.hand = a.hitsDone % 2;
                         this.strike(a, d, last ? "super" : "jab");
                     }
@@ -523,7 +536,7 @@ export class Fight {
             f.t += dt;
             if (f.act !== "idle" && f.act !== "ko" && f.act !== "win" && f.t >= f.dur) {
                 if (f.act === "heavyWind") { this.act(f, "heavy", FIGHT.heavyTime); this.pose(f, dt); continue; }
-                if (f.act === "super") f.superN = -1;
+                if (f.act === "super") { f.superN = -1; if (f.moves?.superFin) { this.act(f, "superFin", 0.8); this.pose(f, dt); continue; } }
                 const q = f.queued;
                 f.act = "idle"; f.t = 0;
                 if (q && f === h) this.punch(f);
@@ -547,8 +560,8 @@ export class Fight {
             const a = loser.clips.ko;
             if (a) {
                 loser.base?.stop();
-                for (const x of Object.values(loser.acts || {})) x.setEffectiveWeight(0);
-                a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = 1.2; a.setEffectiveWeight(1); a.play();
+                for (const pair of Object.values(loser.acts || {})) for (const x of pair) x.setEffectiveWeight(0);
+                a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = 1.2; a.paused = false; a.setEffectiveWeight(1); a.play();
             }
             this.slow = 0.25;
             this.shake = 0.4;
@@ -698,24 +711,25 @@ export class Fight {
         const key = this.moveOf(f) ? f.act : f.act === "win" && f.moves.win ? "win" : "idle";
         const mv = key === "idle" ? f.moves.idle : key === "win" ? f.moves.win : this.moveOf(f);
         let time;
-        if (key === "idle" || key === "win") { // стойка по кругу туда-обратно — «дышит»
-            const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) / len) % 2;
-            time = mv.from + len * (ph < 1 ? ph : 2 - ph);
+        if (key === "idle" || key === "win") { // стойка: короткий спокойный кусок туда-обратно по синусу — без рывка на развороте
+            const len = mv.to - mv.from, ph = (this.t * (mv.speed || 1) * Math.PI) / (mv.period || len * 2);
+            time = mv.from + len * (0.5 - 0.5 * Math.cos(ph));
         } else time = mv.from + (mv.to - mv.from) * Math.min(1, f.t / (f.dur || 1));
-        const id = key === "punch" ? `p${f.combo}${f.hand}` : key;
-        if (f.segId !== id) { // переход: прошлый кусок гаснет за 0.1 с
-            f.prev = f.seg ? { clip: f.seg.clip, time: f.segTime } : null;
-            f.blend = 0;
+        const id = key === "punch" ? `p${f.combo}${f.hand}` : key + (f.heavyVar || "");
+        if (f.segId !== id) { // переход: прошлый кусок гаснет за 0.12 с; тот же клип — на втором слоте
+            f.prev = f.cur || null;
+            f.cur = { clip: mv.clip, slot: f.prev && f.prev.clip === mv.clip ? 1 - f.prev.slot : 0, time };
+            f.blend = f.prev ? 0 : 1;
             f.segId = id;
         }
-        f.seg = mv; f.segTime = time;
-        f.blend = Math.min(1, (f.blend ?? 1) + dt / 0.1);
-        for (const [name, a] of Object.entries(f.acts)) {
+        f.cur.time = time;
+        f.blend = Math.min(1, f.blend + dt / 0.12);
+        for (const [name, pair] of Object.entries(f.acts)) pair.forEach((a, slot) => {
             let w = 0;
-            if (name === mv.clip) { w += f.blend; a.time = time; }
-            if (f.prev && name === f.prev.clip) { w += 1 - f.blend; if (name !== mv.clip) a.time = f.prev.time; }
-            a.setEffectiveWeight(Math.min(1, w));
-        }
+            if (name === f.cur.clip && slot === f.cur.slot) { w = f.blend; a.time = time; }
+            else if (f.prev && f.blend < 1 && name === f.prev.clip && slot === f.prev.slot) { w = 1 - f.blend; a.time = f.prev.time; }
+            a.setEffectiveWeight(w);
+        });
         f.mixer.update(0);
         // бёдра — на месте стойки: в клипах ударов тело шагает и уезжает, а ходит боец у нас сам
         const hips = f.b.Hips;
@@ -761,10 +775,14 @@ export class Fight {
         // ноги на асфальте: самая нижняя точка стоп — на земле (иначе при приседе ступни уходят под дорогу)
         if (f.model && f.act !== "ko") {
             f.model.updateMatrixWorld(true);
+            f.root.position.y = 0;
+            f.root.updateMatrixWorld(true);
             let low = Infinity;
             const p = new THREE.Vector3();
             for (const n of ["LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot"]) if (f.b[n]) low = Math.min(low, f.b[n].getWorldPosition(p).y);
-            if (low < Infinity) f.root.position.y += (f.cfg.foot ?? 0.04) - low;
+            const air = this.moveOf(f)?.air;
+            if (low < Infinity && !air) f.lift = (f.lift ?? 0) + ((f.cfg.foot ?? 0.04) - low - (f.lift ?? 0)) * Math.min(1, dt * 10);
+            f.root.position.y += f.lift ?? 0;
         }
         f.flash = Math.max(0, f.flash - dt * 6);
         for (const m of f.mats) {
