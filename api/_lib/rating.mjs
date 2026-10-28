@@ -1,5 +1,6 @@
 // Рейтинг игроков: очки начисляет только сервер — за то, что он сам проверил (карты, боссы, таблички, место в сотне)
-// и за разовые задания (записаться на разбор, анкета, приглашение, NS Store). Клиент очки не передаёт.
+// и за разовые задания (записаться на разбор, анкета, приглашение, подписка на NS Store). Клиент очки не передаёт:
+// разбор — по доставленной заявке, друг и подписка — проверкой сервера (verify.mjs), анкета — по нажатию.
 // Хранилище: p2p:lb — sorted set tgId → очки; p2p:lbn — hash tgId → имя; p2p:lbs — hash «tgId:стат» → счётчик;
 // p2p:tk:<tgId> — hash задание → метка (HSETNX: второй раз очки не даёт).
 export const RATING = {
@@ -44,6 +45,7 @@ export async function handleRating(action, body, who, { store, now }) {
     if (action === "task") {
         const id = String(body.task || "");
         if (id === "razbor") return { status: 400, json: { error: "use_apply" } }; // разбор — только через отправленную заявку (leads.mjs)
+        if (id === "invite" || id === "store") return { status: 400, json: { error: "use_check" } }; // друг и подписка — только проверкой (verify.mjs)
         const pts = RATING.tasks[id];
         if (!pts) return { status: 400, json: { error: "bad_task" } };
         const fresh = await store.taskOnce(who.id, id, now);

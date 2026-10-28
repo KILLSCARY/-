@@ -27,4 +27,7 @@ export const prize = {
     // заявка на разбор: сервер отправляет её менеджерам; очки за «разбор» — только после доставки
     apply(lead) { return tg.initData ? post({ action: "apply", ...lead }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },
+    // проверка действий: подписан ли на канал (спрашивает бот) и сколько друзей пришло по личной ссылке (+ сама ссылка)
+    subcheck() { return tg.initData ? post({ action: "subcheck" }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
+    refs() { return tg.initData ? post({ action: "refs" }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
 };

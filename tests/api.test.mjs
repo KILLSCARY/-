@@ -214,3 +214,41 @@ test("рейтинг: прошлые награды засчитываются �
     const b = (await run(store, "top", { initData: d }, T0 + 2000)).json;
     assert.equal(b.me.score, 120); // второй раз — не добавляет
 });
+
+// ---- проверка действий: подписка на канал и приглашения (verify.mjs) ----
+const initRef = (id, ref, t = T0) => signInitData({ auth_date: String(Math.floor(t / 1000)), user: JSON.stringify({ id, first_name: "Друг" }), ...(ref ? { start_param: ref } : {}) }, BOT);
+
+test("подписка: бот спрашивает Telegram; подписан — очки один раз, не подписан — нет, бот не админ — 503", async () => {
+    const store = memoryStore(), d = init(401), asked = [];
+    const tg = (status, ok = true) => async (url, o) => { asked.push({ url, body: JSON.parse(o.body) }); return { json: async () => (ok ? { ok: true, result: { status } } : { ok: false, description: "Bad Request: member list is inaccessible" }) }; };
+    const sub = (f) => handle("subcheck", { initData: d }, { store, env, now: T0, fetchImpl: f });
+    const no = await sub(tg("left"));
+    assert.equal(no.status, 200); assert.equal(no.json.subscribed, false); assert.equal(no.json.points, 0);
+    assert.match(asked[0].url, /\/getChatMember$/); assert.equal(asked[0].body.chat_id, "@Nesuschiystore"); assert.equal(asked[0].body.user_id, 401);
+    assert.equal((await sub(tg("x", false))).status, 503); // бот не админ канала — проверить нельзя
+    const yes = await sub(tg("member"));
+    assert.equal(yes.json.subscribed, true); assert.equal(yes.json.points, 10);
+    assert.equal((await sub(tg("administrator"))).json.points, 0); // очки — один раз
+    assert.equal((await run(store, "task", { initData: d, task: "store" }, T0)).status, 400); // кнопкой не засчитать
+    assert.equal((await run(store, "task", { initData: d, task: "invite" }, T0)).status, 400);
+});
+
+test("приглашение: засчитывается, когда новичок открыл игру по ссылке; старый игрок, сам себя и повтор — нет", async () => {
+    const store = memoryStore(), getMe = async () => ({ json: async () => ({ ok: true, result: { username: "p2p_game_bot" } }) });
+    const refs = (id) => handle("refs", { initData: init(id) }, { store, env, now: T0, fetchImpl: getMe });
+    const r0 = await refs(501);
+    assert.equal(r0.json.invited, 0); assert.equal(r0.json.link, "https://t.me/p2p_game_bot?startapp=ref_501");
+    await run(store, "event", { initData: initRef(502, "ref_501"), event: "run:1" }, T0); // новичок пришёл по ссылке
+    await run(store, "rewards", { initData: initRef(502, "ref_501") }, T0 + 1000); // повторные запросы с той же ссылкой — не считаются
+    await run(store, "event", { initData: init(503), event: "run:1" }, T0); // старый игрок…
+    await run(store, "rewards", { initData: initRef(503, "ref_501") }, T0 + 5000); // …потом открыл по ссылке — не считается
+    await run(store, "rewards", { initData: initRef(501, "ref_501") }, T0); // сам себя — нет
+    await run(store, "rewards", { initData: initRef(504, "ref_999") }, T0); // другой друг
+    await run(store, "rewards", { initData: initRef(504, "ref_501") }, T0 + 1000); // уже засчитан другому — не переходит
+    const r1 = await refs(501);
+    assert.equal(r1.json.invited, 1); assert.equal(r1.json.points, 20);
+    assert.equal((await refs(501)).json.points, 0); // очки за «Позвать друга» — один раз
+    assert.equal((await refs(999)).json.invited, 1);
+    const own = await handle("refs", { initData: init(505) }, { store, env: { ...env, INVITE_LINK: "https://t.me/p2p_game_bot/play" }, now: T0, fetchImpl: getMe });
+    assert.equal(own.json.link, "https://t.me/p2p_game_bot/play?startapp=ref_505");
+});

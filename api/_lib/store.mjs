@@ -51,7 +51,7 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
-    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set(), leads = new Map();
+    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
     return {
         kind: "memory",
         // рейтинг (api/_lib/rating.mjs)
@@ -103,6 +103,16 @@ export function memoryStore() {
         async perkTake(id, keys) { const m = pk.get(id) || {}, out = []; for (const k of keys) if (m[k] > 0) { m[k]--; out.push(k); } return out; },
         async perks(id) { return { ...(pk.get(id) || {}) }; },
         async rewards(id) { return Object.fromEntries([...(rw.get(id) || [])].map(([k, v]) => [k, Number(v.split(":")[0])])); },
+        // приглашения (verify.mjs): кто кого позвал; "0" — пришёл по ссылке, но не новичок (не засчитан)
+        async refOf(id) { return refBy.get(String(id)) || null; },
+        async refSkip(id) { if (!refBy.has(String(id))) refBy.set(String(id), "0"); },
+        async refAdd(inviter, id) {
+            if (refBy.has(String(id))) return false;
+            refBy.set(String(id), String(inviter));
+            const s = refs.get(String(inviter)) || new Set(); s.add(String(id)); refs.set(String(inviter), s);
+            return true;
+        },
+        async refCount(id) { return refs.get(String(id))?.size || 0; },
     };
 }
 
@@ -179,6 +189,15 @@ export function redisStore(url, token, fetchImpl = fetch) {
             for (let i = 0; i < a.length; i += 2) o[a[i]] = Number(String(a[i + 1]).split(":")[0]);
             return o;
         },
+        // приглашения: p2p:ref — hash новичок → кто позвал ("0" — не новичок), p2p:refs:<id> — set приглашённых
+        async refOf(id) { return (await cmd("HGET", "p2p:ref", String(id))) || null; },
+        async refSkip(id) { await cmd("HSETNX", "p2p:ref", String(id), "0"); },
+        async refAdd(inviter, id) {
+            if (Number(await cmd("HSETNX", "p2p:ref", String(id), String(inviter))) !== 1) return false;
+            await cmd("SADD", `p2p:refs:${inviter}`, String(id));
+            return true;
+        },
+        async refCount(id) { return Number((await cmd("SCARD", `p2p:refs:${id}`)) || 0); },
     };
 }
 

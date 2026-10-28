@@ -16,7 +16,7 @@ export function verifyInitData(initData, botToken, maxAgeSec = 86400, now = Date
     let user;
     try { user = JSON.parse(params.get("user") || "null"); } catch { return null; }
     if (!user || !Number.isSafeInteger(user.id)) return null;
-    return { id: String(user.id), user, authDate };
+    return { id: String(user.id), user, authDate, startParam: params.get("start_param") || "" };
 }
 
 // для тестов: подписать initData так же, как это делает Telegram

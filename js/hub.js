@@ -41,6 +41,7 @@ export class Hub {
     tab(name) {
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
+        if (name === "heroes") this.autoCheck(); // начатые подписка и приглашение — проверить молча, герой откроется сам
         tg.backButton(name !== "run" && (() => this.back())); // системная «назад» Telegram в шапке
         for (const v of document.querySelectorAll(".view")) {
             const on = v.id === `view-${name}`;
@@ -187,6 +188,60 @@ export class Hub {
         prize.task(id);
     }
 
+    // ---- проверка действий (сервер, api/_lib/verify.mjs): подписка на канал и приглашение друга ----
+    // kind: "store" — подписка на @Nesuschiystore (открывает Денчика), "invite" — друг пришёл по личной ссылке (Ислама).
+    // Засчитанное сервером — в data.checked (старые отметки tasksDone ставились по нажатию и не в счёт).
+    // Сначала действие (startAction), потом проверка: сама — когда игрок вернулся в игру, и кнопкой «Проверить»
+    async startAction(kind) {
+        const d = this.p.data;
+        (d.tried ||= {})[kind] = 1;
+        this.p.save();
+        if (kind === "store") this.openStore();
+        else {
+            const r = await prize.refs(); // личная ссылка с ref_<id> — по ней сервер узнает, что друг пришёл от тебя
+            tg.share("Бегу «Воронку» — залетай!", r?.link || LINKS.bot);
+        }
+        this.render();
+        if (!prize.online) return void setTimeout(() => this.verifyAction(kind), 800); // вне Telegram проверить нельзя — как раньше
+        // Telegram сворачивает игру, пока открыт канал или выбор чата: вернулся — проверяем молча
+        const back = () => { if (document.hidden) return; document.removeEventListener("visibilitychange", back); clearTimeout(t); this.verifyAction(kind, true); };
+        document.addEventListener("visibilitychange", back);
+        const t = setTimeout(back, 6000);
+    }
+
+    async verifyAction(kind, quiet = false) {
+        const d = this.p.data, ok = (d.checked ||= {});
+        let r = null;
+        if (prize.online) r = kind === "store" ? await prize.subcheck() : await prize.refs();
+        const done = !prize.online || (r?.status === 200 && (kind === "store" ? r.subscribed : r.invited > 0));
+        if (done) {
+            const first = !ok[kind];
+            ok[kind] = 1;
+            this.p.save();
+            const act = kind === "store" ? "subscribe" : "invite", got = [];
+            for (const [id, u] of Object.entries(HERO_UNLOCKS)) if (u.act === act && this.p.unlockHero(id)) got.push(CHARACTERS.find((c) => c.id === id)?.name);
+            if (got.length) { this.game.audio.play("buy"); this.toast(`${got.join(", ")} в команде!${r?.points ? ` +${r.points} в рейтинг` : ""}`); }
+            else if (first && !quiet) this.toast(kind === "store" ? `Подписка есть!${r?.points ? ` +${r.points} в рейтинг` : ""}` : `Друг засчитан!${r?.points ? ` +${r.points} в рейтинг` : ""}`);
+            this.render();
+            if (this.current === "rating") this.renderRateTasks();
+            return true;
+        }
+        if (quiet) return false;
+        const off = r?.status !== 200;
+        this.toast(kind === "store"
+            ? (off ? "Проверка подписки сейчас недоступна — попробуй позже" : "Пока не вижу подписки на @Nesuschiystore. Подпишись и нажми «Проверить»")
+            : (off ? "Проверка приглашения сейчас недоступна — попробуй позже" : "Друг ещё не открыл игру по твоей ссылке. Как только откроет — засчитаем"));
+        return false;
+    }
+
+    // заходишь в «Героев» или «Рейтинг» — то, что начал, но ещё не засчитано, проверяем молча (не чаще раза в 30 с)
+    autoCheck() {
+        if (!prize.online || Date.now() - (this.autoCheckT || 0) < 30000) return;
+        this.autoCheckT = Date.now();
+        const d = this.p.data, tried = d.tried || {}, ok = d.checked || {};
+        for (const kind of ["store", "invite"]) if (tried[kind] && !ok[kind]) this.verifyAction(kind, true);
+    }
+
     // «Записаться на разбор»: заявка в игре → сервер отправляет её менеджерам через бота заявок.
     // Очки рейтинга — только когда заявка дошла (просто открыть чат с менеджером — не считается)
     razbor(extra = "") {
@@ -241,9 +296,11 @@ export class Hub {
         $("rate-me").textContent = "Твоё место";
         $("rate-me-sub").textContent = "";
         this.renderRateTasks();
-        // задания, отмеченные на телефоне до появления рейтинга (или без связи), — дослать: сервер засчитает один раз
+        // задания, отмеченные на телефоне до появления рейтинга (или без связи), — дослать: сервер засчитает один раз.
+        // Разбор, друг и подписка так не засчитываются — их проверяет сервер (заявка, ссылка, бот)
         const done = this.p.data.tasksDone || {};
-        await Promise.all(Object.keys(done).filter((id) => id !== "razbor").map((id) => prize.task(id)));
+        await Promise.all(Object.keys(done).filter((id) => !["razbor", "invite", "store"].includes(id)).map((id) => prize.task(id)));
+        this.autoCheck();
         const r = await prize.top(50);
         if (!r || r.status !== 200) {
             // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети
@@ -260,19 +317,20 @@ export class Hub {
         [...list.querySelectorAll(".nm b")].forEach((b, i) => (b.textContent = r.top[i].name)); // имя — текстом, не HTML
         const R = r.rules;
         if (R) $("rate-rules").innerHTML = [["Карта", R.card], ["Мизулина", R.boss[1]], ["Полиция", R.boss[2]], ["Инаков", R.boss[3]], ["Верная табличка (первый раз)", R.sign], ["Место в первой сотне", R.top100],
-            ["Записаться на разбор", R.tasks.razbor], ["Анкета Гориллы", R.tasks.anketa], ["Позвать друга", R.tasks.invite], ["Заглянуть в NS Store", R.tasks.store]]
+            ["Записаться на разбор", R.tasks.razbor], ["Анкета Гориллы", R.tasks.anketa], ["Друг зашёл по твоей ссылке", R.tasks.invite], ["Подписка на NS Store", R.tasks.store]]
             .map(([t, v]) => `<p><span>${t}</span><b>+${v}</b></p>`).join("");
     }
 
     // задания рейтинга — кнопками; сделанные помечены
     renderRateTasks() {
-        const done = this.p.data.tasksDone || {};
+        const d = this.p.data, done = { ...(d.tasksDone || {}), invite: d.checked?.invite, store: d.checked?.store }, tried = d.tried || {};
         const box = $("rate-tasks");
         box.innerHTML = "";
+        // друг и подписка — пока сервер не подтвердил: нажатие отправляет ссылку / открывает канал, а проверка — сама при возврате
         for (const [id, label, pts, go] of [
             ["razbor", "Записаться на разбор", 50, () => this.razbor()],
-            ["invite", "Позвать друга", 20, () => { this.task("invite"); tg.share("Бегу «Воронку» — залетай!", LINKS.bot); }],
-            ["store", "Заглянуть в NS Store", 10, () => { this.task("store"); this.openStore(); }],
+            ["invite", tried.invite && !done.invite ? "Позвать друга · ждём, когда зайдёт" : "Позвать друга", 20, () => this.startAction("invite")],
+            ["store", tried.store && !done.store ? "Подписаться на NS Store · проверить" : "Подписаться на NS Store", 10, () => (tried.store ? this.verifyAction("store") : this.startAction("store"))],
         ]) {
             const b = document.createElement("button");
             b.className = `rate-task${done[id] ? " done" : ""}`;
@@ -417,13 +475,15 @@ export class Hub {
             b.disabled = on;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); };
         } else if (st === "buy" && u) { // открыть действием (shop_v6): подписка, приглашение, разбор; босс — в забеге
-            b.textContent = u.btn;
+            // подписку и приглашение проверяет сервер (бот спрашивает Telegram): сначала действие, потом «Проверить»
+            const kind = u.act === "subscribe" ? "store" : u.act === "invite" ? "invite" : null;
+            const tried = kind && this.p.data.tried?.[kind];
+            b.textContent = tried ? (kind === "store" ? "Проверить подписку" : "Проверить приглашение") : u.btn;
             b.disabled = u.act === "boss";
             b.onclick = () => {
-                if (u.act === "subscribe") { this.task("store"); tg.open(NS_STORE_URL); }
-                else if (u.act === "invite") { this.task("invite"); tg.share("Бегу «Воронку» — залетай!", LINKS.bot); }
-                else if (u.act === "razbor") this.razbor();
-                // проверить подписку и приглашение из мини-аппа нельзя — открываем после действия
+                if (kind) return tried ? this.verifyAction(kind) : this.startAction(kind);
+                if (u.act === "razbor") this.razbor();
+                // разбор: заявку подтверждает доставка менеджерам (leads.mjs) — героя открываем после отправки формы
                 setTimeout(() => {
                     if (!this.p.unlockHero(c.id)) return;
                     this.game.audio.play("buy");
@@ -432,6 +492,14 @@ export class Hub {
                     this.render();
                 }, 800);
             };
+            if (tried) { // ещё раз: открыть канал / поделиться ссылкой
+                const again = document.createElement("button");
+                again.className = "btn-link";
+                again.textContent = kind === "store" ? "Открыть канал @Nesuschiystore" : "Отправить ссылку ещё раз";
+                again.onclick = () => this.startAction(kind);
+                box.append(b, again);
+                return;
+            }
         } else {
             b.textContent = st === "soon" ? "Скоро" : "Не бегает";
             b.disabled = true;
@@ -612,7 +680,9 @@ export class Hub {
     }
 
     openStore() {
-        this.task("store");
+        // заглянул в канал — подписку потом проверит сервер (autoCheck), сам переход заданием не засчитывается
+        const d = this.p.data;
+        if (!d.tried?.store) { (d.tried ||= {}).store = 1; this.p.save(); }
         const wa = window.Telegram?.WebApp;
         if (wa?.openTelegramLink) wa.openTelegramLink(NS_STORE_URL);
         else window.open(NS_STORE_URL, "_blank");

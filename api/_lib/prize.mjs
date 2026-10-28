@@ -6,6 +6,7 @@ import { rewardAmount } from "./rewards.mjs";
 import { handleCards } from "./cards.mjs";
 import { handleRating, score, rewardPoints, RATING, backfill } from "./rating.mjs";
 import { handleLead } from "./leads.mjs";
+import { checkSub, refStatus, trackRef } from "./verify.mjs";
 
 export function checkChain(events, cfg) {
     let prev = null, first = null;
@@ -31,7 +32,10 @@ export async function handle(action, body, { store, env = process.env, now = Dat
     }
     const who = verifyInitData(body?.initData, env.BOT_TOKEN, cfg.initDataMaxAgeSec, now);
     if (!who) return { status: 401, json: { error: "bad_init_data" } };
+    await trackRef(who, { store, now }); // пришёл по ссылке друга — засчитать другу (до любых записей: новичок ещё «чистый»)
     await backfill(store, who, now); // первый запрос игрока — прошлые награды в рейтинг (до новых начислений, без двойного счёта)
+    if (action === "subcheck") return checkSub(who, { store, env, now, fetchImpl });
+    if (action === "refs") return refStatus(who, { store, env, now, fetchImpl });
     if (action === "event") {
         const ev = String(body.event || "");
         if (!EVENT_RE.test(ev)) return { status: 400, json: { error: "bad_event" } };

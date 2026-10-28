@@ -232,6 +232,8 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .hero-detail .perk { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.4; }
 .hero-detail .btn-main { margin-top: 8px; font-size: 16px; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
 .hero-detail .btn-main .ico-usdt { width: 18px; height: 18px; }
+/* под «Проверить подписку / приглашение» — повторить действие: открыть канал или отправить ссылку ещё раз */
+.btn-link { align-self: center; margin-top: 2px; padding: 6px 10px; border: 0; background: none; color: var(--muted); font: 600 13px var(--font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 @media (max-height: 700px) {
     .carousel { min-height: 170px; padding: 36px 0; margin-top: -30px; margin-bottom: -30px; }
     .hero-detail { padding: 12px 14px; } .hero-detail .btn-main { padding: 13px; margin-top: 4px; }
