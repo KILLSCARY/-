@@ -21,6 +21,8 @@
 /* Стиль — как лендинг nsgrom.com: чёрный фон, графитовые карточки с тонкой обводкой, красный #e3343a,
    заголовки Unbounded капсом (главный — «металлом»), текст Inter, красные метки-подписи над разделами. */
 :root {
+    /* общий верхний отступ Telegram (контент + системная зона + вырез) */
+    --tg-safe-top: calc(var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px) + env(safe-area-inset-top, 0px));
     --font-display: "Unbounded", "Arial Black", sans-serif;
     --font-ui: "Oswald", "Arial Narrow", sans-serif;
     --font-body: "Inter Tight", "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -987,7 +989,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .fight { position: fixed; inset: 0; z-index: 35; touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; }
 .fight::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(130% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, .55)); }
 /* полоски HP: скошенные, жёлтая жизнь и красный «след» урона, портреты в рамках, раунды ромбами */
-.f-top { position: absolute; left: 8px; right: 8px; top: calc(var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px) + env(safe-area-inset-top, 0px) + 10px);
+.f-top { position: absolute; left: 8px; right: 8px; top: calc(var(--tg-safe-top) + 8px);
     display: flex; align-items: flex-start; gap: 6px; z-index: 2; }
 .f-side { flex: 1; display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
 .f-side.r { flex-direction: row; }
