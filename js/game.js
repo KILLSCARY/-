@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE } from "./config.js";
 import { Fight } from "./fight.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -198,6 +198,8 @@ class Game {
         this.storyOk = 0; // верных ответов в этом забеге
         this.storyQ = 0; // сколько табличек главы уже выставлено в этом забеге
         this.pendingInput = null; // табличка с вводом числа: откроется, когда герой до неё добежит
+        this.storyCatch = false; // глава 1: Мизулина догоняет по сценарию (ролик перед боем)
+        this.grudgeTold = false;
         clearTimeout(this.gorillaT); if ($("gorilla")) $("gorilla").hidden = true;
         this.storyOn = false;
         this.world.clear();
@@ -293,7 +295,7 @@ class Game {
         setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 500);
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
         const st = this.story;
-        if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
+        if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla((st.chase && !this.grudge && st.chaseHint) || st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
         this.chaserSaid = false;
         const lines = HERO_LINES[this.heroId];
         if (lines) setTimeout(() => { if (this.runId === run && this.state === "playing") this.hub.toast(`${CHARACTERS.find((c) => c.id === this.heroId)?.name}: «${pick(lines)}»`); }, 2600);
@@ -346,7 +348,7 @@ class Game {
         this.boostsUsed = (this.boostsUsed || 0) + 1;
         this.profile.save();
         if (id === "fokus") { this.fx.magnet = Math.max(this.fx.magnet, b.time); this.fx.focus = b.walls; }
-        if (id === "ryvok") this.fx.honey = b.time;
+        if (id === "ryvok") { this.fx.honey = b.time; if (this.grudge && this.stumble > 0) this.speech("Мизулина", CHASE_GRUDGE.lines.dash); }
         if (id === "ustoychivost") this.fx.windproof = true;
         if (id === "spokoystvie") this.wallForgive = Math.max(this.wallForgive || 0, 1);
         if (id === "shchit") this.fx.shield = true;
@@ -441,11 +443,17 @@ class Game {
             tg.saveBest(score);
             setTimeout(() => this.audio.play("record"), 700);
         }
-        $("over-cause").textContent = pick(DEATH_TEXT[cause]);
+        $("over-cause").textContent = cause === "caught" && this.grudge ? `Мизулина: «${CHASE_GRUDGE.lines.caught}»` : pick(DEATH_TEXT[cause]);
         $("over-new").hidden = !isBest;
         $("over-best").innerHTML = isBest ? "" : `Рекорд <b>${fmt(this.best)}</b>`;
         document.querySelector(".over-card").classList.toggle("is-best", isBest);
 
+        // поймала Мизулина «из принципа» — минус 20% USDT этого забега
+        if (cause === "caught" && this.grudge) {
+            const cut = Math.round((this.usdt - this.credited.usdt) * CHASE_GRUDGE.penalty);
+            this.usdt -= cut;
+            setTimeout(() => this.speech("Мизулина", CHASE_GRUDGE.lines.caught, 3600), 300);
+        }
         // в кошелёк — то, что ещё не зачислено (после апелляции забег продолжается)
         const du = this.usdt - this.credited.usdt;
         this.credited = { usdt: this.usdt, trx: 0 };
@@ -1069,6 +1077,7 @@ class Game {
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
 
         if (this.stumble > 0) this.chase(dt);
+        else if (this.storyChasing()) this.storyChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe", "turbo"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         if (this.windCalm > 0) this.windCalm -= dt;
@@ -1083,7 +1092,7 @@ class Game {
         const side = Math.abs(target - this.x) > 0.35 && Math.abs(o.position.x - target) < 0.3;
         if (side) this.lane = this.prevLane;
         else { o.visible = false; o.userData.type = "decor"; }
-        this.stumble = BALANCE.stumbleTime;
+        this.stumble = BALANCE.stumbleTime * (this.grudge ? CHASE_GRUDGE.speed : 1); // «из принципа» — дольше на хвосте
         this.slowLeft = BALANCE.stumbleSlow;
         this.fx.safe = Math.max(this.fx.safe, 1);
         this.audio.play("hit");
@@ -1091,7 +1100,24 @@ class Game {
         tg.haptic("warning");
         this.kick(0.35, 7);
         this.world.splash(this.x, 0, 22, 1.3);
-        // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+        this.ensureChaser();
+        this.chaser.visible = true;
+        if (this.grudge) {
+            this.speech("Мизулина", CHASE_GRUDGE.lines.stumble, 2200);
+            const run = this.runId;
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.speech("Мизулина", pick(CHASE_GRUDGE.lines.run), 2200); }, 2300);
+            if (!this.grudgeTold) { this.grudgeTold = true; setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(CHASE_GRUDGE.lines.gorilla, false, 3000), 4600); }
+        } else if (!this.chaserSaid) { // первая погоня за забег — Мизулина представляется (после подсказки стены)
+            this.chaserSaid = true;
+            const run = this.runId;
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Мизулина: «${CHASER_LINES.start}»`); }, 1400);
+        }
+        this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
+        this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
+    }
+
+    // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+    ensureChaser() {
         const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
         if (!this.chaser || better) {
             if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
@@ -1101,15 +1127,19 @@ class Game {
                 this.chaser.scale.setScalar(0.9);
             }
             this.scene.add(this.chaser);
+            this.chaser.userData.side ??= 1;
         }
-        this.chaser.visible = true;
-        if (!this.chaserSaid) { // первая погоня за забег — Мизулина представляется (после подсказки стены)
-            this.chaserSaid = true;
-            const run = this.runId;
-            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Мизулина: «${CHASER_LINES.start}»`); }, 1400);
-        }
-        this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
-        this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
+        return this.chaser;
+    }
+
+    // Глава 1 (v2.6): Мизулина бежит следом всю главу, держится в паре метров за спиной (удар — подбегает ближе, как обычно)
+    storyChaseStep(dt) {
+        const c = this.ensureChaser();
+        if (!c.visible) { c.visible = true; c.position.set(this.x, 0, 8); c.userData.side = 1; }
+        const z = this.storyCatch ? 0.9 : 4.2;
+        c.position.z += (z - c.position.z) * Math.min(1, dt * (this.storyCatch ? 3 : 1.5));
+        c.position.x += (this.x + c.userData.side * (this.storyCatch ? 0.5 : 1.0) - c.position.x) * Math.min(1, dt * 4);
+        if (c.userData.mixer) { c.rotation.y = Math.PI; c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14)); }
     }
 
     // удар: тряска камеры на shake секунд и рывок угла обзора на fov градусов
@@ -1162,7 +1192,7 @@ class Game {
             c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
             c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
         }
-        if (this.stumble <= 0) { this.stumble = 0; c.visible = false; }
+        if (this.stumble <= 0) { this.stumble = 0; c.visible = this.storyChasing(); }
     }
 
     // ---- баночки: тестобустер (полёт) и холин (магнит) ----
@@ -1546,6 +1576,12 @@ class Game {
     // Ошибка — реплика Гориллы с пояснением, без удара и без заряда; табличку можно пересдать в следующем забеге.
     get story() { return STORIES[this.profile.data.story || 0] || null; }
 
+    // Мизулина побеждена — дальше бегает «из принципа»
+    get grudge() { return !!this.profile.data.mizBeaten; }
+
+    // глава 1 до боя: Мизулина бежит следом
+    storyChasing() { const s = this.story; return !!(s?.chase && this.questions && !this.storyOn && this.state === "playing" && !this.profile.data.mizBeaten); }
+
     storyList(s = this.story) { return [...s.questions, ...(s.practice ? [s.practice] : [])]; }
 
     charges(s = this.story) { const done = this.profile.data.quiz || {}; return s ? s.questions.filter((q) => done[q.id]).length : 0; }
@@ -1560,6 +1596,7 @@ class Game {
         const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5); // варианты перемешиваются
         const wall = this.world.addWall({ ...q, type: q === s.practice ? "practice" : s.type }, order.map((i) => q.a[i]), order.indexOf(0), z);
         wall.story = q;
+        wall.storyOf = s;
         wall.boss = 0;
         this.walls.push(wall);
         this.world.noCars = true;
@@ -1567,18 +1604,18 @@ class Game {
     }
 
     // ответ на табличку главы: ok — верно; null — проскочил мимо
-    storyAnswer(q, ok) {
-        const s = this.story, d = this.profile.data;
+    storyAnswer(q, ok, s = this.story) {
+        const d = this.profile.data;
         if (ok) {
             this.storyOk++;
-            const first = q !== s.practice && !(d.quiz ||= {})[q.id];
+            const first = q !== s.practice && !(d.quiz ||= {})[q.id]; // 1.4 после боя — тоже с наградой
             if (first) {
                 d.quiz[q.id] = 1;
                 this.usdt += s.answerUsdt;
                 this.profile.save();
             }
-            const n = this.charges(s);
-            this.hub.toast(q === s.practice ? "Верно! Теперь — в бой" : first ? `Верно! +${fmt(s.answerUsdt)} USDT · заряд ${n}/${s.questions.length} против: ${FIGHTERS[s.opponent].name}`
+            const n = this.charges(s), post = q === s.after;
+            this.hub.toast(q === s.practice ? "Верно! Теперь — в бой" : first && post ? `Верно! +${fmt(s.answerUsdt)} USDT` : first ? `Верно! +${fmt(s.answerUsdt)} USDT · заряд ${n}/${s.questions.length} против: ${FIGHTERS[s.opponent].name}`
                 : "Верно! Уже засчитано — это тренировка");
             if (q.ok) this.gorilla(q.ok, true);
             this.audio.play("boost");
@@ -1590,9 +1627,14 @@ class Game {
     }
 
     // реплика Гориллы поверх забега/боя
-    gorilla(text, good = false, ms = 4200) {
+    gorilla(text, good = false, ms = 4200) { this.speech("Горилла", text, ms, good); }
+
+    // реплика персонажа (Горилла, Мизулина, Спиди) — плашка сверху
+    speech(who, text, ms = 3200, good = false) {
         const el = $("gorilla");
         $("g-text").textContent = text;
+        $("g-who").textContent = who;
+        el.dataset.who = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
         el.classList.toggle("ok", good);
         el.hidden = false;
         el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
@@ -1633,7 +1675,45 @@ class Game {
         if (!s || this.storyOn || this.state !== "playing" || this.flight) return;
         if (this.pendingInput && this.distance >= this.pendingInput.at - 12) return this.openInput(this.pendingInput.q);
         const ready = this.questions ? this.storyQ >= this.storyList(s).length && !this.walls.length && !this.pendingInput : this.distance >= (s.noqDistance || 450);
-        if (ready) this.startStoryFight();
+        if (ready) s.chase && this.questions && !this.profile.data.mizBeaten ? this.catchScene() : this.startStoryFight();
+    }
+
+    // Глава 1: догнала по сценарию — хватает за шиворот, затемнение, арена
+    async catchScene() {
+        const s = this.story, run = this.runId;
+        this.storyOn = true;
+        this.storyCatch = true;
+        this.state = "bossintro";
+        const c = this.ensureChaser();
+        c.visible = true;
+        // подбегает вплотную (в bossintro кадр рисуется, но забег стоит — двигаем сами)
+        const t0 = performance.now();
+        await new Promise((res) => {
+            const step = () => {
+                const k = Math.min(1, (performance.now() - t0) / 900);
+                c.position.z += (0.9 - c.position.z) * 0.2;
+                c.position.x += (this.x + 0.45 - c.position.x) * 0.2;
+                c.userData.mixer?.update(1 / 60);
+                if (k < 1) requestAnimationFrame(step); else res();
+            };
+            step();
+        });
+        if (this.runId !== run) return;
+        const cast = this.world.chaserModel?.gltf.animations.find((x) => x.name === CHASER.arrest);
+        if (cast && c.userData.mixer) { c.userData.mixer.stopAllAction(); const a = c.userData.mixer.clipAction(cast); a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); }
+        this.audio.play("whistle");
+        tg.haptic("heavy");
+        this.kick(0.3, 6);
+        this.speech("Мизулина", s.catchLine, 1800);
+        await wait(1500);
+        $("fade").classList.add("on");
+        await wait(600);
+        if (cast && c.userData.mixer) { c.userData.mixer.stopAllAction(); c.userData.mixer.clipAction(this.world.chaserModel.gltf.animations.find((x) => x.name === CHASER.run)).play(); }
+        c.visible = false;
+        this.storyCatch = false;
+        this.startStoryFight(true);
+        setTimeout(() => $("fade").classList.remove("on"), 150);
+        if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech("Спиди", s.heroLine, 2000), 1900);
     }
 
     async startStoryFight() {
@@ -1671,9 +1751,11 @@ class Game {
         const n = this.questions ? this.charges(s) : 0;
         this.state = "fight";
         this.clock.getDelta();
+        // экзамен Инакова: вопросы перемешаны (пересдача — в другом порядке), заряды убирают неверные варианты
+        const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
         // заряды главы: +5% HP за каждый, с трёх — супер на 30% со старта
-        this.fight = new Fight(this, { hero: "mouse", opponent: s.opponent,
-            bonus: { hp: Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
+        this.fight = new Fight(this, { hero: "mouse", opponent: s.opponent, exam,
+            bonus: exam ? {} : { hp: Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
             onEnd: (win) => this.endStoryFight(win) });
     }
 
@@ -1693,17 +1775,23 @@ class Game {
             this.show("menu");
             const opp = FIGHTERS[s.opponent];
             $("sl-title").textContent = `${opp.name} победил`;
-            $("sl-text").textContent = `«${opp.lines.lose}» ${s.name} начнётся заново: таблички и бой. Засчитанные заряды (${this.charges(s)}) остаются.`;
+            $("sl-text").textContent = s.exam ? `«${opp.lines.lose}» Вопросы перемешаются, пересдача бесплатная.`
+                : `«${opp.lines.lose}» ${s.name} начнётся заново: таблички и бой. Засчитанные заряды (${this.charges(s)}) остаются.`;
             $("sl-ph").style.backgroundImage = `url(${opp.portrait})`;
             $("btn-sl-again").onclick = () => { $("story-lose").hidden = true; this.start(); };
             $("btn-sl-menu").onclick = () => ($("story-lose").hidden = true);
             $("story-lose").hidden = false;
             return;
         }
-        this.profile.data.story = (this.profile.data.story || 0) + 1;
-        if (s.final) { this.profile.data.exam = true; if (CHAPTERS[this.profile.chapter().index]?.final) this.profile.beatBoss(); }
-        this.profile.gift(s.reward.usdt);
+        const d = this.profile.data;
+        d.story = (d.story || 0) + 1;
+        if (s.final) { d.exam = true; if (CHAPTERS[this.profile.chapter().index]?.final) this.profile.beatBoss(); }
+        const paid = (d.bossPaid ||= {})[s.id]; // награда за босса — только за первую победу
+        if (!paid) { d.bossPaid[s.id] = 1; this.profile.gift(s.reward.usdt); }
+        if (s.badge) (d.badges ||= {})[s.badge] = 1;
+        if (s.chase) d.mizBeaten = true;
         this.profile.save();
+        if (s.after) return this.resumeAfterFight(s, paid);
         tg.haptic("success");
         this.audio.play("boost");
         this.state = "menu";
@@ -1715,13 +1803,46 @@ class Game {
         $("sw-ph").style.backgroundImage = `url(${FIGHTERS[s.opponent].portrait})`;
         $("sw-label").textContent = `${s.name} пройдена`;
         $("sw-title").textContent = `${FIGHTERS[s.opponent].name} повержен!`;
-        $("sw-text").textContent = `Страх ${s.fear} побеждён. Награда: +${fmt(s.reward.usdt)} USDT. Забери бесплатный разбор у менеджера.`;
+        $("sw-text").textContent = `Страх ${s.fear} побеждён.${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} USDT.`} Забери бесплатный разбор у менеджера.`;
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
         $("sw-next-text").textContent = next ? `Страх ${next.fear}. Таблички главы — заряды против босса.` : "";
         $("btn-razbor").onclick = () => tg.open(this.hub.managerLink());
         $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
         $("story-win").hidden = false;
+    }
+
+    // Глава 1: после K.O. Мизулины забег продолжается — табличка 1.4, дальше таблички следующей главы, Мизулина «из принципа»
+    async resumeAfterFight(s, paid) {
+        this.rat.visible = true;
+        this.storyOn = false;
+        this.storyQ = 0;
+        this.walls = [];
+        this.show("hud");
+        this.hub.toast(`${s.badge ? `Значок «${s.badge}»` : "Победа"}${paid ? "" : ` · +${fmt(s.reward.usdt)} USDT`}`);
+        this.gorilla(s.afterKo, true, 3600);
+        // табличка 1.4 — первой, следом таблички новой главы
+        const q = s.after, z = -70;
+        const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
+        const wall = this.world.addWall({ ...q, type: s.type }, order.map((i) => q.a[i]), order.indexOf(0), z);
+        wall.story = q; wall.storyOf = s; wall.boss = 0;
+        this.walls.push(wall);
+        this.world.noCars = true;
+        this.nextWallAt = this.distance + 70 + WALLS.every[0];
+        this.nextRowZ = Math.min(this.nextRowZ, z - 36);
+        this.state = "countdown";
+        const run = this.runId, cd = $("countdown");
+        cd.hidden = false;
+        for (const n of ["3", "2", "1"]) {
+            cd.textContent = n; cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop");
+            this.audio.play("count");
+            await wait(600);
+            if (this.runId !== run) { cd.hidden = true; return; }
+        }
+        cd.hidden = true;
+        this.audio.music("run");
+        this.state = "playing";
+        this.clock.getDelta();
     }
 
     // Горилла перед финалом: любой ответ ведёт к финальному экрану
@@ -1744,8 +1865,8 @@ class Game {
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
         $("fn-title").textContent = "Ты прошёл Воронку до конца";
         $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
-            : `Ты в первой сотне${d.place ? `: место №${d.place}` : ""}. Тебя ждут ${GORILLA.prize} USDT. Чтобы их забрать, запишись на созвон с менеджером.${d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : ""}`;
-        $("btn-fn").textContent = full ? "Записаться на созвон" : `Забрать ${GORILLA.prize} USDT, записаться на созвон`;
+            : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
+        $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => tg.open(this.hub.managerLink(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`));
         $("btn-fn-menu").onclick = () => ($("final").hidden = true);
         $("final").hidden = false;
@@ -2130,7 +2251,7 @@ class Game {
         if (w.story) { // табличка главы: без удара, засчитывается один раз
             const ok = o ? !!o.userData.correct : null;
             if (o) { o.userData.type = "decor"; if (ok) { o.visible = false; this.world.flash(o.position.clone().setY(1.2), true); this.world.splash(this.x, 0, 18, 1.1); } }
-            this.storyAnswer(w.story, ok);
+            this.storyAnswer(w.story, ok, w.storyOf);
             return false;
         }
         if (!o) return false;
@@ -2213,6 +2334,7 @@ class Game {
             if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
             if (this.fx.shield) { // «Щит» прощает одно столкновение
                 this.fx.shield = false;
+                if (this.grudge && this.stumble > 0) this.speech("Мизулина", CHASE_GRUDGE.lines.shield);
                 this.fx.safe = 1;
                 o.visible = false;
                 d.type = "decor";

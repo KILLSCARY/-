@@ -72,6 +72,7 @@ export class Fight {
         this.wins = [0, 0];
         this.superV = Math.min(FIGHT.superMax, opts.bonus?.super || 0);
         this.hpBonus = opts.bonus?.hp || 0;
+        this.exam = opts.exam || null; // экзамен Инакова: { list, need, lives, time, charges } — бой-тест вместо кнопок
         this.t = 0;
         this.camT = 0;
         this.stop = 0;     // стоп-кадр при попадании (сек)
@@ -129,6 +130,8 @@ export class Fight {
         $("f-ph-l").style.backgroundImage = this.heroCfg.portrait ? `url(${this.heroCfg.portrait})` : "";
         $("f-ph-r").style.backgroundImage = this.oppCfg.portrait ? `url(${this.oppCfg.portrait})` : "";
         $("fight").hidden = false;
+        $("fight").classList.toggle("exam", !!this.exam);
+        $("f-exam").hidden = true;
         this.big("");
         this.hud();
     }
@@ -223,13 +226,19 @@ export class Fight {
             if (f.base && f.base !== f.clips.idle) { f.base.timeScale = 0; f.base.time = 0; }
             f.cur = null; f.prev = null; f.segId = null; f.koYaw = undefined; f.koLift = undefined;
         }
-        this.timeLeft = FIGHT.roundTime;
+        this.timeLeft = this.exam ? Infinity : FIGHT.roundTime;
         // ИИ: раунд за раундом злее (FIGHTERS[…].ai)
         const ai = this.oppCfg.ai, r = Math.min(this.round, 3) - 1;
         this.ai = { next: 1.0, guard: 0, streak: 0, block: ai.block[r], every: ai.every[r], heavy: ai.heavy[r], combo: ai.combo[r], third: ai.third[r] };
         this.phase = "intro";
         this.introT = 0;
-        this.say(this.round === 1 ? this.oppCfg.lines.intro : this.round === 3 ? this.oppCfg.lines.final : null);
+        const L = this.oppCfg.lines;
+        if (this.exam) { // Горилла молчит — говорит Павел
+            this.say(L.examIntro?.[0] || L.intro);
+            if (L.examIntro?.[1]) setTimeout(() => this.phase !== "end" && this.say(L.examIntro[1]), 2700);
+        } else this.say(this.round === 1 ? L.intro : this.round === 2 ? L.round2 || null : this.round === 3 ? L.final : null);
+        // начало первого раунда: сколько HP дали ответы на табличках
+        if (this.round === 1 && this.hpBonus > 0) setTimeout(() => this.phase !== "end" && this.g.gorilla?.(`+${this.hpBonus} HP от ответов на табличках`, true, 2600), 600);
         this.bigShown = 0;
         this.hud();
     }
@@ -360,7 +369,13 @@ export class Fight {
     strike(att, def, kind) {
         const c = att.cfg.dmg, counter = def.act === "recoil"; // по открытому после блока или промаха — контр, урон ×1.5
         const unstoppable = kind === "super" || att.act === "super" || att.act === "superFin"; // серию супера не заблокировать и не уклониться
-        const dmg = Math.round(c[kind] * (counter ? FIGHT.counter : 1));
+        let dmg = Math.round(c[kind] * (counter ? FIGHT.counter : 1));
+        if (att.examPool != null) { // экзамен: урон за ответ задан заранее; серия супера делит его, добивание забирает остаток
+            const fin = kind === "super" || kind === "heavy" || att.act === "punch";
+            dmg = fin ? att.examPool : Math.min(att.examPool, Math.round(att.examPool0 * 0.08));
+            att.examPool -= dmg;
+            if (fin) att.examPool = null;
+        }
         const st = (this.stats ||= {}), key = `${att === this.f[0] ? "h" : "o"}_${kind}`;
         const contact = this.fistPos(att, kind === "heavy" ? 1 : att.hand);
         // уклон: мимо; от хука с замахом — бьющий проваливается и открыт для контратаки
@@ -443,6 +458,7 @@ export class Fight {
     think(dt) {
         const o = this.f[1], h = this.f[0], ai = this.ai, c = this.oppCfg;
         ai.next -= dt;
+        if (this.spamT) this.spamT = Math.max(0, this.spamT - dt);
         ai.guard -= dt;
         // реакция на удар героя: ставит блок с вероятностью ai.block (чем дольше герой долбит, тем охотнее)
         if (h.act === "punch" && h.t < 0.05 && !h.seen) {
@@ -450,6 +466,15 @@ export class Fight {
             // кто долбит без пауз — нарывается на блок: шанс растёт с каждым ударом подряд
             ai.spam = this.t - (ai.lastHeroPunch ?? -9) < 0.95 ? (ai.spam || 0) + 1 : 0;
             ai.lastHeroPunch = this.t;
+            // 4 удара подряд без паузы — контратака и подсказка
+            if (ai.spam >= 3 && (o.act === "idle" || o.act === "block" || o.act === "hit") && !this.spamT) {
+                this.spamT = 6; ai.spam = 0; o.act = "idle";
+                this.act(o, "block", 0.2);
+                if (o.moves?.knee) setTimeout(() => this.phase === "fight" && o.act !== "ko" && this.act(o, "knee", 0.6), 200); else this.queueAi([["punch", 0.2], ["punch", 0.05]]);
+                if (c.lines.spam) this.say(c.lines.spam);
+                if (!this.spamTold) { this.spamTold = true; this.g.gorilla?.("Не спамь. Жди окно.", false, 2600); }
+                return;
+            }
             const p = Math.min(0.8, ai.block + ai.spam * 0.13);
             if ((o.act === "idle" || o.act === "block") && Math.random() < p) { this.act(o, "block", 0.55); ai.next = Math.min(ai.next, 0.35); }
         }
@@ -530,12 +555,12 @@ export class Fight {
         const [h, o] = this.f;
         if (this.phase === "intro") {
             this.introT += dt;
-            if (this.introT > 0.25 && this.bigShown === 0) { this.bigShown = 1; this.big(this.round === 3 ? "ФИНАЛЬНЫЙ РАУНД" : `РАУНД ${this.round}`, this.round === 3 ? "red" : ""); this.g.audio?.play("count"); }
+            if (this.introT > 0.25 && this.bigShown === 0) { this.bigShown = 1; this.big(this.exam ? "ЭКЗАМЕН" : this.round === 3 ? "ФИНАЛЬНЫЙ РАУНД" : `РАУНД ${this.round}`, this.round === 3 || this.exam ? "red" : ""); this.g.audio?.play("count"); }
             if (this.introT > 1.5 && this.bigShown === 1) { this.bigShown = 2; this.big("БОЙ!", "red"); this.g.audio?.play("go"); }
-            if (this.introT > 2.1) { this.phase = "fight"; this.big(""); }
+            if (this.introT > 2.1) { this.phase = "fight"; this.big(""); if (this.exam) { this.exam.wait = this.round === 1 ? 2.6 : 0.4; } }
         } else if (this.phase === "fight") {
             this.timeLeft -= dt;
-            this.think(dt);
+            if (this.exam) this.examStep(dt); else this.think(dt);
             if (this.holdBlock && h.act === "idle") this.act(h, "block", FIGHT.blockTime);
             if (h.act === "block" && this.holdBlock) h.t = Math.min(h.t, h.dur * 0.5); // держит, пока палец на кнопке
             for (const [a, d] of [[h, o], [o, h]]) {
@@ -561,8 +586,10 @@ export class Fight {
             if (h.hp <= 0 || o.hp <= 0 || this.timeLeft <= 0) this.endRound();
         } else if (this.phase === "roundEnd") {
             this.endT -= dt;
+            // «K.O.» и реплика — когда падение уже началось
+            if (this.koBig && (this.koBig.t -= dt) <= 0) { const k = this.koBig; this.koBig = null; this.big("K.O.", k.cls); if (k.line) this.say(k.line); }
             if (this.endT <= 0) {
-                if (this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
+                if (this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
                 else this.startRound();
             }
         }
@@ -601,11 +628,14 @@ export class Fight {
             this.shake = 0.4;
         } else { loser.act = "idle"; }
         winner.act = "win"; winner.t = 0;
-        const last = this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds;
-        this.big(ko ? "K.O." : "ВРЕМЯ!", heroWon ? "gold" : "red");
-        if (!last) this.say(heroWon ? this.oppCfg.lines.roundLost : this.oppCfg.lines.roundWon);
+        const last = !!this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds;
+        const L = this.oppCfg.lines;
+        if (ko) { this.big(""); this.koBig = { t: 0.45, cls: heroWon ? "gold" : "red", line: heroWon && last ? (this.exam ? L.examKo : L.ko) : null }; }
+        else this.big("ВРЕМЯ!", heroWon ? "gold" : "red");
+        if (!last) this.say(heroWon ? L.roundLost : L.roundWon);
+        if (this.exam) { $("f-exam").hidden = true; this.exam.q = null; }
         this.phase = "roundEnd";
-        this.endT = last ? 3.0 : 2.6;
+        this.endT = last ? (this.exam && heroWon ? 4.2 : 3.2) : 2.6;
         this.g.audio?.play(heroWon ? "record" : "crash");
         $("fb").classList.add("off");
     }
@@ -620,6 +650,8 @@ export class Fight {
 
     dispose() {
         $("fight").hidden = true;
+        $("fight").classList.remove("exam");
+        $("f-exam").hidden = true;
         this.g.camera.fov = this.g.baseFov;
         if (this.farWas) this.g.camera.far = this.farWas;
         this.g.camera.updateProjectionMatrix();
@@ -915,6 +947,82 @@ export class Fight {
         cam.lookAt(look.lerp((this.v4 ||= new THREE.Vector3()).set(0, 0.9, -8), 1 - k));
         const fov = portrait ? FIGHT.fov : this.g.baseFov;
         if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    }
+
+    // ---- экзамен Инакова: вопрос → 4 с на ответ → верно: удар Спиди (3 подряд или верное число — супер), ошибка: удар Павла ----
+    examStep(dt) {
+        const ex = this.exam;
+        if (ex.wait > 0) { ex.wait -= dt; if (ex.wait <= 0) this.examAsk(); return; }
+        if (!ex.q) return;
+        ex.left -= dt;
+        const k = Math.max(0, ex.left / ex.max);
+        const bar = $("fx-time");
+        bar.style.transform = `scaleX(${k.toFixed(3)})`;
+        bar.classList.toggle("low", ex.left < 1.5);
+        if (ex.left <= 0) this.examAnswer(-1);
+    }
+
+    examAsk() {
+        const ex = this.exam, [h, o] = this.f;
+        if (h.hp <= 0 || o.hp <= 0 || ex.i >= ex.list.length) return;
+        const q = ex.list[ex.i++];
+        const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
+        ex.q = { ...q, order, right: order.indexOf(0) };
+        ex.left = ex.max = ex.time;
+        $("fx-label").textContent = `Экзамен · вопрос ${ex.i}/${ex.list.length} · верно ${ex.ok}/${ex.need} · ошибок ${ex.bad}/${ex.lives}`;
+        $("fx-q").textContent = q.q;
+        const box = $("fx-a");
+        box.innerHTML = "";
+        order.forEach((ai, i) => {
+            const b = document.createElement("button");
+            b.textContent = q.a[ai];
+            b.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); if (this.exam.q) this.examAnswer(i); };
+            box.append(b);
+        });
+        const ch = $("fx-charge");
+        ch.hidden = !ex.charges;
+        ch.textContent = `Заряд с табличек: убрать неверный вариант (осталось ${ex.charges})`;
+        ch.onpointerdown = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const cur = this.exam.q;
+            if (!cur || !this.exam.charges) return;
+            const wrong = [...box.children].map((b, i) => i).filter((i) => i !== cur.right && !box.children[i].classList.contains("gone"));
+            if (!wrong.length) return;
+            box.children[pick(wrong)].classList.add("gone");
+            this.exam.charges--;
+            ch.textContent = `Заряд с табличек: убрать неверный вариант (осталось ${this.exam.charges})`;
+            ch.hidden = !this.exam.charges;
+        };
+        $("f-exam").hidden = false;
+        this.g.audio?.play("swipe");
+    }
+
+    examAnswer(i) {
+        const ex = this.exam, q = ex.q, [h, o] = this.f, L = this.oppCfg.lines;
+        ex.q = null;
+        const box = $("fx-a");
+        [...box.children].forEach((b, j) => { b.classList.toggle("ok", j === q.right); b.classList.toggle("bad", j === i && j !== q.right); b.onpointerdown = null; });
+        $("fx-charge").hidden = true;
+        if (i === q.right) {
+            ex.ok++; ex.streak++;
+            const sup = ex.streak >= 3 || q.num;
+            if (sup) ex.streak = 0;
+            h.examPool = h.examPool0 = Math.ceil(o.hpMax / ex.need);
+            h.act = "idle"; o.act = "idle";
+            if (sup) { this.act(h, "super", FIGHT.superTime); this.big("СУПЕР!", "gold"); setTimeout(() => this.phase === "fight" && this.big(""), 900); this.slow = 0.55; this.g.audio?.play("boost"); }
+            else { h.combo = 1; this.punch(h); }
+            $("fx-q").textContent = `${pick(L.examOk || ["Верно."])} ${q.solve || ""}`.trim();
+            ex.wait = sup ? 2.6 : 1.8;
+        } else {
+            ex.bad++; ex.streak = 0;
+            o.examPool = o.examPool0 = Math.ceil(h.hpMax / ex.lives);
+            h.act = "idle"; o.act = "idle";
+            this.act(o, "heavyWind", 0.4);
+            $("fx-q").textContent = `${i < 0 ? "Время вышло. " : ""}${L.examTrap || ""} ${q.err || ""}`.trim();
+            ex.wait = 3.0;
+        }
+        $("fx-label").textContent = `Экзамен · верно ${ex.ok}/${ex.need} · ошибок ${ex.bad}/${ex.lives}`;
+        $("fx-time").style.transform = "scaleX(0)";
     }
 
     hud() {

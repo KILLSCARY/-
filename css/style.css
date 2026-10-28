@@ -1082,3 +1082,30 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 #quiz-input .btn, #anketa .btn, #final .btn { width: 100%; margin-top: 8px; }
 #quiz-input .modal-card, #anketa .modal-card, #final .modal-card { width: min(100%, 380px); box-sizing: border-box; }
 .ak-a { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* ---- экзамен Инакова (бой-тест) ---- */
+.f-exam { position: absolute; left: 12px; right: 12px; bottom: calc(var(--tg-safe-area-inset-bottom, 0px) + env(safe-area-inset-bottom, 0px) + 16px); z-index: 4;
+    padding: 12px; border-radius: 18px; background: rgba(10, 6, 6, .9); box-shadow: 0 0 0 1px rgba(233, 194, 90, .6), 0 12px 30px rgba(0, 0, 0, .6); }
+.fx-label { margin: 0; font: 800 10px/1.2 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: #e9c25a; }
+.fx-q { margin: 6px 0 8px; font: 800 16px/1.25 var(--font-display); color: #fff; }
+.fx-timer { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.fx-timer i { display: block; height: 100%; background: #e9c25a; transform-origin: left; }
+.fx-timer i.low { background: #ff4a50; }
+.fx-a { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.fx-a button { padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06); color: #fff;
+    font: 600 14px/1.25 var(--font-body); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.fx-a button.ok { background: #35e39b; color: #062; border-color: transparent; }
+.fx-a button.bad { background: #ff4a50; color: #fff; border-color: transparent; }
+.fx-a button.gone { opacity: .25; pointer-events: none; text-decoration: line-through; }
+.fx-charge { margin-top: 8px; width: 100%; padding: 8px; border-radius: 10px; border: 1px dashed #e9c25a; background: none; color: #e9c25a; font: 700 12px var(--font-body); }
+.fight.exam .fb { display: none; }
+.fight.exam .f-time { visibility: hidden; }
+
+.gorilla[data-who="miz"] .g-ph, .gorilla[data-who="hero"] .g-ph { background: #2a0a0c center 15%/cover; }
+.gorilla[data-who="miz"] .g-ph { background-image: url(../img/heroes/mizulina.webp); box-shadow: 0 0 0 2px #ff3b5c; }
+.gorilla[data-who="hero"] .g-ph { background-image: url(../img/heroes/speedy.webp); box-shadow: 0 0 0 2px #fff; }
+.gorilla[data-who="miz"] .g-ph::before, .gorilla[data-who="hero"] .g-ph::before { content: none; }
+.gorilla[data-who="miz"] b { color: #ff6a7f; }
+.gorilla[data-who="hero"] b { color: #fff; }
+.fade { position: fixed; inset: 0; z-index: 40; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; }
+.fade.on { opacity: 1; }

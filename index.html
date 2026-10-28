@@ -160,6 +160,14 @@
         <b class="f-big" id="f-big" hidden></b>
         <b class="f-warn" id="f-warn" hidden>ЗАМАХ! БЛОК или УКЛОН</b>
         <p class="f-hint" id="f-hint" hidden></p>
+        <!-- экзамен Инакова: вопрос, таймер, варианты; верно — удар Спиди, ошибка — удар Павла -->
+        <div class="f-exam" id="f-exam" hidden>
+            <p class="fx-label" id="fx-label"></p>
+            <h3 class="fx-q" id="fx-q"></h3>
+            <div class="fx-timer"><i id="fx-time"></i></div>
+            <div class="fx-a" id="fx-a"></div>
+            <button class="fx-charge" id="fx-charge" hidden></button>
+        </div>
         <div class="fb" id="fb">
             <button class="fb-btn fb-block" id="fb-block"><b>БЛОК</b><span>держи</span></button>
             <button class="fb-btn fb-dodge" id="fb-dodge"><b>УКЛОН</b></button>
@@ -185,7 +193,8 @@
         <div class="card card-note sw-next"><div class="card-main"><span class="card-tag">Скоро</span><h3 id="sw-next"></h3><p id="sw-next-text"></p></div></div>
     </div></div>
     <!-- v2.5: реплика Гориллы, ввод числа на табличке, анкета перед первым забегом, вопрос перед финалом и финал -->
-    <div id="gorilla" class="gorilla" hidden><i class="g-ph"></i><div><b>Горилла</b><p id="g-text"></p></div></div>
+    <div id="gorilla" class="gorilla" hidden><i class="g-ph"></i><div><b id="g-who">Горилла</b><p id="g-text"></p></div></div>
+    <div id="fade" class="fade"></div>
     <div id="quiz-input" class="modal" hidden><div class="modal-card sl-card">
         <p class="label" id="qi-label">Табличка</p>
         <h2 class="sheet-title" id="qi-q"></h2>
