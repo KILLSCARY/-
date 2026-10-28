@@ -477,7 +477,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .fx b { min-width: 1ch; color: var(--c); font-variant-numeric: tabular-nums; }
 .fx b:empty { display: none; }
 .fx i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--c); transform-origin: left; transition: transform .2s linear; }
-/* Инспекторша на хвосте — тревога: плашка красная и пульсирует (вместе с рамкой по краям экрана) */
+/* Мизулина на хвосте — тревога: плашка красная и пульсирует (вместе с рамкой по краям экрана) */
 .fx-danger { background: color-mix(in srgb, var(--red) 82%, #000); border-color: var(--red); animation: danger .9s ease-in-out infinite; }
 @keyframes danger { 50% { box-shadow: 0 0 0 3px rgba(227, 52, 58, .28), 0 0 18px rgba(227, 52, 58, .75); } } /* пульсирует свечение, текст читается */
 .fx-danger::before { background: #fff; box-shadow: 0 0 8px #fff; }

@@ -353,7 +353,7 @@ class Game {
     // Апелляция: продолжить с того же места за USDT (валюта одна), один раз за забег
     appeal() {
         if (this.state !== "over" || this.appealUsed || !this.profile.pay({ usdt: APPEAL_PRICE })) return;
-        // сцена задержания: Инспекторша застыла в жесте «протокол» (бег остановлен), а класс arresting прячет
+        // сцена задержания: Мизулина застыла в жесте «протокол» (бег остановлен), а класс arresting прячет
         // бусты и плашки добавок. Без этого после апелляции за героем ехала застывшая фигура, а кнопок бустов не было
         this.endArrest();
         this.appealUsed = true;
@@ -415,7 +415,7 @@ class Game {
         this.audio.music("menu");
         this.audio.play("hit");
         if (cause === "cop" || cause === "caught") this.audio.play("busted");
-        // поймала погоня — сцена задержания (герой лежит, Инспекторша над ним, мигалки), потом экран проигрыша
+        // поймала погоня — сцена задержания (герой лежит, Мизулина над ним, мигалки), потом экран проигрыша
         const arrest = cause === "caught" && this.chaser?.visible && this.chaser.userData.mixer;
         if (arrest) this.startArrest();
         else if (this.chaser) this.chaser.visible = false;
@@ -787,7 +787,7 @@ class Game {
             cam.updateProjectionMatrix();
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
-        if (arr) { // задержание: камера медленно облетает героя и Инспекторшу сбоку, низко
+        if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
             const a = this.arrest, k = Math.min(1, a.t / 0.6), ang = 0.5 + a.t * 0.3;
             cam.position.lerp((v.focus2 ||= new THREE.Vector3()).set(this.x - Math.sin(ang) * 3.4 * a.side, 1.4, 0.4 + Math.cos(ang) * 3.4), k);
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
@@ -1073,7 +1073,7 @@ class Game {
         tg.haptic("warning");
         this.kick(0.35, 7);
         this.world.splash(this.x, 0, 22, 1.3);
-        // бежит Инспекторша (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+        // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
         const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
         if (!this.chaser || better) {
             if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
@@ -1085,10 +1085,10 @@ class Game {
             this.scene.add(this.chaser);
         }
         this.chaser.visible = true;
-        if (!this.chaserSaid) { // первая погоня за забег — Инспекторша представляется (после подсказки стены)
+        if (!this.chaserSaid) { // первая погоня за забег — Мизулина представляется (после подсказки стены)
             this.chaserSaid = true;
             const run = this.runId;
-            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Инспекторша: «${CHASER_LINES.start}»`); }, 1400);
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Мизулина: «${CHASER_LINES.start}»`); }, 1400);
         }
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя

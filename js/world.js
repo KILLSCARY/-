@@ -1202,7 +1202,7 @@ export class World {
         return { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
     }
 
-    // Кто бежит за героем после первого удара (CHASER) — Инспекторша Строгая (вымышленная)
+    // Кто бежит за героем после первого удара (CHASER) — Мизулина
     loadChaser() {
         loadModel(this.lite(CHASER.url), (gltf) => {
             this.chaserModel = this.fitRig(gltf, CHASER.height);
