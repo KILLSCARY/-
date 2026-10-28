@@ -464,20 +464,21 @@ export const HERO_SKILLS = {
 export const NS_STORE_URL = "https://t.me/Nesuschiystore";
 export const BOOST_LIMIT = 2;
 // photos — настоящие продукты NS Store в витрине карточки (img/shop/bady/<файл>.webp, фон вырезан): [файл, подпись]
+// art?v=N — версия картинки: img/ кэшируется на телефоне на неделю, после замены файла номер надо поднять
 export const BOOSTS = [
-    { id: "fokus", name: "Фокус", text: "Подсветка верной полосы на 5 стенах. Холин внутри: 15 с монеты тянутся к тебе", line: "«Голова чистая — ответ очевидный.»", price: 3500, walls: 5, time: 15, art: "img/shop/boost_fokus.png",
+    { id: "fokus", name: "Фокус", text: "Подсветка верной полосы на 5 стенах. Холин внутри: 15 с монеты тянутся к тебе", line: "«Голова чистая — ответ очевидный.»", price: 3500, walls: 5, time: 15, art: "img/shop/boost_fokus.png?v=2",
         photos: [["focus_ezhovik", "Ежовик"], ["focus_alpha_gpc", "ALPHA-GPC"], ["focus_l_teanin", "Л-Теанин"], ["focus_bakopa", "Бакопа"], ["focus_ginkgo", "Гинкго билоба"]] },
-    { id: "ryvok", name: "Рывок", text: "+15% скорости и прыжок выше", line: "«Ноги помнят, куда бежать.»", price: 3000, time: 15, art: "img/shop/boost_ryvok.png",
+    { id: "ryvok", name: "Рывок", text: "+15% скорости и прыжок выше", line: "«Ноги помнят, куда бежать.»", price: 3000, time: 15, art: "img/shop/boost_ryvok.png?v=2",
         photos: [["ryvok_kreatin", "Креатин"], ["ryvok_sigma_protein", "SIGMA PROTEIN"], ["ryvok_bcaa", "BCAA 2:1:1"], ["ryvok_citrullin", "Цитруллин"]] },
-    { id: "ustoychivost", name: "Устойчивость", text: "Ветер Ислама не сносит с полосы", line: "Ислам: «Даже я не сдую.»", price: 2500, art: "img/shop/boost_ustoychivost.png",
+    { id: "ustoychivost", name: "Устойчивость", text: "Ветер Ислама не сносит с полосы", line: "Ислам: «Даже я не сдую.»", price: 2500, art: "img/shop/boost_ustoychivost.png?v=2",
         photos: [["ustoychivost_gorilla_flex", "GORILLA FLEX"]] },
-    { id: "spokoystvie", name: "Спокойствие", text: "Время перед стеной замедляется, 1 ошибка прощается", line: "Инспекторша: «Сегодня отпущу.»", price: 4000, art: "img/shop/boost_spokoystvie.png",
+    { id: "spokoystvie", name: "Спокойствие", text: "Время перед стеной замедляется, 1 ошибка прощается", line: "Инспекторша: «Сегодня отпущу.»", price: 4000, art: "img/shop/boost_spokoystvie.png?v=2",
         photos: [["spokoystvie_ashvaganda", "Ашваганда"], ["spokoystvie_magniy_glicinat", "Магний глицинат"], ["spokoystvie_da_hun_pao", "Да Хун Пао"], ["spokoystvie_shu_puer", "Шу пуэр"]] },
-    { id: "shchit", name: "Щит", text: "+1 жизнь: одно столкновение не считается", line: "«Запас прочности никогда не лишний.»", price: 4500, art: "img/shop/boost_shchit.png",
+    { id: "shchit", name: "Щит", text: "+1 жизнь: одно столкновение не считается", line: "«Запас прочности никогда не лишний.»", price: 4500, art: "img/shop/boost_shchit.png?v=2",
         photos: [["shit_d3", "Витамин D3"], ["shit_omega3", "Омега-3"], ["shit_cink", "Цинк"], ["shit_d3_k2", "D3 + K2"], ["shit_magniy_taurat", "Магний таурат"]] },
-    { id: "berserk", name: "Берсерк", text: "Таран через 3 стены. Тестобустер внутри: старт с пампа, 5 с летишь", line: "«Возражения? Не слышу.»", price: 6000, charges: 3, time: 5, art: "img/shop/boost_berserk.png",
+    { id: "berserk", name: "Берсерк", text: "Таран через 3 стены. Тестобустер внутри: старт с пампа, 5 с летишь", line: "«Возражения? Не слышу.»", price: 6000, charges: 3, time: 5, art: "img/shop/boost_berserk.png?v=2",
         photos: [["berserk_testobooster", "Тестобустер"], ["berserk_maka", "Мака"], ["berserk_tongkat_ali", "Тонгкат Али"]] },
-    { id: "magnit", name: "Магнит", text: "Монеты и буквы кодовых фраз летят к тебе (15 с)", line: "«Всё нужное — само в руки.»", price: 3000, time: 15, art: "img/shop/boost_magnit.png",
+    { id: "magnit", name: "Магнит", text: "Монеты и буквы кодовых фраз летят к тебе (15 с)", line: "«Всё нужное — само в руки.»", price: 3000, time: 15, art: "img/shop/boost_magnit.png?v=2",
         photos: [["magnit_zhenshen", "Женьшень"], ["magnit_nac", "NAC"], ["magnit_q10", "Коэнзим Q10"], ["magnit_chesnok", "Чеснок"]] },
 ];
 // Наборы (shop_v6): не продаются — открываются действием, действуют 3 забега, состав настоящих не показываем.
