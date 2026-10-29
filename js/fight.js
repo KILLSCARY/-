@@ -115,7 +115,10 @@ export class Fight {
         const gor = this.exam && MASK_SCENE.on; // сцена «Маска» (v6): модель Гориллы, голова костюма — отдельная сетка gorilla_head
         let left = gor ? 3 : 2;
         if (gor) loadModel(MASK_SCENE.model, (gltf) => { this.gorGltf = gltf; if (--left === 0) this.ready(); }, () => { if (--left === 0) this.ready(); });
-        this.loadT = setTimeout(() => { if (this.phase === "load") $("f-load").hidden = false; }, 120); // загрузилось мгновенно — экран загрузки не мелькает
+        // экран загрузки уже показан игрой (Game.showFightLoad, сразу после заставки «БОСС»); снимает его ready()
+        if ($("f-load").hidden) { $("f-load").classList.remove("out"); $("f-load").hidden = false; }
+        // сеть подвисла и модель не пришла ни с успехом, ни с ошибкой — не держим экран загрузки вечно
+        this.loadFailT = setTimeout(() => { if (this.phase === "load" && !this.disposed) this.loadFailed(); }, 25000);
         // clipsUrl — боевые клипы, перенесённые с другого бойца (Горилла): докладываем к модели до attach
         const withClips = (f, gltf) => !f.cfg.clipsUrl ? Promise.resolve(gltf) : fetch(f.cfg.clipsUrl).then((r) => r.json())
             .then((list) => { for (const c of list) gltf.animations.push(THREE.AnimationClip.parse(c)); return gltf; }).catch(() => gltf);
@@ -252,25 +255,51 @@ export class Fight {
         console.info(`[fight] ${f.cfg.name}: клипы`, list.map((a) => a.name), "крючки боя:", Object.keys(f.clips));
     }
 
+    // бойцы так и не загрузились — выход в меню без поражения (сюжет и заряды на месте)
+    loadFailed() {
+        $("f-load").classList.remove("out");
+        $("f-load").hidden = false;
+        $("fl-title").textContent = "Бой не загрузился";
+        $("f-load-sub").innerHTML = `Не получилось загрузить бойцов — проверь интернет.<br><button class="btn-small" id="f-load-back">В меню</button>`;
+        $("f-load-back").onclick = () => { this.dispose(); this.g.abortFight(); };
+    }
+
+    // экран загрузки гаснет, только когда бой (или сцена «Маска») уже нарисован пару кадров: текстуры в видеопамяти,
+    // камера на месте — никакого подвисания и рывка на глазах у игрока (rAF может стоять в фоне — страховка по таймеру)
+    revealSoon() {
+        let frames = 0;
+        const reveal = () => {
+            if (this.disposed || this.revealed) return;
+            this.revealed = true;
+            const el = $("f-load");
+            el.classList.add("out");
+            setTimeout(() => { if (el.classList.contains("out")) { el.hidden = true; el.classList.remove("out"); } }, 420);
+        };
+        const tick = () => { if (++frames >= 3) reveal(); else requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+        setTimeout(reveal, 700);
+    }
+
     // модели на месте: шейдеры новых материалов собираем сразу, под экраном загрузки (иначе первый кадр боя «встаёт»)
     ready() {
         if (this.phase !== "load") return;
+        clearTimeout(this.loadFailT);
         const go = () => {
             if (this.disposed) return; // бой уже закрыли
             try { this.g.renderer.compile(this.g.scene, this.g.camera); } catch {}
-            clearTimeout(this.loadT);
-            $("f-load").hidden = true;
             this.phase = "intro";
             if (this.exam && MASK_SCENE.on && this.f[1].model) { // сцена «Маска» — до баннера «ЭКЗАМЕН»
                 this.phase = "cut"; this.masked = true;
                 $("fb").classList.add("off");
                 this.cut = new MaskScene(this, "pre", () => { this.cut = null; $("fb").classList.remove("off"); this.phase = "intro"; this.startRound(); });
+                this.revealSoon();
                 return;
             }
             this.startRound();
+            this.revealSoon();
         };
-        if ($("f-load").hidden) go();
-        else { $("f-load-sub").textContent = "Почти готово…"; setTimeout(go, 60); } // дать экрану загрузки отрисоваться
+        $("f-load-sub").textContent = "Почти готово…";
+        setTimeout(go, 60); // дать экрану загрузки отрисовать «Почти готово» до тяжёлой сборки шейдеров
     }
 
     startRound() {
@@ -874,8 +903,11 @@ export class Fight {
     dispose() {
         this.disposed = true;
         document.body.classList.remove("in-fight");
-        clearTimeout(this.loadT);
+        clearTimeout(this.loadFailT);
+        $("f-load-sub").textContent = "Бойцы выходят на ринг";
+        $("fl-title").textContent = "Готовим бой…";
         $("f-load").hidden = true;
+        $("f-load").classList.remove("out");
         $("fight").hidden = true;
         $("fight").classList.remove("exam", "cine");
         for (const o of this.hidden || []) o.visible = true;
@@ -1206,7 +1238,18 @@ export class Fight {
     // ---- экзамен Инакова: вопрос → 4 с на ответ → верно: удар Спиди (3 подряд или верное число — супер), ошибка: удар Павла ----
     examStep(dt) {
         const ex = this.exam;
-        if (ex.wait > 0) { ex.wait -= dt; if (ex.wait <= 0 && !this.examSettle()) this.examAsk(); return; }
+        if (ex.wait > 0) {
+            ex.wait -= dt;
+            if (ex.wait > 0) return;
+            // удар за ответ засчитывается по касанию и мог пройти мимо (или в блок) — урон за ответ всё равно снимаем,
+            // чтобы полоска HP Павла шла по ответам; исход по счёту решает examSettle
+            const [h, o] = this.f;
+            if (h.examPool) o.hp = Math.max(0, o.hp - h.examPool);
+            if (o.examPool) h.hp = Math.max(0, h.hp - o.examPool);
+            h.examPool = o.examPool = null;
+            if (!this.examSettle()) this.examAsk();
+            return;
+        }
         if (!ex.q) return;
         ex.left -= dt;
         const k = Math.max(0, ex.left / ex.max);

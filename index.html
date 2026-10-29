@@ -169,6 +169,13 @@
         <p class="bs-quote" id="bs-quote"></p>
         <i class="bs-flash"></i>
     </div>
+    <!-- экран загрузки боя: сплошной, сразу после заставки «БОСС» — под ним чистится улица, ставится камера, грузятся и
+         собираются бойцы; гаснет плавно, когда бой уже нарисован (без подвисания и рывка камеры на глазах) -->
+    <div class="f-load" id="f-load" hidden>
+        <div class="fl-vs"><i id="fl-hero"></i><b>VS</b><i id="fl-opp"></i></div>
+        <i class="f-spin"></i><b id="fl-title">Готовим бой…</b><span id="f-load-sub">Бойцы выходят на ринг</span>
+        <p class="fl-tip" id="fl-tip"></p>
+    </div>
     <section id="fight" class="fight" hidden>
         <div class="f-top">
             <div class="f-side l"><div class="f-ph" id="f-ph-l"></div><div class="f-col"><span class="f-name" id="f-name-l"></span><div class="f-bar"><i class="dmg" id="f-dmg-l"></i><i class="hp" id="f-hp-l"></i></div><span class="f-pips" id="f-pips-l"></span></div></div>
@@ -176,7 +183,6 @@
             <div class="f-side r"><div class="f-col"><span class="f-name" id="f-name-r"></span><div class="f-bar"><i class="dmg" id="f-dmg-r"></i><i class="hp" id="f-hp-r"></i></div><span class="f-pips" id="f-pips-r"></span></div><div class="f-ph" id="f-ph-r"></div></div>
         </div>
         <i class="f-flash" id="f-flash"></i>
-        <div class="f-load" id="f-load" hidden><i class="f-spin"></i><b>Загрузка боя…</b><span id="f-load-sub">Бойцы выходят на ринг</span></div>
         <p class="f-say" id="f-say" hidden></p>
         <b class="f-big" id="f-big" hidden></b>
         <i class="f-flash" id="f-flash"></i>

@@ -469,12 +469,23 @@ export class Hub {
                     <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
                     <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div></div>`;
             }).join("");
-            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => { this.setFocus(el.dataset.id); this.scrollTo(el.dataset.id, true); };
-            // колесо мыши на компьютере листает карусель вбок (иначе вертикальное колесо её не двигает)
-            box.onwheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); box.scrollBy({ left: e.deltaY, behavior: "smooth" }); } };
+            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.goTo(el.dataset.id);
+            // колесо мыши на компьютере: один щелчок колеса — ровно одна карточка. Раньше колесо сдвигало на сколько
+            // придётся, а прилипание (scroll-snap) дотягивало к соседней — карусель прыгала туда-обратно
+            box.onwheel = (e) => {
+                const dy = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+                if (!dy) return;
+                e.preventDefault();
+                if (this.wheelT && performance.now() - this.wheelT < 380) return;
+                this.wheelT = performance.now();
+                const ids = [...box.querySelectorAll(".hcard")].map((x) => x.dataset.id);
+                const i = ids.indexOf(this.focus ?? this.game.heroId);
+                const next = ids[Math.max(0, Math.min(ids.length - 1, i + Math.sign(dy)))];
+                if (next) this.goTo(next);
+            };
             box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
             // прокрутка встала (щелчок к карточке) — герой под каруселью сразу, без ожидания последнего scroll
-            box.onscrollend = () => { this.layoutCarousel(); clearTimeout(this.snapTimer); this.setFocus(box.querySelector(".hcard.active")?.dataset.id); };
+            box.onscrollend = () => { this.scrollLock = null; this.layoutCarousel(); clearTimeout(this.snapTimer); this.setFocus(box.querySelector(".hcard.active")?.dataset.id); };
             requestAnimationFrame(() => this.scrollTo(this.focus ?? this.game.heroId, false));
         } else if (!this.focus) {
             requestAnimationFrame(() => this.scrollTo(this.game.heroId, false));
@@ -485,6 +496,16 @@ export class Hub {
             }
         }
         this.renderDetail();
+    }
+
+    // перейти к герою (нажали карточку или колесо): панель под каруселью сразу показывает его и не перебирает
+    // тех, мимо кого карусель плавно едет (раньше она мелькала Исламом и Пашей, а «Выбрать» пересоздавалась под курсором)
+    goTo(id) {
+        this.scrollLock = id;
+        clearTimeout(this.scrollLockT);
+        this.scrollLockT = setTimeout(() => { this.scrollLock = null; this.layoutCarousel(); }, 900); // нет scrollend (старый iOS) — снимаем сами
+        this.setFocus(id);
+        this.scrollTo(id, true);
     }
 
     scrollTo(id, smooth) {
@@ -511,8 +532,8 @@ export class Hub {
         for (const el of cards) el.classList.toggle("active", el === best);
         clearTimeout(this.snapTimer);
         // панель под каруселью сразу следует за центральной карточкой (раньше — только через 90 мс
-        // тишины после последнего scroll, и при инерции/лагах она «застревала» на Спиди)
-        this.setFocus(best?.dataset.id, true);
+        // тишины после последнего scroll, и при инерции/лагах она «застревала» на Спиди); пока едем к выбранной — не трогаем
+        if (!this.scrollLock) this.setFocus(best?.dataset.id, true);
     }
 
     setFocus(id, quiet) {

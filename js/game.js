@@ -369,7 +369,9 @@ class Game {
         this.resetRun();
         if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
-        if (this.story) setTimeout(() => { for (const id of [heroFighter(this.heroId), this.story.opponent]) preloadModel(FIGHTERS[id]?.model); if (this.story.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
+        // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
+        const st0 = this.story;
+        if (st0) setTimeout(() => { for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -2138,7 +2140,9 @@ class Game {
     }
 
     async startStoryFight() {
-        const s = this.story, opp = FIGHTERS[s.opponent];
+        const s = this.story, opp = FIGHTERS[s.opponent], run = this.runId;
+        // ушли в меню (или начали новый забег), пока шла заставка, — бой не начинаем
+        const gone = () => this.runId !== run || this.state !== "bossintro";
         for (const id of [heroFighter(this.heroId), s.opponent]) preloadModel(FIGHTERS[id]?.model); // если ещё не скачаны — пока идёт заставка
         if (s.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model);
         this.storyOn = true;
@@ -2161,9 +2165,12 @@ class Game {
         setTimeout(() => this.audio.play("crash"), 560); // удар «VS»
         if (s.before?.gorilla && !(s.exam && MASK_SCENE.on)) setTimeout(() => this.state === "bossintro" && this.gorilla(s.before.gorilla, true, 3200), 1300);
         await wait(2400);
+        if (gone()) { splash.hidden = true; return; }
+        this.showFightLoad(hero, opp, s);
         splash.classList.add("out");
         await wait(450);
         splash.hidden = true;
+        if (gone()) { $("f-load").hidden = true; return; }
         // улица пустая: без препятствий, монет, погони и карточек — только бойцы
         this.world.clear();
         this.walls = [];
@@ -2179,9 +2186,49 @@ class Game {
         // экзамен Инакова: вопросы перемешаны (пересдача — в другом порядке), заряды убирают неверные варианты
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
         // заряды главы: +5% HP за каждый, с трёх — супер на 30% со старта
-        this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam,
-            bonus: exam ? {} : { hp: Math.min(20, Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n)), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
-            onEnd: (win) => this.endStoryFight(win) });
+        try {
+            this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam,
+                bonus: exam ? {} : { hp: Math.min(20, Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n)), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
+                onEnd: (win) => this.endStoryFight(win) });
+        } catch (e) { // бой не собрался (битая модель, нет WebGL-ресурсов) — не оставляем игрока на пустой улице без HUD
+            console.error("[fight] не запустился", e);
+            this.fight?.dispose?.();
+            this.abortFight();
+        }
+    }
+
+    // экран загрузки боя — сразу под уходящей заставкой «БОСС»: под ним чистится улица, ставится камера и грузятся бойцы.
+    // Снимает его сам бой (Fight.ready), когда уже нарисован; подсказка — как драться (у экзамена — про вопросы)
+    showFightLoad(hero, opp, s) {
+        $("fl-hero").style.backgroundImage = `url(${hero.portrait})`;
+        $("fl-opp").style.backgroundImage = `url(${opp.portrait})`;
+        $("fl-title").textContent = s.exam ? "Готовим экзамен…" : "Готовим бой…";
+        $("f-load-sub").textContent = "Бойцы выходят на ринг";
+        $("fl-tip").textContent = s.exam ? "Верный ответ — удар по Инакову, ошибка — его удар. Семь верных — экзамен сдан."
+            : pick(["Тап по голове или корпусу — удар рукой, по ногам — удар ногой.", "Загорелась красная надпись «ЗАМАХ» — жми БЛОК или УКЛОН.",
+                "Супер копится от ударов — жми, когда кнопка засветится золотом.", "Удар чуть раньше времени не пропадёт — бой его запомнит."]);
+        const el = $("f-load");
+        el.classList.remove("out");
+        el.hidden = false;
+    }
+
+    // бой не загрузился или не собрался — в меню без поражения: заработанное в забеге — в кошелёк, сюжет и заряды на месте,
+    // следующий забег главы снова приведёт к боссу
+    abortFight() {
+        this.fight = null;
+        $("f-load").hidden = true;
+        this.storyOn = false;
+        this.rat.visible = true;
+        const du = this.usdt - this.credited.usdt;
+        this.credited = { usdt: this.usdt };
+        if (du) this.profile.earn(du);
+        tg.guardClose(false);
+        this.state = "menu";
+        this.audio.music("menu");
+        this.resetRun();
+        this.renderMenu();
+        this.show("menu");
+        this.hub.toast("Бой не загрузился — попробуй ещё раз из забега");
     }
 
     endStoryFight(win) {
