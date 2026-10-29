@@ -110,11 +110,12 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 export const HEAT_AFTER = 150;
 // «Кино»-обработка кадра (финальный проход, js/game.js OutputShader): тени в холодный сине-бирюзовый, свет в тёплый
 // янтарный (shadow/light — множители RGB, grade — сила), зерно плёнки, хроматика к краям объектива, размытие краёв
-// на скорости (speedFrom…speedTo м/с → 0…1). Уровень графики: cine 1 — всё, 0.6 — слабее, 0 — выключено
+// на скорости (speedFrom…speedTo м/с → 0…1), menu — мягкое размытие фона в меню (0…1; герой в фокусе).
+// Уровень графики: cine 1 — всё, 0.6 — слабее, 0 — выключено
 // Свет фонарей без настоящих источников: pool — яркость пятна на асфальте, cone — конуса в дымке, size — ширина пятна (м),
 // far — на каком расстоянии (м) гаснут (туман)
 export const LAMP_GLOW = { pool: 0.55, cone: 0.09, size: 6, far: 70 };
-export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade: 1, contrast: 1.07, sat: 1.06, grain: 0.035, ca: 0.012, speedFrom: 15, speedTo: 30, speed: 1 };
+export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade: 1, contrast: 1.07, sat: 1.06, grain: 0.035, ca: 0.012, speedFrom: 15, speedTo: 30, speed: 1, menu: 1 };
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {

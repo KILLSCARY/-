@@ -25,14 +25,17 @@ THREE.ColorManagement.legacyMode = false;
 
 // Финальный проход после bloom: ACES-тонмаппинг, sRGB, виньетка и «киношная» обработка (CINE в config.js):
 // ca — хроматика к краям кадра, speed — размытие по краям на скорости (0…1 ставит игра), shadow/light — цвет теней
-// и света (тени в холод, свет в тепло вместо сплошного фиолетового), grain — зерно (если FXAA выключен; иначе — в нём)
+// и света (тени в холод, свет в тепло вместо сплошного фиолетового), grain — зерно (если FXAA выключен; иначе — в нём),
+// soft — меню: фон мягко размыт, вокруг героя (focus — где он на экране, 0…1; aspect — ширина/высота) резко
 const OutputShader = {
     uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: SKY.vignette ?? 0.55 },
         ca: { value: 0 }, speed: { value: 0 }, grain: { value: 0 }, time: { value: 0 }, grade: { value: 0 },
+        soft: { value: 0 }, focus: { value: new THREE.Vector2(0.5, 0.6) }, aspect: { value: 0.5 },
         shadowTint: { value: new THREE.Vector3(1, 1, 1) }, lightTint: { value: new THREE.Vector3(1, 1, 1) } },
     vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
-        uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig, ca, speed, grain, time, grade; uniform vec3 shadowTint, lightTint;
+        uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig, ca, speed, grain, time, grade, soft, aspect; uniform vec3 shadowTint, lightTint;
+        uniform vec2 focus;
         varying vec2 vUv;
         vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
         float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -47,6 +50,19 @@ const OutputShader = {
                 // сдвиг выборок — случайный на пиксель: без него видны «ступеньки» (отдельные копии окон)
                 vec2 s = d * speed * 0.03 * smoothstep(0.04, 0.3, r2); float j = hash(vUv * 731.0 + time);
                 h = (h + texture2D(tDiffuse, vUv - s * (0.5 + j)).rgb + texture2D(tDiffuse, vUv - s * (1.5 + j)).rgb + texture2D(tDiffuse, vUv - s * (2.5 + j)).rgb) * 0.25;
+            }
+            if (soft > 0.0) { // меню: мягкое размытие фона (как малая глубина резкости), герой в фокусе
+                float m = soft * smoothstep(0.12, 0.34, length((vUv - focus) * vec2(aspect, 1.0)));
+                if (m > 0.002) {
+                    vec2 px = vec2(1.0 / aspect, 1.0) * 0.0055 * m; // радиус — доля высоты кадра
+                    float a = hash(vUv * 517.0) * 6.2832; // поворот узора выборок на пиксель — без «двоения»
+                    vec3 sum = h;
+                    for (int i = 0; i < 8; i++) {
+                        float t = a + float(i) * 0.7854, rr = i < 4 ? 1.0 : 0.55;
+                        sum += texture2D(tDiffuse, vUv + vec2(cos(t), sin(t)) * px * rr).rgb;
+                    }
+                    h = sum / 9.0;
+                }
             }
             vec3 c = aces(h * exposure);
             c = mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
@@ -949,6 +965,16 @@ class Game {
         const ou = this.output.uniforms, cine = this.tier.cine || 0;
         ou.time.value = this.fxaa.uniforms.time.value = this.t % 60;
         ou.speed.value = this.state === "playing" && cine ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
+        // меню: фон мягко размыт (CINE.menu), в фокусе — герой (грудь и голова на экране); к забегу плавно становится резким
+        const softTo = this.state === "menu" && cine ? CINE.menu : 0;
+        ou.soft.value += (softTo - ou.soft.value) * Math.min(1, dt * 4);
+        if (ou.soft.value > 0.002) {
+            const p = (this.focusV ||= new THREE.Vector3()).copy(this.rat.position);
+            p.y += 1.1;
+            p.project(this.camera);
+            ou.focus.value.set((p.x + 1) / 2, (p.y + 1) / 2);
+            ou.aspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+        } else ou.soft.value = softTo ? ou.soft.value : 0;
         this.frameStart = now; // для диагностики: время JS-кадра до отрисовки
         // пауза и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
         // (раньше рисовали те же кадры 12 раз в секунду — расход батареи и нагрев впустую)
