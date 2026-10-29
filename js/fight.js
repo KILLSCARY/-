@@ -115,7 +115,10 @@ export class Fight {
         let left = gor ? 3 : 2;
         if (gor) loadModel(MASK_SCENE.model, (gltf) => { this.gorGltf = gltf; if (--left === 0) this.ready(); }, () => { if (--left === 0) this.ready(); });
         this.loadT = setTimeout(() => { if (this.phase === "load") $("f-load").hidden = false; }, 120); // загрузилось мгновенно — экран загрузки не мелькает
-        for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
+        // clipsUrl — боевые клипы, перенесённые с другого бойца (Горилла): докладываем к модели до attach
+        const withClips = (f, gltf) => !f.cfg.clipsUrl ? Promise.resolve(gltf) : fetch(f.cfg.clipsUrl).then((r) => r.json())
+            .then((list) => { for (const c of list) gltf.animations.push(THREE.AnimationClip.parse(c)); return gltf; }).catch(() => gltf);
+        for (const f of this.f) loadModel(f.cfg.model, (gltf) => withClips(f, gltf).then((g) => { if (this.disposed) return; this.attach(f, g); if (--left === 0) this.ready(); }),
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и оранжевый контровые
         const key = new THREE.PointLight(0xffd2b0, 0.45, 9); // мягко: белая шляпа Спиди не должна пересвечиваться

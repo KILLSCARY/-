@@ -1,6 +1,7 @@
 // Сцена «Маска» перед экзаменом Инакова (сценарий Жупелихи, docs/scenario/scene_mask_v1.md).
 // Горилла — models/gorilla.glb (человек в костюме, кости mixamorig, клипы idle/turn/grab_head/walk);
-// голова костюма — отдельная сетка gorilla_head на кости Head: после вспышки она снимается, падает на асфальт и лежит до конца боя.
+// голова костюма — отдельная сетка gorilla_head на кости Head: после вспышки она снимается, падает на асфальт и тает —
+// в бою её в кадре нет; в финальной сцене Павел поднимает её и протягивает Спиди. Пиджак не бросает.
 // Если модель не загрузилась — запасная фигура из примитивов.
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
@@ -69,17 +70,6 @@ function play(g, name, fade = 0.25, speed = 1) {
     g.userData.cur = name;
 }
 
-function makeJacket() { // пиджак: светлый тёплый серо-бежевый — читается на тёмном асфальте; плюс тёплая подсветка
-    const g = new THREE.Group(), m = gloss(0xa8957a, 0.4);
-    m.emissive = new THREE.Color(0x6a4420); m.emissiveIntensity = 0.55; // сам светится тёплым — без отдельной лампы
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.03, 0.42), m); g.add(p);
-    for (const s of [-1, 1]) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.4), m); sl.position.set(s * 0.33, 0, 0.02); sl.rotation.y = s * 0.5; g.add(sl); }
-    const lm = gloss(0xd9c9a8, 0.3); lm.emissive = new THREE.Color(0x6a4420); lm.emissiveIntensity = 0.55;
-    const lap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.035, 0.2), lm); lap.position.set(0, 0.005, 0.1); g.add(lap);
-    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-    return g;
-}
-
 const ease = (k) => k * k * (3 - 2 * k);
 
 // шаги сцены: [длительность, функция старта(ctx)]
@@ -100,11 +90,11 @@ export class MaskScene {
                 [2.6, () => fight.say(MASK_SCENE.lines.speedy1, SPEEDY, 2500)],
                 [1.6, () => { this.turn = 1; }],                    // поворачивается (шаги на месте) и хватается за голову костюма
                 [1.2, () => { this.focus = 1; this.drop(); }],                            // в том же кадре: Горилла → Павел, маска падает (глухой звук)
-                [1.8, () => fight.say(MASK_SCENE.lines.speedy2, SPEEDY, 1700)],
+                [1.8, () => { fight.say(MASK_SCENE.lines.speedy2, SPEEDY, 1700); this.vanish(); }], // маска полежала — тает, в кадре её больше нет
                 [3.2, () => fight.say(MASK_SCENE.lines.pavel1, PAV, 3100)],
                 [3.4, () => fight.say(MASK_SCENE.lines.speedy3, SPEEDY, 3300)],
                 [3.4, () => fight.say(MASK_SCENE.lines.pavel2, PAV, 3300)],
-                [3.4, () => { this.throwJacket(); fight.say(MASK_SCENE.lines.pavel3, PAV, 3300); }],
+                [3.4, () => fight.say(MASK_SCENE.lines.pavel3, PAV, 3300)], // пиджак Павел больше не бросает
             ];
         } else {
             const mask = fight.mask;
@@ -162,25 +152,27 @@ export class MaskScene {
         this.F.group.updateMatrixWorld(true);
         this.maskTop = new THREE.Box3().setFromObject(m).max.y - y0;
     }
-    jacketSpot() { return new THREE.Vector3(this.F.mask?.position.x ?? this.floor.x, (this.maskTop ?? 0.34) + 0.02, this.F.mask?.position.z ?? this.floor.z); }
-    throwJacket() {
-        const F = this.F, o = F.f[1];
-        this.jacket = makeJacket();
-        this.jacket.position.set(o.root.position.x, 1.3, o.root.position.z);
-        F.group.add(this.jacket); F.jacket = this.jacket;
-        this.jk = { t: 0, from: this.jacket.position.clone() };
-    }
     standUp() { // после K.O.: Павел снова стоит (без клипа «поднимается» — спрятано затемнением)
         const F = this.F, o = F.f[1];
         o.clips.ko?.stop(); o.act = "idle"; o.t = 0; o.koYaw = undefined; o.koLift = undefined; o.z = o.home;
         if (o.model) { o.model.rotation.y = 0; }
         o.root.position.y = 0;
         F.phase = "outro";
-        if (F.jacket) { F.group.remove(F.jacket); F.jacket = null; }
+        if (this.mask) { this.mask.visible = true; this.mask.traverse((o) => { if (o.isMesh) o.material.opacity = 1; }); }
         this.pickFrom = this.mask?.position.clone();
     }
+    // маска (голова костюма) тает за 0,6 с и прячется: в бою её на асфальте нет. Материал — своя копия,
+    // чтобы прозрачность не задела ничего другого; в финальной сцене маска возвращается целиком (show)
+    vanish() { const m = this.F.mask; if (!m) return; m.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; } }); this.melt = 0.6; }
+    hide() { const m = this.F.mask; if (m) m.visible = false; this.melt = 0; }
     update(dt) {
         if (this.over) return;
+        if (this.melt > 0 && this.F.mask) {
+            this.melt -= dt;
+            const a = Math.max(0, this.melt / 0.6);
+            this.F.mask.traverse((o) => { if (o.isMesh) o.material.opacity = a; });
+            if (this.melt <= 0) this.hide();
+        }
         this.t += dt;
         const F = this.F, o = F.f[1];
         if (this.gor && !this.swapped && this.gor.userData.model) {
@@ -210,13 +202,6 @@ export class MaskScene {
                 this.fall = null;
             }
         }
-        if (this.jk && F.jacket) {
-            const k = Math.min(1, (this.jk.t += dt) / 0.6), j = F.jacket;
-            j.position.lerpVectors(this.jk.from, this.jacketSpot(), ease(k));
-            j.position.y += Math.sin(k * Math.PI) * 0.35;
-            j.rotation.set(0.2 * (1 - k) + 0.18 * k, 0.7 + k * 0.4, 0.15 * (1 - k) - 0.12 * k);
-            if (k >= 1) this.jk = null;
-        }
         if (this.pick && this.mask && this.pickFrom) { // маска — в руку Павла, потом к Спиди
             const k = Math.min(1, this.t / 1.0);
             const hand = new THREE.Vector3(-0.25, 1.15, o.home + 0.3);
@@ -229,8 +214,7 @@ export class MaskScene {
     }
     skip() {
         if (this.over) return;
-        if (this.kind === "pre") { this.swap(); if (F_hasMask(this.F)) this.rest(this.F.mask); this.fall = null;
-            if (!this.F.jacket) { this.throwJacket(); } this.jk = null; this.F.jacket.position.copy(this.jacketSpot()); this.F.jacket.rotation.set(0, 1.1, 0); }
+        if (this.kind === "pre") { this.swap(); if (F_hasMask(this.F)) this.rest(this.F.mask); this.fall = null; }
         this.F.say(null);
         this.end();
     }
@@ -240,6 +224,7 @@ export class MaskScene {
         this.over = true;
         $("f-skip").hidden = true; $("f-skip").onclick = null;
         if (this.gor && !this.swapped) this.swap();
+        if (this.kind === "pre") this.hide(); // в бой — без маски в кадре
         this.done();
     }
 }

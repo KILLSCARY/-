@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT; старые TRX пересчитаны ×300 при загрузке), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS } from "./config.js";
+import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS, GORILLA_BONUS } from "./config.js";
 // TRX, выданные бесплатно прежними начислениями (строки из GRANTS уже убраны): при пересчёте TRX → USDT не считаем
 const GIFT_TRX = { "test-2026-10-28": 10000 };
 import { tg } from "./tg.js";
@@ -219,8 +219,23 @@ export class Profile {
     // открыть героя действием (подписка, приглашение, разбор); за босса — сам в beatBoss
     unlockHero(heroId) {
         const u = HERO_UNLOCKS[heroId];
-        if (!u || this.data.heroes.includes(heroId) || u.act === "boss") return false;
+        if (!u || this.data.heroes.includes(heroId) || u.act === "boss" || u.act === "all") return false;
         this.data.heroes.push(heroId);
+        this.save();
+        return true;
+    }
+
+    // бонусный герой Горилла: что из списка уже сделано (подписку и друга засчитывает сервер — data.checked)
+    bonusSteps() {
+        const d = this.data, t = d.tasksDone || {}, c = d.checked || {};
+        const done = { story: !!d.exam, razbor: !!t.razbor, anketa: !!t.anketa, store: !!c.store, invite: !!c.invite };
+        return GORILLA_BONUS.map((x) => ({ ...x, done: done[x.id] }));
+    }
+
+    // всё сделано — Горилла в команде. true — только что открыт (показать тост)
+    bonusCheck() {
+        if (this.data.heroes.includes("gorilla") || !this.bonusSteps().every((x) => x.done)) return false;
+        this.data.heroes.push("gorilla");
         this.save();
         return true;
     }

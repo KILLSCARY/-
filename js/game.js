@@ -1084,7 +1084,8 @@ class Game {
         for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
         const cfg = CHARACTERS.find((c) => c.id === id);
         const air = (2 * BALANCE.jumpPower) / BALANCE.gravity;
-        const opts = { ...cfg, durations: { jump: air + 0.35, slide: BALANCE.slideTime * (HERO_PERKS[id]?.slide || 1) + 0.2 } };
+        // длины прыжка и подката — из баланса; свои тайминги героя (durations.run у Денчика) сохраняем
+        const opts = { ...cfg, durations: { ...cfg.durations, jump: air + 0.35, slide: BALANCE.slideTime * (HERO_PERKS[id]?.slide || 1) + 0.2 } };
         // кнопку «Забег» (плитка 01) ведёт главная: пока модель грузится, в забег не пускаем
         const apply = (gltf) => {
             if (this.heroId !== id) return;
@@ -1097,9 +1098,12 @@ class Game {
         if (this.heroes[id]) return apply(this.heroes[id]);
         this.heroLoading = true;
         this.hub?.updatePlay();
+        // clipsUrl — клипы, перенесённые с другого героя (у Гориллы — бег, прыжок, подкат Павла): докладываем к модели
+        const withClips = (gltf) => !cfg.clipsUrl ? Promise.resolve(gltf) : fetch(cfg.clipsUrl).then((r) => r.json())
+            .then((list) => { for (const c of list) gltf.animations.push(THREE.AnimationClip.parse(c)); return gltf; }).catch(() => gltf);
         loadModel(
             cfg.url,
-            (gltf) => { this.heroes[id] = gltf; apply(gltf); },
+            (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; apply(g); }),
             (e) => {
                 console.warn("[hero] не загрузилась модель", cfg.url, e);
                 if (this.heroId !== id) return;

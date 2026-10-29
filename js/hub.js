@@ -68,6 +68,8 @@ export class Hub {
 
     render() {
         const p = this.p;
+        // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
+        if (p.bonusCheck()) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
@@ -469,7 +471,8 @@ export class Hub {
         const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
         box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Открывается действием" : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
-            ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : ""}</div>` : ""}`;
+            ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : u.act === "all" ? `<b>${this.p.bonusSteps().filter((x) => x.done).length}/${this.p.bonusSteps().length}</b>` : ""}</div>` : ""}
+            ${st === "buy" && u?.act === "all" ? `<ul class="bonus-list">${this.p.bonusSteps().map((x) => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${x.text}</li>`).join("")}</ul>` : ""}`;
         const b = document.createElement("button");
         b.className = "btn btn-main";
         if (st === "play") {
@@ -481,7 +484,8 @@ export class Hub {
             const kind = u.act === "subscribe" ? "store" : u.act === "invite" ? "invite" : null;
             const tried = kind && this.p.data.tried?.[kind];
             b.textContent = tried ? (kind === "store" ? "Проверить подписку" : "Проверить приглашение") : u.btn;
-            b.disabled = u.act === "boss";
+            b.disabled = u.act === "boss" || u.act === "all";
+            if (u.act === "all") b.textContent = "Выполни всё из списка";
             b.onclick = () => {
                 if (kind) return tried ? this.verifyAction(kind) : this.startAction(kind);
                 if (u.act === "razbor") this.razbor();

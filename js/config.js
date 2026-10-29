@@ -207,6 +207,11 @@ export const CHARACTERS = [
     { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=4", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
+    // Горилла — бонусный герой (HERO_UNLOCKS: act "all"): модель сцены «Маска», а бег, прыжок, подкат, падение, полёт и
+    // стойка — клипы Павла, перенесённые на скелет Гориллы (clipsUrl, мировые повороты от позы привязки). Свои клипы
+    // модели (idle/walk) смотрят вбок — в забеге не используются
+    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json", height: 1.9, portrait: "img/heroes/gorilla.webp",
+        clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -450,7 +455,16 @@ export const HERO_UNLOCKS = {
     islam: { act: "invite", text: "Пригласи друга в игру", btn: "Пригласить друга" },
     sasha: { act: "boss", chapter: 3, text: "Пройди главу 3 «Первый миллион»", btn: "Пройди главу 3" },
     pavel: { act: "razbor", text: "Запишись на бесплатный разбор", btn: "Записаться на разбор" },
+    gorilla: { act: "all", text: "Бонус за всё: пройди все главы и выполни задания", btn: "Бонус за всё" },
 };
+// Бонусный герой Горилла открывается сам, когда сделано всё из списка (проверка — Profile.bonusSteps)
+export const GORILLA_BONUS = [
+    { id: "story", text: "Пройти все главы и экзамен Инакова" },
+    { id: "razbor", text: "Записаться на разбор" },
+    { id: "anketa", text: "Заполнить анкету Гориллы" },
+    { id: "store", text: "Подписаться на NS Store" },
+    { id: "invite", text: "Позвать друга в игру" },
+];
 export const HERO_PRICES = {}; // совместимость: выкупа за USDT больше нет
 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
@@ -460,6 +474,7 @@ export const HERO_PERKS = {
     islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
     denchik: { text: "Мозг команды: +10% USDT", coinBonus: 10 },
     sasha: { text: "+1 жизнь за забег и +20% USDT", extraLife: 1, coinBonus: 5 },
+    gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
@@ -784,6 +799,8 @@ FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // приёмы, урон и HP — как у Спиди
 for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
     model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait };
+// Горилла — модель сцены «Маска», боевые клипы героя-Павла (pavel_hero_fight) перенесены на его скелет (clipsUrl)
+FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json" };
 // Ислам — коренастый, мышиная стойка на нём выглядела приседом: ему клипы Павла (человеческая боксёрская стойка), ростом ниже Мизулины
 FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.glb?v=2", height: 1.62, yaw: 0.6, lunge: 0.15, capWhite: 0,
     moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.6 },
