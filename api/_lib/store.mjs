@@ -50,6 +50,7 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
+    const runScores = new Map();
     let taken = 0;
     const lb = new Map(), lbr = new Map(), lbn = new Map(), lbp = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
     return {
@@ -69,6 +70,19 @@ export function memoryStore() {
         // рейтинг забегов (с 29.10): лучший результат игрока — lbr (p2p:lbr); старая сумма очков (lb) таблицу больше не задаёт
         async lbBest(id, pts, name, photo = "") { if (!(lbr.get(id) >= pts)) lbr.set(id, pts); lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); return lbr.get(id); },
         async runStart(id, runId) { return cr.get(id)?.get(runId)?.start || 0; },
+        async runScoreSubmit(id, runId, now, ttlSec, pts, name, photo = "") {
+            const r = cr.get(id)?.get(runId), key = `${id}:${runId}`, prior = runScores.get(key);
+            if (prior != null) {
+                if (prior !== pts) return { ok: false, reason: "duplicate" };
+                return { ok: true, best: lbr.get(id) || 0, duplicate: true };
+            }
+            if (!r || now - r.start > ttlSec * 1000) return { ok: false, reason: "no_run" };
+            runScores.set(key, pts);
+            if (!(lbr.get(id) >= pts)) lbr.set(id, pts);
+            lbn.set(id, name);
+            if (photo) lbp.set(id, photo); else lbp.delete(id);
+            return { ok: true, best: lbr.get(id), duplicate: false };
+        },
         async taskOnce(id, task) { const k = `${id}:${task}`; if (tk.has(k)) return false; tk.add(k); return true; },
         async tasksDone(id) { return [...tk].filter((k) => k.startsWith(`${id}:`) && !k.endsWith(":#backfill")).map((k) => k.slice(String(id).length + 1)); },
         async lbOnce(id) { const k = `${id}:#backfill`; if (tk.has(k)) return false; tk.add(k); return true; },
@@ -166,7 +180,28 @@ export function redisStore(url, token, fetchImpl = fetch) {
             await (photo ? cmd("HSET", "p2p:lbp", String(id), photo) : cmd("HDEL", "p2p:lbp", String(id)));
             return Number(await cmd("ZSCORE", "p2p:lbr", String(id)));
         },
-        async runStart(id, runId) { const v = await cmd("HGET", `p2p:cr:${id}`, runId); return v ? Number(String(v).split(":")[0]) : 0; },
+        async runStart(id, runId) { const v = await cmd("HGET", "p2p:cr:" + id, runId); return v ? Number(String(v).split(":")[0]) : 0; },
+        async runScoreSubmit(id, runId, now, ttlSec, pts, name, photo = "") {
+            const lua = "local prior = redis.call('HGET', KEYS[2], ARGV[1])\n" +
+"if prior then\n" +
+"  local best = tonumber(redis.call('ZSCORE', KEYS[3], ARGV[2]) or '0')\n" +
+"  if tonumber(prior) ~= tonumber(ARGV[5]) then return {0, best, 'duplicate'} end\n" +
+"  return {1, best, 'repeat'}\n" +
+"end\n" +
+"local v = redis.call('HGET', KEYS[1], ARGV[1])\n" +
+"if not v then return {0, 0, 'no_run'} end\n" +
+"local start = tonumber(string.match(v, '^(%d+):'))\n" +
+"if not start or tonumber(ARGV[3]) - start > tonumber(ARGV[4]) * 1000 then return {0, 0, 'no_run'} end\n" +
+"redis.call('HSET', KEYS[2], ARGV[1], ARGV[5])\n" +
+"redis.call('EXPIRE', KEYS[2], tostring(math.max(60, tonumber(ARGV[4]) * 2)))\n" +
+"redis.call('ZADD', KEYS[3], 'GT', ARGV[5], ARGV[2])\n" +
+"redis.call('HSET', KEYS[4], ARGV[2], ARGV[6])\n" +
+"if ARGV[7] and ARGV[7] ~= '' then redis.call('HSET', KEYS[5], ARGV[2], ARGV[7]) else redis.call('HDEL', KEYS[5], ARGV[2]) end\n" +
+"local best = tonumber(redis.call('ZSCORE', KEYS[3], ARGV[2]) or '0')\n" +
+"return {1, best, 'ok'}";
+            const out = await cmd("EVAL", lua, "5", "p2p:cr:" + id, "p2p:rs:" + id, "p2p:lbr", "p2p:lbn", "p2p:lbp", runId, String(id), String(now), String(ttlSec), String(pts), name, photo);
+            return Number(out[0]) ? { ok: true, best: Number(out[1]), duplicate: out[2] === "repeat" } : { ok: false, reason: String(out[2] || "no_run") };
+        },
         async taskOnce(id, task, ts) { return Number(await cmd("HSETNX", `p2p:tk:${id}`, task, String(ts || Date.now()))) === 1; },
         async tasksDone(id) { return (await cmd("HKEYS", `p2p:tk:${id}`)) || []; },
         async lbOnce(id, ts) { return Number(await cmd("HSETNX", "p2p:lbb", String(id), String(ts || Date.now()))) === 1; },
