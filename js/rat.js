@@ -185,9 +185,15 @@ export function createRat() {
     rig.add(tailPivot);
 
     // мягкая «тень»-пятно под ногами (добавляется в сцену отдельно, чтобы не прыгала)
-    const blob = new THREE.Mesh(
-        new THREE.CircleGeometry(0.45, 20),
-        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false })
+    // край размыт (радиальный градиент), а не чёрный диск: на средней и слабой графике теней нет — пятно «ставит» героя на асфальт
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d"), grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.45, "rgba(255,255,255,0.75)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    const blob = new THREE.Mesh( // текстура — только форма (альфа), цвет — у материала
+        new THREE.PlaneGeometry(1.1, 1.1),
+        new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: new THREE.CanvasTexture(c), transparent: true, opacity: 0.55, depthWrite: false })
     );
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.02;

@@ -40,6 +40,30 @@ const OutputShader = {
         }`,
 };
 
+// Сглаживание краёв (FXAA) — последним проходом, по готовой картинке. Холст без своего сглаживания (antialias: false —
+// после bloom оно всё равно терялось), и столбы, провода, полосы и край героя шли «лесенкой». res — 1/размер в пикселях
+const FxaaShader = {
+    uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1 / 1024, 1 / 1024) } },
+    vertexShader: OutputShader.vertexShader,
+    fragmentShader: `
+        uniform sampler2D tDiffuse; uniform vec2 res; varying vec2 vUv;
+        void main() {
+            const vec3 L = vec3(0.299, 0.587, 0.114);
+            vec3 nw = texture2D(tDiffuse, vUv + vec2(-1.0, -1.0) * res).rgb, ne = texture2D(tDiffuse, vUv + vec2(1.0, -1.0) * res).rgb;
+            vec3 sw = texture2D(tDiffuse, vUv + vec2(-1.0, 1.0) * res).rgb, se = texture2D(tDiffuse, vUv + vec2(1.0, 1.0) * res).rgb;
+            vec3 m = texture2D(tDiffuse, vUv).rgb;
+            float lnw = dot(nw, L), lne = dot(ne, L), lsw = dot(sw, L), lse = dot(se, L), lm = dot(m, L);
+            float lmin = min(lm, min(min(lnw, lne), min(lsw, lse))), lmax = max(lm, max(max(lnw, lne), max(lsw, lse)));
+            vec2 dir = vec2(-((lnw + lne) - (lsw + lse)), (lnw + lsw) - (lne + lse));
+            float red = max((lnw + lne + lsw + lse) * 0.03125, 1.0 / 128.0);
+            dir = clamp(dir / (min(abs(dir.x), abs(dir.y)) + red), -8.0, 8.0) * res;
+            vec3 a = 0.5 * (texture2D(tDiffuse, vUv - dir / 6.0).rgb + texture2D(tDiffuse, vUv + dir / 6.0).rgb);
+            vec3 b = a * 0.5 + 0.25 * (texture2D(tDiffuse, vUv - dir * 0.5).rgb + texture2D(tDiffuse, vUv + dir * 0.5).rgb);
+            float lb = dot(b, L);
+            gl_FragColor = vec4(lb < lmin || lb > lmax ? a : b, 1.0);
+        }`,
+};
+
 // Клип из JSON (clipsUrl). В файлах Гориллы у клипов uuid = null, а Three.js кэширует действия микшера по uuid:
 // все клипы становились одним действием — включали «бег» и тут же гасили «стойку» (тот же объект), и Горилла ехала
 // застывшей фигурой. Без uuid — выдаём свой
@@ -216,6 +240,8 @@ class Game {
         output.uniforms.exposure.value = this.look2 ? LOOK2.exposure : SKY.exposure;
         if (this.look2) { output.uniforms.sat.value = LOOK2.sat; output.uniforms.contrast.value = LOOK2.contrast; output.uniforms.vig.value = LOOK2.vignette; }
         this.composer.addPass(output);
+        this.fxaa = new ShaderPass(FxaaShader); // включает setQuality (QUALITY_TIERS[…].aa)
+        this.composer.addPass(this.fxaa);
 
         window.addEventListener("resize", () => this.onResize());
     }
@@ -232,6 +258,7 @@ class Game {
         const div = this.tier.bloom || 4;
         this.bloom.setSize(w * ratio / div, h * ratio / div);
         this.bloom.enabled = this.tier.bloom > 0;
+        this.fxaa.uniforms.res.value.set(1 / (w * ratio), 1 / (h * ratio));
         this.camera.aspect = w / h;
         this.paintSky(w, h);
         this.baseFov = w / h < 0.8 ? 72 : 58;
@@ -988,6 +1015,10 @@ class Game {
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
         this.bloom.strength = this.tier.bloom ? 0.8 : 0;
+        // сглаживание: msaa — 4 выборки в буферах постобработки (WebGL2, сильные устройства), fxaa — дешёвый проход в конце
+        const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2 ? 4 : 0;
+        for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
+        this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         // дальше — туман: не рисуем то, чего всё равно не видно
         this.camera.far = this.tier.far;
@@ -1304,6 +1335,8 @@ class Game {
         const blob = this.rat.userData.blob;
         blob.position.x = this.x;
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
+        blob.material.opacity = 0.55 * (1 - Math.min(0.7, this.y * 0.35)); // в прыжке и полёте пятно бледнеет — видно высоту
+        blob.visible = this.rat.visible; // бой прячет героя — пятно не должно остаться на ринге
 
         if (this.sickCatch) this.sickCatchStep(dt);
         else if (this.stumble > 0) this.chase(dt);
