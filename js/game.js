@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -1186,7 +1186,7 @@ class Game {
         const slowTo = slow ? 0.08 : Math.min(windSlow, ventSlow);
         this.slowK = (this.slowK ?? 1) + (slowTo - (this.slowK ?? 1)) * Math.min(1, dt * (slowTo < 1 ? 5 : 3));
         this.speed *= this.slowK;
-        if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми на ответ — или встань на полосу и свайпни вверх" : "Беги в правильный ответ"; }
+        if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми ответ или свайпни вверх на его полосе" : "Беги в правильный ответ"; }
         const move = this.speed * dt;
         this.distance += move;
         const prevStep = Math.floor(this.phase / Math.PI);
@@ -2723,9 +2723,14 @@ class Game {
         const show = !!w && z > -75 && z < 1;
         if (show && (box.hidden || this.wqShown !== w)) {
             this.wqShown = w;
-            $("wq-type").textContent = w.boss ? `Экзамен Инакова · ${w.boss}/3` : w.arch ? "Арка профита · беги в золотую" : CLIENT_TYPES[w.type].name;
+            // карточка — сообщение клиента: аватар с номером типа (у экзамена — Павел), имя, возражение, время
+            const t = CLIENT_TYPES[w.type];
+            $("wq-type").textContent = w.boss ? `Павел Инаков · экзамен ${w.boss}/3` : w.arch ? "Арка профита · беги в золотую"
+                : w.type.startsWith("fear") || w.type === "practice" ? t.name : `Клиент · ${t.name}`;
+            $("wq-tag").textContent = w.boss ? "" : t.tag;
             $("wall-q").classList.toggle("boss", !!w.boss);
             $("wq-text").textContent = w.q.q;
+            $("wq-time").textContent = new Date().toTimeString().slice(0, 5);
             // ответы по полосам: слева, по центру, справа (два варианта — слева и справа)
             const lanes = w.answers.length === 2 ? [0, 2] : [0, 1, 2];
             $("wq-ans").innerHTML = lanes.map(() => "<button></button>").join("");
@@ -2733,7 +2738,7 @@ class Game {
             if (this.fx.focus > 0 && !w.hint) { this.fx.focus--; w.hint = true; } // «Фокус»: верный ответ подсвечен
             [...$("wq-ans").children].forEach((el, i) => {
                 el.dataset.lane = lanes[i];
-                el.textContent = w.answers[i];
+                el.replaceChildren(Object.assign(document.createElement("i"), { textContent: LANE_LABELS[lanes[i]] }), w.answers[i]); // кнопка: куда бежать и ответ
                 el.classList.toggle("hint", !!w.hint && i === w.correct);
                 el.onpointerdown = (e) => { e.stopPropagation(); this.chooseAnswer(w, lanes[i]); };
             });

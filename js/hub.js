@@ -2,7 +2,7 @@
 
 import { tg } from "./tg.js";
 import { prize } from "./prize.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -71,7 +71,7 @@ export class Hub {
     render() {
         const p = this.p;
         // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
-        if (p.bonusCheck()) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
+        if (p.bonusCheck() && !BETA_ALL_HEROES) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
         $("w-cards").textContent = fmt(p.cards || 0); // карты от девушек на обочине (в Telegram баланс — с сервера)
         $("menu-best").textContent = short(this.game.best);
@@ -229,7 +229,8 @@ export class Hub {
             this.p.save();
             const act = kind === "store" ? "subscribe" : "invite", got = [];
             for (const [id, u] of Object.entries(HERO_UNLOCKS)) if (u.act === act && this.p.unlockHero(id)) got.push(CHARACTERS.find((c) => c.id === id)?.name);
-            if (got.length) { this.game.audio.play("buy"); this.toast(`${got.join(", ")} в команде!${r?.points ? ` +${r.points} в рейтинг` : ""}`); }
+            // в бету герой уже открыт (BETA_ALL_HEROES) — тост «в команде» лишний, остаётся «Подписка есть!» / «Друг засчитан!»
+            if (got.length && !BETA_ALL_HEROES) { this.game.audio.play("buy"); this.toast(`${got.join(", ")} в команде!${r?.points ? ` +${r.points} в рейтинг` : ""}`); }
             else if (first && !quiet) this.toast(kind === "store" ? `Подписка есть!${r?.points ? ` +${r.points} в рейтинг` : ""}` : `Друг засчитан!${r?.points ? ` +${r.points} в рейтинг` : ""}`);
             this.render();
             if (this.current === "rating") r?.points ? this.showRating() : this.renderRateTasks(); // очки пришли — обновить счёт

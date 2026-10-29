@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -119,8 +119,8 @@ function fitText(g, text, maxW, size, font) {
     g.__line = text;
 }
 
-// несколько строк по центру блока: подбираем размер, чтобы влезло по ширине и высоте
-function wrapText(g, text, cx, top, maxW, maxH, font) {
+// несколько строк по центру блока (align "left" — по левому краю): подбираем размер, чтобы влезло по ширине и высоте
+function wrapText(g, text, cx, top, maxW, maxH, font, align = "center") {
     for (let s = 60; s >= 26; s -= 2) {
         g.font = font.replace("{s}", s);
         const words = text.split(" "), lines = [];
@@ -133,7 +133,7 @@ function wrapText(g, text, cx, top, maxW, maxH, font) {
         const lh = s * 1.15;
         if (s <= 26 || (lines.length * lh <= maxH && lines.every((l) => g.measureText(l).width <= maxW))) { // не влезло и мелко — всё равно пишем
             const y0 = top + (maxH - lines.length * lh) / 2 + s * 0.9;
-            g.textAlign = "center";
+            g.textAlign = align; // "left" — cx это левый край
             lines.forEach((l, i) => g.fillText(l, cx, y0 + i * lh));
             return;
         }
@@ -1789,43 +1789,38 @@ export class World {
         this.scene.add(arch);
         this.obstacles.push(arch);
         wall.parts = [arch]; // рамка стены — двигается вместе с табличками (полёт отодвигает стену)
-        // таблички на полосах: стекло в неоне, стрелка полосы, ответ; под ними светящаяся планка и пятно на асфальте
-        // табличка-ответ: плотная карточка (без размытого неона — текст читается издалека), сверху цветная плашка
-        // с направлением, ниже крупный ответ, подобранный по размеру. Два варианта — карточки шире (стоят на крайних полосах)
+        // таблички на полосах — сообщения в чате, как карточка вопроса в HUD: светлый пузырь с хвостиком слева внизу,
+        // обводка и ореол цвета типа клиента, сверху тёмная плашка «куда бежать», ниже ответ тёмным крупно (по левому краю,
+        // размер подбирается). Пузырь не чисто белый: белое выше порога bloom — расплывалось бы ореолом и съедало буквы.
+        // Под табличкой светящаяся планка и пятно на асфальте. Два варианта — карточки шире (стоят на крайних полосах)
         const two = answers.length === 2;
         const PW = two ? 2.5 : 1.86, PH = 1.5, CW = two ? 680 : 512, CH = 412;
         const plateGeo = new THREE.PlaneGeometry(PW, PH);
         plateGeo.userData.own = true;
-        const dirs = [["◀", "ВЛЕВО"], ["▲", "ПРЯМО"], ["▶", "ВПРАВО"]];
         answers.forEach((text, i) => {
             const lane = two ? i * 2 : i;
             const g = new THREE.Group();
             const board = new THREE.Mesh(plateGeo, textMat(CW, CH, (c, w, h) => {
-                const m = 22, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m, r = 34;
-                // тень-ореол и корпус
-                c.save(); c.shadowColor = col; c.shadowBlur = 22;
-                c.fillStyle = "#0c0c11"; roundRect(c, x, y, bw, bh, r); c.fill(); c.restore();
-                const body = c.createLinearGradient(0, y, 0, y + bh);
-                body.addColorStop(0, "#22222c"); body.addColorStop(1, "#0b0b10");
-                c.fillStyle = body; roundRect(c, x, y, bw, bh, r); c.fill();
-                // шапка цвета страха: стрелка и куда бежать
-                const hh = 66;
-                c.save(); roundRect(c, x, y, bw, bh, r); c.clip();
-                c.fillStyle = col; c.fillRect(x, y, bw, hh);
-                c.fillStyle = "rgba(255,255,255,.18)"; c.fillRect(x, y, bw, 6); // блик
-                c.restore();
-                c.fillStyle = "#0d0d10"; c.textAlign = "center";
+                const m = 22, tail = 28, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m - tail;
+                const bubble = () => { // пузырь и хвостик одним контуром
+                    roundRect(c, x, y, bw, bh, { tl: 46, tr: 46, br: 46, bl: 12 });
+                    // в ту же сторону, что и пузырь (по часовой): иначе при заливке nonzero место наложения осталось бы пустым
+                    c.moveTo(x, y + bh - 26); c.lineTo(x + 52, y + bh - 2); c.lineTo(x - 4, y + bh + tail - 4); c.closePath();
+                };
+                c.save(); c.shadowColor = col; c.shadowBlur = 26; c.strokeStyle = col; c.lineWidth = 12; c.lineJoin = "round";
+                bubble(); c.stroke(); c.restore();
+                c.fillStyle = "#ececf0"; bubble(); c.fill();
+                // плашка «◀ ВЛЕВО»: тёмная, буквы цвета типа
                 c.font = '900 30px "Unbounded", "Arial Black", sans-serif';
-                if ("letterSpacing" in c) c.letterSpacing = "3px";
-                c.fillText(`${dirs[lane][0]}  ${dirs[lane][1]}`, w / 2, y + 45);
+                if ("letterSpacing" in c) c.letterSpacing = "2px";
+                const label = LANE_LABELS[lane], px = x + 26, py = y + 24, ph = 52, pw = c.measureText(label).width + 40;
+                c.fillStyle = "#121216"; roundRect(c, px, py, pw, ph, ph / 2); c.fill();
+                c.fillStyle = col; c.textAlign = "left";
+                c.fillText(label, px + 20, py + 37);
                 if ("letterSpacing" in c) c.letterSpacing = "0px";
-                // обводка цветом страха
-                c.strokeStyle = col; c.lineWidth = 6; roundRect(c, x + 3, y + 3, bw - 6, bh - 6, r - 3); c.stroke();
-                // ответ: белый, крупно, по центру оставшейся части
-                c.fillStyle = "#ffffff";
-                c.save(); c.shadowColor = "rgba(0,0,0,.6)"; c.shadowBlur = 6; c.shadowOffsetY = 2;
-                wrapText(c, text, w / 2, y + hh + 14, bw - 56, bh - hh - 34, '800 {s}px "Inter Tight", Arial, sans-serif');
-                c.restore();
+                // ответ: тёмный, крупно, в оставшейся части пузыря
+                c.fillStyle = "#121216";
+                wrapText(c, text, x + 30, py + ph + 8, bw - 60, y + bh - py - ph - 26, '800 {s}px "Inter Tight", Arial, sans-serif', "left");
             }));
             board.position.y = 1.32;
             g.add(board);

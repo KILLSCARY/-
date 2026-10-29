@@ -12,6 +12,10 @@
       ]
     },
     {
+      "source": "/audio/(.*)\\.m4a",
+      "headers": [{ "key": "Content-Type", "value": "audio/mp4" }]
+    },
+    {
       "source": "/(textures|img|fonts|audio)/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
     },

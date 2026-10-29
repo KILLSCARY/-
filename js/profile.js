@@ -1,7 +1,7 @@
 // Профиль игрока: кошелёк (USDT; старые TRX пересчитаны ×300 при загрузке), всё заработанное (по нему идут главы), купленные герои,
 // добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
 
-import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS, GORILLA_BONUS } from "./config.js";
+import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS, GORILLA_BONUS, BETA_ALL_HEROES } from "./config.js";
 // TRX, выданные бесплатно прежними начислениями (строки из GRANTS уже убраны): при пересчёте TRX → USDT не считаем
 const GIFT_TRX = { "test-2026-10-28": 10000 };
 import { tg } from "./tg.js";
@@ -212,7 +212,7 @@ export class Profile {
     }
 
     owns(heroId) {
-        if (this.trialHero() === heroId) return true;
+        if (BETA_ALL_HEROES || this.trialHero() === heroId) return true;
         return !(heroId in HERO_UNLOCKS) || this.data.heroes.includes(heroId);
     }
 
