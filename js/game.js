@@ -15,6 +15,7 @@ import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
+import { HeroGlowPass, markGlow } from "./heroglow.js";
 import { loadModel, releaseQueue, preloadModel } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
@@ -38,27 +39,6 @@ const OutputShader = {
             gl_FragColor = vec4(c * mix(vig, 1.0, v), 1.0);
         }`,
 };
-
-// Контур героя (LOOK2): тонкая кайма по краю силуэта — добавка к emissive по углу к камере (френель), только на героях.
-// Угол — по гладкой нормали модели (vNormal), а не по нормали с карты рельефа: на меху и складках та рассыпалась крапинками
-function heroRim(root) {
-    root.traverse((o) => {
-        if (!o.isMesh) return;
-        for (const m of [].concat(o.material)) {
-            if (!m?.isMeshStandardMaterial || m.userData.rim) continue;
-            m.userData.rim = true;
-            m.onBeforeCompile = (sh) => {
-                sh.uniforms.rimCol = { value: new THREE.Color(LOOK2.rim).multiplyScalar(LOOK2.rimK) };
-                sh.fragmentShader = "uniform vec3 rimCol;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>",
-                    `#include <emissivemap_fragment>
-                    float rimF = 1.0 - clamp(dot(normalize(vNormal) * faceDirection, normalize(vViewPosition)), 0.0, 1.0);
-                    totalEmissiveRadiance += rimCol * smoothstep(${LOOK2.rimFrom.toFixed(2)}, 1.0, rimF);`);
-            };
-            m.customProgramCacheKey = () => "rim2";
-            m.needsUpdate = true;
-        }
-    });
-}
 
 // Клип из JSON (clipsUrl). В файлах Гориллы у клипов uuid = null, а Three.js кэширует действия микшера по uuid:
 // все клипы становились одним действием — включали «бег» и тут же гасили «стойку» (тот же объект), и Горилла ехала
@@ -227,6 +207,11 @@ class Game {
         this.composer.addPass(new RenderPass(this.scene, this.camera));
         this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), this.look2 ? LOOK2.bloom : 0.8, 0.5, 0.92);
         this.composer.addPass(this.bloom);
+        // «Ночь+»: мягкий ореол вокруг героя (js/heroglow.js) — после свечения окон, до тонмаппинга
+        if (this.look2 && LOOK2.glow) {
+            this.heroGlow = new HeroGlowPass(this.scene, this.camera, LOOK2.glow);
+            this.composer.addPass(this.heroGlow); // герой (this.rat) помечается слоем при выборе модели — selectHero
+        }
         const output = new ShaderPass(OutputShader);
         output.uniforms.exposure.value = this.look2 ? LOOK2.exposure : SKY.exposure;
         if (this.look2) { output.uniforms.sat.value = LOOK2.sat; output.uniforms.contrast.value = LOOK2.contrast; output.uniforms.vig.value = LOOK2.vignette; }
@@ -1157,7 +1142,7 @@ class Game {
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
-            if (this.look2) heroRim(gltf.scene);
+            if (this.heroGlow) markGlow(this.rat); // ореол «Ночь+» — по слою героя
             this.showRat(true);
             this.heroLoading = false;
             this.hub?.updatePlay();

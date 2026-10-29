@@ -89,10 +89,10 @@ export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon
     env: ["#07051a", "#2a1a50", "#6a3aa0", "#120a24", "#030208"] };
 
 // «Довести ночь» — проба (?look=2, startapp=look или «Для теста»): ярче и сочнее, туман дальше, мягче виньетка,
-// контур героя (тонкая кайма по силуэту: rim — цвет, rimK — сила, rimFrom — с какого угла начинается, ближе к 1 — тоньше), сжатие при приземлении,
+// ореол вокруг героя (glow: цвет, strength — яркость, radius — ширина; js/heroglow.js), сжатие при приземлении,
 // вытягивание на взлёте, наклон и доворот при смене полосы. Числа — здесь; по умолчанию выключено
 export const LOOK2 = { exposure: 1.42, sat: 1.2, contrast: 1.07, vignette: 0.74, fog: [20, 100], hemi: 1.7, bloom: 0.95,
-    rim: 0xb9a8ff, rimK: 0.35, rimFrom: 0.78, squash: 0.16, stretch: 0.12, lean: 0.38, yaw: 0.28 };
+    glow: { color: 0xc4b6ff, strength: 0.9, radius: 2.2 }, squash: 0.16, stretch: 0.12, lean: 0.38, yaw: 0.28 };
 
 // Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
 export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
