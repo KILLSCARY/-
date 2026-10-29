@@ -688,7 +688,7 @@ class Game {
         }
         $("over-cause").textContent = cause === "caught" && this.grudge ? `${CHASERS[this.chaserKey()]?.name || "Мизулина"}: «${this.grudgeLine("caught")}»`
             : cause === "caught" && this.sickDone && this.heroCfg?.sick ? this.heroCfg.sick.over
-            : cause === "caught" && this.chaser?.userData.chaserKey ? pick(this.chaserCfg().caught) : pick(DEATH_TEXT[cause]);
+            : cause === "caught" && this.chaserKey() ? pick(this.chaserCfg().caught) : pick(DEATH_TEXT[cause]);
         $("over-new").hidden = !isBest;
         $("over-best").innerHTML = isBest ? "" : `Рекорд <b>${fmt(this.best)}</b>`;
         document.querySelector(".over-card").classList.toggle("is-best", isBest);
@@ -1551,7 +1551,7 @@ class Game {
         this.speech(own ? this.chaserCfg(this.chaserKey()).name : "Мизулина", Array.isArray(line) ? pick(line) : line, ms);
     }
     grudgeLine(kind) { return (CHASERS[this.chaserKey()]?.grudge || CHASE_GRUDGE.lines)[kind]; }
-    chaserCfg(key = this.chaser?.userData.chaserKey ?? null) {
+    chaserCfg(key = this.chaserKey() ?? this.chaser?.userData.chaserKey ?? null) { // имя и реплики — по герою, даже пока модель грузится
         return key && CHASERS[key] ? CHASERS[key] : { ...CHASER, name: "Мизулина", start: CHASER_LINES.start };
     }
 
@@ -1560,10 +1560,11 @@ class Game {
         if (key && !own) this.world.loadHeroChaser(key); // ещё не грузился — пока бежит Мизулина, потом сменится
         // не тот преследователь (сменили героя / сюжет) или загрузилась модель лучше — пересоздаём
         const wrong = this.chaser && (this.chaser.userData.chaserKey ?? null) !== (own ? key : null);
-        const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
+        const better = key ? false : this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
         if (!this.chaser || better || wrong) {
             if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
-            this.chaser = (own && this.world.makeChaser(key)) || this.world.makeChaser() || this.world.makeOfficer(POLICE_OFFICER.run);
+            // свой преследователь (Малахов) ещё грузится — пока бежит инспектор ДПС, но не Мизулина
+            this.chaser = (own && this.world.makeChaser(key)) || (!key && this.world.makeChaser()) || this.world.makeOfficer(POLICE_OFFICER.run) || (key && this.world.makeChaser());
             if (!this.chaser) {
                 this.chaser = this.world.makeSprite("cop");
                 this.chaser.scale.setScalar(0.9);

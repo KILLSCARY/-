@@ -1484,7 +1484,7 @@ export class World {
         loadModel(cfg.url, (gltf) => {
             this.chaserModels[key] = this.fitRig(gltf, cfg.height);
             this.warmQueue.push(this.makeChaser(key));
-        }, () => {}, { deferred: true });
+        }, () => {}); // сразу, не в очереди: иначе на телефоне весь первый забег за героем бежала бы замена
     }
 
     makeChaser(key = null) {
