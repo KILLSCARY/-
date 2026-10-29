@@ -700,7 +700,7 @@ export class Fight {
             (this.stats ||= {}).rage = this.round;
         }
         const p2 = ai.rage2 ? ai.p2 : null;
-        if (o.act !== "idle" || ai.next > 0) return this.runQueue();
+        if (o.act !== "idle" || ai.next > 0) return this.runQueue(dt);
         const rage = (1 + (1 - o.hp / o.hpMax) * 0.35) * (p2 ? p2.speed : 1);
         const r = Math.random();
         if (r < ai.heavy + (p2 ? p2.heavy : 0)) {
@@ -713,14 +713,14 @@ export class Fight {
         ai.next = (ai.every[0] + Math.random() * (ai.every[1] - ai.every[0])) / rage;
     }
 
-    queueAi(list) { this.ai.queue = list.map(([a, d]) => ({ a, d })); this.runQueue(); }
+    queueAi(list) { this.ai.queue = list.map(([a, d]) => ({ a, d })); this.runQueue(0); }
 
-    runQueue() {
+    runQueue(dt = 0) {
         const o = this.f[1], q = this.ai.queue;
         if (!q?.length) return;
         if (o.act !== "idle" && !(o.act === "punch" && o.t > o.dur * 0.8)) return;
         const n = q[0];
-        n.d -= 1 / 60;
+        n.d -= Math.max(0, dt);
         if (n.d > 0) return;
         q.shift();
         this.punch(o);
