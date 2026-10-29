@@ -210,19 +210,19 @@ export const NPCS = {
 // hd — HD-текстуры героя для хорошей графики: "models/hd/<id>" → models/hd/<id>_c.webp (цвет) и _n.webp (нормали),
 // в той же развёртке, что текстуры внутри модели, 2048 точек. Работают и в бою (hero_<id> берёт hd героя). Нет поля — обычные 1024
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", clipsUrl: "models/mouse_x.json?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", hd: "models/hd/mouse", clipsUrl: "models/mouse_x.json?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
         // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", hd: "models/hd/pavel", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
-    { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", clipsUrl: "models/islam_x.json", height: 1.8, portrait: "img/heroes/islam.webp",
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", hd: "models/hd/islam", clipsUrl: "models/islam_x.json", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing", stumble: "stumble", cheer: "cheer" },
         footSync: 0.8, footMax: 2.6, // темп шага — прежний быстрый (остальным снижен, см. FOOT_SYNC в rat.js)
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=71", clipsUrl: "models/denchik_x.json", height: 1.78, portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=71", hd: "models/hd/denchik", clipsUrl: "models/denchik_x.json", height: 1.78, portrait: "img/heroes/denchik.webp",
         // v5 (denchik_v2 команды): гипс на левой ноге и два костыля (меши crutch_L/crutch_R на кистях, в полёте, подкате и бою
         // спрятаны в самих клипах). Бег — на костылях, полёт — «Swim Forward» 2 с по кругу, поймали — падение лицом вперёд,
         // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
@@ -235,13 +235,13 @@ export const CHARACTERS = [
         sick: { speedStart: 7, speedMax: 10, ramp: 0.06, catchAt: 40,
             start: "Денчик на костылях — бегать не может, только ковыляет. Мизулина уже идёт по следу…",
             catchLine: "Далеко собрался на костылях? Пройдёмте.", over: "Мизулина: «На костылях от меня не уходят»" } },
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", clipsUrl: "models/sasha_x.json?v=2", height: 1.82, portrait: "img/heroes/sasha.webp",
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", hd: "models/hd/sasha", clipsUrl: "models/sasha_x.json?v=2", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     // Горилла — бонусный герой (HERO_UNLOCKS: act "all"): модель сцены «Маска», а бег, прыжок, подкат, падение, полёт и
     // стойка — клипы Павла, перенесённые на скелет Гориллы (clipsUrl, мировые повороты от позы привязки). Свои клипы
     // модели (idle/walk) смотрят вбок — в забеге не используются
-    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.webp",
+    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.webp",
         clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
@@ -767,7 +767,7 @@ const GUARD_MOVES = {
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
 export const FIGHTERS = {
-    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse_fight.glb?v=71", height: 1.62, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.4,
+    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse_fight.glb?v=71", hd: "models/hd/mouse", height: 1.62, foot: 0.05, yaw: 0.9, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.4,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         // idle — спокойный кусок стойки в начале клипа jab (0–0.3 с руки почти не двигаются), period — сек на «вдох-выдох»
         moves: { idle: { clip: "jab", from: 0.05, to: 0.28, period: 2.4 }, // стойка — спокойный кусок начала джеба (руки у лица) туда-обратно
@@ -779,7 +779,7 @@ export const FIGHTERS = {
             low: { clip: "kick", from: 0.2, to: 1.0, hit: 0.6, speed: 1.1 }, // удар ногой — тап по ногам соперника
             win: { clip: "victory", from: 0, to: 3.0, loop: true }, ...GUARD_MOVES }, // победа — клип victory из v7.1
         dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30, low: 4 } }, // low — удар ногой (тап по ногам соперника)
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=71", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=71", hd: "models/hd/pavel", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true, hold: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
@@ -798,7 +798,7 @@ export const FIGHTERS = {
             examKo: null } }, // после K.O. Павел говорит в сцене «Маска» (MASK_SCENE.lines.outro)
     // Мизулина — свои 13 боевых клипов (idle_fight, jab, cross, hook, uppercut, low/high/spin/jump_kick, block, hit, ko, win).
     // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, splash: { h: 62, fx: 0.5, fy: 0.2 },
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", hd: "models/hd/mizulina", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, splash: { h: 62, fx: 0.5, fy: 0.2 },
         koHold: 0.98, // нокаут: лежит в последнем кадре
         koFrom: 1.6, koFade: 0.45, // в клипе ko до 1,6 с — прыжок назад и стойка на голове: начинаем с лежачей части, тело оседает плавно
         moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
@@ -826,7 +826,7 @@ export const FIGHTERS = {
             blockIn: "Не положено!", blockHold: ["Жду документы…", "Я подожду", "Всё фиксирую"], blockOut: "Так, продолжим проверку!",
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", rage: "Блокирую! Всё блокирую!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=71", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
+    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=71", hd: "models/hd/cop", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
         moves: null, dmg: { jab: 3, cross: 4, hook: 5, heavy: 9, super: 24 }, punchTime: 0.5, // ослаблен по плейтесту
         ai: { every: [[1.5, 2.5], [1.3, 2.2], [1.1, 1.9]], block: [0.1, 0.14, 0.18], heavy: [0.14, 0.16, 0.2], combo: [0.12, 0.16, 0.2], third: [0.05, 0.09, 0.13] },
         telegraph: [0.85, 0.75, 0.65],
