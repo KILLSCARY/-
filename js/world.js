@@ -1710,6 +1710,9 @@ export class World {
     // answers — ответы по полосам, correct — номер полосы с правильным. Текст рисуется на холсте (свой у каждой стены,
     // освобождается вместе с ней). Таблички — препятствия type "answer": правильная ломается, неправильная — удар.
     addWall(q, answers, correct, z) {
+        // У стены препятствия не бьют (Game.collide: за 35 м до неё и 8 м после) — значит, их там и не должно быть:
+        // ряды, вставшие до стены, иначе оставались на дороге, и герой видимо пробегал сквозь баки и блоки
+        this.clearZone(z - 8, z + 36);
         const type = CLIENT_TYPES[q.type];
         const wall = { q, answers, correct, answered: false, plates: [], type: q.type };
         const textMat = (w, h, draw) => {

@@ -679,33 +679,49 @@ html.tg, html.tg body { background: #000; }
 
 /* ---- стена-возражение: вопрос в HUD, пока стена впереди — как сообщение клиента в Telegram: аватар и имя,
    пузырь с возражением, ответы — кнопками под ним (как инлайн-клавиатура бота) ---- */
+/* компактно (редизайн 29.10): сразу под верхней панелью, ниже — дорога и стена видны. Шапка — одной строкой
+   (аватар 24 px, кто спрашивает), вопрос 15 px, ответы на всю ширину; фон полупрозрачный */
 .wall-q {
-    position: absolute; left: 50%; top: calc(150px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
-    transform: translateX(-50%); width: min(366px, calc(100% - 24px)); pointer-events: none;
+    position: absolute; left: 50%; top: calc(86px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
+    transform: translateX(-50%); width: min(352px, calc(100% - 20px)); pointer-events: none;
+    padding: 7px 8px 8px; border-radius: 16px; background: rgba(18, 19, 24, .62); border: 1px solid rgba(255, 255, 255, .07);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     animation: wq-in .3s ease-out both;
 }
-.wq-head { display: flex; align-items: center; gap: 9px; }
+.wq-head { display: flex; align-items: center; gap: 7px; }
+.wq-head > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .wq-ava {
-    flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
-    font: 900 10px/1 var(--font-display); font-style: normal; letter-spacing: -.02em; color: #111;
-    background: var(--tc, var(--red)) center 18% / cover; box-shadow: 0 0 0 2px rgba(0, 0, 0, .5), 0 0 14px color-mix(in srgb, var(--tc, var(--red)) 45%, transparent);
+    flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+    font: 900 8px/1 var(--font-display); font-style: normal; letter-spacing: -.02em; color: #111;
+    background: var(--tc, var(--red)) center 18% / cover; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .5);
 }
-.wq-head span { display: block; font: 700 13px/1.15 var(--font-body); text-shadow: 0 1px 4px #000; }
-.wq-head span + i { display: block; margin-top: 2px; font: 600 11px/1.2 var(--font-body); font-style: normal; color: var(--tc, var(--red)); text-shadow: 0 1px 4px #000; }
+.wq-head span { display: block; font: 700 11.5px/1.15 var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wq-head span + i { display: block; font: 600 10.5px/1.2 var(--font-body); font-style: normal; color: var(--tc, var(--red)); white-space: nowrap; }
 .wq-bub {
-    margin: 6px 0 0 45px; padding: 9px 13px 7px; border-radius: 18px 18px 18px 6px;
-    background: rgba(29, 31, 38, .95); border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
+    margin: 5px 0 0; padding: 0 2px; background: none; border: 0; box-shadow: none;
     transform-origin: 0 100%; animation: wq-pop .32s .06s cubic-bezier(.2, .9, .3, 1.25) both;
 }
-.wq-bub b { display: block; font: 700 17px/1.25 var(--font-body); overflow-wrap: break-word; }
-.wq-bub small { display: block; margin-top: 1px; text-align: right; font: 500 10px/1 var(--font-body); color: var(--muted); }
-.wq-ans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 6px 0 0 45px; animation: wq-pop .3s .16s ease-out both; }
+.wq-bub b { display: block; font: 700 15px/1.22 var(--font-body); overflow-wrap: break-word; }
+.wq-bub small { display: none; }
+.wq-ans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 6px 0 0; animation: wq-pop .3s .16s ease-out both; }
 .wq-ans.two { grid-template-columns: repeat(2, 1fr); }
 .wq-ans button {
-    padding: 7px 5px 8px; border-radius: 11px; font-size: 11.5px; font-weight: 600; line-height: 1.2; color: #fff;
-    background: rgba(40, 42, 52, .88); border: 1px solid rgba(255, 255, 255, .08);
+    padding: 5px 4px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 1.18; color: #fff;
+    background: rgba(40, 42, 52, .8); border: 1px solid rgba(255, 255, 255, .08);
 }
-.wq-ans button i { display: block; margin-bottom: 3px; font: 900 9px/1 var(--font-display); font-style: normal; letter-spacing: .1em; color: var(--tc, var(--red)); }
+.wq-ans button i { display: block; margin-bottom: 2px; font: 900 8px/1 var(--font-display); font-style: normal; letter-spacing: .1em; color: var(--tc, var(--red)); }
+.wq-ans button { text-wrap: balance; }
+.wq-ans button.long { font-size: 10px; line-height: 1.13; }
+.wq-ans button.xlong { font-size: 9.5px; line-height: 1.1; padding: 4px 4px 5px; }
+/* арка профита: вопроса нет — только плашка и три чипа, золотой подсвечен */
+.wall-q.arch { width: min(300px, calc(100% - 40px)); padding: 6px 7px 7px; }
+.wall-q.arch .wq-ava, .wall-q.arch .wq-bub, .wall-q.arch #wq-hint { display: none; }
+.wall-q.arch .wq-head { justify-content: center; }
+.wall-q.arch .wq-head span { color: #e9c25a; letter-spacing: .02em; }
+.wall-q.arch .wq-ans { margin-top: 5px; }
+.wall-q.arch .wq-ans button { padding: 4px 3px; font-size: 11px; }
+.wall-q.arch .wq-ans button.gold { background: rgba(233, 194, 90, .92); color: #1a1300; border-color: transparent; }
+.wall-q.arch .wq-ans button.gold i { color: #1a1300; }
 @keyframes wq-in { from { opacity: 0; transform: translate(-50%, -10px); } }
 @keyframes wq-pop { from { opacity: 0; transform: scale(.92); } }
 
@@ -791,7 +807,7 @@ html.tg, html.tg body { background: #000; }
 
 /* ---- экзамен Инакова: портрет в карточке вопроса ---- */
 .wall-q.boss { --tc: #e9c25a; }
-.wall-q.boss .wq-ava { width: 40px; height: 40px; background-image: url("../img/heroes/pavel.webp"); border: 2px solid #e9c25a; }
+.wall-q.boss .wq-ava { width: 26px; height: 26px; background-image: url("../img/heroes/pavel.webp"); border: 2px solid #e9c25a; }
 
 /* ---- ежедневная награда ---- */
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .72); animation: fade .25s ease-out both; }
@@ -836,7 +852,7 @@ html.tg, html.tg body { background: #000; }
 
 /* замедление перед стеной: ответы — кнопки, рамка вокруг экрана, выбранный ответ подсвечен */
 body.slowmo .wall-q { pointer-events: auto; }
-body.slowmo .wq-bub { box-shadow: 0 0 0 1.5px var(--tc, var(--red)), 0 12px 32px rgba(0, 0, 0, .55); }
+body.slowmo .wall-q { box-shadow: 0 0 0 1.5px var(--tc, var(--red)), 0 12px 32px rgba(0, 0, 0, .55); background: rgba(18, 19, 24, .82); }
 .wq-ans button { font-family: var(--font-body); cursor: pointer; transition: transform .12s, background .15s; -webkit-tap-highlight-color: transparent; }
 body.slowmo .wq-ans button { background: rgba(48, 50, 62, .95); border-color: color-mix(in srgb, var(--tc, var(--red)) 75%, transparent); }
 .wq-ans button:active { transform: scale(.95); }

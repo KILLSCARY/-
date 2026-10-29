@@ -73,7 +73,7 @@ export const TEXTURES = {
 // exposure — общая яркость кадра
 // Небо — «сиреневая ночь» (выбрано на макете): градиент от почти чёрного к фиолетовому, звёзды, большая луна с ореолом.
 // color — туман у горизонта, hemi — свет неба/земли, moon — цвет «лунного» света, env — полосы для отражений
-export const SKY = { color: 0x2a1848, zenith: "#07051a", mid: "#1c1240", horizon: "#3a2160", light: 1.35, exposure: 1.2,
+export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon: "#56347e", light: 1.75, exposure: 1.45, vignette: 0.72, // 29.10: светлее (было 0x2a1848, свет 1.35, экспозиция 1.2, виньетка 0.55)
     hemi: [0x8a7ac8, 0x0a0618], moon: 0xb0a0ff, stars: 160, moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
     env: ["#07051a", "#2a1a50", "#6a3aa0", "#120a24", "#030208"] };
 

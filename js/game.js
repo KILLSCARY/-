@@ -24,7 +24,7 @@ THREE.ColorManagement.legacyMode = false;
 
 // Финальный проход после bloom: ACES-тонмаппинг, sRGB и лёгкая виньетка
 const OutputShader = {
-    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: 0.55 } },
+    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: SKY.vignette ?? 0.55 } },
     vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
         uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig; varying vec2 vUv;
@@ -1606,7 +1606,10 @@ class Game {
     // ---- стены-возражения -------------------------------------------------------------------
     // Вопрос текущей главы (её общая стена) — с долей WALLS.chapterWall, иначе случайный из банка, не повторяя прошлый
     spawnWall() {
-        const pend = this.questions && !this.afterSpawned && STORIES.find((x) => x.id === this.profile.data.afterPending && x.after);
+        // «Ислам дует» ещё на дороге — стена позже: в порыве героя сносит с выбранной полосы. Раньше проверял только
+        // порыв (и видел лишь уже стоящие стены), и стена, назначенная через 10–20 м после него, вставала прямо за Исламом
+        if (this.wind) { this.nextWallAt += 40; return; }
+        const pend =this.questions && !this.afterSpawned && STORIES.find((x) => x.id === this.profile.data.afterPending && x.after);
         if (pend) { // 1.4 ещё не отвечена — первой стеной этого забега
             this.afterSpawned = true; // ставим один раз за забег
             const z = -(this.nextWallAt - this.distance);
@@ -1887,6 +1890,7 @@ class Game {
 
     // режим без вопросов: арки профита вместо стен — золотая полоса даёт больше, мимо — без удара
     spawnArch() {
+        if (this.wind) { this.nextWallAt += 40; return; } // как у стен: арка не встаёт за Исламом, пока он дует
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = ARCHES.every;
         this.nextWallAt += a + Math.random() * (b - a);
@@ -2478,7 +2482,8 @@ class Game {
     spawnWind() {
         const z = -(this.nextWindAt - this.distance);
         const [a, b] = WIND.every;
-        const nearWall = this.bossCalm || this.bossFight || this.walls.some((w) => Math.abs(w.plates[0].position.z - z) < 45);
+        // 80 м, не 45: вдох с «Готовься тапать» начинается заранее и не должен совпасть с ещё не отвеченной стеной
+        const nearWall = this.bossCalm || this.bossFight || this.walls.some((w) => Math.abs(w.plates[0].position.z - z) < 80);
         const npc = this.world.makeIslam();
         // рядом стена-возражение, вентилятор Ислама или модель ещё не загрузилась — позже
         const nearVent = !!this.vent; // вентилятор сам отодвигает следующий порыв, пока его ветер не кончится
@@ -2729,6 +2734,7 @@ class Game {
                 : w.type.startsWith("fear") || w.type === "practice" ? t.name : `Клиент · ${t.name}`;
             $("wq-tag").textContent = w.boss ? "" : t.tag;
             $("wall-q").classList.toggle("boss", !!w.boss);
+            $("wall-q").classList.toggle("arch", !!w.arch); // арка: плашка и чипы, без пузыря с вопросом
             $("wq-text").textContent = w.q.q;
             $("wq-time").textContent = new Date().toTimeString().slice(0, 5);
             // ответы по полосам: слева, по центру, справа (два варианта — слева и справа)
@@ -2739,7 +2745,12 @@ class Game {
             [...$("wq-ans").children].forEach((el, i) => {
                 el.dataset.lane = lanes[i];
                 el.replaceChildren(Object.assign(document.createElement("i"), { textContent: LANE_LABELS[lanes[i]] }), w.answers[i]); // кнопка: куда бежать и ответ
+                // длинный ответ — мельче, чтобы карточка не вырастала (обрезать нельзя: его надо прочитать целиком)
+                const len = String(w.answers[i]).length;
+                el.classList.toggle("long", len > 50 && len <= 80);
+                el.classList.toggle("xlong", len > 80);
                 el.classList.toggle("hint", !!w.hint && i === w.correct);
+                el.classList.toggle("gold", !!w.arch && i === w.correct);
                 el.onpointerdown = (e) => { e.stopPropagation(); this.chooseAnswer(w, lanes[i]); };
             });
             box.style.setProperty("--tc", CLIENT_TYPES[w.type].color);
