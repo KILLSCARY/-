@@ -205,13 +205,13 @@ export const NPCS = {
 // длится приземление (по умолчанию 0.4); pin — в клипе высота «вшита» в бёдра: в воздухе её гасим, высоту задаёт игра.
 // Клипы из Meshy (папка «Персонажи» на Диске): у Спиди и Саши полёт — «Jump with Arms Open» (руки раскинуты в верхней точке).
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", height: 1.75, portrait: "img/heroes/speedy.webp",
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", clipsUrl: "models/mouse_x.json", height: 1.75, portrait: "img/heroes/speedy.webp",
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
         // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", height: 1.8, portrait: "img/heroes/pavel.webp",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", clipsUrl: "models/pavel_x.json", height: 1.8, portrait: "img/heroes/pavel.webp",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle" }, flyClip: { loop: true, speed: 1.3 } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall" }, flyClip: { loop: true, speed: 1.3 } },
     { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
@@ -228,14 +228,14 @@ export const CHARACTERS = [
         sick: { speedStart: 7, speedMax: 10, ramp: 0.06, catchAt: 40,
             start: "Денчик на костылях — бегать не может, только ковыляет. Мизулина уже идёт по следу…",
             catchLine: "Далеко собрался на костылях? Пройдёмте.", over: "Мизулина: «На костылях от меня не уходят»" } },
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", height: 1.82, portrait: "img/heroes/sasha.webp",
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", clipsUrl: "models/sasha_x.json", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.3 } },
     // Горилла — бонусный герой (HERO_UNLOCKS: act "all"): модель сцены «Маска», а бег, прыжок, подкат, падение, полёт и
     // стойка — клипы Павла, перенесённые на скелет Гориллы (clipsUrl, мировые повороты от позы привязки). Свои клипы
     // модели (idle/walk) смотрят вбок — в забеге не используются
-    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json", height: 1.9, portrait: "img/heroes/gorilla.webp",
-        clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle" }, flyClip: { loop: true, speed: 1.3 } },
+    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json?v=2", height: 1.9, portrait: "img/heroes/gorilla.webp",
+        clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -828,8 +828,13 @@ FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // приёмы, урон и HP — как у Спиди
 for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
     model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait };
+// победа Павла, Саши и Гориллы — «Victory» из Meshy, перенесённая на их скелеты (models/*_win.json, у Гориллы — в gorilla_fight.json);
+// по кругу — кусок с поднятыми руками
+const HERO_WIN = { clip: "victory", from: 2.8, to: 4.6, loop: true };
+for (const id of ["pavel", "sasha"]) FIGHTERS[`hero_${id}`] = { ...FIGHTERS[`hero_${id}`], clipsUrl: `models/${id}_win.json`,
+    moves: { ...FIGHTERS[`hero_${id}`].moves, win: HERO_WIN } };
 // Горилла — модель сцены «Маска», боевые клипы героя-Павла (pavel_hero_fight) перенесены на его скелет (clipsUrl)
-FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json" };
+FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json?v=2" };
 // Ислам — коренастый, мышиная стойка на нём выглядела приседом: ему клипы Павла (человеческая боксёрская стойка), ростом ниже Мизулины
 FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.glb?v=2", height: 1.62, yaw: 0.6, lunge: 0.15, capWhite: 0,
     moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.6 },
