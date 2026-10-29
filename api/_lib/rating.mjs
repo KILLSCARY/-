@@ -44,8 +44,9 @@ export async function runScore(body, who, { store, now }) {
     if (sec < R.minSec) return { status: 403, json: { error: "too_fast" } };
     if (dist > R.vmax * sec + R.dash || usdt > dist * R.usdtPerM + R.usdtBase) return { status: 403, json: { error: "implausible" } };
     const pts = usdt * 10 + dist;
-    const best = await store.lbBest(who.id, pts, nameOf(who.user), photoOf(who.user));
-    return { status: 200, json: { ok: true, score: pts, best } };
+    const result = await store.runScoreSubmit(who.id, runId, now, R.ttlSec, pts, nameOf(who.user), photoOf(who.user));
+    if (!result.ok) return { status: 403, json: { error: result.reason === "duplicate" ? "run_already_submitted" : "no_run" } };
+    return { status: 200, json: { ok: true, score: pts, best: result.best, duplicate: result.duplicate } };
 }
 
 export async function handleRating(action, body, who, { store, now }) {
