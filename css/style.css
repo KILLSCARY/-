@@ -886,6 +886,11 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
     padding: 6px 11px 7px; border-radius: 12px; background: rgba(250, 250, 250, .96); color: #111;
     font: 700 12px/1.1 var(--font-body); white-space: nowrap; border-bottom: 3px solid var(--bc, var(--red)); box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
 .card-bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--bc, var(--red)); }
+/* активистки Нячанга (js/hecklers.js): лозунг — красное облачко; брызги помидора/банана на экране при попадании */
+.heckle-bubble { --bc: #ff2d55; background: #fff2f4; color: #b0001e; font-weight: 900; }
+.splat-fx { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+.splat { position: absolute; inset: 0; opacity: .85; animation: splat-drip 1.6s ease-in forwards; }
+@keyframes splat-drip { 0% { transform: scale(.6); opacity: .9; } 12% { transform: scale(1); } 100% { transform: translateY(14%) scaleY(1.15); opacity: 0; } }
 
 /* ---- задержание «Протокол скуки»: красно-синие мигалки по краям экрана и штамп ---- */
 .arrest-fx .stamp-line { position: absolute; bottom: 22%; left: 8%; right: 8%; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: #fff; text-shadow: 0 2px 8px #000; animation: stamp-in .35s 1.2s both; }

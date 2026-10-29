@@ -9,6 +9,7 @@ import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
+import { Vietnam } from "./vietnam.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -313,6 +314,14 @@ export class World {
         this.buildWind();
         this.loadChaser();
         this.loadNpcs();
+    }
+
+    // Локация: "street" — ночной район (по умолчанию), "vietnam" — Нячанг у Димы и Саши (js/vietnam.js, строится при первом включении)
+    setLocation(name) {
+        if ((this.location || "street") === name) return;
+        this.location = name;
+        if (name === "vietnam" && !this.vietnam) this.vietnam = new Vietnam(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
+        this.vietnam?.set(name === "vietnam"); // асфальт и отражения те же: после тропического ливня он тоже мокрый
     }
 
     // Тротуар без наложений: у кого есть userData.foot (полуразмеры hx/hz), те не стоят друг в друге —
@@ -809,6 +818,7 @@ export class World {
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;
+        g.userData.city = true; // в Нячанге (js/vietnam.js) вместо хрущёвок — небоскрёбы
         this.scene.add(g);
         // отделение банка: павильон Сбера/Альфы перед домом (дом отодвигается назад)
         if (Math.random() < BANKS.chance) {
@@ -2348,6 +2358,7 @@ export class World {
         this.updateRipples(dt, move);
         this.updateBlobs();
         this.updateLampGlow();
+        this.vietnam?.update(dt, move, t);
 
         // дождь
         const pos = this.rain.geometry.attributes.position.array;

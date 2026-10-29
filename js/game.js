@@ -1,10 +1,11 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
+import { Hecklers } from "./hecklers.js";
 import { prize } from "./prize.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
@@ -201,7 +202,9 @@ class Game {
         this.perf = new PerfHud(this);
         if (this.settings.perf || /[?&]perf=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "perf") this.perf.toggle(true);
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
+        if (this.location) this.setLocation(this.location, true); // герой выбран раньше, чем построилась улица
         this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
+        this.hecklers = new Hecklers(this); // активистки на обочине Нячанга — кидаются в Диму и Сашу
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
@@ -323,16 +326,19 @@ class Game {
     // при каждой перерисовке (свой генератор с зерном), чтобы при повороте экрана небо не «перемешивалось»
     paintSky(w = window.innerWidth, h = window.innerHeight) {
         if (!this.scene || !w || !h) return;
-        const key = `${Math.round(w / h * 100)}`;
+        const key = `${Math.round(w / h * 100)}_${this.location}`;
         if (this.skyKey === key) return;
         this.skyKey = key;
         // 1024 по ширине (было 512): небо растягивалось на экран телефона, и звёзды выходили крупными кругами
         const W = 1024, H = Math.round(1024 * h / w), c = document.createElement("canvas");
         c.width = W; c.height = H;
         const g = c.getContext("2d");
+        const vn = this.location === "vietnam" && VIETNAM.sky;
+        const sky = vn || SKY;
         const grad = g.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, SKY.zenith); grad.addColorStop(0.5, SKY.mid); grad.addColorStop(1, SKY.horizon);
+        grad.addColorStop(0, sky.zenith); grad.addColorStop(0.5, sky.mid); grad.addColorStop(1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
+        if (vn) return this.paintSunset(g, W, H, vn, c);
         let seed = 11;
         const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
         // звёзды: были одного размера — белые круглые точки, «снег» старой игры. Теперь почти все — пылинки
@@ -357,10 +363,35 @@ class Game {
         g.fillStyle = "#f2eaff"; g.beginPath(); g.arc(mx, my, r, 0, 7); g.fill();
         g.fillStyle = "rgba(180,160,220,.35)";
         for (const [a, b, rr] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.15], [0.05, 0.35, 0.12]]) { g.beginPath(); g.arc(mx + a * r, my + b * r, rr * r, 0, 7); g.fill(); }
+        this.setSkyCanvas(c);
+    }
+
+    setSkyCanvas(c) {
         const tex = new THREE.CanvasTexture(c);
         tex.encoding = THREE.sRGBEncoding;
         this.scene.background?.dispose?.();
         this.scene.background = tex;
+    }
+
+    // Закат над морем (Нячанг): солнце низко слева над водой, ореол, редкие первые звёзды, силуэты островов у горизонта
+    paintSunset(g, W, H, sky, c) {
+        const s = sky.sun, sx = s.x * W, sy = s.y * H, r = s.r * W;
+        const halo = g.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 7);
+        halo.addColorStop(0, "rgba(255,200,140,.55)"); halo.addColorStop(1, "rgba(255,140,90,0)");
+        g.fillStyle = halo; g.fillRect(0, 0, W, H);
+        g.fillStyle = s.color; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill();
+        let seed = 5;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,240,255,${0.15 + rnd() * 0.5})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.25, 0.4 + rnd() * 0.7, 0, 7); g.fill(); }
+        // острова: пологие холмы у горизонта над морем (левая половина), солнце садится за них наполовину
+        g.fillStyle = sky.islands;
+        const base = sy + r * 0.4;
+        g.beginPath(); g.moveTo(0, H);
+        g.lineTo(0, base);
+        for (let x = 0; x <= W * 0.62; x += 8) g.lineTo(x, base - Math.max(0, Math.sin(x / W * 9) * 18 + Math.sin(x / W * 23) * 7 + 10) * (1 - x / (W * 0.62)) * (W / 1024));
+        g.lineTo(W * 0.62, base); g.lineTo(W * 0.62, H);
+        g.closePath(); g.fill();
+        this.setSkyCanvas(c);
     }
 
     // ---- забег ---------------------------------------------------------------------------
@@ -390,6 +421,7 @@ class Game {
         this.usdt = 0;
         this.coinCount = 0;
         this.cards?.reset();
+        this.hecklers?.reset();
         this.chaseLate = 0; // «Фора» за Карты: Мизулина стартует позже
         this.credited = { usdt: 0 }; // сколько из этого забега уже зачислено в кошелёк
         this.appealUsed = false;
@@ -1271,8 +1303,20 @@ class Game {
     // и стены по времени встречаются так же часто, как у остальных
     wallGap(m) { return m * (this.heroCfg?.sick?.walls ?? 1); }
 
+    // Локация забега по герою: у Димы и Саши — Нячанг (VIETNAM), у остальных — ночной район. Небо и дымка — тоже свои
+    setLocation(name, force = false) {
+        if (this.location === name && !force) return;
+        this.location = name;
+        if (!this.world) return;
+        this.world.setLocation(name);
+        this.scene.fog.color.set(name === "vietnam" ? VIETNAM.fog : SKY.color);
+        this.skyKey = null;
+        this.paintSky();
+    }
+
     selectHero(id) {
         this.heroId = id;
+        this.setLocation(VIETNAM.heroes.includes(id) ? "vietnam" : "street");
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
         this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
         try { localStorage.setItem("p2p_hero", id); } catch {}
@@ -1384,6 +1428,7 @@ class Game {
         this.watchBoss(dt, move);
         this.world.update(dt, move, this.t);
         this.cards.update(dt, move);
+        this.hecklers.update(dt, move);
         this.watchWall();
         this.speechTick();
         this.watchWind(dt);
