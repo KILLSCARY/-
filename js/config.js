@@ -265,7 +265,7 @@ export const CHARACTERS = [
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=1", height: 1.82, portrait: "img/heroes/dima.jpg",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
-    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=1", height: 1.7, portrait: "img/heroes/tovarus.jpg",
+    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=2", height: 1.7, portrait: "img/heroes/tovarus.jpg",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
