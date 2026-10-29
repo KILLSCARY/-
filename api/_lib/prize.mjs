@@ -8,6 +8,8 @@ import { handleRating, score, rewardPoints, RATING, backfill } from "./rating.mj
 import { handleLead } from "./leads.mjs";
 import { checkSub, refStatus, trackRef } from "./verify.mjs";
 
+const SIGN_MIN_RUN_SEC = 3; // первая табличка встаёт не раньше, чем через несколько секунд забега
+
 export function checkChain(events, cfg) {
     let prev = null, first = null;
     for (const e of cfg.chain) {
@@ -50,6 +52,12 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         if (key.startsWith("boss:")) {
             const ch = key.slice(5), started = (await store.events(who.id))[`run:${ch}`];
             if (!started || now - started < BOSS_MIN_RUN_SEC(env) * 1000) return { status: 403, json: { error: "chain", reason: `missing:run:${ch}` } };
+        }
+        // табличка сюжета — только если сервер видел старт забега этой главы (run:<сюжет>): без этого награды
+        // за все таблички можно было забрать одним скриптом, не играя. Верность ответа сервер не знает — вопросы на клиенте
+        if (key.startsWith("sign:")) {
+            const st = key.slice(5).split(".")[0], started = (await store.events(who.id))[`run:${st}`];
+            if (!started || now - started < SIGN_MIN_RUN_SEC * 1000) return { status: 403, json: { error: "chain", reason: `missing:run:${st}` } };
         }
         const fresh = await store.grant(who.id, key, amount, now);
         if (fresh) { const r = rewardPoints(key); await score(store, who, r.pts, r.stat); } // рейтинг — только за первую выдачу

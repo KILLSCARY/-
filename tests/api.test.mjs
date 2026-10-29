@@ -103,9 +103,11 @@ test("награды босса и табличек — один раз, сум�
     const c = await run(store, "reward", { initData: d, key: "boss:3" }, T0 + 60_000);
     assert.deepEqual([c.json.amount, c.json.granted], [12000, true]);
     assert.equal((await run(store, "reward", { initData: d, key: "boss:3" }, T0 + 90_000)).json.granted, false);
-    const s1 = await run(store, "reward", { initData: d, key: "sign:1.4" }, T0);
+    assert.equal((await run(store, "reward", { initData: d, key: "sign:2.1" }, T0 + 60_000)).status, 403); // табличка главы, которую не начинал
+    assert.equal((await run(store, "reward", { initData: d, key: "sign:1.4" }, T0 + 1_000)).status, 403); // сразу после старта — рано
+    const s1 = await run(store, "reward", { initData: d, key: "sign:1.4" }, T0 + 10_000);
     assert.deepEqual([s1.json.amount, s1.json.granted], [250, true]);
-    assert.equal((await run(store, "reward", { initData: d, key: "sign:1.4" }, T0)).json.granted, false);
+    assert.equal((await run(store, "reward", { initData: d, key: "sign:1.4" }, T0 + 20_000)).json.granted, false);
     assert.equal((await run(store, "reward", { initData: d, key: "boss:9" }, T0)).status, 400);
     assert.equal((await run(store, "reward", { initData: "x", key: "boss:1" }, T0)).status, 401);
     assert.deepEqual((await run(store, "rewards", { initData: d }, T0)).json.rewards, { "boss:1": 3000, "boss:3": 12000, "sign:1.4": 250 });
