@@ -85,6 +85,7 @@ export class Fight {
     constructor(game, opts) {
         this.g = game;
         this.opts = opts;
+        document.body.classList.add("in-fight"); // меню прячем на время боя, иначе просвечивает под экзаменом
         this.heroCfg = FIGHTERS[opts.hero] || FIGHTERS.mouse; // пока дерётся только Спиди
         this.oppCfg = FIGHTERS[opts.opponent];
         this.round = 0;
@@ -872,6 +873,7 @@ export class Fight {
 
     dispose() {
         this.disposed = true;
+        document.body.classList.remove("in-fight");
         clearTimeout(this.loadT);
         $("f-load").hidden = true;
         $("fight").hidden = true;

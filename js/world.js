@@ -313,8 +313,8 @@ export class World {
     }
 
     buildMaterials() {
-        const wall = pbr("wall", [2, 2]);
-        const iron = pbr("iron", [2, 1]);
+        const wall = pbr(TEXTURES.wall || "wall", [2, 2]);
+        const iron = pbr(TEXTURES.iron || "iron", [2, 1]);
         const std = (o) => new THREE.MeshStandardMaterial(o);
         this.mat = {
             facades: {}, // кэш материалов фасадов по (текстура, этажность) — см. facadeMaterial()
@@ -437,7 +437,7 @@ export class World {
         this.roadRepeat = STREET_LEN / 6;
         this.roadMat = new THREE.MeshStandardMaterial({
             ...roadTex, alphaMap: roadTex.roughnessMap, transparent: true, opacity: 0.92,
-            color: 0xb0a4a4, roughness: 0.75, metalness: 0.2, normalScale: new THREE.Vector2(1, 1), envMapIntensity: 0.8,
+            color: 0x8c847a, roughness: 0.75, metalness: 0.2, normalScale: new THREE.Vector2(0.5, 0.5), envMapIntensity: 0.8,
         });
         const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN), this.roadMat);
         roadMesh.rotation.x = -Math.PI / 2;
@@ -464,7 +464,7 @@ export class World {
         const walkTex = pbr(TEXTURES.sidewalk, [1.5, STREET_LEN / 3]);
         this.walkMap = walkTex.map;
         this.walkRepeat = STREET_LEN / 3;
-        const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, color: 0xc8bcb8, roughness: 0.9, envMapIntensity: 0.6 });
+        const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, color: 0x9a9084, roughness: 0.9, envMapIntensity: 0.6 });
         for (const side of [-1, 1]) {
             const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, STREET_LEN), walkMat);
             w.position.set(side * 5, 0.09, centerZ);
