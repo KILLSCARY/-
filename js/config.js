@@ -286,6 +286,8 @@ export const SOUNDS = {
     },
     // своя музыка забега у героя (Диск, папка «Звуки»): «СаняБелый» и «Ислам песня» (23 с, по кругу); у остальных — music.run
     heroMusic: { sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
+    // громкость своей музыки героя относительно общей: «СаняБелый» сведена на ~3,6 дБ тише «Чикаго» — ×1,8 (+5 дБ)
+    heroMusicGain: { sasha: 1.8 },
     musicVolume: { menu: 0.45, run: 0.6, pause: 0.2 },
     ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
     sfx: {

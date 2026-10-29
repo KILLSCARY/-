@@ -39,7 +39,16 @@ export class Audio {
             el.src = urls[0];
             const gain = this.ctx.createGain();
             gain.gain.value = 0;
-            this.ctx.createMediaElementSource(el).connect(gain).connect(this.master);
+            // забег: после громкости — ограничитель (heroMusicGain поднимает тихие песни выше 1 — пики не хрипят);
+            // обычная музыка (0,6) до порога не доходит и звучит как раньше
+            let out = gain;
+            if (list === "run") {
+                const lim = this.ctx.createDynamicsCompressor();
+                lim.threshold.value = -3; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.15;
+                out = gain.connect(lim);
+            }
+            this.ctx.createMediaElementSource(el).connect(gain);
+            out.connect(this.master);
             const p = { el, gain, index: 0, urls };
             el.addEventListener("ended", () => this.nextTrack(p));
             this.players[list] = p;
@@ -98,7 +107,7 @@ export class Audio {
         // новый забег — трек забега с начала
         if (list === "run" && this.listFor(prev) !== "run") this.players.run.el.currentTime = 0;
         for (const [name, p] of Object.entries(this.players)) {
-            const vol = name === list && this.musicOn ? SOUNDS.musicVolume[mode] ?? 0 : 0;
+            const vol = name === list && this.musicOn ? (SOUNDS.musicVolume[mode] ?? 0) * (name === "run" ? this.runGain ?? 1 : 1) : 0;
             p.gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.3);
         }
         this.syncTrack();
@@ -107,8 +116,10 @@ export class Audio {
 
     // музыка забега под героя (SOUNDS.heroMusic: у Саши Белого и Ислама — своя), у остальных — общая.
     // Меняем плейлист плеера забега; выбор героя — касание, и iOS даёт запустить новый трек
-    setRunTracks(urls) {
+    // gain — громкость трека относительно общей (тихо сведённая песня — громче; перегруз срезает limiter плеера)
+    setRunTracks(urls, gain = 1) {
         this.runUrls = urls;
+        if (this.runGain !== gain) { this.runGain = gain; this.music(this.mode); }
         const p = this.players.run;
         if (!p || p.urls === urls) return;
         p.urls = urls;

@@ -1172,7 +1172,7 @@ class Game {
 
     selectHero(id) {
         this.heroId = id;
-        this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run); // у Саши и Ислама — своя музыка забега
+        this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
         try { localStorage.setItem("p2p_hero", id); } catch {}
         for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
         const cfg = CHARACTERS.find((c) => c.id === id);
