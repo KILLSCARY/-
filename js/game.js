@@ -1166,7 +1166,7 @@ class Game {
 
     // режим «с вопросами» (по умолчанию) или «просто бежать». Новый игрок идёт только по сюжету:
     // свободные забеги открываются, когда весь сюжет пройден (экзамен Инакова сдан) — до этого настройка не действует
-    get questions() { return !this.storyDone || this.settings.questions !== false; }
+    get questions() { return !this.heroCfg?.free && (!this.storyDone || this.settings.questions !== false); } // free-герои — только свободный бег
     get storyDone() { return !!this.profile?.data.exam; }
 
     applySettings() {
@@ -2184,7 +2184,7 @@ class Game {
     // Следующий босс, пока его глава не открыта: кто, в какой главе и сколько ещё заработать (USDT за все забеги, не очки)
     nextBoss() {
         const s = STORIES[this.profile.data.story || 0];
-        if (!s || this.story) return null;
+        if (!s || this.story || this.heroCfg?.free) return null; // free-герои (Дима, Товарус) — без сюжета и боссов
         const need = Math.max(0, CHAPTERS[(s.chapter || 1) - 2]?.goal - this.profile.data.earned) || 0;
         const name = FIGHTERS[s.opponent].name;
         return { s, name, need, text: `Следующий босс — ${name}, глава ${s.chapter}. Заработай ещё ${fmt(need)} USDT за забеги — очки не в счёт.` };
@@ -2293,11 +2293,12 @@ class Game {
         const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" || who === CHASERS.malakhov.name ? "miz" : "hero"; // преследователи — в одном стиле
         el.dataset.who = kind;
         // лицо: Мизулина — её портрет, герой — портрет выбранного героя
-        const url = face || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait
+        const own = Object.values(CHASERS).find((c) => c.name === who); // свой преследователь (Малахов) — его портрет
+        const url = face || own?.portrait || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait
             : CHARACTERS.find((c) => c.id === "gorilla")?.portrait || ""); // Горилла — её портрет (раньше эмодзи)
         $("g-face").style.setProperty("--face", url ? `url("${new URL(url, location.href).href}")` : "none"); // путь в переменной CSS считается от файла стилей — даём полный
         // где лицо на портрете (по высоте): у Спиди — ниже середины карточки, у отрендеренных боссов — сверху
-        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "15%" : /gorilla/.test(url) ? "43%" : "18%");
+        $("g-face").style.setProperty("--fy", own?.faceY && url === own.portrait ? own.faceY : /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "15%" : /gorilla/.test(url) ? "43%" : "18%");
         for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
         el.hidden = false;

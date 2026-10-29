@@ -240,6 +240,7 @@ export const CHASER = { url: "models/obj/inspector.glb?v=2", height: 1.72, run: 
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
+        portrait: "img/heroes/malakhov.jpg", faceY: "34%", // лицо в репликах (рендер модели); faceY — где лицо по высоте
         start: "Пусть говорят! А вы куда так бежите?",
         caught: ["Малахов догнал: «Пусть говорят!»", "Второй удар — и ты в студии у Малахова", "Малахов: «Сенсация! Беглец пойман в прямом эфире»"],
         // погоня «из принципа» (после главы 1, CHASE_GRUDGE) — его реплики вместо Мизулины
@@ -309,11 +310,12 @@ export const CHARACTERS = [
     { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.jpg",
         clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
     // Дима Мент и Саша Товарус — герои по фото (Meshy: модель, скелет, бег и бой). Без сюжета: эксклюзив за 250 Карт (HERO_UNLOCKS).
+    // free — только свободный бег: без глав, табличек, боссов и Мизулины (за ними гонится Малахов)
     // В одной .glb и забег, и бой (клипы собраны tools/meshy-convert.html; спотыкание — кусок 3,3–4,6 с, победа — до 5 с)
-    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=1", height: 1.82, chaser: "malakhov", portrait: "img/heroes/dima.jpg",
+    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=1", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
-    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=2", height: 1.7, chaser: "malakhov", portrait: "img/heroes/tovarus.jpg",
+    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=2", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
