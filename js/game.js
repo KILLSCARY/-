@@ -983,6 +983,8 @@ class Game {
         this.audio.setMusic(s.music !== false);
         this.audio.setSfx(s.sfx !== false);
         tg.vibro = s.vibro !== false;
+        // масляный стиль меню (css/oil.css) — проба: настройка «Для теста», ?oil=1 или startapp=oil
+        document.documentElement.classList.toggle("oil", !!s.oil || /[?&]oil=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "oil");
     }
 
     // Шейдеры и текстуры новых моделей собираем сразу после загрузки (обычно ещё в меню), а не в момент,
