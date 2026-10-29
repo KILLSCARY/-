@@ -44,6 +44,14 @@ export class Hub {
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
         if (name === "heroes") this.autoCheck(); // начатые подписка и приглашение — проверить молча, герой откроется сам
+        // эксклюзивы за Карты хранит сервер: купленные на другом устройстве — открыть
+        if (name === "heroes") prize.cards().then((r) => {
+            if (r?.status !== 200) return;
+            if (typeof r.cards === "number") this.p.setCards(r.cards);
+            let got = false;
+            for (const id of r.heroes || []) got = this.p.unlockHero(id) || got;
+            if (got && this.current === "heroes") this.render();
+        });
         tg.backButton(name !== "run" && (() => this.back())); // системная «назад» Telegram в шапке
         for (const v of document.querySelectorAll(".view")) {
             const on = v.id === `view-${name}`;
@@ -474,7 +482,7 @@ export class Hub {
             box.innerHTML = list.map((c) => {
                 const st = this.heroState(c);
                 const tag = st === "play" ? (c.id === this.game.heroId ? "В забеге" : "В команде")
-                    : st === "buy" ? (HERO_UNLOCKS[c.id]?.act === "buy" ? `${fmt(HERO_UNLOCKS[c.id].price)} USDT` : HERO_UNLOCKS[c.id]?.btn || "Закрыт")
+                    : st === "buy" ? (HERO_UNLOCKS[c.id]?.act === "cards" ? `Эксклюзив · ${fmt(HERO_UNLOCKS[c.id].cards)} Карт` : HERO_UNLOCKS[c.id]?.btn || "Закрыт")
                     : st === "locked" ? "На связи" : "Скоро";
                 const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
                 return `<div class="hcard st-${st}" data-id="${c.id}">
@@ -567,7 +575,7 @@ export class Hub {
         const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
             : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
         const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
-        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? (u?.act === "buy" ? "Покупка" : "Открывается действием") : st === "locked" ? "На связи" : "Скоро"}</p>
+        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? (u?.act === "cards" ? "Эксклюзив" : "Открывается действием") : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
             ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : u.act === "all" ? `<b>${this.p.bonusSteps().filter((x) => x.done).length}/${this.p.bonusSteps().length}</b>` : ""}</div>` : ""}
             ${st === "buy" && u?.act === "all" ? `<ul class="bonus-list">${this.p.bonusSteps().map((x) => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${x.text}</li>`).join("")}</ul>` : ""}`;
@@ -577,11 +585,17 @@ export class Hub {
             b.textContent = on ? "Выбран" : "Выбрать";
             b.disabled = on;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); };
-        } else if (st === "buy" && u?.act === "buy") { // покупка за USDT игрового кошелька (Дима Мент, Таварус)
-            b.textContent = `Купить за ${fmt(u.price)} USDT`;
-            b.disabled = this.p.usdt < u.price;
-            b.onclick = () => {
-                if (!this.p.pay({ usdt: u.price })) return this.toast("USDT маловато. Пробеги ещё пару забегов.");
+        } else if (st === "buy" && u?.act === "cards") { // эксклюзив за Карты (Дима Мент, Саша Товарус): цену и баланс решает сервер
+            b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> Купить за ${fmt(u.cards)} Карт`;
+            b.onclick = async () => {
+                if (this.p.cards < u.cards) return this.toast(`Нужно ещё ${fmt(u.cards - this.p.cards)} Карт — их дают девушки на обочине`);
+                if (b.disabled) return;
+                b.disabled = true;
+                const r = await prize.cardBuy(u.srv);
+                b.disabled = false;
+                if (r?.status === 402) { this.p.setCards(r.cards || 0); return this.toast(`Нужно ещё ${fmt(u.cards - (r.cards || 0))} Карт`); }
+                if (r?.status === 200) this.p.setCards(r.cards);
+                else if (!this.p.payCards(u.cards)) return; // сервер не ответил (не в Telegram) — покупка локально
                 this.p.unlockHero(c.id);
                 this.game.audio.play("buy");
                 this.toast(`${c.name} в команде!`);

@@ -19,6 +19,7 @@ export const prize = {
     cardRun() { return tg.initData ? post({ action: "cardrun" }) : Promise.resolve(null); },
     card(runId) { return tg.initData ? post({ action: "card", runId }) : Promise.resolve(null); },
     cardBuy(item) { return tg.initData ? post({ action: "cardbuy", item }) : Promise.resolve(null); },
+    cards() { return tg.initData ? post({ action: "cards" }) : Promise.resolve(null); }, // баланс и купленные эксклюзивные герои
     // карты из кейса: openId — один раз, сколько и как часто — проверяет сервер
     caseCard(caseId, openId, n) { return tg.initData ? post({ action: "casecard", caseId, openId, n }) : Promise.resolve(null); },
     // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)

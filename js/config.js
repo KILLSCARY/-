@@ -260,7 +260,7 @@ export const CHARACTERS = [
     // модели (idle/walk) смотрят вбок — в забеге не используются
     { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.jpg",
         clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
-    // Дима Мент и Саша Товарус — герои по фото (Meshy: модель, скелет, бег и бой). Без сюжета: покупаются (HERO_UNLOCKS act "buy").
+    // Дима Мент и Саша Товарус — герои по фото (Meshy: модель, скелет, бег и бой). Без сюжета: эксклюзив за 250 Карт (HERO_UNLOCKS).
     // В одной .glb и забег, и бой (клипы собраны tools/meshy-convert.html; спотыкание — кусок 3,3–4,6 с, победа — до 5 с)
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=1", height: 1.82, portrait: "img/heroes/dima.jpg",
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
@@ -520,9 +520,10 @@ export const HERO_UNLOCKS = {
     sasha: { act: "boss", chapter: 3, text: "Пройди главу 3 «Первый миллион»", btn: "Пройди главу 3" },
     pavel: { act: "razbor", text: "Запишись на бесплатный разбор", btn: "Записаться на разбор" },
     gorilla: { act: "all", text: "Бонус за всё: пройди все главы и выполни задания", btn: "Бонус за всё" },
-    // act "buy" — покупка за USDT игрового кошелька (price)
-    dima: { act: "buy", price: 12000, text: "Покупка за 12 000 USDT", btn: "Купить" },
-    tovarus: { act: "buy", price: 15000, text: "Покупка за 15 000 USDT", btn: "Купить" },
+    // act "cards" — эксклюзив за Карты (cards; srv — id покупки на сервере, цена там же — api/_lib/cards.mjs CARD_PRICES).
+    // exclusive — не открываются бетой (BETA_ALL_HEROES); за ними бегает свой преследователь (CHASERS)
+    dima: { act: "cards", cards: 250, srv: "hero_dima", exclusive: true, text: "Эксклюзив · 250 Карт (их дают девушки на обочине)", btn: "Купить" },
+    tovarus: { act: "cards", cards: 250, srv: "hero_tovarus", exclusive: true, text: "Эксклюзив · 250 Карт (их дают девушки на обочине)", btn: "Купить" },
 };
 // Бета-тест: все герои открыты сразу, без заданий (подписка, друг, глава 3, разбор, бонус Гориллы). Задания и их
 // проверка остаются — за них очки рейтинга, и сделанное запоминается. После беты — false: герои снова открываются действиями

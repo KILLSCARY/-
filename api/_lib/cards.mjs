@@ -12,18 +12,23 @@ export const cardsConfig = (env = process.env) => ({
     runTtlSec: num(env.CARDS_RUN_TTL_SEC, 3 * 3600),
 });
 // цены в картах — должны совпадать с CARD_SHOP в js/config.js (клиент только показывает)
-export const CARD_PRICES = { x2run: 5, mizlate: 8, magnetrun: 12, dash: 15 };
+export const CARD_PRICES = { x2run: 5, mizlate: 8, magnetrun: 12, dash: 15, hero_dima: 250, hero_tovarus: 250 };
+// эксклюзивные герои за карты (HERO_UNLOCKS act "cards" в js/config.js): покупка навсегда — лежит в перках игрока,
+// в забег не списывается; повторно за того же героя не берём
+const isHero = (item) => item.startsWith("hero_");
+const RUN_PERKS = Object.keys(CARD_PRICES).filter((k) => !isHero(k));
+const heroesOf = (perks) => Object.keys(perks || {}).filter((k) => isHero(k) && perks[k] > 0).map((k) => k.slice(5));
 
 // Карты из кейсов: Мерчант — 1, Покоритель — 2–3. openId — один раз (атомарно), не больше caseDaily за сутки.
 export const CASE_CARDS = { merchant: [1, 1], conqueror: [2, 3] };
 export async function handleCards(action, body, who, { store, env = process.env, now = Date.now() }) {
     const cfg = cardsConfig(env);
-    if (action === "cards") return { status: 200, json: { cards: await store.cardBalance(who.id) } };
+    if (action === "cards") return { status: 200, json: { cards: await store.cardBalance(who.id), heroes: heroesOf(await store.perks(who.id)) } };
     if (action === "cardrun") {
         const runId = `${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
         await store.cardRunStart(who.id, runId, now, cfg.runTtlSec);
-        const perks = await store.perkTake(who.id, Object.keys(CARD_PRICES)); // по одному каждого купленного — на этот забег
-        return { status: 200, json: { runId, perks, cards: await store.cardBalance(who.id) } };
+        const perks = await store.perkTake(who.id, RUN_PERKS); // по одному каждого купленного — на этот забег (герои не списываются)
+        return { status: 200, json: { runId, perks, cards: await store.cardBalance(who.id), heroes: heroesOf(await store.perks(who.id)) } };
     }
     if (action === "card") {
         const runId = String(body.runId || "");
@@ -46,8 +51,10 @@ export async function handleCards(action, body, who, { store, env = process.env,
         return { status: 200, json: { ok: true, n, cards: r.cards } };
     }
     if (action === "cardbuy") {
-        const price = CARD_PRICES[String(body.item || "")];
+        const item = String(body.item || ""), price = CARD_PRICES[item];
         if (!price) return { status: 400, json: { error: "bad_item" } };
+        if (isHero(item) && (await store.perks(who.id))[item] > 0) // уже куплен — второй раз не списываем
+            return { status: 200, json: { ok: true, item, price: 0, owned: true, cards: await store.cardBalance(who.id), perks: await store.perks(who.id) } };
         const r = await store.cardSpend(who.id, price, String(body.item));
         if (!r.ok) return { status: 402, json: { error: "not_enough", cards: r.cards } };
         return { status: 200, json: { ok: true, item: body.item, price, cards: r.cards, perks: await store.perks(who.id) } };

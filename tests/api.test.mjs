@@ -165,6 +165,20 @@ test("перки за карты: cardbuy кладёт на сервер, cardru
     assert.deepEqual((await run(store, "cardrun", { initData: d }, T0 + 2000)).json.perks, []);
 });
 
+test("эксклюзивный герой за 250 карт: покупка навсегда, второй раз не списывает, в забег не тратится", async () => {
+    const store = memoryStore(), d = init(13);
+    await store.caseCardGrant("13", "seed0002", 200, "d", 99);
+    assert.equal((await run(store, "cardbuy", { initData: d, item: "hero_dima" }, T0)).status, 402); // 200 < 250
+    await store.caseCardGrant("13", "seed0003", 100, "d", 99);
+    const buy = await run(store, "cardbuy", { initData: d, item: "hero_dima" }, T0);
+    assert.equal(buy.status, 200); assert.equal(buy.json.cards, 50);
+    const again = await run(store, "cardbuy", { initData: d, item: "hero_dima" }, T0);
+    assert.equal(again.json.owned, true); assert.equal(again.json.cards, 50); // повторно — бесплатно, не списано
+    const r = (await run(store, "cardrun", { initData: d }, T0)).json;
+    assert.deepEqual(r.perks, []); assert.deepEqual(r.heroes, ["dima"]); // герой не «расходуется» забегом
+    assert.deepEqual((await run(store, "cards", { initData: d }, T0)).json.heroes, ["dima"]);
+});
+
 // ---- рейтинг ----
 test("рейтинг: только забег — лучший результат, очки считает сервер, подозрительное не принимается", async () => {
     const store = memoryStore(), a = init(101), b = init(102);

@@ -462,6 +462,7 @@ class Game {
             if (this.runId !== run || !r?.runId) return;
             this.cardRunId = r.runId;
             if (typeof r.cards === "number") this.profile.setCards(r.cards); // баланс ведёт сервер
+            for (const id of r.heroes || []) this.profile.unlockHero(id); // эксклюзивные герои, купленные за Карты (хранит сервер)
             this.cardPerks(r.perks || []); // сервер уже списал по одному каждого купленного
             const left = this.profile.data.cardPerksSrv;
             if (left) for (const id of r.perks || []) if (left[id] > 0) left[id]--;
