@@ -1234,28 +1234,56 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* ---- рейтинг игроков ---- */
 .tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 64px; animation-delay: .35s; }
 .tile-rate .arr { margin-left: auto; color: var(--muted); }
-.rate-cap { margin: 4px 0 6px; }
-.rate-list { display: grid; gap: 6px; margin: 10px 0 14px; }
-.rate-row { text-align: left; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+.rate-cap { margin: 16px 0 8px; }
+.rate-left { color: #ffd65a; letter-spacing: .06em; }
+/* карточка «ты»: место, очки, сколько до следующего места, четыре счётчика */
+.rate-hero { flex: none; position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 16px; margin-top: 6px; padding: 16px; border-radius: 20px; overflow: hidden;
+    background: radial-gradient(120% 140% at 0% 0%, rgba(227, 52, 58, .32), rgba(227, 52, 58, 0) 60%), rgba(255, 255, 255, .04); border: 1px solid rgba(227, 52, 58, .55); }
+.rh-place { display: grid; place-items: center; min-width: 76px; height: 76px; padding: 0 8px; border-radius: 18px; background: #0a0606; box-shadow: inset 0 0 0 1px rgba(255, 214, 90, .45); }
+.rh-place span { font: 700 9px/1 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.rh-place b { font: 800 26px/1 var(--font-display); color: #ffd65a; }
+.rh-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.rh-main b { font: 800 34px/1 var(--font-display); letter-spacing: -.02em; }
+.rh-main span { color: var(--muted); font-size: 13px; }
+.rh-gap { grid-column: 2; margin: 0; font-size: 13px; color: #ffd65a; line-height: 1.35; }
+.rh-chips { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.rh-chips span { display: grid; gap: 3px; padding: 8px 4px; border-radius: 12px; background: rgba(0, 0, 0, .35); text-align: center; font-size: 10px; color: var(--muted); letter-spacing: .02em; }
+.rh-chips b { font: 800 16px/1 var(--font-display); color: #fff; }
+/* таблица */
+.rate-list { display: grid; gap: 6px; }
+.rate-row { text-align: left; display: grid; grid-template-columns: 26px 34px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px 9px 8px; border-radius: 16px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
 .rate-row.me { border-color: var(--red); background: rgba(227, 52, 58, .12); }
-.rate-row .pl { font: 700 14px var(--font-display); color: var(--muted); text-align: center; }
+.rate-row .pl { font: 800 15px var(--font-display); color: var(--muted); text-align: center; }
+.rate-row .av { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #2a2224; font: 800 14px var(--font-display); color: #fff; }
 .rate-row.p1 .pl { color: #ffd65a; } .rate-row.p2 .pl { color: #d8dde3; } .rate-row.p3 .pl { color: #d08a4a; }
+.rate-row.p1 .av { background: linear-gradient(140deg, #ffe48a, #c9902a); color: #1a1206; }
+.rate-row.p2 .av { background: linear-gradient(140deg, #f2f4f7, #8e96a0); color: #15181c; }
+.rate-row.p3 .av { background: linear-gradient(140deg, #f0b07a, #8a4f22); color: #1a0e06; }
 .rate-row .nm { min-width: 0; }
-.rate-row .nm b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rate-row .nm span { font-size: 11px; color: var(--muted); }
-.rate-row .sc { font: 700 15px var(--font-display); }
+.rate-row .nm b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rate-row .nm b i { font: 700 9px/1 var(--font-display); font-style: normal; letter-spacing: .1em; text-transform: uppercase; padding: 3px 6px; border-radius: 99px; background: var(--red); color: #fff; vertical-align: 2px; }
+.rate-row .nm span { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rate-row .sc { font: 800 16px var(--font-display); }
+.rate-gapline { margin: 0; text-align: center; color: var(--muted); line-height: 1; }
 .rate-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
-.rate-rules { margin: 12px 0 10px; font-size: 13px; color: var(--muted); }
-.rate-rules summary { cursor: pointer; color: #fff; font-weight: 600; margin-bottom: 6px; }
-.rate-rules p { margin: 3px 0; display: flex; justify-content: space-between; }
+/* задания */
 .rate-tasks { display: grid; gap: 6px; }
-.rate-task { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 14px 16px; border-radius: 16px;
-    border: 1px solid var(--line); background: var(--card); color: #fff; font: 600 14px var(--font-body); text-align: left; cursor: pointer; }
-.rate-task b { flex: none; padding: 5px 10px; border-radius: 99px; background: rgba(255, 214, 90, .14); color: #ffd65a; font: 700 13px var(--font-display); }
+.rate-task { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px 12px 16px; border-radius: 16px; text-align: left;
+    background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: #fff; font: 600 15px var(--font-body, inherit); }
+.rate-task .rt-t { display: grid; gap: 3px; min-width: 0; }
+.rate-task small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.rate-task b { flex: none; padding: 6px 11px; border-radius: 99px; background: rgba(255, 214, 90, .14); color: #ffd65a; font: 700 13px var(--font-display); }
 .rate-task:active { transform: scale(.98); }
-.rate-task.done { color: var(--muted); }
+.rate-task.done { opacity: .6; }
 .rate-task.done b { background: rgba(53, 227, 155, .14); color: #35e39b; }
-.rate-rules { text-align: left; }
+.rate-task.done small { color: #35e39b; }
+/* «За что очки» */
+.rate-rules { margin: 14px 0 10px; font-size: 13px; color: var(--muted); text-align: left; }
+.rate-rules summary { cursor: pointer; color: #fff; font-weight: 600; margin-bottom: 8px; }
+.rate-rules p { margin: 4px 0; display: flex; justify-content: space-between; gap: 10px; }
+.rate-rules .rm-h { margin-top: 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); color: #fff; font-weight: 600; }
+.rate-mine b { color: #35e39b; }
+.rate-mine .rm-h b { color: #fff; }
 
 /* загрузка боя: пока качаются модели бойцов и собираются шейдеры — не «зависший» экран */
 .f-load { position: absolute; inset: 0; z-index: 6; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;

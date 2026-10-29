@@ -229,7 +229,7 @@ export class Hub {
             if (got.length) { this.game.audio.play("buy"); this.toast(`${got.join(", ")} в команде!${r?.points ? ` +${r.points} в рейтинг` : ""}`); }
             else if (first && !quiet) this.toast(kind === "store" ? `Подписка есть!${r?.points ? ` +${r.points} в рейтинг` : ""}` : `Друг засчитан!${r?.points ? ` +${r.points} в рейтинг` : ""}`);
             this.render();
-            if (this.current === "rating") this.renderRateTasks();
+            if (this.current === "rating") r?.points ? this.showRating() : this.renderRateTasks(); // очки пришли — обновить счёт
             return true;
         }
         if (quiet) return false;
@@ -245,7 +245,7 @@ export class Hub {
         if (!prize.online || Date.now() - (this.autoCheckT || 0) < 30000) return;
         this.autoCheckT = Date.now();
         const d = this.p.data, tried = d.tried || {}, ok = d.checked || {};
-        for (const kind of ["store", "invite"]) if (tried[kind] && !ok[kind]) this.verifyAction(kind, true);
+        return Promise.all(["store", "invite"].filter((kind) => tried[kind] && !ok[kind]).map((kind) => this.verifyAction(kind, true)));
     }
 
     // «Записаться на разбор»: заявка в игре → сервер отправляет её менеджерам через бота заявок.
@@ -295,56 +295,119 @@ export class Hub {
     }
 
     // ---- рейтинг игроков (очки считает сервер) ----
+    // Прошлый ответ сервера остаётся на экране, пока грузится новый (без мигания «Загружаем…»).
+    // Порядок: дослать задания с телефона и проверки подписки/друга → только потом таблица, чтобы очки были уже с ними
     async showRating() {
-        const list = $("rate-list"), n = (x) => fmt(x || 0);
-        const stats = (r) => [r.cards && `карт ${r.cards}`, r.bosses && `боссов ${r.bosses}`, r.signs && `табличек ${r.signs}`, r.tasks && `заданий ${r.tasks}`].filter(Boolean).join(" · ") || "только начал";
-        list.innerHTML = `<p class="rate-empty">Загружаем…</p>`;
-        $("rate-me").textContent = "Твоё место";
-        $("rate-me-sub").textContent = "";
+        if (this.rateBusy) return void (this.rateAgain = true); // уже грузится — обновим ещё раз по окончании
+        this.rateBusy = true;
         this.renderRateTasks();
-        // задания, отмеченные на телефоне до появления рейтинга (или без связи), — дослать: сервер засчитает один раз.
-        // Разбор, друг и подписка так не засчитываются — их проверяет сервер (заявка, ссылка, бот)
-        const done = this.p.data.tasksDone || {};
-        await Promise.all(Object.keys(done).filter((id) => !["razbor", "invite", "store"].includes(id)).map((id) => prize.task(id)));
-        this.autoCheck();
-        const r = await prize.top(50);
-        if (!r || r.status !== 200) {
-            // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети
-            const why = r?.status === 401 ? "сервер не узнал Telegram-аккаунт" : r?.status === 404 ? "сервер рейтинга не найден" : r?.status ? `ошибка ${r.status}` : "нет связи с сервером";
-            list.innerHTML = `<p class="rate-empty">${r?.status === 0 && r.error === "no_telegram" ? "Рейтинг работает в Telegram — открой игру через бота." : `Рейтинг сейчас недоступен (${why}). Попробуй позже.`}</p>`;
-            return;
+        if (this.rateData) this.renderRating(this.rateData);
+        else { $("rate-list").innerHTML = `<p class="rate-empty">Загружаем…</p>`; $("rate-gap").textContent = "Загружаем…"; }
+        try {
+            // задания, отмеченные на телефоне без связи, — дослать: сервер засчитает один раз.
+            // Разбор, друг и подписка так не засчитываются — их проверяет сервер (заявка, ссылка, бот)
+            const done = this.p.data.tasksDone || {};
+            await Promise.all(Object.keys(done).filter((id) => !["razbor", "invite", "store"].includes(id)).map((id) => prize.task(id)));
+            await this.autoCheck();
+            const r = await prize.top(50);
+            if (!r || r.status !== 200) {
+                // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети
+                const why = r?.status === 401 ? "сервер не узнал Telegram-аккаунт" : r?.status === 404 ? "сервер рейтинга не найден" : r?.status ? `ошибка ${r.status}` : "нет связи с сервером";
+                const msg = r?.status === 0 && r.error === "no_telegram" ? "Рейтинг работает в Telegram — открой игру через бота." : `Рейтинг сейчас недоступен (${why}). Попробуй позже.`;
+                if (this.rateData) this.toast(msg);
+                else { $("rate-list").innerHTML = `<p class="rate-empty">${msg}</p>`; $("rate-gap").textContent = ""; }
+                return;
+            }
+            this.rateData = r;
+            this.syncRateTasks(r.me?.done || []);
+            this.renderRating(r);
+            this.renderRateTasks();
+        } finally {
+            this.rateBusy = false;
+            if (this.rateAgain) { this.rateAgain = false; this.showRating(); }
         }
-        const me = r.me || {};
-        $("rate-me").textContent = me.rank ? `Ты №${me.rank}` : "Тебя пока нет в рейтинге";
-        $("rate-me-sub").textContent = me.rank ? `${n(me.score)} очков · ${stats(me)}` : "Собери карту, победи босса или выполни задание — и попадёшь в таблицу.";
+    }
+
+    // задания, которые сервер уже засчитал (в том числе на другом телефоне), — отметить и здесь.
+    // Друг и подписка открывают героев — для них один раз за сессию запускаем обычную проверку
+    syncRateTasks(done) {
+        const d = this.p.data, td = (d.tasksDone ||= {}), ok = d.checked || {};
+        let changed = false;
+        for (const id of done) {
+            if (id === "invite" || id === "store") {
+                if (!ok[id] && !(this.rateSynced ||= {})[id]) { this.rateSynced[id] = 1; this.verifyAction(id, true); }
+            } else if (!td[id]) { td[id] = 1; changed = true; }
+        }
+        if (changed) this.p.save();
+    }
+
+    renderRating(r) {
+        const n = (x) => fmt(x || 0), me = r.me || {}, top = r.top || [], R = r.rules;
+        const stats = (x) => [x.cards && `карт ${x.cards}`, x.bosses && `боссов ${x.bosses}`, x.signs && `табличек ${x.signs}`, x.tasks && `заданий ${x.tasks}`].filter(Boolean).join(" · ") || "только начал";
+        $("rate-place").textContent = me.rank ? `№${me.rank}` : "—";
+        $("rate-score").textContent = n(me.score);
+        const above = me.rank > 1 ? top[me.rank - 2] : null;
+        $("rate-gap").textContent = !me.rank ? "Собери карту, победи босса или выполни задание — и попадёшь в таблицу"
+            : me.rank === 1 ? (top[1] ? `Ты лидер · отрыв ${n(me.score - top[1].score)} очков` : "Ты лидер")
+            : above ? `До №${me.rank - 1} — ${n(above.score - me.score + 1)} очков` : `Ты №${me.rank}`;
+        // задания у себя — по списку сервера (место в сотне в «задания» не входит)
+        const mine = { ...me, tasks: me.done ? me.done.length : me.tasks };
+        $("rate-chips").innerHTML = [["Карты", mine.cards], ["Боссы", mine.bosses], ["Таблички", mine.signs], ["Задания", mine.tasks]]
+            .map(([t, v]) => `<span><b>${v || 0}</b>${t}</span>`).join("");
         $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Карты, боссы, задания";
-        list.innerHTML = r.top.length ? r.top.map((x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="nm"><b></b><span>${stats(x)}</span></span><span class="sc">${n(x.score)}</span></div>`).join("")
-            : `<p class="rate-empty">Пока никого — будь первым!</p>`;
-        [...list.querySelectorAll(".nm b")].forEach((b, i) => (b.textContent = r.top[i].name)); // имя — текстом, не HTML
-        const R = r.rules;
-        if (R) $("rate-rules").innerHTML = [["Карта", R.card], ["Мизулина", R.boss[1]], ["Полиция", R.boss[2]], ["Инаков", R.boss[3]], ["Верная табличка (первый раз)", R.sign], ["Место в первой сотне", R.top100],
+        const list = $("rate-list");
+        const row = (x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="av"></span>`
+            + `<span class="nm"><b></b><span>${stats(x)}</span></span><span class="sc">${n(x.score)}</span></div>`;
+        const rows = [...top];
+        if (me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
+        list.innerHTML = rows.length ? rows.map((x, i) => (i === top.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : `<p class="rate-empty">Пока никого — будь первым!</p>`;
+        [...list.querySelectorAll(".rate-row")].forEach((el, i) => {
+            const nm = rows[i].name || "Игрок";
+            el.querySelector(".nm b").textContent = nm; // имя — текстом, не HTML
+            el.querySelector(".av").textContent = nm.trim()[0]?.toUpperCase() || "?";
+            if (rows[i].id === me.id) el.querySelector(".nm b").insertAdjacentHTML("beforeend", ` <i>ты</i>`);
+        });
+        if (!R) return;
+        // «За что очки»: сначала твои — из чего сложился счёт, потом правила
+        const P = me.parts, BOSS = { 1: "Мизулина", 2: "Полиция", 3: "Инаков" }, TASK = { razbor: "Разбор", anketa: "Анкета Гориллы", invite: "Друг", store: "Подписка на NS Store" };
+        const mineRows = P ? [
+            me.cards && [`Карты × ${me.cards}`, me.cards * R.card],
+            ...Object.entries(P.bosses || {}).map(([k, v]) => [`Босс: ${BOSS[k] || k}`, v]),
+            me.signs && [`Таблички × ${me.signs}`, me.signs * R.sign],
+            P.top100 && ["Место в первой сотне", P.top100],
+            ...Object.entries(P.tasks || {}).map(([k, v]) => [`Задание: ${TASK[k] || k}`, v]),
+        ].filter(Boolean) : [];
+        $("rate-mine").innerHTML = mineRows.length ? `<p class="rm-h"><span>Твои очки</span><b>${n(me.score)}</b></p>` + mineRows.map(([t, v]) => `<p><span>${t}</span><b>+${n(v)}</b></p>`).join("") : "";
+        $("rate-rules").innerHTML = `<p class="rm-h"><span>Сколько дают</span></p>` + [["Карта", R.card], ["Мизулина", R.boss[1]], ["Полиция", R.boss[2]], ["Инаков", R.boss[3]], ["Верная табличка (первый раз)", R.sign], ["Место в первой сотне", R.top100],
             ["Записаться на разбор", R.tasks.razbor], ["Анкета Гориллы", R.tasks.anketa], ["Друг зашёл по твоей ссылке", R.tasks.invite], ["Подписка на NS Store", R.tasks.store]]
             .map(([t, v]) => `<p><span>${t}</span><b>+${v}</b></p>`).join("");
     }
 
-    // задания рейтинга — кнопками; сделанные помечены
+    // задания рейтинга — кнопками; сделанные (здесь или по ответу сервера) — внизу с галочкой
     renderRateTasks() {
-        const d = this.p.data, done = { ...(d.tasksDone || {}), invite: d.checked?.invite, store: d.checked?.store }, tried = d.tried || {};
+        const d = this.p.data, srv = this.rateData?.me?.done || [], T = this.rateData?.rules?.tasks || { razbor: 50, anketa: 30, invite: 20, store: 10 };
+        const done = { ...(d.tasksDone || {}), invite: d.checked?.invite, store: d.checked?.store, ...Object.fromEntries(srv.map((id) => [id, 1])) }, tried = d.tried || {};
         const box = $("rate-tasks");
         box.innerHTML = "";
         // друг и подписка — пока сервер не подтвердил: нажатие отправляет ссылку / открывает канал, а проверка — сама при возврате
-        for (const [id, label, pts, go] of [
-            ["razbor", "Записаться на разбор", 50, () => this.razbor()],
-            ["invite", tried.invite && !done.invite ? "Позвать друга · ждём, когда зайдёт" : "Позвать друга", 20, () => this.startAction("invite")],
-            ["store", tried.store && !done.store ? "Подписаться на NS Store · проверить" : "Подписаться на NS Store", 10, () => (tried.store ? this.verifyAction("store") : this.startAction("store"))],
-        ]) {
+        const list = [
+            ["razbor", "Записаться на разбор", "Заявка менеджеру — бесплатный созвон", () => this.razbor()],
+            ["anketa", "Анкета Гориллы", "4 вопроса о тебе", () => this.game.showAnketa(GORILLA.anketa, () => this.showRating())],
+            ["invite", "Позвать друга", tried.invite ? "Ждём, когда друг откроет игру по ссылке" : "Засчитаем, когда друг зайдёт по ссылке", () => this.startAction("invite")],
+            ["store", "Подписаться на NS Store", tried.store ? "Нажми — проверим подписку" : "Канал @Nesuschiystore", () => (tried.store ? this.verifyAction("store") : this.startAction("store"))],
+        ].sort((a, b) => !!done[a[0]] - !!done[b[0]]);
+        let left = 0;
+        for (const [id, label, sub, go] of list) {
             const b = document.createElement("button");
             b.className = `rate-task${done[id] ? " done" : ""}`;
-            b.innerHTML = `<span></span><b>${done[id] ? "✓" : `+${pts}`}</b>`;
-            b.firstChild.textContent = label;
-            b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); };
+            b.innerHTML = `<span class="rt-t"><span></span><small></small></span><b>${done[id] ? "✓" : `+${T[id]}`}</b>`;
+            b.querySelector(".rt-t span").textContent = label;
+            b.querySelector("small").textContent = done[id] ? "Засчитано" : sub;
+            if (done[id]) b.disabled = true;
+            else { left += T[id] || 0; b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); }; }
             box.append(b);
         }
+        $("rate-left").textContent = left ? `· ещё +${left}` : "· все выполнены";
     }
 
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)

@@ -41,6 +41,15 @@ export async function backfill(store, who, now) {
     if (cards > 0) await score(store, who, RATING.card * cards, "cards", cards);
 }
 
+// Из чего сложились очки игрока — тем же расчётом, что и начисление: сделанные задания (done) и раскладка по видам (parts).
+// Телефон по done отмечает задания, засчитанные на другом устройстве; parts показывает «За что у тебя очки»
+async function partsOf(store, id) {
+    const [done, rw, place] = await Promise.all([store.tasksDone ? store.tasksDone(id) : [], store.rewards(id), store.place(id)]);
+    const tasks = Object.fromEntries(done.filter((t) => RATING.tasks[t]).map((t) => [t, RATING.tasks[t]]));
+    const bosses = Object.fromEntries(Object.keys(rw).filter((k) => k.startsWith("boss:")).map((k) => [k.slice(5), RATING.boss[k.slice(5)] || 0]));
+    return { done: Object.keys(tasks), parts: { bosses, tasks, top100: place ? RATING.top100 : 0 } };
+}
+
 export async function handleRating(action, body, who, { store, now }) {
     if (action === "task") {
         const id = String(body.task || "");
@@ -55,7 +64,8 @@ export async function handleRating(action, body, who, { store, now }) {
     if (action === "top") {
         const n = Math.min(100, Math.max(5, Number(body.n) || 50));
         await store.lbName?.(who.id, nameOf(who.user)); // имя могли поменять в Telegram
-        return { status: 200, json: { top: await store.lbTop(n), me: { id: who.id, ...(await store.lbMe(who.id)) }, rules: RATING } };
+        const [top, me, parts] = await Promise.all([store.lbTop(n), store.lbMe(who.id), partsOf(store, who.id)]);
+        return { status: 200, json: { top, me: { id: who.id, ...me, ...parts }, rules: RATING } };
     }
     return null;
 }

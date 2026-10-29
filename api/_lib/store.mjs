@@ -67,6 +67,7 @@ export function memoryStore() {
             return { rank, score, ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) };
         },
         async taskOnce(id, task) { const k = `${id}:${task}`; if (tk.has(k)) return false; tk.add(k); return true; },
+        async tasksDone(id) { return [...tk].filter((k) => k.startsWith(`${id}:`) && !k.endsWith(":#backfill")).map((k) => k.slice(String(id).length + 1)); },
         async lbOnce(id) { const k = `${id}:#backfill`; if (tk.has(k)) return false; tk.add(k); return true; },
         // заявка не чаще раза в cd секунд; reset — снять блок (сообщение не дошло)
         async leadGate(id, ts, cd, reset) { if (reset) { leads.delete(id); return true; } const t = leads.get(id); if (t && ts - t < cd * 1000) return false; leads.set(id, ts); return true; },
@@ -151,6 +152,7 @@ export function redisStore(url, token, fetchImpl = fetch) {
             return { rank: Number(r) + 1, score: Number(s), ...(await statsOf([String(id)]))[0] };
         },
         async taskOnce(id, task, ts) { return Number(await cmd("HSETNX", `p2p:tk:${id}`, task, String(ts || Date.now()))) === 1; },
+        async tasksDone(id) { return (await cmd("HKEYS", `p2p:tk:${id}`)) || []; },
         async lbOnce(id, ts) { return Number(await cmd("HSETNX", "p2p:lbb", String(id), String(ts || Date.now()))) === 1; },
         async leadGate(id, ts, cd, reset) {
             if (reset) { await cmd("DEL", `p2p:ld:${id}`); return true; }

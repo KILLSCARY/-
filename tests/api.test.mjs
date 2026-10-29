@@ -180,7 +180,9 @@ test("рейтинг: очки за карту, босса, табличку и 
     const r = (await run(store, "top", { initData: a }, T0 + 90_000)).json;
     assert.deepEqual(r.top.map((x) => [x.id, x.score]), [["102", 120], ["101", 40]]);
     assert.equal(r.top[0].bosses, 1); assert.equal(r.top[0].signs, 1); assert.equal(r.top[1].cards, 1); assert.equal(r.top[1].tasks, 1);
-    assert.equal(r.me.rank, 2); assert.equal(r.me.score, 40);
+    assert.equal(r.me.rank, 2); assert.equal(r.me.score, 40); assert.deepEqual(r.me.done, ["anketa"]);
+    const rb = (await run(store, "top", { initData: b }, T0 + 95_000)).json.me; // раскладка: босс главы 1, задания пусты
+    assert.deepEqual(rb.parts.bosses, { 1: 100 }); assert.deepEqual(rb.done, []);
     assert.equal(r.top[0].name, "Игрок");
     // новичок без очков — вне таблицы, место 0
     assert.equal((await run(store, "top", { initData: init(103) }, T0)).json.me.rank, 0);
