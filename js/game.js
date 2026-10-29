@@ -589,7 +589,7 @@ class Game {
         this.boostsUsed = (this.boostsUsed || 0) + 1;
         this.profile.save();
         if (id === "fokus") { this.fx.magnet = Math.max(this.fx.magnet, b.time); this.fx.focus = b.walls; }
-        if (id === "ryvok") { this.fx.honey = b.time; if (this.grudge && this.stumble > 0) this.speech("Мизулина", CHASE_GRUDGE.lines.dash); }
+        if (id === "ryvok") { this.fx.honey = b.time; if (this.grudge && this.stumble > 0) this.grudgeSay("dash"); }
         if (id === "ustoychivost") this.fx.windproof = true;
         if (id === "spokoystvie") this.wallForgive = Math.max(this.wallForgive || 0, 1);
         if (id === "shchit") this.fx.shield = true;
@@ -686,7 +686,7 @@ class Game {
             tg.saveBest(score);
             setTimeout(() => this.audio.play("record"), 700);
         }
-        $("over-cause").textContent = cause === "caught" && this.grudge ? `Мизулина: «${CHASE_GRUDGE.lines.caught}»`
+        $("over-cause").textContent = cause === "caught" && this.grudge ? `${CHASERS[this.chaserKey()]?.name || "Мизулина"}: «${this.grudgeLine("caught")}»`
             : cause === "caught" && this.sickDone && this.heroCfg?.sick ? this.heroCfg.sick.over
             : cause === "caught" && this.chaser?.userData.chaserKey ? pick(this.chaserCfg().caught) : pick(DEATH_TEXT[cause]);
         $("over-new").hidden = !isBest;
@@ -697,7 +697,7 @@ class Game {
         if (cause === "caught" && this.grudge) {
             const cut = Math.round((this.usdt - this.credited.usdt) * CHASE_GRUDGE.penalty);
             this.usdt -= cut;
-            setTimeout(() => this.speech("Мизулина", CHASE_GRUDGE.lines.caught, 3600), 300);
+            setTimeout(() => this.grudgeSay("caught", 3600), 300);
         }
         // в кошелёк — то, что ещё не зачислено (после апелляции забег продолжается)
         const du = this.usdt - this.credited.usdt;
@@ -1526,10 +1526,10 @@ class Game {
         this.ensureChaser();
         this.chaser.visible = true;
         if (this.grudge) {
-            this.speech("Мизулина", CHASE_GRUDGE.lines.stumble, 2200);
+            this.grudgeSay("stumble", 2200);
             const run = this.runId;
-            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.speech("Мизулина", pick(CHASE_GRUDGE.lines.run), 2200); }, 2300);
-            if (!this.grudgeTold) { this.grudgeTold = true; setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(CHASE_GRUDGE.lines.gorilla, false, 3000), 4600); }
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.grudgeSay("run", 2200); }, 2300);
+            if (!this.grudgeTold) { this.grudgeTold = true; setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(this.grudgeLine("gorilla"), false, 3000), 4600); }
         } else if (!this.chaserSaid) { // первая погоня за забег — Мизулина представляется (после подсказки стены)
             this.chaserSaid = true;
             const run = this.runId;
@@ -1542,9 +1542,15 @@ class Game {
     // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
     // кто гонится: свой преследователь героя (CHASERS — Малахов за Димой и Сашей Товарусом); сюжетная погоня — Мизулина
     chaserKey() {
-        if (this.grudge || this.storyCatch || this.storyChasing()) return null;
+        if (this.storyCatch) return null; // захват перед боем главы 1 — Мизулина (дальше бой с ней)
         return CHARACTERS.find((c) => c.id === this.heroId)?.chaser || null;
     }
+    // реплика погони «из принципа»: у своего преследователя (Малахов) — его, иначе Мизулины
+    grudgeSay(kind, ms) {
+        const own = CHASERS[this.chaserKey()]?.grudge, line = (own || CHASE_GRUDGE.lines)[kind];
+        this.speech(own ? this.chaserCfg(this.chaserKey()).name : "Мизулина", Array.isArray(line) ? pick(line) : line, ms);
+    }
+    grudgeLine(kind) { return (CHASERS[this.chaserKey()]?.grudge || CHASE_GRUDGE.lines)[kind]; }
     chaserCfg(key = this.chaser?.userData.chaserKey ?? null) {
         return key && CHASERS[key] ? CHASERS[key] : { ...CHASER, name: "Мизулина", start: CHASER_LINES.start };
     }
@@ -2283,7 +2289,7 @@ class Game {
         el.classList.remove("out");
         $("g-text").textContent = text;
         $("g-who").textContent = who;
-        const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
+        const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" || who === CHASERS.malakhov.name ? "miz" : "hero"; // преследователи — в одном стиле
         el.dataset.who = kind;
         // лицо: Мизулина — её портрет, герой — портрет выбранного героя
         const url = face || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait
@@ -3129,7 +3135,7 @@ class Game {
             if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
             if (this.fx.shield) { // «Щит» прощает одно столкновение
                 this.fx.shield = false;
-                if (this.grudge && this.stumble > 0) this.speech("Мизулина", CHASE_GRUDGE.lines.shield);
+                if (this.grudge && this.stumble > 0) this.grudgeSay("shield");
                 this.fx.safe = 1;
                 this.trip = TRIP;
                 o.visible = false;
