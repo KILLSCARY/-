@@ -210,13 +210,13 @@ export const NPCS = {
 // hd — HD-текстуры героя для хорошей графики: "models/hd/<id>" → models/hd/<id>_c.webp (цвет) и _n.webp (нормали),
 // в той же развёртке, что текстуры внутри модели, 2048 точек. Работают и в бою (hero_<id> берёт hd героя). Нет поля — обычные 1024
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", clipsUrl: "models/mouse_x.json", height: 1.75, portrait: "img/heroes/speedy.webp",
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", clipsUrl: "models/mouse_x.json?v=2", height: 1.75, portrait: "img/heroes/speedy.webp",
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
         // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", clipsUrl: "models/pavel_x.json", height: 1.8, portrait: "img/heroes/pavel.webp",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall" }, flyClip: { loop: true, speed: 1.3 } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
@@ -233,14 +233,14 @@ export const CHARACTERS = [
         sick: { speedStart: 7, speedMax: 10, ramp: 0.06, catchAt: 40,
             start: "Денчик на костылях — бегать не может, только ковыляет. Мизулина уже идёт по следу…",
             catchLine: "Далеко собрался на костылях? Пройдёмте.", over: "Мизулина: «На костылях от меня не уходят»" } },
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", clipsUrl: "models/sasha_x.json", height: 1.82, portrait: "img/heroes/sasha.webp",
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=71", clipsUrl: "models/sasha_x.json?v=2", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.3 } },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     // Горилла — бонусный герой (HERO_UNLOCKS: act "all"): модель сцены «Маска», а бег, прыжок, подкат, падение, полёт и
     // стойка — клипы Павла, перенесённые на скелет Гориллы (clipsUrl, мировые повороты от позы привязки). Свои клипы
     // модели (idle/walk) смотрят вбок — в забеге не используются
-    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json?v=2", height: 1.9, portrait: "img/heroes/gorilla.webp",
-        clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall" }, flyClip: { loop: true, speed: 1.3 } },
+    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.webp",
+        clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»

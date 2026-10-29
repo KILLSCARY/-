@@ -327,7 +327,7 @@ export function attachModel(rat, gltf, cfg) {
 const _lift = new THREE.Vector3(), _base = new THREE.Vector3();
 // смешивание перехода в позу (с, время клипа): в прыжок и подкат — быстро (ответ на свайп без задержки), обратно
 // в бег — мягче (приземление), в стойку и полёт — плавно. Раньше всё — 0,12
-const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12 };
+const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12, stumble: 0.08, cheer: 0.25 };
 function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
     const { rig, actions, mixer } = u;
@@ -340,7 +340,7 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     const want = actions[pose] ? pose : pose === "fall" && actions.dead ? "dead" : "run";
     if (want !== u.current) {
         const next = actions[want];
-        const once = want !== "run" && want !== "idle" && !(want === "fly" && u.flyLoop); // плавание в полёте — по кругу
+        const once = want !== "run" && want !== "idle" && want !== "cheer" && !(want === "fly" && u.flyLoop); // плавание в полёте и радость — по кругу
         if (u.current === "run") { u.runTime = actions.run.time; u.runAway = 0; } // ушли из бега — запомнить фазу шага
         next.reset();
         // обратно в бег — с того шага, где ноги были бы без прыжка/подката (раньше — с первого кадра: нога «перескакивала»)

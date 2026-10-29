@@ -69,6 +69,8 @@ const FxaaShader = {
 // застывшей фигурой. Без uuid — выдаём свой
 const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.uuid) c.uuid = THREE.MathUtils.generateUUID(); return c; };
 const $ = (id) => document.getElementById(id);
+// сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
+const TRIP = 0.85;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // число «досчитывается» от 0 (easeOutCubic); без анимаций — сразу итог
 const countUp = (el, to, delay = 0, ms = 900) => {
@@ -332,6 +334,7 @@ class Game {
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
+        this.trip = 0;     // клип «споткнулся» (TRIP)
         this.sickCatch = null; this.sickDone = false; // больной герой: Мизулина ещё не догоняла
         this.slowLeft = 0;
         this.prevLane = 1;
@@ -928,8 +931,11 @@ class Game {
             : this.state === "menu" ? "run"
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
+            : this.trip > 0 && this.state === "playing" ? "stumble"
+            : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
             : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
+        if (this.trip > 0) this.trip -= dt;
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.updateStars(dt);
         this.moon.position.set(this.x - 4, 12, -14);
@@ -1358,6 +1364,7 @@ class Game {
         else { o.visible = false; o.userData.type = "decor"; }
         this.stumble = BALANCE.stumbleTime; // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
         this.starsT = 2.2; // звёздочки над головой — «оглушило»
+        this.trip = TRIP; // клип «споткнулся» (у кого есть), потом снова бег
         this.slowLeft = BALANCE.stumbleSlow;
         this.fx.safe = Math.max(this.fx.safe, 1);
         this.audio.play("hit");
@@ -2549,6 +2556,7 @@ class Game {
         this.stumble = 0;
         if (this.chaser) this.chaser.visible = false;
         this.fx.safe = Math.max(this.fx.safe, 2);
+        this.trip = TRIP;
         if (o) { o.visible = false; o.userData.type = "decor"; }
         this.hub.toast("Запасная жизнь!");
         tg.haptic("success");
@@ -2940,6 +2948,7 @@ class Game {
                 this.fx.shield = false;
                 if (this.grudge && this.stumble > 0) this.speech("Мизулина", CHASE_GRUDGE.lines.shield);
                 this.fx.safe = 1;
+                this.trip = TRIP;
                 o.visible = false;
                 d.type = "decor";
                 this.audio.play("boost");
