@@ -1291,3 +1291,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
     border: 3px solid #ff3a40; box-shadow: 0 0 14px rgba(255, 58, 64, .8); animation: f-tap .4s ease-out both; }
 .f-tap.low { border-color: #ffd65a; box-shadow: 0 0 14px rgba(255, 214, 90, .8); }
 @keyframes f-tap { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+
+/* диагностика FPS (js/perf.js) */
+.perf-hud { position: fixed; left: 6px; top: calc(var(--tg-safe-top, 0px) + 54px); z-index: 120; margin: 0; padding: 6px 8px; border-radius: 8px;
+    background: rgba(0, 0, 0, .72); color: #9effc9; font: 600 10px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: auto; }

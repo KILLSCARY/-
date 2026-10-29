@@ -118,6 +118,8 @@ export class Hub {
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];
                 return `<button class="test-boss" data-fight="${i}"><i style="background-image:url(${f.portrait})"></i><b>${f.short || f.name}</b><span>${st.exam ? "Экзамен" : `Глава ${st.chapter}`}</span></button>`; }).join("")}</div>
             <button class="btn-small btn-ghost" id="btn-all-heroes"${allOwned ? " disabled" : ""}>${allOwned ? "Все герои открыты" : "Открыть всех героев"}</button></div></div>
+            <div class="card set-row set-test"><div class="card-main"><h3>Диагностика FPS</h3><p>Панель с кадрами, временем кадра и нагрузкой. Тап по панели — скопировать отчёт.</p></div>
+            <button class="switch${g.settings.perf ? " on" : ""}" data-set="perf" role="switch" aria-checked="${!!g.settings.perf}" aria-label="Диагностика FPS"><i></i></button></div>
             <div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
             <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>`);
         for (const b of box.querySelectorAll("[data-fight]")) b.onclick = () => { this.tab("run"); g.testFight(+b.dataset.fight); };

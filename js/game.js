@@ -3,6 +3,7 @@
 
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
+import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
 import { prize } from "./prize.js";
 import { Profile } from "./profile.js";
@@ -120,6 +121,9 @@ class Game {
 
         this.bootWatch(); // стартовый экран загрузки — до готовности героя, улицы и моделей
         this.setupScene();
+        // диагностика FPS (perf.js): настройка «Для теста», ?perf=1 или startapp=perf
+        this.perf = new PerfHud(this);
+        if (this.settings.perf || /[?&]perf=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "perf") this.perf.toggle(true);
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
         this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
         this.world.camera = this.camera;
@@ -220,6 +224,7 @@ class Game {
         this.camera.updateProjectionMatrix();
         this.hudCoin = null; // куда летят монеты — пересчитать под новый размер
         if (this.sceneCovered()) this.composer.render(); // смена размера стирает холст — последний кадр рисуем заново
+        this.stillDrawn = false; // и замершую картинку паузы/итога — тоже
     }
 
     // Небо под пропорции экрана (иначе луна вытянется в овал): градиент, звёзды, луна с ореолом. Звёзды — одни и те же
@@ -830,6 +835,12 @@ class Game {
         this.nextFrame = now - (this.nextFrame || 0) > budget ? now + budget : this.nextFrame + budget;
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
+        this.frameStart = now; // для диагностики: время JS-кадра до отрисовки
+        // пауза и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
+        // (раньше рисовали те же кадры 12 раз в секунду — расход батареи и нагрев впустую)
+        const still = this.state === "paused" || (this.state === "over" && !this.arrest && this.t - (this.overAt || 0) > 3);
+        if (still && this.stillDrawn) return;
+        this.stillDrawn = still;
 
         if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
             this.world.update(dt, 0, this.t);
@@ -956,6 +967,7 @@ class Game {
         this.settings[key] = value;
         try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         this.applySettings();
+        if (key === "perf") this.perf.toggle(!!value);
         if (key === "quality") {
             this.resScale = 1;
             const level = value === "auto" ? this.autoQuality : value;
