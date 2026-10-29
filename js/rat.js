@@ -325,6 +325,9 @@ export function attachModel(rat, gltf, cfg) {
 }
 
 const _lift = new THREE.Vector3(), _base = new THREE.Vector3();
+// смешивание перехода в позу (с, время клипа): в прыжок и подкат — быстро (ответ на свайп без задержки), обратно
+// в бег — мягче (приземление), в стойку и полёт — плавно. Раньше всё — 0,12
+const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12 };
 function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
     const { rig, actions, mixer } = u;
@@ -338,12 +341,16 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     if (want !== u.current) {
         const next = actions[want];
         const once = want !== "run" && want !== "idle" && !(want === "fly" && u.flyLoop); // плавание в полёте — по кругу
+        if (u.current === "run") { u.runTime = actions.run.time; u.runAway = 0; } // ушли из бега — запомнить фазу шага
         next.reset();
+        // обратно в бег — с того шага, где ноги были бы без прыжка/подката (раньше — с первого кадра: нога «перескакивала»)
+        if (want === "run" && u.runAway != null) next.time = (u.runTime + u.runAway) % next.getClip().duration;
         next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
         next.clampWhenFinished = once;
         next.timeScale = u.timing[want] ?? 1;
-        next.fadeIn(0.12).play();
-        if (u.current) actions[u.current].fadeOut(0.12);
+        const fade = FADE[want] ?? 0.12;
+        next.fadeIn(fade).play();
+        if (u.current) actions[u.current].fadeOut(fade);
         u.current = want;
     }
     if (pose === "slide" && !actions.slide) {
@@ -356,6 +363,8 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         rig.position.y = -0.3;
     }
     const scale = want === "run" ? (pose === "idle" ? 0.25 : Math.max(0.8, speed / 14)) : 1;
+    if (want === "run") u.runRate = (actions.run.timeScale || 1) * scale; // темп шага — им «идёт» бег, пока герой в прыжке
+    else if (u.runAway != null) u.runAway += dt * (u.runRate || 1);
     // кадр полёта ставит игра (взлёт → полёт в верхней точке → приземление), сам клип не идёт
     if (want === "fly" && u.clipT !== null) {
         actions.fly.timeScale = 0;
