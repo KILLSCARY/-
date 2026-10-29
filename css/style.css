@@ -1356,8 +1356,15 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .boot-kick { margin: 0; font: 700 12px var(--font-ui, sans-serif); letter-spacing: .2em; text-transform: uppercase; color: var(--red, #e3343a); }
 .boot-title { margin: 0 0 10px; font: 900 34px/1 var(--font-display, sans-serif); text-transform: uppercase; }
 .boot-title span { display: block; margin-top: 6px; color: transparent; -webkit-text-stroke: 1.5px var(--red, #e3343a); font-size: 42px; }
-.boot-bar { width: 200px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
-.boot-bar i { display: block; height: 100%; width: 4%; border-radius: 4px; background: linear-gradient(90deg, var(--red, #e3343a), #ffd65a); transition: width .3s ease; }
+/* прогресс: крупные проценты и полоска из десяти делений (последние три — золотые), под ней — что грузим и подсказка */
+.boot-pct { margin: 8px 0 0; font: 900 56px/1 var(--font-display, sans-serif); font-variant-numeric: tabular-nums; color: #fff; }
+.boot-pct small { font-size: 24px; color: rgba(255, 255, 255, .55); }
+.boot-seg { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; width: min(240px, 70vw); }
+.boot-seg i { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, .12); transition: background .25s; }
+.boot-seg i.on { background: var(--red, #e3343a); }
+.boot-seg i.on:nth-child(n+8) { background: #ffd65a; }
+.boot-tip { margin: 0; max-width: 290px; min-height: 2.8em; font-size: 14px; line-height: 1.4; color: rgba(255, 255, 255, .62); transition: opacity .3s; }
+.boot-tip b { color: #ffd65a; font-weight: 600; }
 .boot-sub { margin: 0; font-size: 13px; color: rgba(255, 255, 255, .6); }
 
 /* метка тапа по сопернику в бою */

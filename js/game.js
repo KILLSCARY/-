@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -1100,7 +1100,22 @@ class Game {
         const prev = M.onProgress;
         M.onProgress = (url, l, t) => { done = l; total = t; if (l < t) quietSince = 0; else quietSince = performance.now(); prev?.(url, l, t); };
         M.onStart = () => { quietSince = 0; };
-        const bar = $("boot-bar"), sub = $("boot-sub");
+        const pctEl = $("boot-pct"), segs = [...$("boot-seg").children], sub = $("boot-sub"), tipEl = $("boot-tip");
+        let seen = 0, tipI = Math.floor(Math.random() * BOOT_TIPS.length), tipAt = 0;
+        // проценты бегут к цели плавно (а не скачками по файлам); подсказка меняется раз в 3,5 с
+        const draw = (v) => {
+            seen = v >= 1 ? 100 : Math.max(seen, Math.min(seen + 6, seen + (v * 100 - seen) * 0.45));
+            const n = Math.floor(seen);
+            pctEl.firstChild.nodeValue = n;
+            segs.forEach((g, i) => g.classList.toggle("on", n >= (i + 1) * 10));
+        };
+        const tip = (now) => {
+            if (now - tipAt < 3500) return;
+            const first = !tipAt;
+            tipAt = now;
+            tipEl.style.opacity = 0;
+            setTimeout(() => { tipEl.innerHTML = BOOT_TIPS[tipI++ % BOOT_TIPS.length]; tipEl.style.opacity = 1; }, first ? 0 : 300);
+        };
         const tick = () => {
             const now = performance.now(), boot = $("boot");
             if (!boot || boot.classList.contains("out")) return;
@@ -1108,10 +1123,11 @@ class Game {
             const quiet = quietSince && now - quietSince > 600;
             const pct = Math.min(0.96, 0.08 + (hero ? 0.42 : 0) + 0.5 * (total ? done / total : 0));
             shown = Math.max(shown, pct);
-            bar.style.width = `${Math.round(shown * 100)}%`;
+            draw(shown);
+            tip(now);
             sub.textContent = !hero ? "Загружаем героя…" : !quiet ? "Загружаем улицу…" : "Готовим графику…";
             if ((hero && quiet && now - t0 > 900) || now - t0 > 15000) {
-                bar.style.width = "100%";
+                draw(1);
                 // шейдеры всей сцены — сейчас, под экраном загрузки, а не первым кадром меню
                 setTimeout(() => {
                     try { this.renderer.compile(this.scene, this.camera); } catch {}
