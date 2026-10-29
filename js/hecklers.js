@@ -123,7 +123,9 @@ export class Hecklers {
 
     // группа у бордюра с одной стороны; кричат одна-две, кидают все (каждая — в свой момент)
     spawnGroup(z) {
-        const w = this.g.world, n = Math.round(rnd(...HECKLERS.group)), side = pick([-1, 1]);
+        const w = this.g.world, side = pick([-1, 1]);
+        let n = Math.round(rnd(...HECKLERS.group));
+        if ((this.g.tier?.npc ?? 1) < 1) n = Math.min(n, 2); // слабый телефон: девушки по ~31 тыс. треугольников — не больше двух в группе
         let made = 0;
         for (let i = 0; i < n; i++) {
             const p = this.pool.find((q) => !q.userData.active) || this.makeGirl();
@@ -134,11 +136,17 @@ export class Hecklers {
             const u = p.userData;
             if (u.throwAct) { u.throwAct.stop(); u.idleAct?.stop().play(); } // из пула — снова кричит, а не застыла в замахе
             Object.assign(u, { active: true, thrown: false, releaseIn: 0, backIn: 0, throwZ: rnd(...HECKLERS.throwAt), shout: i % 2 === 0 && Math.random() < 0.85 }); // кричит через одну — облачка соседок не наезжают друг на друга
-            if (p.userData.shout) p.userData.bubble.textContent = pick(HECKLERS.shouts);
+            if (p.userData.shout) p.userData.bubble.textContent = this.shout();
             p.visible = true;
             made++;
         }
         return made > 0;
+    }
+
+    // лозунг под героя: «Дима…» — только Диме, «Саша…/Товарус…» — только Саше, остальные — обоим
+    shout() {
+        const other = this.g.heroId === "dima" ? /Саш|Товарус/ : /Дима/;
+        return pick(HECKLERS.shouts.filter((t) => !other.test(t)));
     }
 
     blocked() {
@@ -217,7 +225,7 @@ export class Hecklers {
         mark.visible = true;
         f.userData = { t: 0, from, to: new THREE.Vector3(w.lanes[lane], HECKLERS.aimY, 0), item, mark, spin: rnd(6, 14), done: false };
         this.flying.push(f);
-        if (u.shout && Math.random() < 0.5) u.bubble.textContent = pick(HECKLERS.shouts); // на броске — новый лозунг
+        if (u.shout && Math.random() < 0.5) u.bubble.textContent = this.shout(); // на броске — новый лозунг
     }
 
     makeMark() {

@@ -108,7 +108,7 @@ export const VIETNAM = {
 // Попадание: спотыкается и медленнее (slow); каждое hitsToChase-е — на хвосте Малахов, попадание при нём — поймал.
 // Увернуться — уйти в другую полосу или прыгнуть (выше dodgeY)
 export const HECKLERS = {
-    models: [1.68, 1.65, 1.66, 1.6, 1.7, 1.66, 1.68, 1.66, 1.64, 1.62].map((height, i) => ({ url: `models/hecklers/girl${i + 1}.glb?v=1`, height })),
+    models: [1.68, 1.65, 1.66, 1.6, 1.7, 1.66, 1.68, 1.66, 1.64, 1.62].map((height, i) => ({ url: `models/hecklers/girl${i + 1}.glb?v=2`, height })),
     clips: { idle: "shout", throw: "throw", release: 0.85, throwEnd: 1.25 },
     firstAt: 45, gap: [26, 44], group: [2, 4], spawnZ: -78, throwAt: [-44, -28], flight: 0.9, arc: 2.4, aimY: 1.05,
     aimOwn: 0.7, dodgeY: 0.9, hitsToChase: 2, slow: 0.55,
