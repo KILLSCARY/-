@@ -38,6 +38,21 @@ export function matteCharacters(root) {
     });
 }
 
+// Анизотропная фильтрация текстур моделей: без неё (по умолчанию 1) бочки, машины, барьеры и одежда героя под углом
+// к камере расплывались в мыло. Уровень ставит игра по графике (setModelAnisotropy) — до загрузки моделей
+let aniso = 1;
+export const setModelAnisotropy = (n) => { aniso = n; };
+function sharpen(root) {
+    if (aniso <= 1) return;
+    root.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) for (const k of ["map", "normalMap", "emissiveMap"]) {
+            const t = m?.[k];
+            if (t && t.anisotropy < aniso) { t.anisotropy = aniso; t.needsUpdate = true; }
+        }
+    });
+}
+
 // Заранее скачанные модели (байты): бойцов босса качаем ещё в забеге, чтобы встреча с ним не стояла на загрузке.
 // Храним байты, а не готовую сцену: бой свою модель потом выкидывает, а из байтов каждый раз собирается свежая.
 const bytes = new Map();
@@ -51,7 +66,7 @@ export function preloadModel(url) {
 export function loadModel(url, onLoad, onError = () => {}, { deferred = false } = {}) {
     if (deferred) return void later(() => loadModel(url, onLoad, onError));
     const done = onLoad;
-    onLoad = (gltf) => { matteCharacters(gltf.scene); gltf.scene.userData.src = url; done(gltf); }; // src — откуда модель (замеры нагрузки)
+    onLoad = (gltf) => { matteCharacters(gltf.scene); sharpen(gltf.scene); gltf.scene.userData.src = url; done(gltf); }; // src — откуда модель (замеры нагрузки)
     if (bytes.has(url)) return void bytes.get(url).then((b) => (b ? loader.parse(b, "", onLoad, onError) : loader.load(url, onLoad, undefined, onError)));
     if (!url.endsWith(".json")) return loader.load(url, onLoad, undefined, onError);
     fetch(url)

@@ -16,7 +16,7 @@ import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { HeroGlowPass, markGlow } from "./heroglow.js";
-import { loadModel, releaseQueue, preloadModel } from "./models.js";
+import { loadModel, releaseQueue, preloadModel, setModelAnisotropy } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -198,6 +198,7 @@ class Game {
         const canvas = $("game");
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
+        setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
 
         this.scene = new THREE.Scene();
         // небо — картинка во весь экран (градиент, звёзды, луна; перерисовывается под размер экрана в onResize),
