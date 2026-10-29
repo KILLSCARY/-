@@ -319,7 +319,8 @@ export function attachModel(rat, gltf, cfg) {
     model.traverse((o) => { if (!hips && o.isBone && /hips/i.test(o.name)) hips = o; });
     rig.updateMatrixWorld(true);
     const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
-    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
+    const footSpeed = actions.run ? measureFootSpeed(model, actions.run.getClip()) * (timing.run ?? 1) : 0;
+    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, footSpeed, footMax: cfg.footMax ?? FOOT_MAX, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
         flyLoop: !!cfg.flyClip?.loop, flyPitch: cfg.flyClip?.pitch || 0, hipsRest: hips?.position.clone() };
     if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
@@ -327,6 +328,36 @@ export function attachModel(rat, gltf, cfg) {
 const _lift = new THREE.Vector3(), _base = new THREE.Vector3();
 // смешивание перехода в позу (с, время клипа): в прыжок и подкат — быстро (ответ на свайп без задержки), обратно
 // в бег — мягче (приземление), в стойку и полёт — плавно. Раньше всё — 0,12
+// ноги и дорога: FOOT_SYNC — какую долю скорости дороги проходит опорная ступня; FOOT_MAX — потолок ускорения
+// клипа бега (на 30 м/с полное совпадение — 18 шагов в секунду, мельтешение; потолок — ~8 шагов)
+const FOOT_SYNC = 0.8, FOOT_MAX = 2.6; // свой потолок героя — CHARACTERS[…].footMax
+// скорость опорной ступни в клипе бега (м/с, модель уже в росте героя): ступня в нижних 20% своей высоты,
+// медиана её скорости вдоль бега. Считается один раз при выборе героя — отдельным микшером
+const _fa = new THREE.Vector3(), _fb = new THREE.Vector3(), _fh = new THREE.Vector3();
+function measureFootSpeed(model, clip) {
+    let L, R, H;
+    model.traverse((o) => { if (o.isBone && /LeftToeBase$/.test(o.name)) L = o; if (o.isBone && /RightToeBase$/.test(o.name)) R = o; if (o.isBone && !H && /Hips$/.test(o.name)) H = o; });
+    if (!L || !R || !H) return 0;
+    const mx = new THREE.AnimationMixer(model);
+    mx.clipAction(clip).play();
+    // в осях самой модели (вперёд — её Z, вверх — Y), в метрах её роста: как герой стоит на сцене (меню, поворот) не важно
+    const N = 60, dt = clip.duration / N, track = [[], []], k = model.scale.x;
+    for (let i = 0; i <= N; i++) {
+        mx.setTime(i * dt);
+        model.updateMatrixWorld(true);
+        // ступня относительно бёдер: в клипах с ходом вперёд (хромота Денчика) опорная нога стоит, а уходит тело
+        const h = model.worldToLocal(H.getWorldPosition(_fh)).multiplyScalar(k);
+        track[0].push(model.worldToLocal(L.getWorldPosition(_fa)).multiplyScalar(k).sub(h).clone()); track[1].push(model.worldToLocal(R.getWorldPosition(_fb)).multiplyScalar(k).sub(h).clone());
+    }
+    mx.stopAllAction(); mx.uncacheRoot(model);
+    const sp = [];
+    for (const f of track) {
+        const ys = f.map((p) => p.y), lo = Math.min(...ys), hi = Math.max(...ys);
+        for (let i = 1; i < f.length; i++) if (f[i].y < lo + (hi - lo) * 0.2) sp.push(Math.abs(f[i].z - f[i - 1].z) / dt);
+    }
+    sp.sort((a, b) => a - b);
+    return sp[Math.floor(sp.length / 2)] || 0;
+}
 const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12, stumble: 0.08, cheer: 0.25 };
 function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
@@ -362,7 +393,10 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         rig.rotation.x = 0.5;
         rig.position.y = -0.3;
     }
-    const scale = want === "run" ? (pose === "idle" ? 0.25 : Math.max(0.8, speed / 14)) : 1;
+    // темп бега — от длины шага героя: ступня на земле должна уходить назад почти со скоростью дороги (FOOT_SYNC),
+    // иначе ноги скользят по асфальту (было speed/14 для всех — ступня успевала лишь за треть дороги)
+    const runRate = u.footSpeed ? Math.min(u.footMax, Math.max(0.9, (speed / u.footSpeed) * FOOT_SYNC)) : Math.max(0.8, speed / 14);
+    const scale = want === "run" ? (pose === "idle" ? 0.25 : runRate) : 1;
     if (want === "run") u.runRate = (actions.run.timeScale || 1) * scale; // темп шага — им «идёт» бег, пока герой в прыжке
     else if (u.runAway != null) u.runAway += dt * (u.runRate || 1);
     // кадр полёта ставит игра (взлёт → полёт в верхней точке → приземление), сам клип не идёт
