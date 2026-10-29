@@ -70,17 +70,46 @@ export class Profile {
         }
     }
 
-    // перенести изменения этой сессии (было → стало) на профиль из облака
+    // Переносим локальные изменения поверх более свежего облачного профиля.
+    // Не теряем сюжет, анкету, ежедневную награду и проверки действий при слиянии.
     carry(was, now) {
         if (now.t === was.t) return;
         const d = this.data;
         d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
+        d.story = Math.max(d.story || 0, now.story || 0);
+        d.exam = !!(d.exam || now.exam);
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
-        for (const k of ["usdt", "earned", "chests", "cards"]) d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
-        for (const id of Object.keys(d.next)) d.next[id] = Math.max(0, d.next[id] + (now.next[id] || 0) - (was.next[id] || 0));
-        for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id], now.up[id] || 1);
-        d.heroes = [...new Set([...d.heroes, ...now.heroes])];
+        d.grants = [...new Set([...(d.grants || []), ...(now.grants || [])])];
+        for (const k of ["usdt", "earned", "chests", "cards", "x2runs"]) {
+            d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
+        }
+        for (const id of Object.keys(d.next)) {
+            d.next[id] = Math.max(0, (d.next[id] || 0) + (now.next?.[id] || 0) - (was.next?.[id] || 0));
+        }
+        for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id] || 1, now.up?.[id] || 1);
+        d.heroes = [...new Set([...(d.heroes || []), ...(now.heroes || [])])];
         d.freeAt = Math.max(d.freeAt || 0, now.freeAt || 0);
+        for (const k of ["tasksDone", "checked", "tried"]) {
+            d[k] = { ...(d[k] || {}) };
+            for (const [id, value] of Object.entries(now[k] || {})) if (value) d[k][id] = value;
+        }
+        d.anketa = { ...(d.anketa || {}), ...(now.anketa || {}) };
+        d.walls = { ...(d.walls || {}) };
+        for (const [type, stats] of Object.entries(now.walls || {})) {
+            const before = was.walls?.[type] || { ok: 0, fail: 0 };
+            const target = (d.walls[type] ||= { ok: 0, fail: 0 });
+            target.ok = Math.max(0, target.ok || 0) + Math.max(0, (stats.ok || 0) - (before.ok || 0));
+            target.fail = Math.max(0, target.fail || 0) + Math.max(0, (stats.fail || 0) - (before.fail || 0));
+        }
+        const nowDay = Date.parse(now.daily?.last || "");
+        const cloudDay = Date.parse(d.daily?.last || "");
+        if (Number.isFinite(nowDay) && (!Number.isFinite(cloudDay) || nowDay > cloudDay)) {
+            d.daily = { ...now.daily };
+        } else if (Number.isFinite(nowDay) && nowDay === cloudDay) {
+            d.daily = { ...d.daily, day: Math.max(d.daily?.day || 0, now.daily?.day || 0) };
+        }
+        if (now.trial?.until > (d.trial?.until || 0)) d.trial = { ...now.trial };
+        if (now.leadContact && now.leadContact !== was.leadContact) d.leadContact = now.leadContact;
     }
 
     save() {
