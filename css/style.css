@@ -1456,3 +1456,21 @@ body.in-fight #menu { display: none !important; }
 .ob-mode:active { transform: scale(.98); }
 @media (prefers-reduced-motion: reduce) { .ob-card, .ob-card.ob-next .ob-q, .ob-card.ob-next .ak-a { animation: none; } }
 .switch:disabled { opacity: .35; cursor: not-allowed; } /* режим — до конца сюжета не выбирается */
+
+/* окна итога (поражение, победа над боссом, финал) — в стиле онбординга (.ob-card): портрет и заголовок в шапке,
+   заголовок обычным регистром, текст плашкой, кнопки на всю ширину; у поражения — красный, у победы — золотой */
+.res-card { text-align: left; }
+.res-head { display: flex; align-items: center; gap: 14px; }
+.res-head .sl-ph { flex: none; width: 78px; height: 78px; margin: 0; }
+.res-head .label { margin: 0 0 4px; text-align: left; }
+.res-title { margin: 0; font: 800 23px/1.15 var(--font-body); letter-spacing: -.01em; text-transform: none; text-wrap: balance; }
+.res-card .sheet-sub {
+    margin: 14px 0 14px; padding: 12px 14px; border-radius: 16px; text-align: left; font-size: 14px; line-height: 1.4;
+    background: rgba(255, 255, 255, .045); border: 1px solid rgba(255, 255, 255, .08); color: var(--muted, #c4c4cc);
+}
+.res-card .btn { width: 100%; margin-top: 8px; }
+.res-lose .sl-ph { border-color: #ff4a50; box-shadow: 0 0 22px rgba(255, 74, 80, .5); }
+.res-win .sl-ph { border-color: #e9c25a; box-shadow: 0 0 22px rgba(233, 194, 90, .45); }
+.res-win .label { color: #e9c25a; }
+.res-win.ob-card { background: radial-gradient(130% 60% at 0% 0%, rgba(233, 194, 90, .16), transparent 60%), linear-gradient(180deg, #1d1d22, #121215); }
+.res-card .sw-next { margin-top: 12px; text-align: left; }

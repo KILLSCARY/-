@@ -207,18 +207,15 @@
             <button class="fb-btn fb-punch" id="fb-punch"><svg viewBox="0 0 24 24"><path d="M8 3.5h6.5a4.5 4.5 0 0 1 4.5 4.5v4.5a5.5 5.5 0 0 1-5.5 5.5H9.5A3.5 3.5 0 0 1 6 14.5V13H5a2.5 2.5 0 0 1 0-5h1V5.5a2 2 0 0 1 2-2z"/><rect x="8" y="19" width="8.5" height="2.8" rx="1"/></svg><b>УДАР</b><span>жми чаще</span></button>
         </div>
     </section>
-    <div id="story-lose" class="modal" hidden><div class="modal-card sl-card">
-        <div class="sl-ph" id="sl-ph"></div>
-        <p class="label">Поражение</p>
-        <h2 class="sheet-title" id="sl-title"></h2>
+    <!-- окна итога (редизайн 29.10): нижний лист, портрет и заголовок в шапке, текст — плашкой -->
+    <div id="story-lose" class="modal ob" hidden><div class="modal-card ob-card res-card res-lose">
+        <div class="res-head"><div class="sl-ph" id="sl-ph"></div><div><p class="label">Поражение</p><h2 class="res-title" id="sl-title"></h2></div></div>
         <p class="sheet-sub" id="sl-text"></p>
         <button id="btn-sl-again" class="btn btn-main btn-shine">Ещё раз</button>
         <button id="btn-sl-menu" class="btn">В меню</button>
     </div></div>
-    <div id="story-win" class="modal" hidden><div class="modal-card sl-card">
-        <div class="sl-ph sw-ph" id="sw-ph"><b>K.O.</b></div>
-        <p class="label" id="sw-label">Сюжет 1 пройден</p>
-        <h2 class="sheet-title" id="sw-title"></h2>
+    <div id="story-win" class="modal ob" hidden><div class="modal-card ob-card res-card res-win">
+        <div class="res-head"><div class="sl-ph sw-ph" id="sw-ph"><b>K.O.</b></div><div><p class="label" id="sw-label">Сюжет 1 пройден</p><h2 class="res-title" id="sw-title"></h2></div></div>
         <p class="sheet-sub" id="sw-text"></p>
         <button id="btn-razbor" class="btn btn-main btn-shine">Забрать разбор</button>
         <button id="btn-sw-menu" class="btn">В меню</button>
@@ -252,10 +249,8 @@
         <div id="ak-a" class="ak-a"></div>
         <p class="ob-note" id="ak-note"></p>
     </div></div>
-    <div id="final" class="modal" hidden><div class="modal-card sl-card">
-        <div class="sl-ph sw-ph" id="fn-ph"><b>10 USDT</b></div>
-        <p class="label">Воронка пройдена</p>
-        <h2 class="sheet-title" id="fn-title">Ты прошёл Воронку до конца</h2>
+    <div id="final" class="modal ob" hidden><div class="modal-card ob-card res-card res-win">
+        <div class="res-head"><div class="sl-ph sw-ph" id="fn-ph"><b>10 USDT</b></div><div><p class="label">Воронка пройдена</p><h2 class="res-title" id="fn-title">Ты прошёл Воронку до конца</h2></div></div>
         <p class="sheet-sub" id="fn-text"></p>
         <button id="btn-fn" class="btn btn-main btn-shine">Забрать 10 USDT, записаться на созвон</button>
         <button id="btn-fn-menu" class="btn">В меню</button>

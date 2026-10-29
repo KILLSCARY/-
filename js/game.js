@@ -2269,7 +2269,7 @@ class Game {
             this.renderMenu();
             this.show("menu");
             const opp = FIGHTERS[s.opponent];
-            $("sl-title").textContent = `${opp.name} победил`;
+            $("sl-title").textContent = `${opp.name} ${opp.she ? "победила" : "победил"}`; // «Мизулина победила», «Полиция победила»
             $("sl-text").textContent = s.exam ? `«${opp.lines.lose}» Вопросы перемешаются, пересдача бесплатная.`
                 : `«${opp.lines.lose}» ${s.name} начнётся заново: таблички и бой. Засчитанные заряды (${this.charges(s)}) остаются.`;
             $("sl-ph").style.backgroundImage = `url(${opp.portrait})`;
