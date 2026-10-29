@@ -805,6 +805,11 @@ export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mou
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
 // superPerHurt — за пропущенный удар, superPerAnswer — за верный ответ в забеге; hpPerAnswer — бонус к HP за ответ.
+// Столбы и провода над улицей (как в Subway Surfers). on: false — убрать. step — между парами столбов (STREET_LEN 160
+// должна делиться на него), x — столбы у бордюра, height — провода выше полёта с тестобустером (4,2 м) и камеры в нём
+// thick — толщина провода (м), color — провода (светлее неба, иначе ночью не видно), pole — бетонные столбы
+export const WIRES = { on: true, step: 40, offset: 20, x: 3.45, height: 8.6, sag: 0.55, thick: 0.03, color: 0x1c1826, pole: 0x524c5a };
+
 export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 60, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, buffer: 0.25, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
     stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65, low: 0.3 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3,
     // парирование: блок, поднятый за window с до удара, отражает его; бьющий открыт stun с; между подъёмами блока — rearm с

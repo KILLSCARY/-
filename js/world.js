@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY, WIND } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -526,6 +526,8 @@ export class World {
             this.scenery.push(pole);
         }
 
+        if (WIRES.on) this.buildWires();
+
         // настоящих источников света немного (дорого): красные у подъездов + оранжевые фонари
         this.lights = [];
         // каждый источник считается в каждом пикселе каждого материала — на телефоне их меньше
@@ -576,6 +578,44 @@ export class World {
         this.roadMat.transparent = false;
         this.roadMat.alphaMap = null;
         this.roadMat.needsUpdate = true;
+    }
+
+    // Столбы с проводами, как в Subway Surfers: пара столбов у бордюров, растяжка поперёк, над полосами —
+    // два контактных провода, вдоль тротуаров — по три провода ЛЭП. Пролёт до следующей пары — в той же группе,
+    // поэтому при переносе группы по кругу (STREET_LEN кратна шагу) провода не рвутся. Провода — тонкие трубки
+    // (вблизи заметны, вдали тают в тумане), все пролёты пары — одна сетка, столбы — одна. Высота выше полёта.
+    buildWires() {
+        const { step, height: H, sag, thick } = WIRES, n = Math.round(STREET_LEN / step);
+        const wireMat = new THREE.MeshBasicMaterial({ color: WIRES.color });
+        const concrete = new THREE.MeshStandardMaterial({ color: WIRES.pole, roughness: 0.92, metalness: 0 });
+        const V = (x, y, z) => new THREE.Vector3(x, y, z);
+        const span = (a, b, dip, seg = 12) => { // провисший пролёт — парабола
+            const pts = [];
+            for (let i = 0; i <= seg; i++) { const t = i / seg, p = a.clone().lerp(b, t); p.y -= dip * 4 * t * (1 - t); pts.push(p); }
+            const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg, thick, 3, false);
+            geo.deleteAttribute("uv"); geo.deleteAttribute("normal");
+            return geo;
+        };
+        for (let i = 0; i < n; i++) {
+            const g = new THREE.Group(), wires = [];
+            for (const side of [-1, 1]) {
+                const x = side * WIRES.x;
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, H + 0.4, 7), concrete);
+                pole.position.set(x, (H + 0.4) / 2, 0);
+                const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.1), concrete); // траверса над тротуаром
+                arm.position.set(x + side * 0.6, H - 0.1, 0);
+                g.add(pole, arm);
+                for (const dx of [0.2, 0.75, 1.3]) wires.push(span(V(x + side * dx, H, 0), V(x + side * dx, H, -step), sag * 1.3)); // ЛЭП вдоль тротуара
+            }
+            wires.push(span(V(-WIRES.x, H - 0.4, 0), V(WIRES.x, H - 0.4, 0), 0.25, 8)); // растяжка поперёк дороги
+            for (const x of [-1.7, 1.7]) wires.push(span(V(x, H - 0.55, 0), V(x, H - 0.55, -step), sag)); // над полосами
+            mergeStatic(g);
+            g.add(new THREE.Mesh(mergeBufferGeometries(wires), wireMat));
+            g.position.z = BEHIND_Z - WIRES.offset - i * step;
+            g.userData.loop = STREET_LEN;
+            this.scene.add(g);
+            this.scenery.push(g);
+        }
     }
 
     makeStreetLamp(side) {
