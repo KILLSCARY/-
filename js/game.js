@@ -112,6 +112,7 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+const RES_MIN = 0.6; // ниже этой доли разрешения автоподстройка не опускает (шаги по 0,1: 1 → 0,9 → … → 0,6)
 const TALK_CALM = 4.5; // сколько секунд после начала реплики дорога впереди пустая — её успевают прочитать
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // число «досчитывается» от 0 (easeOutCubic); без анимаций — сразу итог
@@ -1158,26 +1159,38 @@ class Game {
         this.scene.remove(g);
     }
 
-    // В «auto» меряем время кадра в забеге: если стабильно не успеваем — графику на ступень ниже
+    // Меряем кадры (в забеге, бою и меню): стабильно не успеваем — сначала меньше пикселей, потом графика на ступень ниже.
+    // Графика выбрана вручную (настройка или QUALITY в конфиге) — уровень не трогаем, но разрешение снижаем всё равно:
+    // иначе на «Высокой» телефон так и остаётся на 15 кадрах
     measureFps(dt) {
-        if (QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto") || (this.quality === "low" && this.resScale <= 0.7) || (this.state === "playing" && this.runTime < 1.5)) return;
+        const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
+        const floor = this.resScale <= RES_MIN + 0.01;
+        if ((floor && (this.quality === "low" || this.qualityHinted)) || (this.state === "playing" && this.runTime < 1.5)) return;
         if (!this.fpsFrames) { this.fpsStart = performance.now(); this.fpsRaf = this.rafCount; }
         this.fpsFrames = (this.fpsFrames || 0) + 1;
         this.fpsTime = (this.fpsTime || 0) + dt;
-        if (this.fpsTime < 3) return;
+        if (this.fpsTime < 2.5) return;
         const fps = this.fpsFrames / this.fpsTime;
-        // экран сам может давать меньше потолка (30 Гц в режиме энергосбережения) — это не лаг
         const screenHz = (this.rafCount - this.fpsRaf) / ((performance.now() - this.fpsStart) / 1000);
         this.fpsFrames = this.fpsTime = 0;
-        const target = Math.min(1000 / this.frameBudget(), screenHz);
+        // Экран сам может давать 30 Гц (энергосбережение) — это не лаг. Но когда телефон не успевает, браузер и кадры
+        // просит реже — «частота экрана» падает вместе с FPS. Раньше цель бралась по ней (min(потолок, screenHz)), и
+        // 15–25 кадров считались нормой: графика не снижалась никогда (плейтест: iPhone 13 Pro, Xiaomi 17 Ultra).
+        // Теперь ограничение экрана — только ровные ~30 Гц, иначе цель — потолок кадров
+        const screenCap = screenHz > 27 && screenHz < 33 ? 30 : 60;
+        const target = Math.min(1000 / this.frameBudget(), screenCap);
         if (fps >= target * 0.8) return;
-        // сначала меньше пикселей (без рывка), потом — графика на ступень ниже (пересборка шейдеров)
-        if (this.resScale > 0.7) {
-            this.resScale = Math.max(0.7, this.resScale - 0.15);
+        // сначала меньше пикселей мелкими шагами (без рывка, все эффекты на месте), потом — графика на ступень ниже
+        if (!floor) {
+            this.resScale = Math.max(RES_MIN, Math.round((this.resScale - 0.1) * 100) / 100);
             this.onResize();
-        } else if (this.state !== "fight") { // в бою графику не меняем: пересборка шейдеров — рывок посреди раунда; ступень ниже — уже в забеге
+        } else if (!tierLocked) {
+            if (this.state === "fight") return; // в бою графику не меняем: пересборка шейдеров — рывок посреди раунда
             this.resScale = 0.85;
             this.setQuality(this.quality === "high" ? "medium" : "low");
+        } else { // графика выбрана вручную и не тянет даже на меньшем разрешении — подсказать раз за запуск
+            this.qualityHinted = true;
+            this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»");
         }
     }
 
@@ -2211,10 +2224,11 @@ class Game {
         const kind = who === "Горилла" ? "gorilla" : who === "Мизулина" ? "miz" : "hero";
         el.dataset.who = kind;
         // лицо: Мизулина — её портрет, герой — портрет выбранного героя
-        const url = face || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait : "");
+        const url = face || (kind === "miz" ? FIGHTERS.mizulina.portrait : kind === "hero" ? CHARACTERS.find((c) => c.id === this.heroId)?.portrait || FIGHTERS.mouse.portrait
+            : CHARACTERS.find((c) => c.id === "gorilla")?.portrait || ""); // Горилла — её портрет (раньше эмодзи)
         $("g-face").style.setProperty("--face", url ? `url("${new URL(url, location.href).href}")` : "none"); // путь в переменной CSS считается от файла стилей — даём полный
         // где лицо на портрете (по высоте): у Спиди — ниже середины карточки, у отрендеренных боссов — сверху
-        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : "18%");
+        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : /gorilla/.test(url) ? "43%" : "18%");
         for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
         el.hidden = false;

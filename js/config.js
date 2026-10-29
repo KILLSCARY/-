@@ -258,7 +258,7 @@ export const CHARACTERS = [
     // Горилла — бонусный герой (HERO_UNLOCKS: act "all"): модель сцены «Маска», а бег, прыжок, подкат, падение, полёт и
     // стойка — клипы Павла, перенесённые на скелет Гориллы (clipsUrl, мировые повороты от позы привязки). Свои клипы
     // модели (idle/walk) смотрят вбок — в забеге не используются
-    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.webp",
+    { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.jpg",
         clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 

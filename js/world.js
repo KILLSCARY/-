@@ -18,6 +18,7 @@ const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
 const RIPPLES = 72; // кругов от капель дождя на асфальте — пул (сколько видно — по графике: tier.rain / 10)
 const _blobBox = new THREE.Box3();
+const BLOBS = 64; // пятен-теней на кадр не больше (один InstancedMesh на все)
 const BLOB_KINDS = new Set(["bin", "police"]); // на тротуаре пятно-тень у урн и патрульных машин (прохожие ходят — без)
 // размеры для столкновений процедурных препятствий: halfZ — полудлина, top — что перепрыгнуть, oncoming — едет навстречу (м/с)
 const OBSTACLE_STATS = {
@@ -69,8 +70,14 @@ function lampGlowMaterial(kind, color, strength, far) {
             varying vec2 vUv; varying float vY, vDepth; varying vec3 vN, vV;
             void main() {
                 vUv = uv; vY = position.y;
-                vec4 mv = modelViewMatrix * vec4(position, 1.0);
-                vDepth = -mv.z; vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+                #ifdef USE_INSTANCING
+                    vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0); // все фонари — одна отрисовка (World.updateLampGlow)
+                    vN = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+                #else
+                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                    vN = normalize(normalMatrix * normal);
+                #endif
+                vDepth = -mv.z; vV = normalize(-mv.xyz);
                 gl_Position = projectionMatrix * mv;
             }`,
         fragmentShader: `
@@ -441,6 +448,11 @@ export class World {
             transparent: true, depthWrite: false, opacity: this.tier.blob ?? 0.5, visible: (this.tier.blob ?? 0.5) > 0,
             polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
         });
+        this.blobs = new THREE.InstancedMesh(this.geo.blob, this.mat.blob, BLOBS); // все пятна — одна отрисовка (updateBlobs)
+        this.blobs.frustumCulled = false; // экземпляры по всей улице — общая рамка у меша неверная
+        this.blobs.renderOrder = 1;
+        this.blobs.count = 0;
+        this.scene.add(this.blobs);
 
         // Фары встречных машин — без настоящих источников света: светящиеся точки, пятно на асфальте
         // и блик в камеру (растёт, когда машина близко и в твоей полосе — см. updateSprites)
@@ -696,24 +708,38 @@ export class World {
         bulb.position.set(-side * 1.1, 5.18, 0);
         g.add(pole, arm, head, bulb);
         mergeStatic(g);
-        // свет фонаря: пятно на асфальте под лампой и конус в дымке (на слабой графике — только пятно)
-        if (!this.mat.lampPool) {
-            this.mat.lampPool = lampGlowMaterial("pool", 0xff8a3a, LAMP_GLOW.pool, LAMP_GLOW.far);
-            this.mat.lampCone = lampGlowMaterial("cone", 0xffa060, LAMP_GLOW.cone, LAMP_GLOW.far);
-            this.geo.lampPool = new THREE.PlaneGeometry(LAMP_GLOW.size, LAMP_GLOW.size);
-            this.geo.lampCone = new THREE.CylinderGeometry(0.18, 1.7, CONE_H, 20, 1, true);
-        }
-        const pool = new THREE.Mesh(this.geo.lampPool, this.mat.lampPool);
-        pool.rotation.x = -Math.PI / 2;
-        pool.position.set(-side * 1.1, 0.04, 0);
-        pool.renderOrder = 2; // поверх асфальта и луж
-        g.add(pool);
-        if (this.tier.lights > 1) {
-            const cone = new THREE.Mesh(this.geo.lampCone, this.mat.lampCone);
-            cone.position.set(-side * 1.1, 5.15 - CONE_H / 2, 0);
-            g.add(cone);
-        }
+        // свет фонаря: пятно на асфальте под лампой и конус в дымке (на слабой графике — только пятно). Рисуются все
+        // фонари сразу (updateLampGlow: два InstancedMesh) — здесь только где лампа: раньше у каждого фонаря свои
+        // пятно и конус, +16 отрисовок на кадр
+        g.userData.glowX = -side * 1.1;
+        (this.lampGlows ||= []).push(g);
         return g;
+    }
+
+    // пятна и конусы света всех фонарей — две отрисовки на кадр; конусы — только если графика тянет 2+ фонаря (tier.lights)
+    updateLampGlow() {
+        const lamps = this.lampGlows;
+        if (!lamps?.length) return;
+        if (!this.lampPools) {
+            const pool = lampGlowMaterial("pool", 0xff8a3a, LAMP_GLOW.pool, LAMP_GLOW.far);
+            const cone = lampGlowMaterial("cone", 0xffa060, LAMP_GLOW.cone, LAMP_GLOW.far);
+            this.lampPools = new THREE.InstancedMesh(new THREE.PlaneGeometry(LAMP_GLOW.size, LAMP_GLOW.size).rotateX(-Math.PI / 2), pool, lamps.length);
+            this.lampCones = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 1.7, CONE_H, 20, 1, true), cone, lamps.length);
+            this.lampPools.renderOrder = 2; // поверх асфальта и луж
+            for (const m of [this.lampPools, this.lampCones]) { m.frustumCulled = false; this.scene.add(m); }
+        }
+        const mx = this.lampMatrix ||= new THREE.Matrix4();
+        let n = 0;
+        for (const g of lamps) {
+            if (!g.visible || g.position.z < -this.tier.far - 10 || g.position.z > 16) continue;
+            const c = Math.cos(g.rotation.y), s = Math.sin(g.rotation.y), x = g.position.x + g.userData.glowX * c, z = g.position.z - g.userData.glowX * s;
+            this.lampPools.setMatrixAt(n, mx.makeRotationY(g.rotation.y).setPosition(x, 0.04, z));
+            this.lampCones.setMatrixAt(n, mx.setPosition(x, 5.15 - CONE_H / 2, z));
+            n++;
+        }
+        this.lampPools.count = n;
+        this.lampCones.count = this.tier.lights > 1 ? n : 0;
+        this.lampPools.instanceMatrix.needsUpdate = this.lampCones.instanceMatrix.needsUpdate = true;
     }
 
     // Материал фасада: картинка дома натянута на всю высоту, по ширине виден кусок len метров
@@ -1042,12 +1068,12 @@ export class World {
         r.instanceColor.needsUpdate = true;
     }
 
-    // мягкое пятно-тень под предметом (контактная тень): машины, баки, урны и прохожие «садятся» на асфальт.
-    // Дочерний меш группы — едет и поворачивается с ней; размер — по габаритам (без поворота). Без настоящих теней
-    // (средняя графика) — единственная тень; на хорошей затеняет стык с асфальтом, куда тень от луны не достаёт
+    // мягкое пятно-тень под предметом (контактная тень): машины, баки, урны «садятся» на асфальт. Без настоящих теней
+    // (средняя графика) — единственная тень; на хорошей затеняет стык с асфальтом, куда тень от луны не достаёт.
+    // Здесь только мерка (размер по габаритам без поворота, сдвиг от центра группы) — в userData.shade; рисуются
+    // все пятна одним InstancedMesh (updateBlobs). Раньше у каждого предмета был свой меш — +20–30 отрисовок на кадр
     groundBlob(g) {
-        for (const c of g.children.filter((x) => x.userData.blob)) g.remove(c);
-        if (!this.mat.blob) return;
+        g.userData.shade = null;
         const rot = g.rotation.y;
         g.rotation.y = 0;
         g.updateMatrixWorld(true);
@@ -1056,13 +1082,33 @@ export class World {
         const sx = _blobBox.max.x - _blobBox.min.x, sz = _blobBox.max.z - _blobBox.min.z;
         if (!Number.isFinite(sx) || sx <= 0 || sx > 8) return;
         const w = Math.max(sx, 0.4), d = Math.max(sz, sx * 0.6, 0.4); // спрайт плоский (глубина 0) — пятно по ширине
-        const blob = new THREE.Mesh(this.geo.blob, this.mat.blob);
-        blob.scale.set(w * 1.25, 1, d * 1.3);
-        const floor = g.position.y >= 0.15 ? 0.185 : 0.012; // тротуар или асфальт
-        blob.position.set((_blobBox.min.x + _blobBox.max.x) / 2 - g.position.x, floor - g.position.y, (_blobBox.min.z + _blobBox.max.z) / 2 - g.position.z);
-        blob.renderOrder = 1;
-        blob.userData = { blob: true, fx: true }; // fx — не отбрасывает тень (addObstacle)
-        g.add(blob);
+        g.userData.shade = {
+            x: (_blobBox.min.x + _blobBox.max.x) / 2 - g.position.x, z: (_blobBox.min.z + _blobBox.max.z) / 2 - g.position.z,
+            y: g.position.y >= 0.15 ? 0.185 : 0.012, // тротуар или асфальт
+            w: w * 1.25, d: d * 1.3,
+        };
+    }
+
+    // все пятна-тени за кадр: под каждым видимым предметом с меркой userData.shade (препятствия на дороге, урны и машины на тротуаре)
+    updateBlobs() {
+        const b = this.blobs;
+        if (!this.mat.blob.visible) { b.count = 0; return; }
+        const m = this.blobMatrix ||= new THREE.Matrix4(), q = this.blobQuat ||= new THREE.Quaternion();
+        const p = this.blobPos ||= new THREE.Vector3(), s = this.blobScale ||= new THREE.Vector3(), up = this.blobUp ||= new THREE.Vector3(0, 1, 0);
+        let n = 0;
+        for (const list of [this.obstacles, this.scenery]) {
+            for (const o of list) {
+                const bl = o.userData.shade;
+                if (!bl || !o.visible || o.position.z < -this.tier.far || o.position.z > 14) continue;
+                if (n >= BLOBS) break;
+                const ry = o.rotation.y, c = Math.cos(ry), sn = Math.sin(ry);
+                p.set(o.position.x + bl.x * c + bl.z * sn, bl.y, o.position.z - bl.x * sn + bl.z * c);
+                m.compose(p, q.setFromAxisAngle(up, ry), s.set(bl.w * o.scale.x, 1, bl.d * o.scale.z));
+                b.setMatrixAt(n++, m);
+            }
+        }
+        b.count = n;
+        b.instanceMatrix.needsUpdate = true;
     }
 
     // брызги из луж: пул мелких капель
@@ -2251,6 +2297,8 @@ export class World {
 
         this.updateSprites(t);
         this.updateRipples(dt, move);
+        this.updateBlobs();
+        this.updateLampGlow();
 
         // дождь
         const pos = this.rain.geometry.attributes.position.array;
