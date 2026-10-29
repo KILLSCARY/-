@@ -320,7 +320,7 @@ export function attachModel(rat, gltf, cfg) {
     rig.updateMatrixWorld(true);
     const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
     const footSpeed = actions.run ? measureFootSpeed(model, actions.run.getClip()) * (timing.run ?? 1) : 0;
-    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, footSpeed, footMax: cfg.footMax ?? FOOT_MAX, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
+    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, footSpeed, footMax: cfg.footMax ?? FOOT_MAX, footSync: cfg.footSync ?? FOOT_SYNC, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
         flyLoop: !!cfg.flyClip?.loop, flyPitch: cfg.flyClip?.pitch || 0, hipsRest: hips?.position.clone() };
     if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
@@ -329,8 +329,9 @@ const _lift = new THREE.Vector3(), _base = new THREE.Vector3();
 // смешивание перехода в позу (с, время клипа): в прыжок и подкат — быстро (ответ на свайп без задержки), обратно
 // в бег — мягче (приземление), в стойку и полёт — плавно. Раньше всё — 0,12
 // ноги и дорога: FOOT_SYNC — какую долю скорости дороги проходит опорная ступня; FOOT_MAX — потолок ускорения
-// клипа бега (на 30 м/с полное совпадение — 18 шагов в секунду, мельтешение; потолок — ~8 шагов)
-const FOOT_SYNC = 0.8, FOOT_MAX = 2.6; // свой потолок героя — CHARACTERS[…].footMax
+// клипа бега. Было 0,8 и ×2,6 (~8 шагов/с) — по плейтесту «перебирают ногами со скоростью света»: теперь 0,5 и ×1,6
+// (~4 шага/с на старте, ~5 на пределе). Свои у героя — CHARACTERS[…].footSync / footMax (Исламу оставлен быстрый)
+const FOOT_SYNC = 0.5, FOOT_MAX = 1.6;
 // скорость опорной ступни в клипе бега (м/с, модель уже в росте героя): ступня в нижних 20% своей высоты,
 // медиана её скорости вдоль бега. Считается один раз при выборе героя — отдельным микшером
 const _fa = new THREE.Vector3(), _fb = new THREE.Vector3(), _fh = new THREE.Vector3();
@@ -393,9 +394,9 @@ function animateModel(rat, pose, t, phase, dt, speed) {
         rig.rotation.x = 0.5;
         rig.position.y = -0.3;
     }
-    // темп бега — от длины шага героя: ступня на земле должна уходить назад почти со скоростью дороги (FOOT_SYNC),
+    // темп бега — от длины шага героя: ступня на земле уходит назад с долей скорости дороги (footSync),
     // иначе ноги скользят по асфальту (было speed/14 для всех — ступня успевала лишь за треть дороги)
-    const runRate = u.footSpeed ? Math.min(u.footMax, Math.max(0.9, (speed / u.footSpeed) * FOOT_SYNC)) : Math.max(0.8, speed / 14);
+    const runRate = u.footSpeed ? Math.min(u.footMax, Math.max(0.9, (speed / u.footSpeed) * u.footSync)) : Math.max(0.8, speed / 14);
     const scale = want === "run" ? (pose === "idle" ? 0.25 : runRate) : 1;
     if (want === "run") u.runRate = (actions.run.timeScale || 1) * scale; // темп шага — им «идёт» бег, пока герой в прыжке
     else if (u.runAway != null) u.runAway += dt * (u.runRate || 1);
