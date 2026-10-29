@@ -281,14 +281,14 @@ export const OBSTACLE_MIX = {
 // Чего здесь нет (монетка USDT, отсчёт, «погнали»), синтезирует audio.js.
 export const SOUNDS = {
     music: {
-        menu: ["audio/music_menu3.m4a"], // «Музыка в меню 3 главная» (AAC в .m4a); прежний трек — audio/music_menu.mp3, не играет
+        menu: ["audio/music_menu_enzro.mp3"], // ENZRO — «Ты не бойся ночи» (по кругу); прежние: music_menu3.m4a («Музыка в меню 3 главная»), music_menu.mp3 — не играют
         run: ["audio/music_chicago.mp3"], // есть ещё audio/music_v2.mp3 — пока не играет
     },
     // своя музыка забега у героя (Диск, папка «Звуки»): «СаняБелый» и «Ислам песня» (23 с, по кругу); у остальных — music.run
     heroMusic: { sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
     // громкость своей музыки героя относительно общей: «СаняБелый» сведена на ~3,6 дБ тише «Чикаго» — ×1,8 (+5 дБ)
     heroMusicGain: { sasha: 1.8 },
-    musicVolume: { menu: 0.45, run: 0.6, pause: 0.2 },
+    musicVolume: { menu: 0.6, run: 0.6, pause: 0.2 }, // меню 0.6: трек ENZRO на ~2,6 дБ тише прежнего (было 0.45)
     ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
     sfx: {
         swipe: { urls: ["audio/swipe1.mp3", "audio/swipe2.mp3", "audio/swipe3.mp3"], volume: 0.6 }, // полоса, прыжок, подкат
