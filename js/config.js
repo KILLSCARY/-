@@ -104,10 +104,11 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // npc — доля живых NPC со скелетом (девушки, кошки, стайки голубей): на слабом телефоне их меньше, остальные девушки — спрайты.
 // aa — сглаживание краёв: msaa (4 выборки, WebGL2) | fxaa (проход в конце, дёшево). medium ratio 1.4 (было 1.15 — мыло):
 // не тянет телефон — measureFps сам снизит разрешение. aniso — анизотропная фильтрация текстур моделей (под углом не мылятся).
+// hd — подгружать HD-текстуры героев (CHARACTERS[…].hd): 2048 — только там, где хватает памяти.
 // heat — «тепловой ограничитель» на телефоне: после HEAT_AFTER секунд игры подряд разрешение на ступень ниже (меньше нагрев)
 export const HEAT_AFTER = 150;
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", aniso: 8, ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
+    high:   { aa: "msaa", aniso: 8, hd: true, ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
     medium: { aa: "fxaa", aniso: 4, ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
     low:    { aa: "fxaa", aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
 };
@@ -206,6 +207,8 @@ export const NPCS = {
 // (в ней герой летит), touch — касание земли, end — встал из приседа и дальше бежит; ground — сколько секунд
 // длится приземление (по умолчанию 0.4); pin — в клипе высота «вшита» в бёдра: в воздухе её гасим, высоту задаёт игра.
 // Клипы из Meshy (папка «Персонажи» на Диске): у Спиди и Саши полёт — «Jump with Arms Open» (руки раскинуты в верхней точке).
+// hd — HD-текстуры героя для хорошей графики: "models/hd/<id>" → models/hd/<id>_c.webp (цвет) и _n.webp (нормали),
+// в той же развёртке, что текстуры внутри модели, 2048 точек. Работают и в бою (hero_<id> берёт hd героя). Нет поля — обычные 1024
 export const CHARACTERS = [
     { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=71", clipsUrl: "models/mouse_x.json", height: 1.75, portrait: "img/heroes/speedy.webp",
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
@@ -829,14 +832,15 @@ FIGHTERS.cop.moves = FIGHTERS.pavel.moves;
 // В бой выходит тот герой, за кого бежишь: клипы боя Спиди перенесены на модель каждого героя (models/<id>_hero_fight.glb),
 // приёмы, урон и HP — как у Спиди
 for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
-    model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait };
+    model: `models/${c.id}_hero_fight.glb?v=1`, height: c.height, portrait: c.portrait, hd: c.hd }; // hd — та же развёртка, что у модели забега
 // победа Павла, Саши и Гориллы — «Victory» из Meshy, перенесённая на их скелеты (models/*_win.json, у Гориллы — в gorilla_fight.json);
 // по кругу — кусок с поднятыми руками
 const HERO_WIN = { clip: "victory", from: 2.8, to: 4.6, loop: true };
 for (const id of ["pavel", "sasha"]) FIGHTERS[`hero_${id}`] = { ...FIGHTERS[`hero_${id}`], clipsUrl: `models/${id}_win.json`,
     moves: { ...FIGHTERS[`hero_${id}`].moves, win: HERO_WIN } };
 // Горилла — модель сцены «Маска», боевые клипы героя-Павла (pavel_hero_fight) перенесены на его скелет (clipsUrl)
-FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json?v=2" };
+FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json?v=2",
+    hd: CHARACTERS.find((c) => c.id === "gorilla").hd }; // не Павла: hero_pavel выше — только источник приёмов
 // Ислам — коренастый, мышиная стойка на нём выглядела приседом: ему клипы Павла (человеческая боксёрская стойка), ростом ниже Мизулины
 FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.glb?v=2", height: 1.62, yaw: 0.6, lunge: 0.15, capWhite: 0,
     moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.6 },

@@ -6,7 +6,7 @@
 // смотрела в нужную сторону мира (стойка, джеб, кросс, хук, блок, уклон, отдача). Нокаут — клип «dead» модели.
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
-import { loadModel } from "./models.js";
+import { loadModel, upgradeTextures } from "./models.js";
 import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE } from "./config.js";
 import { MaskScene } from "./maskscene.js";
 import { tg } from "./tg.js";
@@ -123,7 +123,7 @@ export class Fight {
         const withClips = (f, gltf) => !f.cfg.clipsUrl ? Promise.resolve(gltf) : fetch(f.cfg.clipsUrl).then((r) => r.json())
             // uuid клипа в JSON бывает null, а микшер кэширует действия по uuid: без своего все клипы — одно действие
             .then((list) => { for (const c of list) { const clip = THREE.AnimationClip.parse(c); if (!clip.uuid) clip.uuid = THREE.MathUtils.generateUUID(); gltf.animations.push(clip); } return gltf; }).catch(() => gltf);
-        for (const f of this.f) loadModel(f.cfg.model, (gltf) => withClips(f, gltf).then((g) => { if (this.disposed) return; this.attach(f, g); if (--left === 0) this.ready(); }),
+        for (const f of this.f) loadModel(f.cfg.model, (gltf) => withClips(f, gltf).then((g) => { if (this.disposed) return; this.attach(f, g); if (this.g.tier?.hd) upgradeTextures(f.model, f.cfg.hd); if (--left === 0) this.ready(); }),
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и оранжевый контровые
         const key = new THREE.PointLight(0xffd2b0, 0.45, 9); // мягко: белая шляпа Спиди не должна пересвечиваться

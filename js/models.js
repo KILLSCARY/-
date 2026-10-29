@@ -1,6 +1,7 @@
 // Загрузка .glb-моделей. Где хостинг не отдаёт .glb (например, страница на claude.ai),
 // модель кладётся рядом как «имя.glb.json» = {"glb": "<base64>"} — её читаем fetch-ем и разбираем сами,
 // без data:-ссылок, которые такие страницы блокируют.
+import * as THREE from "./vendor/three.module.js";
 import { GLTFLoader } from "./vendor/jsm/GLTFLoader.js";
 
 // Модели упакованы gltfpack без meshopt-сжатия (только квантование вершин): распаковщик meshopt
@@ -50,6 +51,37 @@ function sharpen(root) {
             const t = m?.[k];
             if (t && t.anisotropy < aniso) { t.anisotropy = aniso; t.needsUpdate = true; }
         }
+    });
+}
+
+// HD-текстуры героя (только хорошая графика): base — путь без окончания, рядом лежат <base>_c.webp (цвет) и
+// <base>_n.webp (нормали, необязательно) в той же развёртке, что текстуры внутри .glb, но 2048 вместо 1024.
+// Модель показывается сразу со своими, HD подменяет их, когда скачаются; настройки (UV-сдвиг gltfpack, повтор,
+// анизотропия, цветовое пространство) берём у старой текстуры. Не скачались — герой остаётся с обычными
+const hdCache = new Map();
+const hdTexture = (url) => {
+    if (!hdCache.has(url)) hdCache.set(url, new Promise((ok) => new THREE.TextureLoader().load(url, ok, undefined, () => ok(null))));
+    return hdCache.get(url);
+};
+export function upgradeTextures(root, base) {
+    if (!base) return;
+    for (const [key, suffix] of [["map", "_c"], ["normalMap", "_n"]]) hdTexture(`${base}${suffix}.webp`).then((hd) => {
+        if (!hd) return;
+        root.traverse((o) => {
+            if (!o.isMesh) return;
+            for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+                const old = m?.[key];
+                if (!old || old.userData.hd) continue;
+                const t = hd.clone(); // свой объект на материал: повтор/сдвиг UV у сеток бывают разные
+                for (const k of ["flipY", "encoding", "wrapS", "wrapT", "anisotropy", "channel", "matrixAutoUpdate"]) if (k in old) t[k] = old[k];
+                t.repeat.copy(old.repeat); t.offset.copy(old.offset); t.center.copy(old.center); t.rotation = old.rotation;
+                if (!old.matrixAutoUpdate) t.matrix.copy(old.matrix);
+                t.userData.hd = true;
+                t.needsUpdate = true;
+                m[key] = t;
+                m.needsUpdate = true;
+            }
+        });
     });
 }
 

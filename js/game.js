@@ -16,7 +16,7 @@ import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { HeroGlowPass, markGlow } from "./heroglow.js";
-import { loadModel, releaseQueue, preloadModel, setModelAnisotropy } from "./models.js";
+import { loadModel, releaseQueue, preloadModel, setModelAnisotropy, upgradeTextures } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -1190,7 +1190,7 @@ class Game {
             .then((list) => { for (const c of list) gltf.animations.push(parseClip(c)); return gltf; }).catch(() => gltf);
         loadModel(
             cfg.url,
-            (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; apply(g); }),
+            (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; if (this.tier.hd) upgradeTextures(g.scene, cfg.hd); apply(g); }),
             (e) => {
                 console.warn("[hero] не загрузилась модель", cfg.url, e);
                 if (this.heroId !== id) return;
