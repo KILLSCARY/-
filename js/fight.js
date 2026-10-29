@@ -7,7 +7,8 @@
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { loadModel } from "./models.js";
-import { FIGHT, FIGHT_CLIPS, FIGHTERS } from "./config.js";
+import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE } from "./config.js";
+import { MaskScene } from "./maskscene.js";
 import { tg } from "./tg.js";
 import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
 
@@ -110,7 +111,9 @@ export class Fight {
         this.f[0].hpMax = this.heroCfg.hp + this.hpBonus;
         this.f[1].hpMax = this.oppCfg.hp;
         for (const f of this.f) { f.hp = f.hpMax; f.shown = f.hpMax; }
-        let left = 2;
+        const gor = this.exam && MASK_SCENE.on; // сцена «Маска» (v6): модель Гориллы, голова костюма — отдельная сетка gorilla_head
+        let left = gor ? 3 : 2;
+        if (gor) loadModel(MASK_SCENE.model, (gltf) => { this.gorGltf = gltf; if (--left === 0) this.ready(); }, () => { if (--left === 0) this.ready(); });
         this.loadT = setTimeout(() => { if (this.phase === "load") $("f-load").hidden = false; }, 120); // загрузилось мгновенно — экран загрузки не мелькает
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => { this.attach(f, gltf); if (--left === 0) this.ready(); },
             () => { if (--left === 0) this.ready(); });
@@ -254,6 +257,12 @@ export class Fight {
             clearTimeout(this.loadT);
             $("f-load").hidden = true;
             this.phase = "intro";
+            if (this.exam && MASK_SCENE.on && this.f[1].model) { // сцена «Маска» — до баннера «ЭКЗАМЕН»
+                this.phase = "cut"; this.masked = true;
+                $("fb").classList.add("off");
+                this.cut = new MaskScene(this, "pre", () => { this.cut = null; $("fb").classList.remove("off"); this.phase = "intro"; this.startRound(); });
+                return;
+            }
             this.startRound();
         };
         if ($("f-load").hidden) go();
@@ -280,7 +289,8 @@ export class Fight {
         this.phase = "intro";
         this.introT = 0;
         const L = this.oppCfg.lines;
-        if (this.exam) { // Горилла молчит — говорит Павел
+        if (this.exam && this.masked) { /* реплики уже прозвучали в сцене «Маска» */ }
+        else if (this.exam) { // Горилла молчит — говорит Павел
             this.say(L.examIntro?.[0] || L.intro);
             if (L.examIntro?.[1]) setTimeout(() => this.phase !== "end" && this.say(L.examIntro[1]), 2700);
         } else this.say(this.round === 1 ? L.intro : this.round === 2 ? L.round2 || null : this.round === 3 ? L.final : null);
@@ -301,14 +311,16 @@ export class Fight {
         if (text) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
     }
 
-    say(text) {
+    // who — кто говорит (по умолчанию соперник), ms — сколько держать реплику
+    say(text, who, ms) {
         const el = $("f-say");
         clearTimeout(this.sayT);
         if (!text) { el.hidden = true; return; }
-        el.innerHTML = `<b>${this.oppCfg.short || this.oppCfg.name}</b>${text}`;
+        el.innerHTML = `<b>${who || this.oppCfg.short || this.oppCfg.name}</b>${text}`;
+        el.classList.toggle("hero", who === "Спиди");
         el.hidden = false;
         el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
-        this.sayT = setTimeout(() => (el.hidden = true), 2600);
+        this.sayT = setTimeout(() => (el.hidden = true), ms || 2600);
     }
 
     // ---- ввод: кнопки, свайпы и клавиатура ----
@@ -712,6 +724,12 @@ export class Fight {
         }
         this.updateSparks(dt);
         if (this.phase === "load") { this.camera(dt); return; }
+        if (this.phase === "cut" || this.phase === "outro") { // сцена «Маска»: бойцы стоят, идёт сцена
+            this.cut?.update(dt);
+            for (const f of this.f) { f.t += dt; f.mixer?.update(dt); this.pose(f, dt); }
+            this.camera(dt);
+            return;
+        }
         const [h, o] = this.f;
         if (this.phase === "intro") {
             this.introT += dt;
@@ -750,7 +768,10 @@ export class Fight {
             // «K.O.» и реплика — когда падение уже началось
             if (this.koBig && (this.koBig.t -= dt) <= 0) { const k = this.koBig; this.koBig = null; this.big("K.O.", k.cls); this.shake = 0.25; if (k.line) this.say(k.line); }
             if (this.endT <= 0) {
-                if (this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
+                if (this.exam && this.masked && this.f[1].hp <= 0 && this.mask && !this.outroCut) { // сдал: Павел протягивает маску
+                    this.outroCut = true; this.phase = "outro"; this.big(""); this.say(null); // сразу: иначе пока идёт затемнение, roundEnd вызывает finish() поверх сцены
+                    this.cut = new MaskScene(this, "post", () => { this.cut = null; this.finish(); });
+                } else if (this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
                 else this.startRound();
             }
         }
@@ -854,6 +875,7 @@ export class Fight {
         $("fight").classList.remove("exam", "cine");
         for (const o of this.hidden || []) o.visible = true;
         $("f-exam").hidden = true;
+        $("f-skip").hidden = true; $("f-flash").classList.remove("on", "dark");
         this.g.camera.fov = this.g.baseFov;
         if (this.farWas) this.g.camera.far = this.farWas;
         this.g.camera.updateProjectionMatrix();
@@ -1163,6 +1185,15 @@ export class Fight {
         const look = (this.v3 ||= new THREE.Vector3()).set(0, portrait ? 1.0 : 0.95, -0.02);
         if (ko) { const l = this.f.find((f) => f.act === "ko"); look.lerp(new THREE.Vector3(0, 0.45, l.z + l.dir * 0.45), smooth(this.koK)); }
         cam.lookAt(look.lerp((this.v4 ||= new THREE.Vector3()).set(0, 0.9, -8), 1 - k));
+        // сцена «Маска»: камера ближе к маске, только пока она падает
+        const fm = this.cut?.focus && this.mask ? 1 : 0;
+        this.maskK = (this.maskK || 0) + (fm - (this.maskK || 0)) * Math.min(1, dt * 2.5);
+        if (this.maskK > 0.001) {
+            const mp = this.mask.position, k2 = smooth(this.maskK);
+            cam.position.lerp((this.v6 ||= new THREE.Vector3()).set(mp.x - 2.7, 1.25, mp.z + 0.35), k2);
+            const lk = (this.v7 ||= new THREE.Vector3()).set(0, portrait ? 1.0 : 0.95, -0.02).lerp(new THREE.Vector3(mp.x, Math.max(0.35, mp.y * 0.6 + 0.25), mp.z), k2);
+            cam.lookAt(lk);
+        }
         const fov = portrait ? FIGHT.fov : this.g.baseFov;
         if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     }
@@ -1170,7 +1201,7 @@ export class Fight {
     // ---- экзамен Инакова: вопрос → 4 с на ответ → верно: удар Спиди (3 подряд или верное число — супер), ошибка: удар Павла ----
     examStep(dt) {
         const ex = this.exam;
-        if (ex.wait > 0) { ex.wait -= dt; if (ex.wait <= 0) this.examAsk(); return; }
+        if (ex.wait > 0) { ex.wait -= dt; if (ex.wait <= 0 && !this.examSettle()) this.examAsk(); return; }
         if (!ex.q) return;
         ex.left -= dt;
         const k = Math.max(0, ex.left / ex.max);
@@ -1178,6 +1209,17 @@ export class Fight {
         bar.style.transform = `scaleX(${k.toFixed(3)})`;
         bar.classList.toggle("low", ex.left < 1.5);
         if (ex.left <= 0) this.examAnswer(-1);
+    }
+
+    // экзамен решён по счёту (верно ≥ need или ошибок ≥ lives, или вопросы кончились), а HP не дошло до нуля —
+    // удар промахнулся, серию супера прервал следующий вопрос и т. п. Без этого бой висел: вопросов нет, таймера нет (Infinity).
+    examSettle() {
+        const ex = this.exam, [h, o] = this.f;
+        if (h.hp <= 0 || o.hp <= 0) return true;
+        const out = ex.i >= ex.list.length;
+        if (ex.ok >= ex.need) { o.hp = 0; return true; }
+        if (ex.bad >= ex.lives || out) { h.hp = 0; return true; }
+        return false;
     }
 
     examAsk() {
@@ -1225,7 +1267,7 @@ export class Fight {
             ex.ok++; ex.streak++;
             const sup = ex.streak >= 3 || q.num;
             if (sup) ex.streak = 0;
-            h.examPool = h.examPool0 = Math.ceil(o.hpMax / ex.need);
+            h.examPool = h.examPool0 = ex.ok >= ex.need ? o.hp : Math.ceil(o.hpMax / ex.need); // последний верный — добивает весь остаток
             h.act = "idle"; o.act = "idle";
             if (sup) { this.act(h, "super", FIGHT.superTime); this.big("СУПЕР!", "gold"); setTimeout(() => this.phase === "fight" && this.big(""), 900); this.slow = 0.55; this.g.audio?.play("boost"); }
             else { h.combo = 1; this.punch(h); }
@@ -1233,7 +1275,7 @@ export class Fight {
             ex.wait = sup ? 2.6 : 1.8;
         } else {
             ex.bad++; ex.streak = 0;
-            o.examPool = o.examPool0 = Math.ceil(h.hpMax / ex.lives);
+            o.examPool = o.examPool0 = ex.bad >= ex.lives ? h.hp : Math.ceil(h.hpMax / ex.lives);
             h.act = "idle"; o.act = "idle";
             this.act(o, "heavyWind", 0.4);
             $("fx-q").textContent = `${i < 0 ? "Время вышло. " : ""}${L.examTrap || ""} ${q.err || ""}`.trim();

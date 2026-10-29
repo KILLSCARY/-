@@ -1296,3 +1296,12 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* диагностика FPS (js/perf.js) */
 .perf-hud { position: fixed; left: 6px; top: calc(var(--tg-safe-top, 0px) + 54px); z-index: 120; margin: 0; padding: 6px 8px; border-radius: 8px;
     background: rgba(0, 0, 0, .72); color: #9effc9; font: 600 10px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: auto; }
+
+/* сцена «Маска» (v6): вспышка 0,3 с прячет подмену Гориллы на Павла; затемнение — в финале */
+.f-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 25; }
+.f-flash.dark { background: #000; }
+.f-flash.on { animation: f-flash .3s ease-out both; }
+@keyframes f-flash { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: 0; } }
+.f-skip { position: absolute; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); z-index: 26; padding: 9px 14px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px;
+    background: rgba(10,8,6,.6); color: #fff; font: 800 13px/1 var(--font-display); letter-spacing: .04em; }
+.f-say.hero b { color: #ffd65a; }

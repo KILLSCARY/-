@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -344,7 +344,7 @@ class Game {
         this.resetRun();
         if (this.questions && this.story) prize.event(`run:${this.story.id}`); // сервер сам засекает начало забега главы
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
-        if (this.story) setTimeout(() => { for (const id of [heroFighter(this.heroId), this.story.opponent]) preloadModel(FIGHTERS[id]?.model); }, 6000);
+        if (this.story) setTimeout(() => { for (const id of [heroFighter(this.heroId), this.story.opponent]) preloadModel(FIGHTERS[id]?.model); if (this.story.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -2067,6 +2067,7 @@ class Game {
     async startStoryFight() {
         const s = this.story, opp = FIGHTERS[s.opponent];
         for (const id of [heroFighter(this.heroId), s.opponent]) preloadModel(FIGHTERS[id]?.model); // если ещё не скачаны — пока идёт заставка
+        if (s.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model);
         this.storyOn = true;
         this.state = "bossintro";
         tg.haptic("heavy");
@@ -2085,7 +2086,7 @@ class Game {
         splash.hidden = false;
         $("hud").hidden = true;
         setTimeout(() => this.audio.play("crash"), 560); // удар «VS»
-        if (s.before?.gorilla) setTimeout(() => this.state === "bossintro" && this.gorilla(s.before.gorilla, true, 3200), 1300);
+        if (s.before?.gorilla && !(s.exam && MASK_SCENE.on)) setTimeout(() => this.state === "bossintro" && this.gorilla(s.before.gorilla, true, 3200), 1300);
         await wait(2400);
         splash.classList.add("out");
         await wait(450);
@@ -2223,7 +2224,7 @@ class Game {
         const d = this.profile.data;
         let soldOut = false;
         if (!d.place && prize.online) { // место выдаёт /api/prize по подписанному initData и цепочке run→boss
-            const r = await prize.claim();
+            const r = await Promise.race([prize.claim().catch(() => ({})), wait(5000).then(() => ({}))]) || {}; // сервер завис — финал всё равно открывается
             if (r.place > 0) { d.place = r.place; d.left = r.left; this.profile.save(); }
             soldOut = Boolean(r.soldOut);
         }
