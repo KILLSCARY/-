@@ -156,7 +156,8 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 export const QUALITY_TIERS = {
     high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
     medium: { aa: "fxaa", cine: 0.6, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
-    low:    { aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
+    // low: потолки кадров — кратные частоте экрана (60/30): 45 и 24 на 60 Гц шли неровно и картинка дёргалась
+    low:    { aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [60, 30], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

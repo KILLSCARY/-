@@ -1488,3 +1488,7 @@ body.in-fight #menu { display: none !important; }
 .res-win .label { color: #e9c25a; }
 .res-win.ob-card { background: radial-gradient(130% 60% at 0% 0%, rgba(233, 194, 90, .16), transparent 60%), linear-gradient(180deg, #1d1d22, #121215); }
 .res-card .sw-next { margin-top: 12px; text-align: left; }
+
+/* виньетка лёгкой графики: кадр рисуется прямо на экран (Game.render), затемнение краёв — этим слоем, без прохода шейдера */
+#vig { display: none; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .3) 100%); }
+body.direct #vig { display: block; }

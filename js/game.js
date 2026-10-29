@@ -185,7 +185,9 @@ class Game {
         // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
         const cls = tgPerfClass(); // LOW → слабая графика, AVERAGE/HIGH → средняя (телефон греется и на сильном)
-        this.quality = QUALITY === "auto" ? (cls === "LOW" || (!cls && mobile && weakDevice()) ? "low" : mobile ? "medium" : "high") : QUALITY;
+        // По плейтесту средняя графика тормозит даже на сильных телефонах (iPhone 13 Pro, Xiaomi 17 Ultra): телефон по
+        // умолчанию — лёгкая; средняя — только Android с классом HIGH от Telegram. Игрок может поднять в настройках
+        this.quality = QUALITY === "auto" ? (mobile ? (cls === "HIGH" ? "medium" : "low") : cls === "LOW" || weakDevice() ? "medium" : "high") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
@@ -244,7 +246,9 @@ class Game {
 
     setupScene() {
         const canvas = $("game");
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+        // лёгкая графика рисует прямо на экран (см. render()): сглаживание — аппаратное MSAA холста, на телефонных
+        // видеокартах оно почти бесплатное. Остальные уровни сглаживают в постобработке (FXAA/MSAA буферов)
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality === "low", powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
         setKtx2Renderer(this.renderer); // какие сжатые форматы умеет видеокарта — для HD-текстур в KTX2
@@ -318,7 +322,7 @@ class Game {
         this.camera.fov = this.baseFov + this.camKick.fov;
         this.camera.updateProjectionMatrix();
         this.hudCoin = null; // куда летят монеты — пересчитать под новый размер
-        if (this.sceneCovered()) this.composer.render(); // смена размера стирает холст — последний кадр рисуем заново
+        if (this.sceneCovered()) this.render(); // смена размера стирает холст — последний кадр рисуем заново
         this.stillDrawn = false; // и замершую картинку паузы/итога — тоже
     }
 
@@ -989,13 +993,19 @@ class Game {
         this.rafCount = (this.rafCount || 0) + 1; // сколько кадров даёт экран — для measureFps
         // Потолок кадров по расписанию, а не «прошло ли N мс с прошлого»: иначе на 90 Гц из 60 выходило 45,
         // а в меню на 60 Гц из 40 — 30. Пол-интервала экрана запаса — кадр рисуем, если он ближе к сроку, чем следующий.
-        const budget = this.frameBudget();
-        const vsync = this.vsync ? Math.min(this.vsync, budget) : 0;
-        if (this.lastRaf) this.vsync = this.vsync ? this.vsync * 0.95 + (now - this.lastRaf) * 0.05 : now - this.lastRaf;
+        // Потолок — целое число интервалов экрана: 45 кадров на 60 Гц давали шаги то 16, то 33 мс — картинка дёргалась.
+        // Теперь на 60 Гц — 60 или 30, на 120 Гц — 120/60/40/30 (ближайшее кратное к желаемому потолку)
+        if (this.lastRaf) { const gap = now - this.lastRaf; if (gap < 50) this.vsync = this.vsync ? this.vsync * 0.95 + gap * 0.05 : gap; }
         this.lastRaf = now;
-        if (now < (this.nextFrame || 0) - vsync / 2) return; // пропускаем кадр
+        const want = this.frameBudget(), vs = this.vsync || 16.7;
+        const budget = vs * Math.max(1, Math.round(want / vs));
+        if (now < (this.nextFrame || 0) - vs / 2) return; // пропускаем кадр
         this.nextFrame = now - (this.nextFrame || 0) > budget ? now + budget : this.nextFrame + budget;
-        const dt = Math.min(this.clock.getDelta(), 0.05);
+        // шаг времени сглажен: таймер телефона «гуляет» на ±2–4 мс, и без сглаживания дорога едет рывками.
+        // Настоящий провал кадра (шаг заметно длиннее обычного) не сглаживаем — иначе мир «отстанет»
+        const raw = Math.min(this.clock.getDelta(), 0.05);
+        this.dtS = this.dtS && Math.abs(raw - this.dtS) < this.dtS * 0.35 ? this.dtS * 0.8 + raw * 0.2 : raw;
+        const dt = this.dtS;
         this.t += dt;
         // «кино»: зерно живёт (время), края смазываются на скорости забега (CINE.speedFrom…speedTo)
         const ou = this.output.uniforms, cine = this.tier.cine || 0;
@@ -1021,7 +1031,7 @@ class Game {
         if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
             this.world.update(dt, 0, this.t);
             this.fight?.update(dt);
-            this.composer.render();
+            this.render();
             if (this.fight?.phase === "fight") this.measureFps(dt); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
             return;
         }
@@ -1114,7 +1124,24 @@ class Game {
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
-        this.composer.render();
+        this.render();
+    }
+
+    // Кадр. Лёгкая графика (direct) — сразу на экран, без буфера постобработки и двух полноэкранных проходов
+    // (тонмаппинг и FXAA): на телефонах это главный расход — видеокарта упирается в число закрашиваемых пикселей.
+    // Тонмаппинг тогда делает сам Three.js (ACES), виньетка — слой #vig поверх холста
+    render() {
+        if (this.direct) this.renderer.render(this.scene, this.camera);
+        else this.composer.render();
+    }
+
+    setDirect(on) {
+        this.direct = on;
+        const R = this.renderer;
+        R.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+        R.toneMappingExposure = (this.output?.uniforms.exposure.value ?? SKY.exposure) * 0.55; // ACES в Three.js делит на 0,6; чуть ниже — нет прохода контраста/сочности
+        document.body.classList.toggle("direct", on);
+        this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
     }
 
     // Графика: отражения на асфальте, тени и свечение — самое дорогое (QUALITY_TIERS в config.js)
@@ -1144,6 +1171,8 @@ class Game {
         u.grade.value = k ? CINE.grade : 0; u.ca.value = CINE.ca * k;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * k; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * k : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
+        const direct = level === "low" && !this.look2;
+        if (direct !== !!this.direct) this.setDirect(direct);
         // дальше — туман: не рисуем то, чего всё равно не видно
         this.camera.far = this.tier.far;
         this.scene.fog.far = this.tier.far - 12;
