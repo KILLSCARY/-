@@ -9,6 +9,7 @@ import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { loadModel } from "./models.js";
 import { FIGHT, FIGHT_CLIPS, FIGHTERS } from "./config.js";
 import { tg } from "./tg.js";
+import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
 
 const $ = (id) => document.getElementById(id);
 const smooth = (k) => { k = Math.min(1, Math.max(0, k)); return k * k * (3 - 2 * k); };
@@ -275,7 +276,7 @@ export class Fight {
         this.timeLeft = this.exam ? Infinity : FIGHT.roundTime;
         // ИИ: раунд за раундом злее (FIGHTERS[…].ai)
         const ai = this.oppCfg.ai, r = Math.min(this.round, 3) - 1;
-        this.ai = { next: 1.0, guard: 0, streak: 0, block: ai.block[r], every: ai.every[r], heavy: ai.heavy[r], combo: ai.combo[r], third: ai.third[r] };
+        this.ai = { next: 1.0, guard: 0, streak: 0, block: ai.block[r], every: ai.every[r], heavy: ai.heavy[r], combo: ai.combo[r], third: ai.third[r], p2: phase2Of(this.oppCfg), rage2: false };
         this.phase = "intro";
         this.introT = 0;
         const L = this.oppCfg.lines;
@@ -287,7 +288,7 @@ export class Fight {
         if (this.round === 1 && this.hpBonus > 0) setTimeout(() => this.phase !== "end" && this.g.gorilla?.(`+${this.hpBonus} HP от ответов на табличках`, true, 2600), 600);
         // подсказка про тап по зонам — в первых боях игрока
         const pd = this.g.profile?.data;
-        if (this.round === 1 && !this.exam && pd && (pd.tapHints || 0) < 3) { pd.tapHints = (pd.tapHints || 0) + 1; setTimeout(() => this.phase !== "end" && this.g.gorilla?.("Тапай по боссу: в голову — рукой, по ногам — ногой", false, 3200), this.hpBonus > 0 ? 3600 : 900); }
+        if (this.round === 1 && !this.exam && pd && (pd.tapHints || 0) < 3) { pd.tapHints = (pd.tapHints || 0) + 1; setTimeout(() => this.phase !== "end" && this.g.gorilla?.("Тапай по боссу: в голову — сильнее, по ногам — ногой. Блок в момент удара — парирование", false, 3200), this.hpBonus > 0 ? 3600 : 900); }
         this.bigShown = 0;
         this.hud();
     }
@@ -347,6 +348,8 @@ export class Fight {
 
     input(cmd, again = false) {
         if (this.phase !== "fight") return;
+        // тап в голову — тот же удар рукой, но сильнее (FIGHT.zones); кнопка и тап по корпусу — в корпус
+        if (cmd === "head") { this.aim = "head"; cmd = "punch"; } else if (cmd === "punch" && !again) this.aim = null;
         const h = this.f[0];
         const free = h.act === "idle" || (h.act === "block" && cmd !== "block");
         // буфер нажатий (как input buffer во Fray): удар/уклон, нажатый чуть раньше, чем боец освободился,
@@ -384,7 +387,7 @@ export class Fight {
         }
     }
 
-    // куда тапнули по сопернику: выше бёдер — удар рукой, ниже — ногой; мимо соперника — обычный удар рукой
+    // куда тапнули по сопернику: голова — удар рукой сильнее, корпус — рукой, ниже бёдер — ногой; мимо соперника — обычный удар рукой
     tapZone(x, y) {
         const o = this.f?.[1], cam = this.g.camera;
         if (!o?.b?.Hips) return "punch";
@@ -393,7 +396,7 @@ export class Fight {
         const hips = scr(o.b.Hips), head = scr(o.b.Head || o.b.Hips), foot = scr(o.b.LeftFoot || o.b.Hips);
         const halfW = Math.max(60, Math.abs(foot.y - head.y) * 0.35);
         if (Math.abs(x - hips.x) > halfW * 1.6 || y < head.y - halfW * 0.8 || y > foot.y + 40) return "punch";
-        const zone = y > hips.y + (foot.y - hips.y) * 0.15 ? "low" : "punch";
+        const zone = y > hips.y + (foot.y - hips.y) * 0.15 ? "low" : y < head.y + (hips.y - head.y) * 0.3 ? "head" : "punch";
         this.tapMark(x, y, zone);
         return zone;
     }
@@ -409,6 +412,7 @@ export class Fight {
     }
 
     punch(f) {
+        f.aim = f === this.f[0] ? this.aim : null; // куда целился герой (тап в голову)
         f.combo = f.act === "punch" || f.t < 0.25 ? (f.combo + 1) % 3 : 0;
         f.hand = f.combo % 2; // 0 — левая (джеб), 1 — правая (кросс)
         const t = f.cfg.punchTime || FIGHT.punchTime;
@@ -445,6 +449,7 @@ export class Fight {
                 this.blockSaidAt = now;
             }
         }
+        if (act === "block" && f.act !== "block" && f === this.f?.[0]) raiseBlock(f, this.t);
         f.act = act; f.actId = (f.actId || 0) + 1; f.t = 0; f.dur = time; f.hitDone = false; f.queued = false; f.hitsDone = 0;
         const mv = this.moveOf(f, act);
         if (mv && !mv.fit) f.dur = (mv.to - mv.from) / (mv.speed || 1); // длина — по клипу
@@ -471,12 +476,28 @@ export class Fight {
             att.examPool -= dmg;
             if (fin) att.examPool = null;
         }
+        const head = !this.exam && att.aim === "head" && (kind === "jab" || kind === "cross" || kind === "hook");
+        if (head) dmg = zoneDamage(dmg, "head");
         const st = (this.stats ||= {}), key = `${att === this.f[0] ? "h" : "o"}_${kind}`;
         const contact = this.fistPos(att, kind === "heavy" ? 1 : att.hand);
         // уклон: мимо; от хука с замахом — бьющий проваливается и открыт для контратаки
         if (def.act === "dodge" && def.t < def.dur * 0.85 && !unstoppable) {
             this.popText(def, "МИМО", "miss");
             if (kind === "heavy") { this.act(att, "recoil", FIGHT.whiffTime); this.popText(att, "КОНТРАТАКА!", "crit"); }
+            return 0;
+        }
+        // парирование: блок героя поднят точно перед ударом — урона нет, бьющий надолго открыт (бей — будет контр ×1.5)
+        if (def === this.f[0] && !this.exam && isParry(def, this.t, unstoppable)) {
+            def.parryAt = null; // одно парирование на подъём блока
+            this.popText(def, "ПАРИРОВАЛ!", "crit");
+            this.spark(contact, 1.1, 0xffd65a);
+            this.act(att, "recoil", FIGHT.parry.stun * (kind === "heavy" ? 1.3 : 1));
+            this.superV = Math.min(FIGHT.superMax, this.superV + FIGHT.parry.super);
+            this.stop = 0.12; this.slow = 0.45; this.shake = 0.1;
+            this.g.audio?.play("boost");
+            tg.haptic("medium");
+            st.parry = (st.parry || 0) + 1;
+            if (!this.parryTold) { this.parryTold = true; this.g.gorilla?.("Блок в последний момент — парирование. Теперь бей!", false, 2400); }
             return 0;
         }
         // блок: урон почти весь гасится, бьющего отбрасывает — у защитника окно для ответа
@@ -505,7 +526,7 @@ export class Fight {
         def.flash = 1;
         def.hitSide = att.hand ? 1 : -1;
         this.spark(contact, kind === "jab" ? 0.6 : kind === "super" ? 1.4 : 0.9, kind === "super" ? 0xffd65a : 0xffffff);
-        this.popText(def, counter ? `КОНТР −${dmg}` : `−${dmg}`, counter || kind === "heavy" || kind === "super" || kind === "hook" ? "crit" : "");
+        this.popText(def, counter ? `КОНТР −${dmg}` : head ? `В ГОЛОВУ −${dmg}` : `−${dmg}`, counter || head || kind === "heavy" || kind === "super" || kind === "hook" ? "crit" : "");
         if (kind === "heavy" || kind === "hook" || kind === "super" || counter) { // комикс-вспышка и волна по асфальту — сильный удар видно сразу
             this.comic(contact, kind === "super" ? "super" : kind === "heavy" ? "heavy" : "");
             this.shockwave(def, kind === "super" ? 1.6 : 1);
@@ -621,15 +642,27 @@ export class Fight {
             ai.spam = Math.max(ai.spam || 0, 3);
             ai.next = 0.7;
         }
+        // вторая фаза: ниже половины здоровья — ярость (раз за раунд), дальше бьёт чаще и тяжелее
+        if (!ai.rage2 && inPhase2(o.hp, o.hpMax, ai.p2) && o.act !== "ko") {
+            ai.rage2 = true;
+            this.big("ЯРОСТЬ", "red");
+            clearTimeout(this.bigT);
+            this.bigT = setTimeout(() => { if (this.phase === "fight") this.big(""); }, 900);
+            if (c.lines.rage) this.say(c.lines.rage);
+            this.shake = 0.2;
+            this.g.audio?.play("crash");
+            (this.stats ||= {}).rage = this.round;
+        }
+        const p2 = ai.rage2 ? ai.p2 : null;
         if (o.act !== "idle" || ai.next > 0) return this.runQueue();
-        const rage = 1 + (1 - o.hp / o.hpMax) * 0.35;
+        const rage = (1 + (1 - o.hp / o.hpMax) * 0.35) * (p2 ? p2.speed : 1);
         const r = Math.random();
-        if (r < ai.heavy) {
+        if (r < ai.heavy + (p2 ? p2.heavy : 0)) {
             o.heavyVar = this.round >= 3 && o.moves?.heavy2 && Math.random() < 0.5 ? 2 : 0; // второй тяжёлый (moves.heavy2), если задан
-            this.act(o, "heavyWind", c.telegraph[Math.min(this.round, 3) - 1]);
+            this.act(o, "heavyWind", c.telegraph[Math.min(this.round, 3) - 1] * (p2 ? p2.tele : 1));
             if (Math.random() < 0.5) this.say(pick(c.lines.heavy));
-        } else if (r < ai.heavy + ai.combo) this.queueAi([["punch", 0], ["punch", 0.05], ...(Math.random() < ai.third ? [["punch", 0.05]] : [])]);
-        else if (r < ai.heavy + ai.combo + 0.18) { this.act(o, "block", 0.6 + Math.random() * 0.5); }
+        } else if (r < ai.heavy + (p2 ? p2.heavy : 0) + ai.combo) this.queueAi([["punch", 0], ["punch", 0.05], ...(Math.random() < ai.third ? [["punch", 0.05]] : [])]);
+        else if (r < ai.heavy + (p2 ? p2.heavy : 0) + ai.combo + 0.18) { this.act(o, "block", 0.6 + Math.random() * 0.5); }
         else this.queueAi([["punch", 0]]);
         ai.next = (ai.every[0] + Math.random() * (ai.every[1] - ai.every[0])) / rage;
     }

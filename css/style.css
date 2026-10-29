@@ -1290,6 +1290,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .f-tap { position: absolute; z-index: 4; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; pointer-events: none;
     border: 3px solid #ff3a40; box-shadow: 0 0 14px rgba(255, 58, 64, .8); animation: f-tap .4s ease-out both; }
 .f-tap.low { border-color: #ffd65a; box-shadow: 0 0 14px rgba(255, 214, 90, .8); }
+.f-tap.head { border-color: #ff7a3a; border-width: 4px; box-shadow: 0 0 18px rgba(255, 122, 58, .95); }
 @keyframes f-tap { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 
 /* диагностика FPS (js/perf.js) */

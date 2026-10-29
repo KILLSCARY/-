@@ -1,0 +1,48 @@
+// node --test tests/*.test.mjs — правила боя без браузера (js/fightrules.js)
+import test from "node:test";
+import assert from "node:assert/strict";
+import { FIGHT, FIGHTERS } from "../js/config.js";
+import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "../js/fightrules.js";
+
+const blocker = (now) => { const f = { act: "block" }; raiseBlock(f, now); return f; };
+
+test("парирование: удар в окне после подъёма блока", () => {
+    const f = blocker(10);
+    assert.equal(isParry(f, 10 + FIGHT.parry.window - 0.01, false), true);
+    assert.equal(isParry(f, 10 + FIGHT.parry.window + 0.01, false), false, "поздно — обычный блок");
+});
+
+test("парирование: супер не парируется, без блока — нет", () => {
+    const f = blocker(10);
+    assert.equal(isParry(f, 10.1, true), false);
+    assert.equal(isParry({ ...f, act: "idle" }, 10.1, false), false);
+});
+
+test("парирование: частые нажатия блока окно не дают", () => {
+    const f = blocker(10);
+    raiseBlock(f, 10 + FIGHT.parry.rearm - 0.1);
+    assert.equal(isParry(f, 10 + FIGHT.parry.rearm, false), false);
+    raiseBlock(f, 20);
+    assert.equal(isParry(f, 20.1, false), true, "после паузы окно снова есть");
+});
+
+test("вторая фаза: ниже половины здоровья, не в нокауте", () => {
+    const p2 = phase2Of(FIGHTERS.pavel);
+    assert.equal(inPhase2(51, 100, p2), false);
+    assert.equal(inPhase2(50, 100, p2), true);
+    assert.equal(inPhase2(0, 100, p2), false);
+    assert.equal(inPhase2(10, 100, phase2Of({ phase2: false })), false, "можно выключить у бойца");
+    assert.equal(phase2Of({ phase2: { at: 0.3 } }).at, 0.3, "свой порог");
+});
+
+test("вторая фаза не делает замах короче, чем успеть среагировать", () => {
+    const p2 = phase2Of({});
+    for (const [id, f] of Object.entries(FIGHTERS)) for (const t of f.telegraph || [])
+        assert.ok(t * p2.tele >= 0.35, `${id}: замах ${(t * p2.tele).toFixed(2)} с`);
+});
+
+test("урон в голову сильнее, в корпус как есть", () => {
+    assert.equal(zoneDamage(10, "body"), 10);
+    assert.equal(zoneDamage(10, "head"), Math.round(10 * FIGHT.zones.head));
+    assert.equal(zoneDamage(10, "нет такой"), 10);
+});
