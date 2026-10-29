@@ -700,7 +700,7 @@ export class Fight {
             (this.stats ||= {}).rage = this.round;
         }
         const p2 = ai.rage2 ? ai.p2 : null;
-        if (o.act !== "idle" || ai.next > 0) return this.runQueue(dt);
+        if (o.act !== "idle" || ai.next > 0 || ai.queue?.length) return this.runQueue(dt);
         const rage = (1 + (1 - o.hp / o.hpMax) * 0.35) * (p2 ? p2.speed : 1);
         const r = Math.random();
         if (r < ai.heavy + (p2 ? p2.heavy : 0)) {
