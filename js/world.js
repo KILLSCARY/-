@@ -1675,7 +1675,8 @@ export class World {
         motor.position.z = -0.18;
         const rotor = new THREE.Group();
         rotor.position.z = 0.04;
-        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b4, metalness: 0.6, roughness: 0.35 });
+        // лопасти полупрозрачные: на больших оборотах они бледнеют, а поверх — размытый диск (blur), как у настоящего винта
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b4, metalness: 0.6, roughness: 0.35, transparent: true });
         bladeMat.userData.own = true;
         for (let i = 0; i < 3; i++) {
             const arm = new THREE.Group();
@@ -1688,7 +1689,24 @@ export class World {
         }
         const hub = own(new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), chrome));
         rotor.add(hub);
-        head.add(motor, rotor);
+        // размытый винт: три мягких «смаза» лопастей по кругу; крутит игра медленнее настоящего (без стробоскопа)
+        const blurTex = canvasTex(128, 128, (c, w) => {
+            c.clearRect(0, 0, w, w);
+            c.translate(w / 2, w / 2);
+            for (let i = 0; i < 3; i++) {
+                c.rotate((Math.PI * 2) / 3);
+                const gr = c.createRadialGradient(0, 0, 6, 0, 0, w / 2 - 2);
+                gr.addColorStop(0, "rgba(190,205,220,.75)"); gr.addColorStop(1, "rgba(190,205,220,.15)");
+                c.fillStyle = gr;
+                c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, w / 2 - 2, -0.2, 0.75); c.closePath(); c.fill();
+            }
+            c.fillStyle = "rgba(190,205,220,.12)"; c.beginPath(); c.arc(0, 0, w / 2 - 2, 0, Math.PI * 2); c.fill();
+        });
+        const blurMat = new THREE.MeshBasicMaterial({ map: blurTex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+        blurMat.userData.own = true;
+        const blur = own(new THREE.Mesh(new THREE.CircleGeometry(0.52, 32), blurMat));
+        blur.position.z = 0.05;
+        head.add(motor, rotor, blur);
         for (const z of [0.12, -0.04]) { // решётка: два кольца и спицы спереди
             const ring = own(new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.018, 6, 40), chrome));
             ring.position.z = z;
@@ -1705,8 +1723,8 @@ export class World {
         const led = own(new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), ledMat));
         led.position.set(0, 0.1, 0.42);
         g.add(base, pole, head, led);
-        g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
-        g.userData = { type: "decor", fan: true, rotor, led };
+        g.traverse((m) => { if (m.isMesh && m !== blur) m.castShadow = true; });
+        g.userData = { type: "decor", fan: true, rotor, led, head, blur, bladeMat };
         return g;
     }
 

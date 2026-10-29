@@ -225,7 +225,7 @@ export const CHARACTERS = [
         // подкат — «slide right» (присесть), падение от удара — «Shot and Blown Back», ничком от погони — «Fall»;
         // полёт — «Swim Forward» Саши Белого (те же кости Meshy, перенесены только повороты)
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3, pitch: 1.35 } }, // pitch — лечь горизонтально (рад)
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", hd: "models/hd/pavel", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", hd: "models/hd/pavel", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.jpg",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
     { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", hd: "models/hd/islam", clipsUrl: "models/islam_x.json", height: 1.8, portrait: "img/heroes/islam.webp",
@@ -374,7 +374,7 @@ export const CHAPTER_BOSSES = [
         mid: "Лабиринт курсов — без системы не выйдешь.",
         win: "Ладно, система у тебя есть. Дальше — к Инакову.",
         lose: "Заблудился в курсах? Вот и я так же." },
-    { id: "pavel", name: "Павел Инаков", model: "models/pavel.glb?v=71", height: 1.8, clip: "run", portrait: "img/heroes/pavel.webp",
+    { id: "pavel", name: "Павел Инаков", model: "models/pavel.glb?v=71", height: 1.8, clip: "run", portrait: "img/heroes/pavel.jpg",
         throw: "cop", need: 12, every: [1.1, 0.9, 0.75], speed: 21, vary: ["double", "exam"], final: true,
         intro: "Возражения слышал все. Покажи, что ты их прошёл.",
         rounds: ["Разминка. Ты уже это слышал.", "Теперь честно. Что мешает именно тебе?", "Последний. Ответь, как будто это уже твоя жизнь."],
@@ -405,11 +405,14 @@ export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, min
 // Ислам выкуплен или «Устойчивость» — не сносит. Со стенами-возражениями и «Ислам дует» не совпадает: следующая стена —
 // не ближе gap/2 метров за зоной ветра, следующий порыв — не ближе gap метров.
 // after — сколько метров ветер ещё дует, когда вентилятор уже позади (дальше 12 м он уезжает за камеру)
-export const VENT = { firstAt: 650, every: [480, 720], zone: 18, after: 9, warn: 26, slow: 0.55, drift: 0.9, reward: 5, gap: 110 };
+// Струя бьёт из вентилятора: сносит только в ней — zone 4 м до вентилятора и after 3 м после (было 18 и 9: сносить
+// начинало задолго до вентилятора), зато сильнее — drift 2,6 (было 0,9): за проход примерно полоса. warn 40 — за сколько
+// метров до струи вентилятор раскручивается, слабо дует и появляется подсказка
+export const VENT = { firstAt: 650, every: [480, 720], zone: 4, after: 3, warn: 40, slow: 0.55, drift: 2.6, reward: 5, gap: 110 };
 
 // Экзамен Инакова — часть финального боя (CHAPTER_BOSSES, final): три стены-вопроса между фазами, в каждой —
 // тип клиента, на котором игрок чаще ошибается; нужно pass верных из 3. portrait — плашка, пока нет модели босса
-export const BOSS = { pass: 2, portrait: "img/heroes/pavel.webp" };
+export const BOSS = { pass: 2, portrait: "img/heroes/pavel.jpg" };
 
 // Реплики героев на старте забега (сценарий v2) и Мизулиной, когда выбегает за героем
 export const HERO_LINES = {
@@ -796,7 +799,7 @@ export const FIGHTERS = {
             low: { clip: "kick", from: 0.2, to: 1.0, hit: 0.6, speed: 1.1 }, // удар ногой — тап по ногам соперника
             win: { clip: "victory", from: 0, to: 3.0, loop: true }, ...GUARD_MOVES }, // победа — клип victory из v7.1
         dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30, low: 4 } }, // low — удар ногой (тап по ногам соперника)
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=71", hd: "models/hd/pavel", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.webp", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel_fight.glb?v=71", hd: "models/hd/pavel", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.jpg", hp: 85, hpRounds: [85, 100, 100], lunge: 0.1,
         moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.9 },
             cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.9 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
             heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true, hold: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },

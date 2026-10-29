@@ -807,7 +807,7 @@ html.tg, html.tg body { background: #000; }
 
 /* ---- экзамен Инакова: портрет в карточке вопроса ---- */
 .wall-q.boss { --tc: #e9c25a; }
-.wall-q.boss .wq-ava { width: 26px; height: 26px; background-image: url("../img/heroes/pavel.webp"); border: 2px solid #e9c25a; }
+.wall-q.boss .wq-ava { width: 26px; height: 26px; background-image: url("../img/heroes/pavel.jpg"); border: 2px solid #e9c25a; }
 
 /* ---- ежедневная награда ---- */
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .72); animation: fade .25s ease-out both; }

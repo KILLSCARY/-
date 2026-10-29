@@ -2228,7 +2228,7 @@ class Game {
             : CHARACTERS.find((c) => c.id === "gorilla")?.portrait || ""); // Горилла — её портрет (раньше эмодзи)
         $("g-face").style.setProperty("--face", url ? `url("${new URL(url, location.href).href}")` : "none"); // путь в переменной CSS считается от файла стилей — даём полный
         // где лицо на портрете (по высоте): у Спиди — ниже середины карточки, у отрендеренных боссов — сверху
-        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "8%" : /gorilla/.test(url) ? "43%" : "18%");
+        $("g-face").style.setProperty("--fy", /speedy/.test(url) ? "62%" : /pavel/.test(url) ? "15%" : /gorilla/.test(url) ? "43%" : "18%");
         for (const n of [$("g-face"), el.querySelector(".t-bubble")]) { n.style.animation = "none"; void n.offsetWidth; n.style.animation = ""; }
         el.classList.toggle("ok", good);
         el.hidden = false;
@@ -2812,10 +2812,16 @@ class Game {
         const v = this.vent, box = $("vent-q");
         this.ventPush = 0;
         if (!v) return;
-        const z = v.fan.position.z, dir = -v.side; // куда дует по X
-        const spinTo = v.state === "blow" ? 28 : v.state === "warn" ? 14 : v.calm ? 6 : 2;
+        const z = v.fan.position.z, dir = -v.side, fu = v.fan.userData; // dir — куда дует по X
+        const spinTo = v.state === "blow" ? 28 : v.state === "warn" ? 20 : v.calm ? 6 : 2;
         v.spin += (spinTo - v.spin) * Math.min(1, dt * 1.5);
-        v.fan.userData.rotor.rotation.z += v.spin * dt;
+        // Видимый винт: лопасти — не быстрее 9 рад/с, дальше бледнеют, и проступает размытый диск. На настоящих 28 рад/с
+        // при 20–60 кадрах лопасть за кадр проворачивалась почти на треть оборота — винт казался стоящим (стробоскоп)
+        const blur = Math.min(1, Math.max(0, (v.spin - 6) / 14));
+        fu.rotor.rotation.z += Math.min(v.spin, 9) * dt;
+        fu.blur.rotation.z += v.spin * 0.3 * dt;
+        fu.bladeMat.opacity = 1 - blur * 0.75;
+        fu.blur.material.opacity = blur * 0.8;
         if (v.state === "near" && z > -(VENT.zone + VENT.warn)) {
             if (v.owned || this.fx.windproof) { // выкупленный Ислам своих не продувает, «Устойчивость» не сносит
                 v.state = "done"; v.calm = true;
@@ -2838,12 +2844,15 @@ class Game {
             tg.haptic("warning");
             this.kick(0.12, 3);
         }
+        // Поток — из решётки вентилятора поперёк дороги. Пока Ислам его включает (warn) — короткая слабая струя, видно,
+        // откуда дует; когда герой подбежал (blow) — через всю дорогу. Раньше поток ставился у героя (до 8 м ближе
+        // вентилятора) — воздух появлялся раньше, чем герой добегал до вентилятора
+        if (v.state === "warn" || v.state === "blow") {
+            const o = fu.head.getWorldPosition(this.ventOrigin ||= new THREE.Vector3());
+            this.world.blowWind(o, dir, dt, v.state === "blow" ? 1 : Math.min(0.5, Math.max(0, (v.spin - 2) / 30)));
+        }
         if (v.state === "blow") {
-            // поток — от вентилятора поперёк дороги, у героя: так видно, что дует именно на него
-            const o = (this.ventOrigin ||= new THREE.Vector3());
-            o.set(v.fan.position.x, 1.2, Math.max(z - 8, Math.min(z + 8, 0)));
-            this.world.blowWind(o, dir, dt, 0.85);
-            if (!this.flight) this.ventPush = dir * VENT.drift;
+            if (!this.flight) this.ventPush = dir * VENT.drift; // сносит, пока герой в струе (zone до вентилятора, after — после)
             const k = Math.min(1, (z + VENT.zone) / (VENT.zone + VENT.after));
             $("vent-bar").style.transform = `scaleX(${(1 - k).toFixed(3)})`;
             if (z > VENT.after) { // прошёл зону — устоял
