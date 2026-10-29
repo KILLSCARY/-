@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, SOUNDS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -23,30 +23,52 @@ import { tg } from "./tg.js";
 // hex-цвета материалов — в sRGB, как в дизайне
 THREE.ColorManagement.legacyMode = false;
 
-// Финальный проход после bloom: ACES-тонмаппинг, sRGB и лёгкая виньетка
+// Финальный проход после bloom: ACES-тонмаппинг, sRGB, виньетка и «киношная» обработка (CINE в config.js):
+// ca — хроматика к краям кадра, speed — размытие по краям на скорости (0…1 ставит игра), shadow/light — цвет теней
+// и света (тени в холод, свет в тепло вместо сплошного фиолетового), grain — зерно (если FXAA выключен; иначе — в нём)
 const OutputShader = {
-    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: SKY.vignette ?? 0.55 } },
+    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: SKY.vignette ?? 0.55 },
+        ca: { value: 0 }, speed: { value: 0 }, grain: { value: 0 }, time: { value: 0 }, grade: { value: 0 },
+        shadowTint: { value: new THREE.Vector3(1, 1, 1) }, lightTint: { value: new THREE.Vector3(1, 1, 1) } },
     vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
-        uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig; varying vec2 vUv;
+        uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig, ca, speed, grain, time, grade; uniform vec3 shadowTint, lightTint;
+        varying vec2 vUv;
         vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main() {
-            vec3 c = aces(texture2D(tDiffuse, vUv).rgb * exposure);
+            vec2 d = vUv - 0.5; float r2 = dot(d, d);
+            vec3 h = texture2D(tDiffuse, vUv).rgb;
+            if (ca > 0.0) { // хроматика: красный и синий чуть расходятся к краям, как у объектива
+                vec2 o = d * r2 * ca;
+                h.r = texture2D(tDiffuse, vUv + o).r; h.b = texture2D(tDiffuse, vUv - o).b;
+            }
+            if (speed > 0.0) { // скорость: по краям кадр «смазан» к центру, середина (герой) — резкая
+                // сдвиг выборок — случайный на пиксель: без него видны «ступеньки» (отдельные копии окон)
+                vec2 s = d * speed * 0.03 * smoothstep(0.04, 0.3, r2); float j = hash(vUv * 731.0 + time);
+                h = (h + texture2D(tDiffuse, vUv - s * (0.5 + j)).rgb + texture2D(tDiffuse, vUv - s * (1.5 + j)).rgb + texture2D(tDiffuse, vUv - s * (2.5 + j)).rgb) * 0.25;
+            }
+            vec3 c = aces(h * exposure);
             c = mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
-            c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat); // насыщенность (LOOK2)
+            float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c *= mix(vec3(1.0), mix(shadowTint, lightTint, smoothstep(0.08, 0.7, l)), grade); // тени в холод, свет в тепло
+            c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat); // насыщенность
             c = clamp((c - 0.5) * contrast + 0.5, 0.0, 1.0);              // контраст
-            float v = smoothstep(0.95, 0.35, length(vUv - 0.5));
-            gl_FragColor = vec4(c * mix(vig, 1.0, v), 1.0);
+            float v = smoothstep(0.95, 0.35, length(d));
+            c *= mix(vig, 1.0, v);
+            if (grain > 0.0) c += (hash(vUv * 1024.0 + time) - 0.5) * grain * (1.0 - l * 0.6);
+            gl_FragColor = vec4(c, 1.0);
         }`,
 };
 
 // Сглаживание краёв (FXAA) — последним проходом, по готовой картинке. Холст без своего сглаживания (antialias: false —
 // после bloom оно всё равно терялось), и столбы, провода, полосы и край героя шли «лесенкой». res — 1/размер в пикселях
 const FxaaShader = {
-    uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1 / 1024, 1 / 1024) } },
+    uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1 / 1024, 1 / 1024) }, grain: { value: 0 }, time: { value: 0 } },
     vertexShader: OutputShader.vertexShader,
     fragmentShader: `
-        uniform sampler2D tDiffuse; uniform vec2 res; varying vec2 vUv;
+        uniform sampler2D tDiffuse; uniform vec2 res; uniform float grain, time; varying vec2 vUv;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main() {
             const vec3 L = vec3(0.299, 0.587, 0.114);
             vec3 nw = texture2D(tDiffuse, vUv + vec2(-1.0, -1.0) * res).rgb, ne = texture2D(tDiffuse, vUv + vec2(1.0, -1.0) * res).rgb;
@@ -60,7 +82,10 @@ const FxaaShader = {
             vec3 a = 0.5 * (texture2D(tDiffuse, vUv - dir / 6.0).rgb + texture2D(tDiffuse, vUv + dir / 6.0).rgb);
             vec3 b = a * 0.5 + 0.25 * (texture2D(tDiffuse, vUv - dir * 0.5).rgb + texture2D(tDiffuse, vUv + dir * 0.5).rgb);
             float lb = dot(b, L);
-            gl_FragColor = vec4(lb < lmin || lb > lmax ? a : b, 1.0);
+            vec3 c = lb < lmin || lb > lmax ? a : b;
+            // зерно — после сглаживания (иначе FXAA принимает его за края и размазывает)
+            if (grain > 0.0) c += (hash(vUv * 1024.0 + time) - 0.5) * grain * (1.0 - dot(c, L) * 0.6);
+            gl_FragColor = vec4(c, 1.0);
         }`,
 };
 
@@ -243,7 +268,10 @@ class Game {
         const output = new ShaderPass(OutputShader);
         output.uniforms.exposure.value = this.look2 ? LOOK2.exposure : SKY.exposure;
         if (this.look2) { output.uniforms.sat.value = LOOK2.sat; output.uniforms.contrast.value = LOOK2.contrast; output.uniforms.vig.value = LOOK2.vignette; }
+        else { output.uniforms.sat.value = CINE.sat; output.uniforms.contrast.value = CINE.contrast; } // «кино»: чуть контрастнее и сочнее
         this.composer.addPass(output);
+        this.output = output;
+        output.uniforms.shadowTint.value.fromArray(CINE.shadow); output.uniforms.lightTint.value.fromArray(CINE.light);
         this.fxaa = new ShaderPass(FxaaShader); // включает setQuality (QUALITY_TIERS[…].aa)
         this.composer.addPass(this.fxaa);
 
@@ -900,6 +928,10 @@ class Game {
         this.nextFrame = now - (this.nextFrame || 0) > budget ? now + budget : this.nextFrame + budget;
         const dt = Math.min(this.clock.getDelta(), 0.05);
         this.t += dt;
+        // «кино»: зерно живёт (время), края смазываются на скорости забега (CINE.speedFrom…speedTo)
+        const ou = this.output.uniforms, cine = this.tier.cine || 0;
+        ou.time.value = this.fxaa.uniforms.time.value = this.t % 60;
+        ou.speed.value = this.state === "playing" && cine ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
         this.frameStart = now; // для диагностики: время JS-кадра до отрисовки
         // пауза и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
         // (раньше рисовали те же кадры 12 раз в секунду — расход батареи и нагрев впустую)
@@ -1012,7 +1044,8 @@ class Game {
         this.quality = level;
         this.tier = QUALITY_TIERS[level];
         if (this.tier.reflections) {
-            const w = Math.min(720, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.6));
+            // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
+            const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
         } else {
             this.world.disableReflections();
@@ -1027,6 +1060,10 @@ class Game {
         const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2 ? 4 : 0;
         for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
         this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
+        // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
+        const k = this.tier.cine || 0, u = this.output.uniforms;
+        u.grade.value = k ? CINE.grade : 0; u.ca.value = CINE.ca * k;
+        u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * k; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * k : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         // дальше — туман: не рисуем то, чего всё равно не видно
         this.camera.far = this.tier.far;

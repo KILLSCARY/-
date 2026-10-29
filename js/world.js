@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES, LAMP_GLOW } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -55,6 +55,35 @@ function loadTex(file, repeat, srgb) {
     if (srgb) t.encoding = THREE.sRGBEncoding;
     return t;
 }
+
+// Свет фонаря без настоящего источника (их на телефоне 1–2): kind "pool" — тёплое пятно на асфальте (круг на плоскости),
+// "cone" — конус света в дымке (ярче у лампы, к земле и к краям гаснет). Сложение цвета (additive); с расстоянием
+// гаснет сам (far — где пропадает): обычный туман для таких сеток не годится — подмешивал бы фиолетовый и светил вдали
+function lampGlowMaterial(kind, color, strength, far) {
+    return new THREE.ShaderMaterial({
+        uniforms: { color: { value: new THREE.Color(color).multiplyScalar(strength) }, far: { value: far } },
+        vertexShader: `
+            varying vec2 vUv; varying float vY, vDepth; varying vec3 vN, vV;
+            void main() {
+                vUv = uv; vY = position.y;
+                vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                vDepth = -mv.z; vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv;
+            }`,
+        fragmentShader: `
+            uniform vec3 color; uniform float far; varying vec2 vUv; varying float vY, vDepth; varying vec3 vN, vV;
+            void main() {
+                float a;
+                ${kind === "pool"
+                    ? "float r = length(vUv - 0.5) * 2.0; a = pow(max(0.0, 1.0 - r), 2.2);"
+                    : `float t = clamp(vY / ${CONE_H.toFixed(2)} + 0.5, 0.0, 1.0); a = pow(t, 1.6) * pow(abs(dot(vN, vV)), 1.5);`}
+                a *= 1.0 - smoothstep(far * 0.45, far, vDepth);
+                gl_FragColor = vec4(color * a, 1.0);
+            }`,
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: kind === "cone" ? THREE.DoubleSide : THREE.FrontSide,
+    });
+}
+const CONE_H = 5.1;
 
 // Склеить неподвижные детали группы с одинаковым материалом в одну сетку: дом из 10–15 коробок
 // рисуется за 3–5 вызовов вместо 10–15. Детали с userData, дочерними объектами или массивом материалов не трогаем.
@@ -156,7 +185,7 @@ function dashTexture() {
         g.clearRect(0, 0, w, h);
         g.fillStyle = "rgba(235,228,215,0.75)";
         g.fillRect(2, 0, w - 4, h * 0.5);
-        for (let i = 0; i < 60; i++) g.clearRect(rnd(0, w), rnd(0, h * 0.5), 2, 3); // стёртая краска
+        for (let i = 0; i < 14; i++) g.clearRect(rnd(2, w - 3), rnd(0, h * 0.5), 1, 2); // немного стёртой краски (было 60 крупных — разметка шла чёрными точками)
     });
 }
 
@@ -558,13 +587,33 @@ export class World {
         this.reflector = new Reflector(new THREE.PlaneGeometry(6, STREET_LEN), {
             textureWidth: width, textureHeight: height, color: new THREE.Color(0.42, 0.4, 0.4),
         });
+        // мокрый асфальт отражает не зеркалом: размыто, вытянуто по вертикали (полосы от фонарей и окон) и с рябью.
+        // Было texture2DProj — чёткое отражение, как пластик
+        const sh = this.reflector.material;
+        sh.fragmentShader = sh.fragmentShader
+            .replace("void main() {", "float rh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n\t\tvoid main() {")
+            .replace("vec4 base = texture2DProj( tDiffuse, vUv );", `vec2 p = vUv.xy / vUv.w;
+			p += (vec2(rh(floor(gl_FragCoord.xy / 2.0)), rh(floor(gl_FragCoord.yx / 2.0) + 3.1)) - 0.5) * 0.005;
+			vec4 base = texture2D(tDiffuse, p) * 0.32
+				+ (texture2D(tDiffuse, p + vec2(0.0, 0.008)) + texture2D(tDiffuse, p - vec2(0.0, 0.008))) * 0.22
+				+ (texture2D(tDiffuse, p + vec2(0.0, 0.018)) + texture2D(tDiffuse, p - vec2(0.0, 0.018))) * 0.12;`);
+        sh.needsUpdate = true;
         this.reflector.rotation.x = -Math.PI / 2;
         this.reflector.position.set(0, 0, this.roadCenterZ);
         this.reflector.renderOrder = 0;
         this.scene.add(this.reflector);
         this.roadMat.transparent = true; // сквозь «мокрые» места асфальта видно зеркало
         this.roadMat.alphaMap = this.roadMat.roughnessMap;
+        this.wetSheen(false);
         this.roadMat.needsUpdate = true;
+    }
+
+    // без зеркала (средняя и слабая графика) асфальт был матовой массой: глаже и сильнее отражает окружение —
+    // мокрый блеск от неба и неона (scene.environment) почти даром
+    wetSheen(on) {
+        this.roadMat.roughness = on ? 0.42 : 0.75;
+        this.roadMat.metalness = on ? 0.35 : 0.2;
+        this.roadMat.envMapIntensity = on ? 1.6 : 0.8;
     }
 
     disableReflections() {
@@ -574,6 +623,7 @@ export class World {
             this.reflector.dispose();
             this.reflector = null;
         }
+        this.wetSheen(true);
         if (!this.roadMat.transparent) return;
         this.roadMat.transparent = false;
         this.roadMat.alphaMap = null;
@@ -631,6 +681,23 @@ export class World {
         bulb.position.set(-side * 1.1, 5.18, 0);
         g.add(pole, arm, head, bulb);
         mergeStatic(g);
+        // свет фонаря: пятно на асфальте под лампой и конус в дымке (на слабой графике — только пятно)
+        if (!this.mat.lampPool) {
+            this.mat.lampPool = lampGlowMaterial("pool", 0xff8a3a, LAMP_GLOW.pool, LAMP_GLOW.far);
+            this.mat.lampCone = lampGlowMaterial("cone", 0xffa060, LAMP_GLOW.cone, LAMP_GLOW.far);
+            this.geo.lampPool = new THREE.PlaneGeometry(LAMP_GLOW.size, LAMP_GLOW.size);
+            this.geo.lampCone = new THREE.CylinderGeometry(0.18, 1.7, CONE_H, 20, 1, true);
+        }
+        const pool = new THREE.Mesh(this.geo.lampPool, this.mat.lampPool);
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(-side * 1.1, 0.04, 0);
+        pool.renderOrder = 2; // поверх асфальта и луж
+        g.add(pool);
+        if (this.tier.lights > 1) {
+            const cone = new THREE.Mesh(this.geo.lampCone, this.mat.lampCone);
+            cone.position.set(-side * 1.1, 5.15 - CONE_H / 2, 0);
+            g.add(cone);
+        }
         return g;
     }
 

@@ -108,10 +108,17 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // (в памяти видеокарты легче обычной 1024); нет — обычные 1024.
 // heat — «тепловой ограничитель» на телефоне: после HEAT_AFTER секунд игры подряд разрешение на ступень ниже (меньше нагрев)
 export const HEAT_AFTER = 150;
+// «Кино»-обработка кадра (финальный проход, js/game.js OutputShader): тени в холодный сине-бирюзовый, свет в тёплый
+// янтарный (shadow/light — множители RGB, grade — сила), зерно плёнки, хроматика к краям объектива, размытие краёв
+// на скорости (speedFrom…speedTo м/с → 0…1). Уровень графики: cine 1 — всё, 0.6 — слабее, 0 — выключено
+// Свет фонарей без настоящих источников: pool — яркость пятна на асфальте, cone — конуса в дымке, size — ширина пятна (м),
+// far — на каком расстоянии (м) гаснут (туман)
+export const LAMP_GLOW = { pool: 0.55, cone: 0.09, size: 6, far: 70 };
+export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade: 1, contrast: 1.07, sat: 1.06, grain: 0.035, ca: 0.012, speedFrom: 15, speedTo: 30, speed: 1 };
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
-    medium: { aa: "fxaa", aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
-    low:    { aa: "fxaa", aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
+    high:   { aa: "msaa", cine: 1, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
+    medium: { aa: "fxaa", cine: 0.6, aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
+    low:    { aa: "fxaa", cine: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.
