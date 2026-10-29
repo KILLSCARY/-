@@ -217,17 +217,18 @@ export const CHARACTERS = [
     { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=71", clipsUrl: "models/pavel_x.json?v=2", height: 1.8, portrait: "img/heroes/pavel.webp",
         // подкат — «Roll Dodge», полёт — «Swim Forward», в меню — «Proud Strut»
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", idle: "idle", fall: "fall", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
-    { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", height: 1.8, portrait: "img/heroes/islam.webp",
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=4", clipsUrl: "models/islam_x.json", height: 1.8, portrait: "img/heroes/islam.webp",
         // прыжок — через препятствие, подкат — перекат, полёт — нырок с неба и «супергеройское» приземление, в меню — «Indoor Swing»
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing" },
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fall: "fall", fly: "dive", idle: "swing", stumble: "stumble", cheer: "cheer" },
         flyClip: { start: 0.2, launch: 0.2, peak: 0.26, touch: 0.46, end: 1.9, ground: 0.9, pin: true } },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=71", height: 1.78, portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=71", clipsUrl: "models/denchik_x.json", height: 1.78, portrait: "img/heroes/denchik.webp",
         // v5 (denchik_v2 команды): гипс на левой ноге и два костыля (меши crutch_L/crutch_R на кистях, в полёте, подкате и бою
         // спрятаны в самих клипах). Бег — на костылях, полёт — «Swim Forward» 2 с по кругу, поймали — падение лицом вперёд,
         // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
         // бег — хромота limp (шаг на гипсе и рывок корпусом): клип «run» — медленная ходьба с ходунками (цикл 3,7 с),
         // на скорости забега ноги почти стояли — будто едет на скейте. limp ускорен до цикла 1,0 с (durations.run; у остальных героев бег — 0,63 с)
-        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 },
+        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, // stumble — свой клип модели (с костылями) durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 },
+        footMax: 1.4, // хромота — короткий шаг: подгонять под дорогу до конца — ковылял бы втрое быстрее, бешено
         // больной: на костылях только ходит — скорость забега ограничена (м/с: старт, потолок, прирост в секунду),
         // на catchAt-й секунде его догоняет Мизулина и задерживает (раз за забег; после апелляции — дальше)
         sick: { speedStart: 7, speedMax: 10, ramp: 0.06, catchAt: 40,
