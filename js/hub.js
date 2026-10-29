@@ -1,6 +1,7 @@
 // Главная (плитки 01–05), вкладка «Герои» (карусель с портретами), кейсы с лентой наград и NS Store.
 
 import { tg } from "./tg.js";
+import { GorillaGuide } from "./guide.js";
 import { prize } from "./prize.js";
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
@@ -20,6 +21,7 @@ export class Hub {
         this.p = profile;
         this.current = "run";
         this.seg = "boosts";
+        this.guide = new GorillaGuide(this);
         for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => this.back();
         $("btn-settings").onclick = () => this.tab("settings");
         // «назад» на компьютере — Esc или Backspace
@@ -110,6 +112,19 @@ export class Hub {
         if (this.current === "settings") this.renderSettings();
     }
 
+    // Сначала комикс, затем обычные окна входа. Ждём загрузку и не перекрываем другие диалоги.
+    showWelcome() {
+        clearTimeout(this.welcomeTimer);
+        if (this.guide.active || this.game.state !== "menu") return;
+        if (document.getElementById("boot")) {
+            this.welcomeTimer = setTimeout(() => this.showWelcome(), 250);
+            return;
+        }
+        const after = () => this.game.storyDone && !this.game.settings.modeChosen ? this.showMode() : this.showDaily();
+        if (this.guide.done) { after(); return; }
+        if (!this.guide.start({ onFinish: after })) this.welcomeTimer = setTimeout(() => this.showWelcome(), 300);
+    }
+
     // ---- настройки: музыка, звуки, вибрация, графика (хранятся в телефоне) ----
     renderSettings() {
         const g = this.game, box = $("settings-list");
@@ -128,6 +143,9 @@ export class Hub {
         const rate = g.settings.frameRate === 60 ? 60 : 120;
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Частота кадров</h3><p>До 120 FPS в забеге и бою, если экран и Telegram поддерживают. При нехватке мощности — 60. Режим 60 FPS экономит заряд.</p>
             <div class="seg">${[[60, "60 FPS"], [120, "До 120 FPS"]].map(([v, n]) => `<button data-rate="${v}" class="${rate === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
+        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Советы Гориллы</h3><p>Короткий комикс: где герои, награды и как играть.</p>
+            <button id="btn-replay-guide" class="btn-small btn-ghost">Показать обучение</button></div></div>`);
+        $("btn-replay-guide").onclick = () => this.guide.start({ replay: true });
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
@@ -163,6 +181,8 @@ export class Hub {
 
     // ---- ежедневный вход ----
     showDaily() {
+        if (this.guide.active) return;
+        if (!this.guide.done) return this.showWelcome();
         const st = this.p.dailyState();
         if (st.claimed || this.game.state !== "menu") return;
         $("daily-day").textContent = st.day;
@@ -190,6 +210,8 @@ export class Hub {
 
     // первый вход: выбрать режим (по умолчанию — с вопросами)
     showMode() {
+        if (this.guide.active) return;
+        if (!this.guide.done) return this.showWelcome();
         if (this.game.state !== "menu") return;
         $("mode").hidden = false;
         const pickMode = (q) => {

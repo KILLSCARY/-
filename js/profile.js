@@ -17,6 +17,7 @@ const EMPTY = () => ({
     beaten: null,                                 // сколько боссов глав побеждено (null — старый профиль, см. load)
     sets: [],                                     // открытые наборы (действуют SET_RUNS забегов, выдаются один раз)
     daily: { day: 0, last: "" },                  // ежедневный вход: день серии, дата последней награды
+    guideVersion: 0,                             // просмотрен или пропущен комикс Гориллы
     trial: null,                                  // герой на пробу: { id, until }
 });
 
@@ -78,6 +79,7 @@ export class Profile {
         d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
         d.story = Math.max(d.story || 0, now.story || 0);
         d.exam = !!(d.exam || now.exam);
+        d.guideVersion = Math.max(d.guideVersion || 0, now.guideVersion || 0);
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
         d.grants = [...new Set([...(d.grants || []), ...(now.grants || [])])];
         for (const k of ["usdt", "earned", "chests", "cards", "x2runs"]) {

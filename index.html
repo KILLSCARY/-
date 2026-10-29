@@ -336,6 +336,25 @@
         </div>
     </section>
 
+    <!-- Компактный комикс-обучение: подсвечивает настоящие кнопки, не запускает игру за игрока. -->
+    <div id="gorilla-guide" class="gorilla-guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" aria-describedby="guide-text" hidden>
+        <div class="guide-focus" aria-hidden="true"></div>
+        <section class="guide-card">
+            <div class="guide-masthead"><span id="guide-count">КАДР 01 / 07</span><button id="guide-skip" type="button">Пропустить</button></div>
+            <div class="guide-story">
+                <div class="guide-gorilla" role="img" aria-label="Горилла"><b>ГОРИЛЛА</b></div>
+                <div class="guide-bubble" aria-live="polite" aria-atomic="true">
+                    <h2 id="guide-title"></h2><p id="guide-text"></p>
+                </div>
+            </div>
+            <div id="guide-controls" class="guide-controls" hidden><span>← → Полоса</span><span>↑ Прыжок</span><span>↓ Подкат</span></div>
+            <p id="guide-keyboard" class="guide-keyboard" hidden>На компьютере: стрелки или WASD, пробел — прыжок.</p>
+            <div class="guide-footer"><div class="guide-progress" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <button id="guide-prev" type="button" aria-label="Предыдущая подсказка" hidden>←</button><button id="guide-next" type="button">Дальше →</button>
+            </div>
+        </section>
+    </div>
+
     <script type="module" src="js/game.js"></script>
 </body>
 </html>

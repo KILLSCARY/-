@@ -224,8 +224,8 @@ class Game {
             for (const g of this.profile.granted || []) { // разовое начисление (GRANTS) — сказать, что пришло (валюта одна — USDT)
                 setTimeout(() => { this.hub.toast(`${g.text}: +${fmt(g.usdt)} USDT`); this.audio.play("record"); }, 500);
             }
-            // выбор режима — только когда сюжет пройден (до этого — сюжет), потом ежедневная награда — когда облако прочитано
-            setTimeout(() => (this.storyDone && !this.settings.modeChosen ? this.hub.showMode() : this.hub.showDaily()), 1200);
+            // После облака и загрузки: комикс Гориллы, затем выбор режима (после сюжета) и ежедневная награда
+            setTimeout(() => this.hub.showWelcome(), 1200);
         });
 
         this.setupInput();
@@ -483,6 +483,7 @@ class Game {
     // Старт только из меню или с экрана проигрыша. Отсчёт можно прервать (ушли в меню) — тогда забег не начнётся:
     // раньше он стартовал через 2,4 с всё равно, невидимо под меню
     async start() {
+        if (this.hub.guide.active) return;
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
         if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
@@ -1271,6 +1272,7 @@ class Game {
 
     // сцену целиком закрывает фон разделов («Герои», «Кейсы», «NS Store», «Главы») или экран открытия кейса
     sceneCovered() {
+        if (this.hub?.guide?.active) return true;
         return this.state === "menu" && ((this.hub?.current && this.hub.current !== "run") || !$("case-open").hidden);
     }
 

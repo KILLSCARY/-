@@ -1492,3 +1492,61 @@ body.in-fight #menu { display: none !important; }
 /* виньетка лёгкой графики: кадр рисуется прямо на экран (Game.render), затемнение краёв — этим слоем, без прохода шейдера */
 #vig { display: none; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .3) 100%); }
 body.direct #vig { display: block; }
+
+/* Комикс Гориллы: одна неподвижная карточка и подсветка; без blur и постоянных анимаций. */
+.gorilla-guide { position: fixed; inset: 0; z-index: 90; overflow: hidden; isolation: isolate;
+    padding-top: calc(12px + var(--tg-safe-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--tg-safe-area-inset-bottom, 0px));
+    touch-action: none; }
+.guide-focus { position: absolute; border: 3px solid #ffda57; border-radius: 14px; pointer-events: none;
+    box-shadow: 0 0 0 150vmax rgba(5, 5, 12, .78); }
+.guide-card { position: absolute; width: min(360px, calc(100% - 24px)); padding: 12px; color: #181419;
+    border: 3px solid #151116; border-radius: 5px 15px 7px 14px; background: #fff5dc;
+    background-image: radial-gradient(#ddcdb3 .8px, transparent .8px); background-size: 7px 7px;
+    box-shadow: 5px 6px 0 #151116; max-height: calc(100% - 24px - var(--tg-safe-top) - env(safe-area-inset-bottom, 0px) - var(--tg-safe-area-inset-bottom, 0px)); overflow-y: auto;
+    touch-action: pan-y; }
+.guide-masthead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.guide-masthead > span { padding: 3px 6px; color: #141117; background: #ffda57; border: 2px solid #151116;
+    transform: rotate(-2deg); font: 700 11px/1.2 var(--font-ui); letter-spacing: .8px; }
+.guide-masthead button { min-height: 32px; padding: 4px 2px 4px 8px; border: 0; background: transparent;
+    color: #514750; font: 600 12px var(--font-body); text-decoration: underline; cursor: pointer; }
+.guide-story { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; align-items: start; }
+.guide-gorilla { position: relative; height: 70px; margin-top: 8px; border: 3px solid #151116; border-radius: 50% 46% 48% 42%;
+    background: #2a2030 url('../img/heroes/gorilla.jpg') 50% 43% / 220% auto no-repeat; transform: rotate(-5deg); }
+.guide-gorilla b { position: absolute; left: -6px; bottom: -10px; padding: 2px 4px; background: #ffda57; border: 2px solid #151116;
+    color: #151116; font: 700 10px/1.2 var(--font-ui); letter-spacing: .6px; }
+.guide-bubble { position: relative; padding: 10px 11px; border: 2px solid #151116; border-radius: 12px 12px 12px 3px; background: #fff; }
+.guide-bubble::before { content: ''; position: absolute; left: -8px; top: 28px; width: 12px; height: 12px;
+    background: #fff; border-left: 2px solid #151116; border-bottom: 2px solid #151116; transform: rotate(45deg); }
+.guide-bubble h2 { margin: 0 0 5px; font: 700 18px/1.15 var(--font-ui); text-transform: uppercase; }
+.guide-bubble p { margin: 0; font: 500 14px/1.35 var(--font-body); }
+.guide-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 10px; }
+.guide-controls span { padding: 4px 6px; border: 1px solid #cbbda8; border-radius: 4px; background: #fff; font: 600 12px var(--font-body); }
+.guide-keyboard { margin: 8px 0 0; font: 500 12px/1.3 var(--font-body); text-align: center; }
+.guide-footer { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.guide-progress { display: flex; flex: 1; gap: 3px; }
+.guide-progress i { width: 9px; height: 5px; border: 1px solid #514750; background: transparent; transform: skewX(-15deg); }
+.guide-progress i.on { background: #e3343a; border-color: #151116; }
+.guide-footer button { min-height: 40px; border: 2px solid #151116; border-radius: 4px; padding: 7px 12px;
+    background: #fff; color: #151116; font: 700 14px var(--font-body); cursor: pointer; }
+.guide-footer #guide-next { background: #ffda57; box-shadow: 2px 2px 0 #151116; }
+.gorilla-guide button:focus-visible { outline: 3px solid #d5273a; outline-offset: 3px; }
+body.guide-running .view, body.guide-running .view .cards > *, body.guide-running .tile { animation: none !important; }
+/* Прокрутка нужна только комиксу: даже нижнюю плитку можно поднять над облачком. */
+body.guide-running .hub { scroll-padding-top: calc(12px + var(--tg-safe-top)); overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+body.guide-running #view-run { flex: none; min-height: calc(100% - 54px); }
+body.guide-running .hub::after { content: ''; display: block; flex: none; height: calc(100vh - 120px); }
+@media (max-width: 360px), (max-height: 460px) {
+    .guide-card { padding: 8px; }
+    .guide-masthead { margin-bottom: 6px; }
+    .guide-masthead button { min-height: 24px; }
+    .guide-story { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
+    .guide-gorilla { height: 52px; }
+    .guide-bubble { padding: 7px 8px; }
+    .guide-bubble h2 { font-size: 17px; }
+    .guide-bubble p { font-size: 13px; line-height: 1.25; }
+    .guide-footer { margin-top: 8px; }
+    .guide-footer button { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+    .guide-controls { margin-top: 6px; }
+    .guide-controls span { font-size: 11px; padding: 3px 5px; }
+}
