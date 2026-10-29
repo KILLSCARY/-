@@ -39,6 +39,27 @@ const OutputShader = {
         }`,
 };
 
+// Контур героя (LOOK2): тонкая кайма по краю силуэта — добавка к emissive по углу к камере (френель), только на героях.
+// Угол — по гладкой нормали модели (vNormal), а не по нормали с карты рельефа: на меху и складках та рассыпалась крапинками
+function heroRim(root) {
+    root.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [].concat(o.material)) {
+            if (!m?.isMeshStandardMaterial || m.userData.rim) continue;
+            m.userData.rim = true;
+            m.onBeforeCompile = (sh) => {
+                sh.uniforms.rimCol = { value: new THREE.Color(LOOK2.rim).multiplyScalar(LOOK2.rimK) };
+                sh.fragmentShader = "uniform vec3 rimCol;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>",
+                    `#include <emissivemap_fragment>
+                    float rimF = 1.0 - clamp(dot(normalize(vNormal) * faceDirection, normalize(vViewPosition)), 0.0, 1.0);
+                    totalEmissiveRadiance += rimCol * smoothstep(${LOOK2.rimFrom.toFixed(2)}, 1.0, rimF);`);
+            };
+            m.customProgramCacheKey = () => "rim2";
+            m.needsUpdate = true;
+        }
+    });
+}
+
 // Клип из JSON (clipsUrl). В файлах Гориллы у клипов uuid = null, а Three.js кэширует действия микшера по uuid:
 // все клипы становились одним действием — включали «бег» и тут же гасили «стойку» (тот же объект), и Горилла ехала
 // застывшей фигурой. Без uuid — выдаём свой
@@ -1136,6 +1157,7 @@ class Game {
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
+            if (this.look2) heroRim(gltf.scene);
             this.showRat(true);
             this.heroLoading = false;
             this.hub?.updatePlay();

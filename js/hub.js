@@ -126,7 +126,7 @@ export class Hub {
             <button class="btn-small btn-ghost" id="btn-all-heroes"${allOwned ? " disabled" : ""}>${allOwned ? "Все герои открыты" : "Открыть всех героев"}</button></div></div>
             <div class="card set-row set-test"><div class="card-main"><h3>Диагностика FPS</h3><p>Панель с кадрами, временем кадра и нагрузкой. Тап по панели — скопировать отчёт.</p></div>
             <button class="switch${g.settings.perf ? " on" : ""}" data-set="perf" role="switch" aria-checked="${!!g.settings.perf}" aria-label="Диагностика FPS"><i></i></button></div>
-            <div class="card set-row set-test"><div class="card-main"><h3>Ночь+ (проба графики)</h3><p>Ярче и сочнее, сжатие в прыжках, наклон на полосах. Включится после перезапуска игры.</p></div>
+            <div class="card set-row set-test"><div class="card-main"><h3>Ночь+ (проба графики)</h3><p>Ярче и сочнее, контур героя, сжатие в прыжках, наклон на полосах. Включится после перезапуска игры.</p></div>
             <button class="switch${g.settings.look2 ? " on" : ""}" data-set="look2" role="switch" aria-checked="${!!g.settings.look2}" aria-label="Ночь+"><i></i></button></div>
             <div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
             <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>`);
