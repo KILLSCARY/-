@@ -802,9 +802,11 @@ export class Fight {
             loser.act = "ko"; loser.t = 0;
             const a = loser.clips.ko;
             if (a) {
+                const from = loser.cfg.koFrom; // клип падения с середины (koFrom, с): поза перетекает в лежачую за koFade с
                 loser.base?.stop();
-                for (const pair of Object.values(loser.acts || {})) for (const x of pair) x.setEffectiveWeight(0);
+                for (const pair of Object.values(loser.acts || {})) for (const x of pair) { if (from != null && x.getEffectiveWeight() > 0) x.fadeOut(loser.cfg.koFade ?? 0.45); else x.setEffectiveWeight(0); }
                 a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = 1.2; a.paused = false; a.setEffectiveWeight(1); a.play();
+                if (from != null) { a.time = from; a.fadeIn(loser.cfg.koFade ?? 0.45); }
             }
             this.slow = 0.25;
             this.shake = 0.4;

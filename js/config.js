@@ -736,6 +736,7 @@ export const FIGHTERS = {
     // Уклона в наборе нет — им служит начало отдачи hit. Дрейф клипов гасит закрепление бёдер в бою.
     mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina_fight.glb?v=3", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, splash: { h: 62, fx: 0.5, fy: 0.2 },
         koHold: 0.98, // нокаут: лежит в последнем кадре
+        koFrom: 1.6, koFade: 0.45, // в клипе ko до 1,6 с — прыжок назад и стойка на голове: начинаем с лежачей части, тело оседает плавно
         moves: { idle: { clip: "idle_fight", from: 0, to: 1.66, loop: true }, // живая стойка
             jab: { clip: "jab", from: 0.25, to: 1.0, hit: 0.53, speed: 1 },
             cross: { clip: "cross", from: 0.4, to: 1.1, hit: 0.67, speed: 1 },
