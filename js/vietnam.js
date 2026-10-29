@@ -5,6 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { VIETNAM } from "./config.js";
+import { batchScenery } from "./scenery-batch.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -75,12 +76,18 @@ function seaTex() {
     return t;
 }
 
-function neonSign(text, color) {
-    return canvasTex(256, 64, (g, w, h) => {
-        g.fillStyle = "rgba(10,6,16,0.85)"; g.fillRect(0, 0, w, h);
-        g.font = "bold 38px Arial Black, Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-        g.shadowColor = color; g.shadowBlur = 16; g.fillStyle = "#fff"; g.fillText(text, w / 2, h / 2 + 2);
-        g.shadowBlur = 0; g.strokeStyle = color; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
+const SIGN_COLORS = ["#ff2d6a", "#2de0ff", "#ffd02d", "#7dff4a", "#c04dff"];
+function signAtlas() {
+    const rows = Math.ceil(VIETNAM.signs.length / 2);
+    return canvasTex(512, rows * 64, (g) => {
+        VIETNAM.signs.forEach((text, i) => {
+            g.save(); g.translate((i % 2) * 256, Math.floor(i / 2) * 64);
+            const color = SIGN_COLORS[i % SIGN_COLORS.length];
+            g.fillStyle = "#120c1b"; g.fillRect(0, 0, 256, 64);
+            g.font = "bold 38px Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+            g.shadowColor = color; g.shadowBlur = 10; g.fillStyle = "#fff"; g.fillText(text, 128, 32, 242);
+            g.shadowBlur = 0; g.strokeStyle = color; g.lineWidth = 3; g.strokeRect(3, 3, 250, 58); g.restore();
+        });
     });
 }
 
@@ -97,7 +104,12 @@ export class Vietnam {
     build() {
         const w = this.world, s = w.scene, L = this.len, cz = this.behind - L / 2;
         const std = (o) => new THREE.MeshStandardMaterial(o);
-        const add = (o, loop) => { if (loop) w.addScenery(o, loop); else s.add(o); this.items.push(o); return o; };
+        const moving = [];
+        const add = (o, loop) => {
+            if (loop) moving.push(o);
+            else { s.add(o); this.items.push(o); }
+            return o;
+        };
 
         // море до горизонта: тёмная вода, отражает небо (environment), поверх — бегущие блики
         this.seaGlint = seaTex();
@@ -175,6 +187,11 @@ export class Vietnam {
             return t;
         });
         this.redLamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.3, 0.2) });
+        this.towerMaterials = this.towerMats.map(map => std({ map, emissiveMap: map, emissive: 0xffffff,
+            emissiveIntensity: 1.6, roughness: 0.4, metalness: 0.5, envMapIntensity: 1.2, color: 0x9aa0b8 }));
+        this.podiumMaterial = std({ color: 0x2a2430, roughness: .7 });
+        this.signMaterial = new THREE.MeshBasicMaterial({ map: signAtlas(), color: new THREE.Color(1.8, 1.8, 1.8) });
+        this.shopMaterials = SIGN_COLORS.map(c => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(.25).add(new THREE.Color(.9, .7, .45)) }));
         const slot = VIETNAM.slot;
         for (let i = 0; i < L / slot; i++) add(this.makeTower(slot), L).position.z = this.behind - 6 - i * slot;
         // второй ряд — дальше от дороги, выше: силуэт города над первым рядом
@@ -184,7 +201,107 @@ export class Vietnam {
             add(t, L);
         }
 
+        this.buildPromenade(add);
+        for (const group of batchScenery(moving, { behind: this.behind })) {
+            group.userData.walkBoxes = []; // крупные графические пакеты не являются стенами для прохожих
+            w.addScenery(group, L); this.items.push(group);
+        }
+        this.itemSet = new Set(this.items);
         this.hideAll(true);
+    }
+
+    // Низкополигональные 3D-объекты набережной. Общие геометрии/материалы, без новых источников света;
+    // при завершении сборки все детали попадут в пространственные пакеты вместе с пальмами.
+    buildPromenade(add) {
+        const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness: .82, flatShading: true });
+        const wood = mat(0x9b6943), white = mat(0xf4ddba), metal = mat(0x4f656c), rubber = mat(0x262332);
+        const green = mat(0x467f4a), fruit = mat(0xe9bc4e), hull = mat(0x287e9f);
+        const colors = [0xe87757, 0x43a7ae, 0xe4bf59, 0x9182b2].map(mat);
+        const box = new THREE.BoxGeometry(1, 1, 1), cyl = new THREE.CylinderGeometry(1, 1, 1, 10);
+        const ball = new THREE.SphereGeometry(1, 8, 6), cone = new THREE.ConeGeometry(1, 1, 8, 1, true);
+        const part = (g, geo, material, x, y, z, sx, sy, sz) => {
+            const mesh = new THREE.Mesh(geo, material);
+            mesh.position.set(x, y, z); mesh.scale.set(sx, sy, sz); g.add(mesh); return mesh;
+        };
+        this.propCounts = {};
+        const place = (g, type, x, z, angle = 0) => {
+            this.propCounts[type] = (this.propCounts[type] || 0) + 1;
+            g.position.set(x, 0, z); g.rotation.y = angle; add(g, this.len);
+        };
+        for (let i = 0; i < 8; i++) {
+            const z = this.behind - 12 - i * this.len / 8, color = colors[i % colors.length];
+            const umbrella = new THREE.Group();
+            part(umbrella, cyl, wood, 0, 1.1, 0, .035, 2.2, .035);
+            part(umbrella, cone, color, 0, 2.15, 0, 1.55, .48, 1.55);
+            part(umbrella, ball, white, 0, 2.41, 0, .07, .08, .07);
+            place(umbrella, 'umbrellas', -10.1, z);
+            const chair = new THREE.Group();
+            part(chair, box, white, 0, .35, 0, .68, .09, 1.5);
+            part(chair, box, color, 0, .42, .12, .6, .06, 1.1);
+            const back = part(chair, box, white, 0, .65, -.7, .68, .08, .85); back.rotation.x = -.65;
+            for (const x of [-.27, .27]) for (const zz of [-.55, .55]) part(chair, cyl, wood, x, .18, zz, .035, .36, .035);
+            place(chair, 'loungers', -11.8, z + 1.9, .2);
+        }
+        for (let i = 0; i < 3; i++) {
+            const boat = new THREE.Group();
+            part(boat, ball, hull, 0, -.05, 0, 1, .42, 2.8);
+            part(boat, box, wood, 0, .19, 0, 1.3, .1, 3.4);
+            part(boat, box, white, 0, .5, .4, .9, .5, 1.1);
+            for (const z of [-.75, .75]) part(boat, cyl, wood, 0, 1.05, z, .035, 1.7, .035);
+            part(boat, box, colors[i], 0, 1.85, 0, 1.6, .12, 2.3);
+            part(boat, box, metal, .8, .35, -1.7, .12, .1, 2.2).rotation.y = .35;
+            place(boat, 'boats', -23 - i * 3, this.behind - 30 - i * 45, -.2 + i * .3);
+        }
+        for (let i = 0; i < 6; i++) {
+            const scooter = new THREE.Group(), color = colors[i % colors.length];
+            for (const z of [-.5, .5]) {
+                const wheel = part(scooter, cyl, rubber, 0, .25, z, .24, .12, .24); wheel.rotation.z = Math.PI / 2;
+                const hub = part(scooter, cyl, metal, .07, .25, z, .1, .13, .1); hub.rotation.z = Math.PI / 2;
+            }
+            part(scooter, box, color, 0, .5, -.12, .4, .4, .85);
+            part(scooter, box, rubber, 0, .76, -.25, .43, .09, .65);
+            part(scooter, box, color, 0, .82, .4, .35, .55, .16).rotation.x = -.25;
+            part(scooter, box, metal, 0, 1.13, .36, .65, .05, .05);
+            part(scooter, ball, white, 0, 1, .5, .12, .1, .04);
+            place(scooter, 'scooters', 5.9, this.behind - 17 - i * this.len / 6, -.6);
+        }
+        for (let i = 0; i < 4; i++) {
+            const cart = new THREE.Group(), color = colors[(i + 1) % colors.length];
+            part(cart, box, wood, 0, .7, 0, .9, .9, 1.5);
+            part(cart, box, white, 0, 1.18, 0, 1.05, .12, 1.65);
+            part(cart, box, color, 0, 2, 0, 1.3, .15, 1.9);
+            for (const z of [-.65, .65]) {
+                part(cart, cyl, metal, .35, 1.57, z, .025, .8, .025);
+                for (const x of [-.48, .48]) {
+                    const wheel = part(cart, cyl, rubber, x, .22, z, .22, .08, .22); wheel.rotation.z = Math.PI / 2;
+                }
+            }
+            for (let j = 0; j < 5; j++) part(cart, ball, fruit, -.16, 1.33, -.5 + j * .23, .12, .12, .12);
+            // Вывеска из того же атласа, что у магазинов: нового материала не появляется.
+            const signGeo = new THREE.PlaneGeometry(.8, .24), uv = signGeo.attributes.uv;
+            const rows = Math.ceil(VIETNAM.signs.length / 2), idx = i % VIETNAM.signs.length;
+            for (let j = 0; j < uv.count; j++) uv.setXY(j, (idx % 2 + uv.getX(j)) / 2, 1 - (Math.floor(idx / 2) + 1) / rows + uv.getY(j) / rows);
+            const sign = new THREE.Mesh(signGeo, this.signMaterial);
+            sign.rotation.y = -Math.PI / 2; sign.position.set(-.46, .8, 0); cart.add(sign);
+            place(cart, 'foodCarts', 6.4, this.behind - 34 - i * this.len / 4);
+        }
+        for (let i = 0; i < 5; i++) {
+            const cafe = new THREE.Group();
+            part(cafe, cyl, wood, 0, .76, 0, .42, .07, .42);
+            part(cafe, cyl, metal, 0, .4, 0, .05, .75, .05);
+            part(cafe, cyl, white, 0, .84, 0, .055, .12, .055);
+            for (const z of [-.7, .7]) {
+                part(cafe, cyl, colors[i % colors.length], 0, .44, z, .21, .07, .21);
+                part(cafe, cyl, wood, 0, .22, z, .05, .44, .05);
+            }
+            place(cafe, 'cafeTables', -5.4, this.behind - 8 - i * this.len / 5);
+        }
+        for (let i = 0; i < 8; i++) {
+            const planter = new THREE.Group();
+            part(planter, box, wood, 0, .3, 0, .65, .6, .65);
+            for (const x of [-.18, .18]) part(planter, ball, green, x, .76, 0, .24, .4, .28);
+            place(planter, 'planters', i % 2 ? 5.6 : -5.4, this.behind - 19 - i * this.len / 8);
+        }
     }
 
     makePalm(trunkMat, frondMat) {
@@ -223,35 +340,28 @@ export class Vietnam {
         const len = slot - rnd(2, 5);
         const depth = 12;
         const h = rnd(...VIETNAM.towers) * far;
-        const map = pick(this.towerMats).clone();
-        map.needsUpdate = true;
-        map.repeat.set(len / 25.6, h / 51.2);
-        map.offset.set(Math.random(), Math.random());
-        const body = new THREE.Mesh(new THREE.BoxGeometry(depth, h, len), new THREE.MeshStandardMaterial({
-            map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 1.6, roughness: 0.4, metalness: 0.5, envMapIntensity: 1.2, color: 0x9aa0b8,
-        }));
-        body.material.userData.own = true;
+        const material = pick(this.towerMaterials);
+        const geometry = new THREE.BoxGeometry(depth, h, len);
+        const uv = geometry.attributes.uv, ox = Math.random(), oy = Math.random();
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * len / 25.6 + ox, uv.getY(i) * h / 51.2 + oy);
+        const body = new THREE.Mesh(geometry, material);
         body.position.set(depth / 2 + 3, h / 2 + 4.5, 0);
         g.add(body);
         if (far === 1) {
             // подиум с магазинами и неоновыми вывесками по-вьетнамски
-            const podium = new THREE.Mesh(new THREE.BoxGeometry(depth + 3, 4.5, len + 1), new THREE.MeshStandardMaterial({ color: 0x2a2430, roughness: 0.7 }));
-            podium.material.userData.own = true;
+            const podium = new THREE.Mesh(new THREE.BoxGeometry(depth + 3, 4.5, len + 1), this.podiumMaterial);
             podium.position.set(depth / 2 + 1.5, 2.25, 0);
             g.add(podium);
-            const colors = ["#ff2d6a", "#2de0ff", "#ffd02d", "#7dff4a", "#c04dff"];
             for (const dz of [-len / 4, len / 4]) {
                 if (Math.random() < 0.2) continue;
-                const color = pick(colors);
-                const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), new THREE.MeshBasicMaterial({
-                    map: neonSign(pick(VIETNAM.signs), color), color: new THREE.Color(1.8, 1.8, 1.8),
-                }));
-                sign.material.userData.own = true;
+                const idx = Math.floor(Math.random() * VIETNAM.signs.length), rows = Math.ceil(VIETNAM.signs.length / 2);
+                const geometry = new THREE.PlaneGeometry(3.4, .85), uv = geometry.attributes.uv;
+                for (let i = 0; i < uv.count; i++) uv.setXY(i, (idx % 2 + uv.getX(i)) / 2, 1 - (Math.floor(idx / 2) + 1) / rows + uv.getY(i) / rows);
+                const sign = new THREE.Mesh(geometry, this.signMaterial);
                 sign.rotation.y = -Math.PI / 2;
                 sign.position.set(-0.05, 3.4, dz);
                 // витрина под вывеской — тёплый свет из магазина
-                const shop = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2.2), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.25).add(new THREE.Color(0.9, 0.7, 0.45)) }));
-                shop.material.userData.own = true;
+                const shop = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2.2), this.shopMaterials[idx % this.shopMaterials.length]);
                 shop.rotation.y = -Math.PI / 2;
                 shop.position.set(-0.04, 1.3, dz);
                 g.add(sign, shop);
@@ -280,13 +390,16 @@ export class Vietnam {
         const w = this.world;
         const city = (o) => o.userData.city || o.userData.police || w.officers.includes(o) || o.position.x < -3;
         for (const o of [...w.scenery, ...w.critters, ...w.officers]) {
-            if (this.items.includes(o)) continue;
+            if (this.itemSet.has(o)) continue;
             if (o.userData.vnHidden !== undefined || city(o)) {
                 if (this.on && city(o)) { if (o.userData.vnHidden === undefined) o.userData.vnHidden = o.visible; o.visible = false; }
                 else if (!this.on && o.userData.vnHidden !== undefined) { o.visible = o.userData.vnHidden; delete o.userData.vnHidden; }
             }
         }
-        for (const f of w.flocks) f.visible = !this.on || f.position.x > 0;
+        for (const f of w.flocks) {
+            if (this.on && f.position.x < 0) { if (f.userData.vnHidden === undefined) f.userData.vnHidden = f.visible; f.visible = false; }
+            else if (!this.on && f.userData.vnHidden !== undefined) { f.visible = f.userData.vnHidden; delete f.userData.vnHidden; }
+        }
         w.rain.visible = !this.on;
         w.ripples.visible = !this.on;
     }

@@ -10,7 +10,19 @@ export class CoinBatch {
         template.updateMatrixWorld(true);
         const source = meshes[0];
         const matrix = new THREE.Matrix4().makeTranslation(0, -template.userData.cfg.size / 2, 0).multiply(source.matrixWorld);
-        const geometry = source.geometry.clone().applyMatrix4(matrix);
+        const geometry = source.geometry.clone();
+        // gltfpack хранит POSITION в Uint16 (а нормали — в Int8). Запись дробных
+        // координат обратно в эти массивы схлопывала монеты или уводила вершины в 65535.
+        // Декодируем через getters, учитывающие normalized и interleaved-атрибуты.
+        for (const name of ['position', 'normal', 'tangent']) {
+            const attr = geometry.getAttribute(name);
+            if (!attr) continue;
+            const values = new Float32Array(attr.count * attr.itemSize);
+            const get = ['getX', 'getY', 'getZ', 'getW'];
+            for (let i = 0; i < attr.count; i++) for (let c = 0; c < attr.itemSize; c++) values[i * attr.itemSize + c] = attr[get[c]](i);
+            geometry.setAttribute(name, new THREE.Float32BufferAttribute(values, attr.itemSize));
+        }
+        geometry.applyMatrix4(matrix);
         return new CoinBatch(geometry, source.material, capacity);
     }
 

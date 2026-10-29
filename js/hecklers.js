@@ -1,10 +1,10 @@
 // Активистки на обочине Нячанга (локация Димы и Саши): стоят группами у бордюра, над головой — лозунг, подбежал —
 // кидают в героя помидор, банан, банку, тапок или кокос. Предмет летит дугой в полосу героя, на асфальте заранее
-// мигает красное пятно — куда прилетит: уйди в другую полосу или прыгни. Попало — брызги на экран, споткнулся;
-// каждое HECKLERS.hitsToChase-е попадание — на хвосте Малахов, попадание при нём — поймал (как второй удар).
+// мигает пятно — куда прилетит: можно уйти в другую полосу или прыгнуть. Попало — только брызги на экран.
 // Девушки — пул, модели — HECKLERS.models (свои, из Meshy) или, пока их нет, прохожая NPCS.girl.
 import * as THREE from "./vendor/three.module.js";
 import { HECKLERS, NPCS } from "./config.js";
+import { updateAmbientAnimation } from "./frame-timing.js";
 import { loadModel } from "./models.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -71,7 +71,9 @@ export class Hecklers {
     loadModels() {
         if (this.loading) return;
         this.loading = true;
-        for (const cfg of HECKLERS.models) loadModel(cfg.url, (gltf) => {
+        const count = this.g.tier.npc < 0.5 ? 2 : this.g.tier.npc < 1 ? 3 : 4;
+        const variants = [0, 3, 6, 9].slice(0, count).map(i => HECKLERS.models[i]).filter(Boolean);
+        for (const cfg of variants) loadModel(cfg.url, (gltf) => {
             this.models.push({ cfg, m: this.g.world.fitRig(gltf, cfg.height) });
             for (const p of [...this.pool]) { // свои девушки пришли — запасные прохожие больше не нужны
                 if (p.userData.own || p.userData.active) continue;
@@ -83,7 +85,8 @@ export class Hecklers {
 
     reset() {
         this.nextAt = HECKLERS.firstAt;
-        this.hits = 0;
+        for (const timer of this.splatTimers?.values() || []) clearTimeout(timer);
+        this.splatTimers?.clear();
         for (const p of this.pool) this.hide(p);
         for (const f of this.flying) { f.removeFromParent(); f.userData.mark.visible = false; }
         this.flying.length = 0;
@@ -124,7 +127,10 @@ export class Hecklers {
     // группа у бордюра с одной стороны; кричат одна-две, кидают все (каждая — в свой момент)
     spawnGroup(z) {
         const w = this.g.world, side = pick([-1, 1]);
-        let n = Math.round(rnd(...HECKLERS.group));
+        const limit = this.g.tier.npc < 0.5 ? 3 : this.g.tier.npc < 1 ? 4 : 6;
+        const available = limit - this.pool.filter(p => p.userData.active).length;
+        if (available <= 0) return false;
+        let n = Math.min(available, Math.round(rnd(...HECKLERS.group)));
         if ((this.g.tier?.npc ?? 1) < 1) n = Math.min(n, 2); // слабый телефон: девушки по ~31 тыс. треугольников — не больше двух в группе
         let made = 0;
         for (let i = 0; i < n; i++) {
@@ -164,7 +170,9 @@ export class Hecklers {
             const u = p.userData;
             if (!u.active) continue;
             p.position.z += move;
-            if (p.position.z > -70 && p.position.z < 8) u.mixer?.update(dt);
+            // Замах близко к игроку обновляем каждый кадр; крики вдали — как прочие NPC.
+            if (u.releaseIn > 0 || u.backIn > 0) u.mixer?.update(dt);
+            else updateAmbientAnimation(p, dt, this.g.tier);
             if (!u.thrown && p.position.z > u.throwZ && !this.blocked()) { u.thrown = true; this.windup(p); }
             if (u.releaseIn > 0 && (u.releaseIn -= dt) <= 0 && !this.blocked()) this.toss(p);
             if (u.backIn > 0 && (u.backIn -= dt) <= 0) { u.throwAct?.fadeOut(0.25); u.idleAct?.reset().fadeIn(0.25).play(); }
@@ -243,38 +251,30 @@ export class Hecklers {
         return m;
     }
 
-    // попадание: брызги на экран; первое — споткнулся, каждое hitsToChase-е — Малахов на хвосте, при нём — поймал
-    hit(item) {
-        const g = this.g;
-        this.splat(item);
-        if (g.fx.safe > 0) return;
-        if (g.fx.shield) { g.fx.shield = false; g.fx.safe = 1; g.audio.play("boost"); return; }
-        if (g.stumble > 0) { if (!g.spareLife?.({ position: { x: 99 }, visible: true, userData: {} })) g.gameOver("caught"); return; }
-        this.hits++;
-        if (this.hits % HECKLERS.hitsToChase === 0) return g.hitOnce({ position: { x: 99 }, visible: true, userData: {} });
-        g.trip = 0.85;
-        g.slowLeft = Math.max(g.slowLeft || 0, HECKLERS.slow);
-        g.audio.play("hit");
-        g.kick?.(0.2, 4);
-    }
+    // Косметическое попадание: не расходует щит, не тормозит, не зовёт погоню и не завершает забег.
+    hit(item) { this.splat(item); }
 
-    // брызги на экране: несколько клякс цвета предмета, стекают и тают
     splat(item) {
         if (!this.splatEl) {
             this.splatEl = document.createElement("div");
             this.splatEl.className = "splat-fx";
+            this.splatEl.setAttribute("aria-hidden", "true");
             document.body.appendChild(this.splatEl);
+            this.splatTimers = new Map();
         }
-        const el = document.createElement("div");
-        el.className = "splat";
-        const blobs = [];
-        for (let i = 0; i < 6; i++) {
-            const x = rnd(20, 80), y = rnd(25, 70), r = rnd(6, 16);
-            blobs.push(`radial-gradient(circle at ${x}% ${y}%, ${item.color} 0 ${r}%, transparent ${r + 1.5}%)`);
+        // Не больше трёх пятен: HUD и дорога остаются различимыми даже при серии попаданий.
+        while (this.splatEl.childElementCount >= 3) {
+            const old = this.splatEl.firstElementChild;
+            clearTimeout(this.splatTimers.get(old)); this.splatTimers.delete(old); old.remove();
         }
-        el.style.background = blobs.join(",");
+        const colors = { tomato: "red", banana: "gold", can: "foam", slipper: "blue", coconut: "cream" };
+        const el = document.createElement("img");
+        el.className = "splat"; el.alt = ""; el.draggable = false;
+        el.src = `img/fx/splat-${colors[item.id] || "red"}.svg`;
+        el.style.left = `${rnd(25, 75)}%`; el.style.top = `${rnd(22, 43)}%`;
+        el.style.setProperty("--tilt", `${rnd(-28, 28)}deg`);
         this.splatEl.appendChild(el);
-        setTimeout(() => el.remove(), 1600);
+        this.splatTimers.set(el, setTimeout(() => { el.remove(); this.splatTimers.delete(el); }, 2400));
     }
 
     placeBubble(p) {

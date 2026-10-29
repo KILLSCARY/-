@@ -2305,7 +2305,7 @@ export class World {
         for (const o of this.officers) updateAmbientAnimation(o, dt, this.tier);
         this.walkCheck = (this.walkCheck || 0) + 1;
         for (const o of this.critters) {
-            if (o.userData.walk) {
+            if (o.visible && o.userData.walk) {
                 // впереди ступени, выступ или урна — разворачивается (проверка раз в 8 кадров), а не идёт сквозь
                 if (this.walkCheck % 8 === 0 && o.position.z > -80 && o.position.z < 10 && this.walkBlocked(o)) {
                     o.userData.walk *= -1;
@@ -2369,12 +2369,13 @@ export class World {
         }
 
         this.updateSprites(t);
-        this.updateRipples(dt, move);
+        if (this.ripples.visible) this.updateRipples(dt, move);
         this.updateBlobs();
         this.updateLampGlow();
         this.vietnam?.update(dt, move, t);
 
-        // дождь
+        // Невидимый дождь Нячанга не требует ни CPU-обновления, ни загрузки буфера на GPU.
+        if (!this.rain.visible) return;
         const pos = this.rain.geometry.attributes.position.array;
         for (let i = 0, n = this.rainCount ?? this.rainSpeed.length; i < n; i++) {
             const k = i * 6;
