@@ -32,7 +32,8 @@ export class Audio {
 
         // музыка идёт потоком через <audio>, чтобы не распаковывать треки по 2 минуты в память;
         // у меню и забега свой плеер, между ними — плавный переход громкостью
-        for (const [list, urls] of Object.entries(SOUNDS.music)) {
+        for (const [list, all] of Object.entries(SOUNDS.music)) {
+            const urls = list === "run" && this.runUrls ? this.runUrls : all; // свой трек героя (setRunTracks до первого касания)
             const el = new window.Audio();
             el.preload = "auto";
             el.src = urls[0];
@@ -102,6 +103,18 @@ export class Audio {
         }
         this.syncTrack();
         this.syncAmbience();
+    }
+
+    // музыка забега под героя (SOUNDS.heroMusic: у Саши Белого и Ислама — своя), у остальных — общая.
+    // Меняем плейлист плеера забега; выбор героя — касание, и iOS даёт запустить новый трек
+    setRunTracks(urls) {
+        this.runUrls = urls;
+        const p = this.players.run;
+        if (!p || p.urls === urls) return;
+        p.urls = urls;
+        p.index = 0;
+        p.el.src = urls[0];
+        this.syncTrack();
     }
 
     setMusic(on) {

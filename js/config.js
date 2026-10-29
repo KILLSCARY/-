@@ -284,6 +284,8 @@ export const SOUNDS = {
         menu: ["audio/music_menu3.m4a"], // «Музыка в меню 3 главная» (AAC в .m4a); прежний трек — audio/music_menu.mp3, не играет
         run: ["audio/music_chicago.mp3"], // есть ещё audio/music_v2.mp3 — пока не играет
     },
+    // своя музыка забега у героя (Диск, папка «Звуки»): «СаняБелый» и «Ислам песня» (23 с, по кругу); у остальных — music.run
+    heroMusic: { sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
     musicVolume: { menu: 0.45, run: 0.6, pause: 0.2 },
     ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
     sfx: {
