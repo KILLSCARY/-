@@ -65,6 +65,12 @@ export class Hecklers {
         this._v = new THREE.Vector3();
         this.marks = [];
         this.reset();
+    }
+
+    // свои девушки (~1 МБ каждая) грузятся, только когда локация впервые понадобилась — у остальных героев их нет
+    loadModels() {
+        if (this.loading) return;
+        this.loading = true;
         for (const cfg of HECKLERS.models) loadModel(cfg.url, (gltf) => {
             this.models.push({ cfg, m: this.g.world.fitRig(gltf, cfg.height) });
             for (const p of [...this.pool]) { // свои девушки пришли — запасные прохожие больше не нужны
@@ -85,7 +91,7 @@ export class Hecklers {
         this.splatEl?.replaceChildren();
     }
 
-    get on() { return this.g.location === "vietnam"; }
+    get on() { if (this.g.location !== "vietnam") return false; this.loadModels(); return true; }
 
     hide(p) {
         p.visible = false;
@@ -98,10 +104,10 @@ export class Hecklers {
         const own = this.models.length ? pick(this.models) : null;
         const m = own ? own.m : w.npcModels.girl;
         if (!m) return null; // модель ещё грузится
-        const cfg = own ? own.cfg : { idle: NPCS.girl.idle };
-        const g = w.rig(m, cfg.idle);
+        const cfg = own ? { ...HECKLERS.clips, ...own.cfg } : { idle: NPCS.girl.idle };
+        const g = w.rig(m, cfg.idle); // клип крика — с разного места, чтобы не кричали хором в такт
         g.userData.cfg = cfg;
-        g.userData.own = !!own;
+        g.userData.own = own;
         let hand = null;
         g.traverse((o) => { if (!hand && /RightHand$/.test(o.name)) hand = o; });
         g.userData.hand = hand;
@@ -125,7 +131,9 @@ export class Hecklers {
             const x = side * rnd(3.5, 4.6);
             p.position.set(x, 0.18, z - i * rnd(1.4, 2.4));
             p.rotation.y = -side * 0.7; // к бегущему, вполоборота к дороге
-            Object.assign(p.userData, { active: true, thrown: false, throwZ: rnd(...HECKLERS.throwAt), shout: i < 2 && Math.random() < 0.8 });
+            const u = p.userData;
+            if (u.throwAct) { u.throwAct.stop(); u.idleAct?.stop().play(); } // из пула — снова кричит, а не застыла в замахе
+            Object.assign(u, { active: true, thrown: false, releaseIn: 0, backIn: 0, throwZ: rnd(...HECKLERS.throwAt), shout: i % 2 === 0 && Math.random() < 0.85 }); // кричит через одну — облачка соседок не наезжают друг на друга
             if (p.userData.shout) p.userData.bubble.textContent = pick(HECKLERS.shouts);
             p.visible = true;
             made++;
@@ -149,7 +157,9 @@ export class Hecklers {
             if (!u.active) continue;
             p.position.z += move;
             if (p.position.z > -70 && p.position.z < 8) u.mixer?.update(dt);
-            if (!u.thrown && p.position.z > u.throwZ && !this.blocked()) { u.thrown = true; this.toss(p); }
+            if (!u.thrown && p.position.z > u.throwZ && !this.blocked()) { u.thrown = true; this.windup(p); }
+            if (u.releaseIn > 0 && (u.releaseIn -= dt) <= 0 && !this.blocked()) this.toss(p);
+            if (u.backIn > 0 && (u.backIn -= dt) <= 0) { u.throwAct?.fadeOut(0.25); u.idleAct?.reset().fadeIn(0.25).play(); }
             if (p.position.z > 12 || !this.on) this.hide(p);
             this.placeBubble(p);
         }
@@ -177,6 +187,21 @@ export class Hecklers {
         }
     }
 
+    // замах: свой клип броска (из него берётся только начало — замах и бросок вперёд, release — когда предмет
+    // уходит из руки, throwEnd — когда вернуться к крику); у прохожей — сразу бросок, корпус к дороге
+    windup(p) {
+        const u = p.userData, c = u.cfg;
+        const clip = u.own?.m.gltf.animations.find((a) => a.name === c.throw);
+        const act = clip && u.mixer?.clipAction(clip);
+        if (!act) { p.rotation.y *= 0.3; return this.toss(p); }
+        u.idleAct = u.mixer._actions.find((a) => a !== act && a.isRunning());
+        u.idleAct?.fadeOut(0.15);
+        act.reset().setLoop(THREE.LoopOnce, 1).fadeIn(0.15).play();
+        u.throwAct = act;
+        u.releaseIn = c.release;
+        u.backIn = c.throwEnd;
+    }
+
     // бросок: из руки девушки в полосу героя (или в соседнюю); на асфальте впереди мигает пятно — куда прилетит
     toss(p) {
         const g = this.g, w = g.world, u = p.userData;
@@ -192,10 +217,6 @@ export class Hecklers {
         mark.visible = true;
         f.userData = { t: 0, from, to: new THREE.Vector3(w.lanes[lane], HECKLERS.aimY, 0), item, mark, spin: rnd(6, 14), done: false };
         this.flying.push(f);
-        // бросок рукой: свой клип, если есть; у прохожей — короткий разворот корпусом к дороге
-        const throwClip = u.cfg?.throw && u.mixer?._actions.find((a) => a.getClip().name === u.cfg.throw);
-        if (throwClip) { throwClip.reset().setLoop(THREE.LoopOnce, 1).fadeIn(0.1).play(); throwClip.clampWhenFinished = false; }
-        else p.rotation.y *= 0.3;
         if (u.shout && Math.random() < 0.5) u.bubble.textContent = pick(HECKLERS.shouts); // на броске — новый лозунг
     }
 
