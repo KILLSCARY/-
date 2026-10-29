@@ -93,7 +93,11 @@ export class Profile {
             d[k] = { ...(d[k] || {}) };
             for (const [id, value] of Object.entries(now[k] || {})) if (value) d[k][id] = value;
         }
-        d.anketa = { ...(d.anketa || {}), ...(now.anketa || {}) };
+        d.anketa = { ...(d.anketa || {}) };
+        for (const [key, value] of Object.entries(now.anketa || {})) {
+            // Не перезаписываем более свежий ответ из облака значением, которое уже было в локальном снимке.
+            if (JSON.stringify(value) !== JSON.stringify(was.anketa?.[key])) d.anketa[key] = value;
+        }
         d.walls = { ...(d.walls || {}) };
         for (const [type, stats] of Object.entries(now.walls || {})) {
             const before = was.walls?.[type] || { ok: 0, fail: 0 };
