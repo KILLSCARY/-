@@ -54,18 +54,30 @@ function sharpen(root) {
     });
 }
 
-// HD-текстуры героя (только хорошая графика): base — путь без окончания, рядом лежат <base>_c.webp (цвет) и
-// <base>_n.webp (нормали, необязательно) в той же развёртке, что текстуры внутри .glb, но 2048 вместо 1024.
-// Модель показывается сразу со своими, HD подменяет их, когда скачаются; настройки (UV-сдвиг gltfpack, повтор,
-// анизотропия, цветовое пространство) берём у старой текстуры. Не скачались — герой остаётся с обычными
+// HD-текстуры героя: base — путь без окончания, рядом лежат <base>_c.webp (цвет), <base>_n.webp (нормали,
+// необязательно) и <base>_c.ktx2 (цвет, сжатый Basis ETC1S) — в той же развёртке, что текстуры внутри .glb, но 2048.
+// mode (QUALITY_TIERS[…].hd): "webp" — хорошая графика, цвет и нормали как есть; "ktx2" — средняя: только цвет,
+// сжатым в памяти видеокарты (2048 в ETC1S занимает ~2,7 МБ против ~5,3 МБ у обычной 1024 — чётче и легче),
+// нормали остаются 1024. Модель показывается сразу со своими, HD подменяет их, когда скачаются; настройки
+// (UV-сдвиг gltfpack, повтор, анизотропия) берём у старой текстуры. Не скачались/не распаковались — остаются обычные
 const hdCache = new Map();
+let ktx2 = null, ktxRenderer = null;
+export const setKtx2Renderer = (r) => { ktxRenderer = r; };
 const hdTexture = (url) => {
-    if (!hdCache.has(url)) hdCache.set(url, new Promise((ok) => new THREE.TextureLoader().load(url, ok, undefined, () => ok(null))));
+    if (!hdCache.has(url)) hdCache.set(url, new Promise((ok) => {
+        if (!url.endsWith(".ktx2")) return new THREE.TextureLoader().load(url, ok, undefined, () => ok(null));
+        // распаковщик Basis (WebAssembly, ~0,5 МБ) — только когда понадобился
+        import("./vendor/jsm/KTX2Loader.js").then(({ KTX2Loader }) => {
+            ktx2 ||= new KTX2Loader().setTranscoderPath("js/vendor/basis/").detectSupport(ktxRenderer);
+            ktx2.load(url, ok, undefined, () => ok(null));
+        }).catch(() => ok(null));
+    }));
     return hdCache.get(url);
 };
-export function upgradeTextures(root, base) {
-    if (!base) return;
-    for (const [key, suffix] of [["map", "_c"], ["normalMap", "_n"]]) hdTexture(`${base}${suffix}.webp`).then((hd) => {
+export function upgradeTextures(root, base, mode = "webp") {
+    if (!base || !mode || (mode === "ktx2" && !ktxRenderer)) return;
+    const files = mode === "ktx2" ? [["map", "_c.ktx2"]] : [["map", "_c.webp"], ["normalMap", "_n.webp"]];
+    for (const [key, suffix] of files) hdTexture(`${base}${suffix}`).then((hd) => {
         if (!hd) return;
         root.traverse((o) => {
             if (!o.isMesh) return;

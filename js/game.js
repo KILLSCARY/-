@@ -16,7 +16,7 @@ import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { HeroGlowPass, markGlow } from "./heroglow.js";
-import { loadModel, releaseQueue, preloadModel, setModelAnisotropy, upgradeTextures } from "./models.js";
+import { loadModel, releaseQueue, preloadModel, setModelAnisotropy, upgradeTextures, setKtx2Renderer } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -201,6 +201,7 @@ class Game {
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
+        setKtx2Renderer(this.renderer); // какие сжатые форматы умеет видеокарта — для HD-текстур в KTX2
 
         this.scene = new THREE.Scene();
         // небо — картинка во весь экран (градиент, звёзды, луна; перерисовывается под размер экрана в onResize),
@@ -1197,7 +1198,7 @@ class Game {
             .then((list) => { for (const c of list) gltf.animations.push(parseClip(c)); return gltf; }).catch(() => gltf);
         loadModel(
             cfg.url,
-            (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; if (this.tier.hd) upgradeTextures(g.scene, cfg.hd); apply(g); }),
+            (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; upgradeTextures(g.scene, cfg.hd, this.tier.hd); apply(g); }),
             (e) => {
                 console.warn("[hero] не загрузилась модель", cfg.url, e);
                 if (this.heroId !== id) return;
