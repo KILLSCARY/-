@@ -896,7 +896,7 @@ class Game {
         if (this.state === "playing") this.step(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
-        if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
+        if (this.state === "playing" || this.state === "fight" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
         // тепловой ограничитель: телефон долго держит 60 кадров — греется и сам начинает тормозить. После HEAT_AFTER с
         // игры подряд рисуем в меньшем разрешении (почти незаметно на маленьком экране), сброс — после 2 мин в меню
         if (this.tier.heat) {
