@@ -96,6 +96,7 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+const TALK_CALM = 4.5; // сколько секунд после начала реплики дорога впереди пустая — её успевают прочитать
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // число «досчитывается» от 0 (easeOutCubic); без анимаций — сразу итог
 const countUp = (el, to, delay = 0, ms = 900) => {
@@ -308,7 +309,8 @@ class Game {
         const key = `${Math.round(w / h * 100)}`;
         if (this.skyKey === key) return;
         this.skyKey = key;
-        const W = 512, H = Math.round(512 * h / w), c = document.createElement("canvas");
+        // 1024 по ширине (было 512): небо растягивалось на экран телефона, и звёзды выходили крупными кругами
+        const W = 1024, H = Math.round(1024 * h / w), c = document.createElement("canvas");
         c.width = W; c.height = H;
         const g = c.getContext("2d");
         const grad = g.createLinearGradient(0, 0, 0, H);
@@ -316,7 +318,21 @@ class Game {
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
         let seed = 11;
         const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < SKY.stars; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + rnd() * 0.7})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.55, 0.6 + rnd() * 1.2, 0, 7); g.fill(); }
+        // звёзды: были одного размера — белые круглые точки, «снег» старой игры. Теперь почти все — пылинки
+        // разного размера и яркости, чуть цветные; редкие яркие — с мягким ореолом; к горизонту (засветка города) гаснут
+        for (let i = 0; i < SKY.stars; i++) {
+            const x = rnd() * W, y = Math.pow(rnd(), 1.6) * H * 0.55, big = rnd() < 0.07;
+            const fade = Math.pow(1 - y / (H * 0.55), 0.8);
+            const a = (big ? 0.75 + rnd() * 0.25 : 0.15 + Math.pow(rnd(), 2) * 0.6) * fade;
+            const tint = rnd() < 0.3 ? "200,210,255" : rnd() < 0.15 ? "255,226,200" : "255,255,255";
+            if (big) {
+                const halo = g.createRadialGradient(x, y, 0, x, y, 4.5);
+                halo.addColorStop(0, `rgba(${tint},${a * 0.5})`); halo.addColorStop(1, `rgba(${tint},0)`);
+                g.fillStyle = halo; g.fillRect(x - 5, y - 5, 10, 10);
+            }
+            g.fillStyle = `rgba(${tint},${a})`;
+            g.beginPath(); g.arc(x, y, big ? 1.1 + rnd() * 0.5 : 0.35 + rnd() * 0.5, 0, 7); g.fill();
+        }
         const m = SKY.moonDisc, mx = m.x * W, my = m.y * H, r = m.r * W;
         const halo = g.createRadialGradient(mx, my, r * 0.6, mx, my, r * 4);
         halo.addColorStop(0, "rgba(220,200,255,.45)"); halo.addColorStop(1, "rgba(220,200,255,0)");
@@ -364,6 +380,7 @@ class Game {
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
         this.trip = 0;     // клип «споткнулся» (TRIP)
+        this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
         this.sickCatch = null; this.sickDone = false; // больной герой: Мизулина ещё не догоняла
         this.slowLeft = 0;
         this.prevLane = 1;
@@ -1307,9 +1324,12 @@ class Game {
             this.nextVentAt = Math.max(this.nextVentAt, this.distance + 260);
         }
         this.world.wallClear = this.wallClear();
+        if (this.talkCalm > 0) this.talkCalm -= dt;
         while (this.nextRowZ > SPAWN_Z) {
-            // в зоне стены (до неё и после) ряд не ставим — даже если стену отодвинул полёт или скорость выросла
-            if (!this.nearWall(this.nextRowZ)) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
+            // в зоне стены (до неё и после) ряд не ставим — даже если стену отодвинул полёт или скорость выросла;
+            // и ряд, который доедет до героя, пока на экране реплика (talkCalm)
+            const talking = this.talkCalm > 0 && -this.nextRowZ < this.talkCalm * this.speed;
+            if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
             const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
@@ -2151,6 +2171,14 @@ class Game {
         }
         this.speechNow = { args: [who, text, ms, good, face] };
         ms = ms * 1.35 + 600; // висит подольше: успеть прочитать на бегу (плюс время на появление)
+        // По плейтесту: «когда концентрируешься, не до текста». Пока реплика на экране (первые TALK_CALM с), дорога
+        // впереди пустая — читать можно, не уворачиваясь. Ближние 6 м не трогаем (на них игрок уже реагирует).
+        // В бою с боссом не трогаем: там препятствия бросает босс
+        if ((this.state === "playing" || this.state === "countdown") && !this.bossFight) {
+            const calm = Math.min(TALK_CALM, ms / 1000);
+            this.talkCalm = Math.max(this.talkCalm || 0, calm);
+            this.world.clearZone(-(Math.max(this.speed, BALANCE.speedStart) * calm + 8), -6);
+        }
         el.classList.remove("out");
         $("g-text").textContent = text;
         $("g-who").textContent = who;

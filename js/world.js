@@ -16,6 +16,9 @@ const STREET_LEN = 160;
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
+const RIPPLES = 72; // кругов от капель дождя на асфальте — пул (сколько видно — по графике: tier.rain / 10)
+const _blobBox = new THREE.Box3();
+const BLOB_KINDS = new Set(["bin", "police"]); // на тротуаре пятно-тень у урн и патрульных машин (прохожие ходят — без)
 // размеры для столкновений процедурных препятствий: halfZ — полудлина, top — что перепрыгнуть, oncoming — едет навстречу (м/с)
 const OBSTACLE_STATS = {
     dumpster: { halfZ: 0.55, top: 0.75 }, // перепрыгнуть: прыжок до ~1.4 м, порог ниже крышки — окно прыжка ~0.45 с
@@ -293,6 +296,7 @@ export class World {
         this.buildMaterials();
         this.buildStreet();
         this.buildRain();
+        this.buildRipples();
         this.buildSplash();
         this.buildStreetLife();
         this.unclutter();
@@ -425,7 +429,18 @@ export class World {
             lip: new THREE.BoxGeometry(1.75, 0.05, 0.2),
             sign: new THREE.BoxGeometry(0.9, 0.22, 0.03),
             beam: new THREE.PlaneGeometry(2.4, 7),
+            blob: new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), // пятно-тень под предметом (groundBlob)
         };
+        // пятно-тень: мягкий край (радиальный градиент), только форма — альфа; сила — по графике (tier.blob, 0 — нет)
+        this.mat.blob = new THREE.MeshBasicMaterial({
+            color: 0x000000, alphaMap: canvasTex(64, 64, (g, w) => {
+                const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+                r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.5, "rgba(255,255,255,.7)"); r.addColorStop(1, "rgba(255,255,255,0)");
+                g.fillStyle = r; g.fillRect(0, 0, w, w);
+            }),
+            transparent: true, depthWrite: false, opacity: this.tier.blob ?? 0.5, visible: (this.tier.blob ?? 0.5) > 0,
+            polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+        });
 
         // Фары встречных машин — без настоящих источников света: светящиеся точки, пятно на асфальте
         // и блик в камеру (растёт, когда машина близко и в твоей полосе — см. updateSprites)
@@ -984,6 +999,72 @@ export class World {
         this.scene.add(this.rain);
     }
 
+    // круги от капель на асфальте: дождь шёл, а дорога оставалась сухой. Одна отрисовка на все (InstancedMesh):
+    // кольцо растёт и гаснет за ~0,5 с, яркость — цветом экземпляра (сложение света: чёрный — невидим), едет с дорогой
+    buildRipples() {
+        const ring = canvasTex(64, 64, (g, w) => {
+            g.clearRect(0, 0, w, w);
+            g.strokeStyle = "rgba(255,255,255,1)"; g.lineWidth = 4;
+            g.shadowColor = "#fff"; g.shadowBlur = 4;
+            g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 6, 0, Math.PI * 2); g.stroke();
+            g.lineWidth = 1.2; g.globalAlpha = 0.45;
+            g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 15, 0, Math.PI * 2); g.stroke(); // второе, внутреннее кольцо
+        });
+        const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+        const mat = new THREE.MeshBasicMaterial({ map: ring, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+        this.ripples = new THREE.InstancedMesh(geo, mat, RIPPLES);
+        this.ripples.frustumCulled = false; // экземпляры по всей дороге — общая рамка у меша неверная
+        this.ripples.renderOrder = 2;
+        this.rippleState = Array.from({ length: RIPPLES }, () => ({ x: 0, z: 0, age: 1, life: 0.5 }));
+        this.rippleBase = new THREE.Color(0xb4acec); // светлее асфальта: на пёстрой мокрой дороге тусклые кольца терялись
+        const c = new THREE.Color(0);
+        for (let i = 0; i < RIPPLES; i++) this.ripples.setColorAt(i, c);
+        this.ripples.count = Math.min(RIPPLES, Math.round(this.tier.rain / 10));
+        this.scene.add(this.ripples);
+    }
+
+    updateRipples(dt, move) {
+        const r = this.ripples, n = r.count;
+        if (!n) return;
+        const m = this.rippleMatrix ||= new THREE.Matrix4(), c = this.rippleColor ||= new THREE.Color();
+        for (let i = 0; i < n; i++) {
+            const s = this.rippleState[i];
+            s.age += dt; s.z += move;
+            if (s.age >= s.life || s.z > 6) { // новая капля: на дороге перед камерой, с разбросом во времени
+                s.x = rnd(-3.6, 3.6); s.z = rnd(-28, 4); s.life = rnd(0.35, 0.65); s.age = -rnd(0, 0.4);
+            }
+            const k = Math.max(0, s.age) / s.life, size = s.age < 0 ? 0 : 0.1 + k * 0.42;
+            m.makeScale(size, 1, size).setPosition(s.x, 0.016, s.z);
+            r.setMatrixAt(i, m);
+            r.setColorAt(i, c.copy(this.rippleBase).multiplyScalar(s.age < 0 ? 0 : 0.85 * Math.pow(1 - k, 1.5)));
+        }
+        r.instanceMatrix.needsUpdate = true;
+        r.instanceColor.needsUpdate = true;
+    }
+
+    // мягкое пятно-тень под предметом (контактная тень): машины, баки, урны и прохожие «садятся» на асфальт.
+    // Дочерний меш группы — едет и поворачивается с ней; размер — по габаритам (без поворота). Без настоящих теней
+    // (средняя графика) — единственная тень; на хорошей затеняет стык с асфальтом, куда тень от луны не достаёт
+    groundBlob(g) {
+        for (const c of g.children.filter((x) => x.userData.blob)) g.remove(c);
+        if (!this.mat.blob) return;
+        const rot = g.rotation.y;
+        g.rotation.y = 0;
+        g.updateMatrixWorld(true);
+        _blobBox.setFromObject(g);
+        g.rotation.y = rot;
+        const sx = _blobBox.max.x - _blobBox.min.x, sz = _blobBox.max.z - _blobBox.min.z;
+        if (!Number.isFinite(sx) || sx <= 0 || sx > 8) return;
+        const w = Math.max(sx, 0.4), d = Math.max(sz, sx * 0.6, 0.4); // спрайт плоский (глубина 0) — пятно по ширине
+        const blob = new THREE.Mesh(this.geo.blob, this.mat.blob);
+        blob.scale.set(w * 1.25, 1, d * 1.3);
+        const floor = g.position.y >= 0.15 ? 0.185 : 0.012; // тротуар или асфальт
+        blob.position.set((_blobBox.min.x + _blobBox.max.x) / 2 - g.position.x, floor - g.position.y, (_blobBox.min.z + _blobBox.max.z) / 2 - g.position.z);
+        blob.renderOrder = 1;
+        blob.userData = { blob: true, fx: true }; // fx — не отбрасывает тень (addObstacle)
+        g.add(blob);
+    }
+
     // брызги из луж: пул мелких капель
     // Одно облако точек на все капли (раньше — 80 отдельных белых шариков: 80 вызовов отрисовки, а свечение
     // раздувало их в белые пятна у ног). Капли мелкие, мягкие, полупрозрачные, цвета ночного неба, без свечения.
@@ -1353,6 +1434,9 @@ export class World {
         this.tier = tier;
         this.rainCount = Math.min(this.rainSpeed.length, tier.rain);
         this.rain.geometry.setDrawRange(0, this.rainCount * 2);
+        this.ripples.count = Math.min(RIPPLES, Math.round(tier.rain / 10));
+        this.mat.blob.opacity = tier.blob ?? 0.5;
+        this.mat.blob.visible = this.mat.blob.opacity > 0;
         const keep = (list, total) => { const n = this.npcLimit(total); list.forEach((o, i) => { o.visible = i < n; }); };
         keep(this.critters.filter((o) => o.userData.npc === "girl"), this.swaps.girl?.length || 0);
         keep(this.critters.filter((o) => o.userData.npc === "cat"), NPCS.cat.count);
@@ -1687,6 +1771,7 @@ export class World {
     registerSwap(kind, g) {
         (this.swaps[kind] ||= []).push(g);
         if (this.modelFor(kind)) this.swapIn(g, kind);
+        else if (BLOB_KINDS.has(kind)) this.groundBlob(g);
         return g;
     }
 
@@ -1700,6 +1785,7 @@ export class World {
         g.rotation.y = g.userData.faceY ?? 0;
         if (kind === "police") g.userData.police = true;
         if (kind === "bank") this.placeBank(g);
+        if (BLOB_KINDS.has(kind)) this.groundBlob(g); // g.clear() убрал и пятно спрайта — новое под модель
     }
 
     // Препятствия-спрайты: инспектор ДПС и бетонный блок — объезжать, ограждение — перепрыгнуть
@@ -1768,6 +1854,7 @@ export class World {
         o.position.set(this.lanes[lane], 0, z);
         o.userData.lane = lane;
         o.traverse((m) => { if (m.isMesh && !m.userData.fx) m.castShadow = true; });
+        this.groundBlob(o);
         this.scene.add(o);
         this.obstacles.push(o);
         return o;
@@ -2163,6 +2250,7 @@ export class World {
         }
 
         this.updateSprites(t);
+        this.updateRipples(dt, move);
 
         // дождь
         const pos = this.rain.geometry.attributes.position.array;

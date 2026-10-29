@@ -85,7 +85,7 @@ export const TEXTURES = {
 // Небо — «сиреневая ночь» (выбрано на макете): градиент от почти чёрного к фиолетовому, звёзды, большая луна с ореолом.
 // color — туман у горизонта, hemi — свет неба/земли, moon — цвет «лунного» света, env — полосы для отражений
 export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon: "#56347e", light: 1.75, exposure: 1.45, vignette: 0.72, // 29.10: светлее (было 0x2a1848, свет 1.35, экспозиция 1.2, виньетка 0.55)
-    hemi: [0x8a7ac8, 0x0a0618], moon: 0xb0a0ff, stars: 160, moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
+    hemi: [0x8a7ac8, 0x0a0618], moon: 0xb0a0ff, stars: 320, /* мелких звёзд больше: небо в 2 раза чётче */ moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
     env: ["#07051a", "#2a1a50", "#6a3aa0", "#120a24", "#030208"] };
 
 // «Довести ночь» — проба (?look=2, startapp=look или «Для теста»): ярче и сочнее, туман дальше, мягче виньетка,
@@ -115,10 +115,12 @@ export const HEAT_AFTER = 150;
 // far — на каком расстоянии (м) гаснут (туман)
 export const LAMP_GLOW = { pool: 0.55, cone: 0.09, size: 6, far: 70 };
 export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade: 1, contrast: 1.07, sat: 1.06, grain: 0.035, ca: 0.012, speedFrom: 15, speedTo: 30, speed: 1 };
+// blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
+// там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", cine: 1, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
-    medium: { aa: "fxaa", cine: 0.6, aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
-    low:    { aa: "fxaa", cine: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
+    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
+    medium: { aa: "fxaa", cine: 0.6, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
+    low:    { aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 160, fps: [45, 24], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.
