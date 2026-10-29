@@ -5,7 +5,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
-import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES, LAMP_GLOW } from "./config.js";
+import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES, LAMP_GLOW, CHASERS } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
@@ -1435,8 +1435,24 @@ export class World {
     // Инспектор ДПС со скелетом: каждый — свой клон и свой микшер анимаций
     // масштаб и сдвиг модели со скелетом: по росту height или (кошка) по длине length вдоль Z; ноги — на земле
     fitRig(gltf, height, length) {
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const size = box.getSize(new THREE.Vector3());
+        let box = new THREE.Box3().setFromObject(gltf.scene);
+        let size = box.getSize(new THREE.Vector3());
+        // сборки tools/meshy-convert (Малахов, Дима, Товарус): коробка скина в других единицах, чем кости (×100) —
+        // тогда габариты по вершинам с учётом костей (как heroBox в rat.js)
+        const bones = new THREE.Box3(), p = new THREE.Vector3();
+        gltf.scene.updateMatrixWorld(true);
+        gltf.scene.traverse((o) => { if (o.isBone) bones.expandByPoint(o.getWorldPosition(p)); });
+        const bh = bones.getSize(p).y;
+        if (bh > 0 && (size.y / bh > 1.6 || size.y / bh < 0.6)) {
+            const real = new THREE.Box3();
+            gltf.scene.traverse((o) => {
+                if (!o.isSkinnedMesh) return;
+                o.skeleton.update();
+                o.frustumCulled = false; // сфера отсечения тоже в «чужих» единицах — иначе меш пропадает с экрана
+                for (let i = 0, n = o.geometry.attributes.position.count; i < n; i += 5) real.expandByPoint(o.getVertexPosition(i, p).applyMatrix4(o.matrixWorld));
+            });
+            if (!real.isEmpty()) { box = real; size = box.getSize(new THREE.Vector3()); }
+        }
         const k = length ? length / size.z : height / size.y;
         const c = box.getCenter(new THREE.Vector3());
         return { gltf, k, offset: new THREE.Vector3(-c.x * k, -box.min.y * k, -c.z * k) };
@@ -1450,8 +1466,23 @@ export class World {
         }, () => {}, { deferred: true });
     }
 
-    makeChaser() {
-        return this.chaserModel ? this.rig(this.chaserModel, CHASER.run, { chaser: true }) : null;
+    // свой преследователь героя (CHASERS, у Димы и Саши Товаруса — Малахов): грузится, когда героя выбрали
+    loadHeroChaser(key) {
+        if (!key || !CHASERS[key] || (this.chaserModels ||= {})[key] !== undefined) return;
+        this.chaserModels[key] = null;
+        const cfg = CHASERS[key];
+        loadModel(cfg.url, (gltf) => {
+            this.chaserModels[key] = this.fitRig(gltf, cfg.height);
+            this.warmQueue.push(this.makeChaser(key));
+        }, () => {}, { deferred: true });
+    }
+
+    makeChaser(key = null) {
+        const m = key ? this.chaserModels?.[key] : this.chaserModel;
+        if (!m) return null;
+        const c = this.rig(m, (key ? CHASERS[key] : CHASER).run, { chaser: true });
+        c.userData.chaserKey = key;
+        return c;
     }
 
     // Живые NPC: девушки заменяют спрайты на тротуарах, кошки гуляют, голуби сидят стайками у бордюра

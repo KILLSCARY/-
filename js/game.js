@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -655,7 +655,8 @@ class Game {
             setTimeout(() => this.audio.play("record"), 700);
         }
         $("over-cause").textContent = cause === "caught" && this.grudge ? `Мизулина: «${CHASE_GRUDGE.lines.caught}»`
-            : cause === "caught" && this.sickDone && this.heroCfg?.sick ? this.heroCfg.sick.over : pick(DEATH_TEXT[cause]);
+            : cause === "caught" && this.sickDone && this.heroCfg?.sick ? this.heroCfg.sick.over
+            : cause === "caught" && this.chaser?.userData.chaserKey ? pick(this.chaserCfg().caught) : pick(DEATH_TEXT[cause]);
         $("over-new").hidden = !isBest;
         $("over-best").innerHTML = isBest ? "" : `Рекорд <b>${fmt(this.best)}</b>`;
         document.querySelector(".over-card").classList.toggle("is-best", isBest);
@@ -902,7 +903,7 @@ class Game {
         // таймер последний раз вырос: новая баночка или монета продлевает)
         const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
         this.renderFx([
-            { id: "chase", name: CHASER.hud, left: this.stumble, color: "#e3343a", danger: true },
+            { id: "chase", name: this.chaserCfg().hud, left: this.stumble, color: "#e3343a", danger: true },
             { id: "fly", name: POWERUPS.testo.hud, left: this.flight ? this.fx.fly : 0, color: hex(POWERUPS.testo.color) },
             { id: "x2", name: "×2", left: this.boostLeft, color: "#e9c25a" },
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
@@ -932,6 +933,7 @@ class Game {
                 box.append(el);
             }
             if (el.hidden) el.hidden = false;
+            if (el.dataset.n !== f.name) { el.dataset.n = f.name; el.querySelector(".fx-name").textContent = f.name; } // погоня: Мизулина или Малахов
             if (f.left > (prev[f.id] || 0) + 0.01) total[f.id] = f.left; // таймер вырос — новое полное время
             prev[f.id] = f.left;
             const timed = Number.isFinite(f.left);
@@ -1271,6 +1273,7 @@ class Game {
 
     selectHero(id) {
         this.heroId = id;
+        this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
         this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
         try { localStorage.setItem("p2p_hero", id); } catch {}
         for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
@@ -1485,18 +1488,31 @@ class Game {
         } else if (!this.chaserSaid) { // первая погоня за забег — Мизулина представляется (после подсказки стены)
             this.chaserSaid = true;
             const run = this.runId;
-            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) this.hub.toast(`Мизулина: «${CHASER_LINES.start}»`); }, 1400);
+            setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) { const cc = this.chaserCfg(); this.hub.toast(`${cc.name}: «${cc.start}»`); } }, 1400);
         }
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
     }
 
     // бежит Мизулина (CHASER); пока не загрузилась — живой инспектор, а без него спрайт. Появилась модель лучше — меняем
+    // кто гонится: свой преследователь героя (CHASERS — Малахов за Димой и Сашей Товарусом); сюжетная погоня — Мизулина
+    chaserKey() {
+        if (this.grudge || this.storyCatch || this.storyChasing()) return null;
+        return CHARACTERS.find((c) => c.id === this.heroId)?.chaser || null;
+    }
+    chaserCfg(key = this.chaser?.userData.chaserKey ?? null) {
+        return key && CHASERS[key] ? CHASERS[key] : { ...CHASER, name: "Мизулина", start: CHASER_LINES.start };
+    }
+
     ensureChaser() {
+        const key = this.chaserKey(), own = key && this.world.chaserModels?.[key];
+        if (key && !own) this.world.loadHeroChaser(key); // ещё не грузился — пока бежит Мизулина, потом сменится
+        // не тот преследователь (сменили героя / сюжет) или загрузилась модель лучше — пересоздаём
+        const wrong = this.chaser && (this.chaser.userData.chaserKey ?? null) !== (own ? key : null);
         const better = this.world.chaserModel ? !this.chaser?.userData.chaser : this.world.officer && !this.chaser?.userData.mixer;
-        if (!this.chaser || better) {
+        if (!this.chaser || better || wrong) {
             if (this.chaser) this.world.dropObstacle(this.chaser); // убрать со сцены и освободить скелет
-            this.chaser = this.world.makeChaser() || this.world.makeOfficer(POLICE_OFFICER.run);
+            this.chaser = (own && this.world.makeChaser(key)) || this.world.makeChaser() || this.world.makeOfficer(POLICE_OFFICER.run);
             if (!this.chaser) {
                 this.chaser = this.world.makeSprite("cop");
                 this.chaser.scale.setScalar(0.9);
@@ -2604,7 +2620,8 @@ class Game {
             // встала — «выписывает протокол» (клип CHASER.arrest, без него — замирает в шаге)
             a.arrived = true;
             this.audio.play("whistle");
-            const clip = this.world.chaserModel?.gltf.animations.find((x) => x.name === CHASER.arrest);
+            const ck = c.userData.chaserKey, model = ck ? this.world.chaserModels?.[ck] : this.world.chaserModel;
+            const clip = model?.gltf.animations.find((x) => x.name === this.chaserCfg(ck).arrest);
             if (clip) {
                 const act = mixer.clipAction(clip);
                 act.reset().setLoop(THREE.LoopOnce, 1);
