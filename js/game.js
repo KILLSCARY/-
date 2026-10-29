@@ -165,8 +165,8 @@ class Game {
             for (const g of this.profile.granted || []) { // разовое начисление (GRANTS) — сказать, что пришло (валюта одна — USDT)
                 setTimeout(() => { this.hub.toast(`${g.text}: +${fmt(g.usdt)} USDT`); this.audio.play("record"); }, 500);
             }
-            // первый вход — выбор режима (по умолчанию с вопросами), потом ежедневная награда — когда облако прочитано
-            setTimeout(() => (this.settings.modeChosen ? this.hub.showDaily() : this.hub.showMode()), 1200);
+            // выбор режима — только когда сюжет пройден (до этого — сюжет), потом ежедневная награда — когда облако прочитано
+            setTimeout(() => (this.storyDone && !this.settings.modeChosen ? this.hub.showMode() : this.hub.showDaily()), 1200);
         });
 
         this.setupInput();
@@ -1008,8 +1008,10 @@ class Game {
         }
     }
 
-    // режим «с вопросами» (по умолчанию) или «просто бежать»
-    get questions() { return this.settings.questions !== false; }
+    // режим «с вопросами» (по умолчанию) или «просто бежать». Новый игрок идёт только по сюжету:
+    // свободные забеги открываются, когда весь сюжет пройден (экзамен Инакова сдан) — до этого настройка не действует
+    get questions() { return !this.storyDone || this.settings.questions !== false; }
+    get storyDone() { return !!this.profile?.data.exam; }
 
     applySettings() {
         const s = this.settings;
@@ -1922,6 +1924,7 @@ class Game {
 
     // сюжет босса идёт, когда игрок дошёл до его главы; до тех пор — обычные забеги
     get story() {
+        if (!this.questions) return null; // свободный забег — без глав, боссов и драк: только результат на рейтинг
         const s = STORIES[this.profile.data.story || 0];
         return s && this.profile.chapter().index >= (s.chapter || 1) - 1 ? s : null;
     }
@@ -2287,7 +2290,8 @@ class Game {
         if (s.final) return this.showPrefinal();
         $("sw-ph").style.backgroundImage = `url(${FIGHTERS[s.opponent].portrait})`;
         $("sw-label").textContent = `${s.name} пройдена`;
-        $("sw-title").textContent = `${FIGHTERS[s.opponent].name} повержен!`;
+        // род по бойцу: «Полиция повержена», «Мизулина повержена», «Павел Инаков повержен» (FIGHTERS[].she)
+        $("sw-title").textContent = `${FIGHTERS[s.opponent].name} ${FIGHTERS[s.opponent].she ? "повержена" : "повержен"}!`;
         $("sw-text").textContent = `Страх ${s.fear} побеждён.${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} USDT.`} Забери бесплатный разбор у менеджера.`;
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
@@ -2356,12 +2360,17 @@ class Game {
         }
         const full = soldOut || (d.place && d.place > GORILLA.top);
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
+        $("fn-ph").querySelector("b").hidden = full || !d.place; // плашка «10 USDT» — только с подтверждённым местом
         $("fn-title").textContent = "Ты прошёл Воронку до конца";
+        // «ты в первой сотне, тебе положены 10 USDT» — только с местом от сервера. Сервер не ответил (5 с), недоступен
+        // или игра не из Telegram — места нет, и обещать приз нельзя: раньше его так получал каждый, кто дошёл до финала
         $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
+            : !d.place ? "Созвонись с менеджером: он проверит, попал ли ты в первую сотню (10 USDT), и разберёт твой старт."
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);
-        $("btn-fn-menu").onclick = () => ($("final").hidden = true);
+        // сюжет пройден — сразу предложить свободные забеги (окно выбора режима)
+        $("btn-fn-menu").onclick = () => { $("final").hidden = true; if (!this.settings.modeChosen) this.hub.showMode(); };
         $("final").hidden = false;
     }
 
@@ -2372,16 +2381,29 @@ class Game {
         const step = () => {
             if (i >= list.length) { $("anketa").hidden = true; this.profile.save(); if (list === GORILLA.anketa) this.hub.task("anketa"); return then?.(); }
             const q = list[i];
-            $("ak-step").textContent = list.length > 1 ? `${title} ${i + 1}/${list.length}` : title;
+            $("ak-step").textContent = list.length > 1 ? `${title} · ${i + 1} из ${list.length}` : title;
+            // прогресс — сегменты по шагам (у одного вопроса не нужен)
+            $("ak-prog").innerHTML = list.length > 1 ? list.map((_, k) => `<i class="${k < i ? "done" : k === i ? "on" : ""}"></i>`).join("") : "";
             $("ak-q").textContent = q.q;
+            $("ak-note").textContent = list === GORILLA.anketa ? "Ответы уйдут менеджеру — чтобы разобрать твой старт" : "";
             box.innerHTML = "";
-            for (const a of q.a) {
+            // короткие ответы — сеткой 2×2, длинные — столбиком; у каждого буква A–D
+            box.classList.toggle("grid", q.a.length === 4 && q.a.every((a) => a.length <= 16));
+            q.a.forEach((a, k) => {
                 const b = document.createElement("button");
-                b.className = "btn";
-                b.textContent = a;
-                b.onclick = () => { (d.anketa ||= {})[q.id] = a; i++; step(); };
+                b.className = "ob-a";
+                b.append(Object.assign(document.createElement("i"), { textContent: "ABCD"[k] || "" }), Object.assign(document.createElement("span"), { textContent: a }));
+                b.onclick = () => {
+                    if (box.dataset.busy) return;
+                    box.dataset.busy = "1"; // выбор подсвечивается на миг, потом следующий вопрос
+                    b.classList.add("pick");
+                    (d.anketa ||= {})[q.id] = a;
+                    setTimeout(() => { delete box.dataset.busy; i++; step(); }, 180);
+                };
                 box.append(b);
-            }
+            });
+            const card = $("anketa").querySelector(".ob-card");
+            card.classList.remove("ob-next"); void card.offsetWidth; if (i) card.classList.add("ob-next"); // следующий вопрос «въезжает»
         };
         $("anketa").hidden = false;
         step();

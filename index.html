@@ -145,13 +145,15 @@
     </div>
 
     <!-- первый вход: режим игры (по умолчанию — с вопросами; потом меняется в настройках) -->
-    <div id="mode" class="modal" hidden>
-        <div class="modal-card">
-            <p class="label">Как играем?</p>
-            <h2 class="sheet-title">Режим забега</h2>
-            <p class="sheet-sub">С вопросами — стены-возражения, кодовые фразы для менеджера и экзамен Инакова. Без вопросов — просто раннер: арки профита и боссы глав.</p>
-            <button id="btn-mode-q" class="btn btn-main btn-shine">С вопросами</button>
-            <button id="btn-mode-noq" class="btn">Просто бежать</button>
+    <!-- онбординг (редизайн 29.10): нижний лист на телефоне, режимы — плитками с пояснением.
+         Новый игрок идёт только по сюжету; это окно — когда сюжет пройден (Game.storyDone) и открылись свободные забеги -->
+    <div id="mode" class="modal ob" hidden>
+        <div class="modal-card ob-card">
+            <p class="label">Сюжет пройден</p>
+            <h2 class="ob-q">Открыты свободные забеги</h2>
+            <button id="btn-mode-noq" class="ob-mode on"><b>Свободный забег <em>новое</em></b><span>Без вопросов и боссов — бег на результат</span></button>
+            <button id="btn-mode-q" class="ob-mode"><b>С вопросами</b><span>Стены-возражения дальше: тренируй ответы для созвона</span></button>
+            <p class="ob-note">Режим можно сменить в настройках</p>
         </div>
     </div>
 
@@ -243,11 +245,12 @@
         <button id="btn-lead-self" class="btn btn-ghost">Написать менеджеру самому</button>
         <button id="btn-lead-x" class="btn btn-ghost">Не сейчас</button>
     </div></div>
-    <div id="anketa" class="modal" hidden><div class="modal-card sl-card">
-        <div class="sl-ph g-big"></div>
-        <p class="label">Горилла · <span id="ak-step"></span></p>
-        <h2 class="sheet-title" id="ak-q"></h2>
+    <div id="anketa" class="modal ob" hidden><div class="modal-card ob-card">
+        <div class="ob-head"><i class="ob-ava"></i><div><b>Горилла</b><span id="ak-step"></span></div></div>
+        <div class="ob-prog" id="ak-prog"></div>
+        <h2 class="ob-q" id="ak-q"></h2>
         <div id="ak-a" class="ak-a"></div>
+        <p class="ob-note" id="ak-note"></p>
     </div></div>
     <div id="final" class="modal" hidden><div class="modal-card sl-card">
         <div class="sl-ph sw-ph" id="fn-ph"><b>10 USDT</b></div>

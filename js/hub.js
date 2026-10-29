@@ -109,11 +109,12 @@ export class Hub {
             { id: "music", name: "Музыка", text: "Треки в меню и в забеге", on: g.audio.musicOn },
             { id: "sfx", name: "Звуки", text: "Монеты, удары, свистки, шум улицы", on: g.audio.sfxOn },
             { id: "vibro", name: "Вибрация", text: "Отклик телефона на действия", on: tg.vibro },
-            { id: "questions", name: "Вопросы-возражения", text: "Стены с вопросами, кодовые фразы и экзамен Инакова. Выкл — просто раннер с арками профита", on: g.questions },
+            // до конца сюжета режим не выбирается: новый игрок идёт только по сюжету (Game.storyDone)
+            { id: "questions", name: "Вопросы-возражения", text: g.storyDone ? "Стены с вопросами. Выкл — свободный забег на результат: без вопросов и боссов" : "Сейчас — сюжет. Свободные забеги откроются, когда пройдёшь его до конца", on: g.questions, locked: !g.storyDone },
         ];
         const q = g.settings.quality || "auto";
         box.innerHTML = toggles.map((t) => `<div class="card set-row"><div class="card-main"><h3>${t.name}</h3><p>${t.text}</p></div>
-            <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"><i></i></button></div>`).join("")
+            <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"${t.locked ? " disabled" : ""}><i></i></button></div>`).join("")
             + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
             <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
@@ -183,7 +184,7 @@ export class Hub {
             this.game.setSetting("questions", q);
             this.game.setSetting("modeChosen", true);
             $("mode").hidden = true;
-            this.toast(q ? "Режим: с вопросами" : "Режим: просто бежать. Сменить — в настройках");
+            this.toast(q ? "Режим: с вопросами" : "Режим: свободный забег. Сменить — в настройках");
             setTimeout(() => this.showDaily(), 500);
         };
         $("btn-mode-q").onclick = () => pickMode(true);

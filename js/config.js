@@ -804,7 +804,7 @@ export const FIGHTERS = {
             blockIn: "Не положено!", blockHold: ["Жду документы…", "Я подожду", "Всё фиксирую"], blockOut: "Так, продолжим проверку!",
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", rage: "Блокирую! Всё блокирую!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", model: "models/cop_fight.glb?v=71", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
+    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=71", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
         moves: null, dmg: { jab: 3, cross: 4, hook: 5, heavy: 9, super: 24 }, punchTime: 0.5, // ослаблен по плейтесту
         ai: { every: [[1.5, 2.5], [1.3, 2.2], [1.1, 1.9]], block: [0.1, 0.14, 0.18], heavy: [0.14, 0.16, 0.2], combo: [0.12, 0.16, 0.2], third: [0.05, 0.09, 0.13] },
         telegraph: [0.85, 0.75, 0.65],
