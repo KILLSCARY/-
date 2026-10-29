@@ -201,7 +201,9 @@ export const CHARACTERS = [
         // v5 (denchik_v2 команды): гипс на левой ноге и два костыля (меши crutch_L/crutch_R на кистях, в полёте, подкате и бою
         // спрятаны в самих клипах). Бег — на костылях, полёт — «Swim Forward» 2 с по кругу, поймали — падение лицом вперёд,
         // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
-        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, flyClip: { loop: true, speed: 1.0 } },
+        // бег — хромота limp (шаг на гипсе и рывок корпусом): клип «run» — медленная ходьба с ходунками (цикл 3,7 с),
+        // на скорости забега ноги почти стояли — будто едет на скейте. limp ускорен до цикла 1,0 с (durations.run; у остальных героев бег — 0,63 с)
+        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 } },
     { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=4", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
