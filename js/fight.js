@@ -311,7 +311,9 @@ export class Fight {
         for (const f of this.f) {
             f.hp = f.hpMax; f.shown = f.hpMax; f.act = "idle"; f.t = 0; f.cd = 0; f.combo = 0; f.kb = 0; f.z = f.home;
             if (f.clips.ko) f.clips.ko.stop();
-            if (f.clips.win) f.clips.win.stop();
+            // у бойцов с приёмами из клипов (moves) «victory» — то же действие, что moves.win: после stop() миксер его
+            // больше не применял, и со 2-го раунда победитель стоял в последней позе. Такое действие ведёт clipPose
+            if (f.clips.win && !f.acts?.[f.clips.win.getClip().name]) f.clips.win.stop();
             f.base?.reset().play();
             if (f.base && f.base !== f.clips.idle) { f.base.timeScale = 0; f.base.time = 0; }
             f.cur = null; f.prev = null; f.segId = null; f.koYaw = undefined; f.koLift = undefined;
