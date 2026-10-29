@@ -8,6 +8,8 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
 // в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
 const short = (n) => n < 1e5 ? fmt(n) : n < 1e6 ? `${Math.floor(n / 1000)} тыс` : `${(Math.floor(n / 1e5) / 10).toLocaleString("ru-RU")} млн`;
+// фото профиля Telegram — только https с доменов Telegram (как проверяет сервер, api/_lib/rating.mjs photoOf)
+const TG_PHOTO = /^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.org|telesco\.pe)\/[^\s"'<>]{1,400}$/i;
 const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -300,6 +302,7 @@ export class Hub {
     async showRating() {
         if (this.rateBusy) return void (this.rateAgain = true); // уже грузится — обновим ещё раз по окончании
         this.rateBusy = true;
+        this.renderRateMe(); // фото и имя — сразу, до ответа сервера
         this.renderRateTasks();
         if (this.rateData) this.renderRating(this.rateData);
         else { $("rate-list").innerHTML = `<p class="rate-empty">Загружаем…</p>`; $("rate-gap").textContent = "Загружаем…"; }
@@ -341,10 +344,23 @@ export class Hub {
         if (changed) this.p.save();
     }
 
+    // карточка «ты»: фото профиля Telegram (нет фото или не загрузилось — первая буква имени) и имя
+    renderRateMe() {
+        const u = tg.user || {}, ava = $("rate-ava");
+        const name = [u.first_name, u.last_name ? `${u.last_name[0]}.` : ""].filter(Boolean).join(" ").trim() || "Ты";
+        $("rate-name").textContent = name;
+        $("rate-ini").textContent = name[0].toUpperCase();
+        let img = ava.querySelector("img");
+        if (!TG_PHOTO.test(u.photo_url || "")) return void img?.remove();
+        if (!img) { img = new Image(); img.alt = ""; img.referrerPolicy = "no-referrer"; img.onerror = () => img.remove(); ava.prepend(img); }
+        if (img.src !== u.photo_url) img.src = u.photo_url;
+    }
+
     renderRating(r) {
         const n = (x) => fmt(x || 0), me = r.me || {}, top = r.top || [], R = r.rules;
         const stats = (x) => [x.cards && `карт ${x.cards}`, x.bosses && `боссов ${x.bosses}`, x.signs && `табличек ${x.signs}`, x.tasks && `заданий ${x.tasks}`].filter(Boolean).join(" · ") || "только начал";
         $("rate-place").textContent = me.rank ? `№${me.rank}` : "—";
+        this.renderRateMe();
         $("rate-score").textContent = n(me.score);
         const above = me.rank > 1 ? top[me.rank - 2] : null;
         $("rate-gap").textContent = !me.rank ? "Собери карту, победи босса или выполни задание — и попадёшь в таблицу"
@@ -364,7 +380,11 @@ export class Hub {
         [...list.querySelectorAll(".rate-row")].forEach((el, i) => {
             const nm = rows[i].name || "Игрок";
             el.querySelector(".nm b").textContent = nm; // имя — текстом, не HTML
-            el.querySelector(".av").textContent = nm.trim()[0]?.toUpperCase() || "?";
+            const av = el.querySelector(".av");
+            av.textContent = nm.trim()[0]?.toUpperCase() || "?";
+            // фото профиля Telegram (сервер хранит photo_url из подписанного initData); не загрузилось — остаётся буква
+            const ph = rows[i].id === me.id ? rows[i].photo || tg.user?.photo_url : rows[i].photo;
+            if (TG_PHOTO.test(ph || "")) { const img = new Image(); img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer"; img.onerror = () => img.remove(); img.src = ph; av.append(img); }
             if (rows[i].id === me.id) el.querySelector(".nm b").insertAdjacentHTML("beforeend", ` <i>ты</i>`);
         });
         if (!R) return;

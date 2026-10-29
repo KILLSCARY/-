@@ -1,7 +1,8 @@
 // Рейтинг игроков: очки начисляет только сервер — за то, что он сам проверил (карты, боссы, таблички, место в сотне)
 // и за разовые задания (записаться на разбор, анкета, приглашение, подписка на NS Store). Клиент очки не передаёт:
 // разбор — по доставленной заявке, друг и подписка — проверкой сервера (verify.mjs), анкета — по нажатию.
-// Хранилище: p2p:lb — sorted set tgId → очки; p2p:lbn — hash tgId → имя; p2p:lbs — hash «tgId:стат» → счётчик;
+// Хранилище: p2p:lb — sorted set tgId → очки; p2p:lbn — hash tgId → имя; p2p:lbp — hash tgId → фото (photo_url из initData);
+// p2p:lbs — hash «tgId:стат» → счётчик;
 // p2p:tk:<tgId> — hash задание → метка (HSETNX: второй раз очки не даёт).
 export const RATING = {
     card: 10,
@@ -18,9 +19,15 @@ export function nameOf(user = {}) {
     return (n || "Игрок").replace(/[<>]/g, "").slice(0, 28);
 }
 
+// фото профиля Telegram (photo_url из подписанного initData) — только https с доменов Telegram, иначе без фото (буква имени)
+export function photoOf(user = {}) {
+    const u = String(user.photo_url || "");
+    return /^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.org|telesco\.pe)\/[^\s"'<>]{1,400}$/i.test(u) ? u : "";
+}
+
 export async function score(store, who, pts, stat, n = 1) {
     if (!(pts > 0) || !store.lbAdd) return;
-    await store.lbAdd(who.id, pts, nameOf(who.user), stat, n);
+    await store.lbAdd(who.id, pts, nameOf(who.user), stat, n, photoOf(who.user));
 }
 
 // очки за награду, которую сервер выдал впервые (boss:<глава>, sign:<id>)
@@ -63,7 +70,7 @@ export async function handleRating(action, body, who, { store, now }) {
     }
     if (action === "top") {
         const n = Math.min(100, Math.max(5, Number(body.n) || 50));
-        await store.lbName?.(who.id, nameOf(who.user)); // имя могли поменять в Telegram
+        await store.lbName?.(who.id, nameOf(who.user), photoOf(who.user)); // имя и фото могли поменять в Telegram
         const [top, me, parts] = await Promise.all([store.lbTop(n), store.lbMe(who.id), partsOf(store, who.id)]);
         return { status: 200, json: { top, me: { id: who.id, ...me, ...parts }, rules: RATING } };
     }

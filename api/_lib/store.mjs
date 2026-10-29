@@ -51,15 +51,15 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
-    const lb = new Map(), lbn = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
+    const lb = new Map(), lbn = new Map(), lbp = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
     return {
         kind: "memory",
         // рейтинг (api/_lib/rating.mjs)
-        async lbAdd(id, pts, name, stat, n = 1) { lb.set(id, (lb.get(id) || 0) + pts); lbn.set(id, name); if (stat) lbs.set(`${id}:${stat}`, (lbs.get(`${id}:${stat}`) || 0) + n); },
-        async lbName(id, name) { if (lb.has(id)) lbn.set(id, name); },
+        async lbAdd(id, pts, name, stat, n = 1, photo = "") { lb.set(id, (lb.get(id) || 0) + pts); lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); if (stat) lbs.set(`${id}:${stat}`, (lbs.get(`${id}:${stat}`) || 0) + n); },
+        async lbName(id, name, photo = "") { if (!lb.has(id)) return; lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); },
         async lbTop(n) {
             return [...lb].sort((a, b) => b[1] - a[1]).slice(0, n)
-                .map(([id, score], i) => ({ id, rank: i + 1, score, name: lbn.get(id) || "Игрок", ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) }));
+                .map(([id, score], i) => ({ id, rank: i + 1, score, name: lbn.get(id) || "Игрок", photo: lbp.get(id) || "", ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) }));
         },
         async lbMe(id) {
             if (!lb.has(id)) return { rank: 0, score: 0 };
@@ -131,19 +131,24 @@ export function redisStore(url, token, fetchImpl = fetch) {
     };
     return {
         kind: "redis",
-        async lbAdd(id, pts, name, stat, n = 1) {
+        async lbAdd(id, pts, name, stat, n = 1, photo = "") {
             await cmd("ZINCRBY", "p2p:lb", String(pts), String(id));
             await cmd("HSET", "p2p:lbn", String(id), name);
+            await (photo ? cmd("HSET", "p2p:lbp", String(id), photo) : cmd("HDEL", "p2p:lbp", String(id)));
             if (stat) await cmd("HINCRBY", "p2p:lbs", `${id}:${stat}`, String(n));
         },
-        async lbName(id, name) { if ((await cmd("ZSCORE", "p2p:lb", String(id))) != null) await cmd("HSET", "p2p:lbn", String(id), name); },
+        async lbName(id, name, photo = "") {
+            if ((await cmd("ZSCORE", "p2p:lb", String(id))) == null) return;
+            await cmd("HSET", "p2p:lbn", String(id), name);
+            await (photo ? cmd("HSET", "p2p:lbp", String(id), photo) : cmd("HDEL", "p2p:lbp", String(id)));
+        },
         async lbTop(n) {
             const a = (await cmd("ZREVRANGE", "p2p:lb", "0", String(n - 1), "WITHSCORES")) || [];
             const ids = [], scores = [];
             for (let i = 0; i < a.length; i += 2) { ids.push(a[i]); scores.push(Number(a[i + 1])); }
             if (!ids.length) return [];
-            const names = (await cmd("HMGET", "p2p:lbn", ...ids)) || [], st = await statsOf(ids);
-            return ids.map((id, i) => ({ id, rank: i + 1, score: scores[i], name: names[i] || "Игрок", ...st[i] }));
+            const names = (await cmd("HMGET", "p2p:lbn", ...ids)) || [], photos = (await cmd("HMGET", "p2p:lbp", ...ids)) || [], st = await statsOf(ids);
+            return ids.map((id, i) => ({ id, rank: i + 1, score: scores[i], name: names[i] || "Игрок", photo: photos[i] || "", ...st[i] }));
         },
         async lbMe(id) {
             const s = await cmd("ZSCORE", "p2p:lb", String(id));

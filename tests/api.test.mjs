@@ -254,3 +254,14 @@ test("приглашение: засчитывается, когда нович�
     const own = await handle("refs", { initData: init(505) }, { store, env: { ...env, INVITE_LINK: "https://t.me/p2p_game_bot/play" }, now: T0, fetchImpl: getMe });
     assert.equal(own.json.link, "https://t.me/p2p_game_bot/play?startapp=ref_505");
 });
+
+test("рейтинг: фото профиля из Telegram — в таблице; не с доменов Telegram — без фото", async () => {
+    const store = memoryStore();
+    const withPhoto = (id, photo_url) => signInitData({ auth_date: String(Math.floor(T0 / 1000)), user: JSON.stringify({ id, first_name: "Фото", photo_url }) }, BOT);
+    const a = withPhoto(601, "https://t.me/i/userpic/320/abc.jpg"), b = withPhoto(602, "javascript:alert(1)");
+    await run(store, "task", { initData: a, task: "anketa" }, T0);
+    await run(store, "task", { initData: b, task: "anketa" }, T0);
+    const top = (await run(store, "top", { initData: a }, T0 + 1000)).json.top;
+    assert.equal(top.find((x) => x.id === "601").photo, "https://t.me/i/userpic/320/abc.jpg");
+    assert.equal(top.find((x) => x.id === "602").photo, "");
+});

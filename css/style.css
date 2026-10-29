@@ -1241,10 +1241,15 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 /* карточка «ты»: место, очки, сколько до следующего места, четыре счётчика */
 .rate-hero { flex: none; position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 16px; margin-top: 6px; padding: 16px; border-radius: 20px; overflow: hidden;
     background: radial-gradient(120% 140% at 0% 0%, rgba(227, 52, 58, .32), rgba(227, 52, 58, 0) 60%), rgba(255, 255, 255, .04); border: 1px solid rgba(227, 52, 58, .55); }
-.rh-place { display: grid; place-items: center; min-width: 76px; height: 76px; padding: 0 8px; border-radius: 18px; background: #0a0606; box-shadow: inset 0 0 0 1px rgba(255, 214, 90, .45); }
-.rh-place span { font: 700 9px/1 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-.rh-place b { font: 800 26px/1 var(--font-display); color: #ffd65a; }
-.rh-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+/* фото игрока из Telegram в золотом кольце; нет фото — буква имени; место — золотой значок снизу */
+.rh-ava { position: relative; grid-row: span 2; width: 76px; height: 76px; margin-bottom: 6px; border-radius: 50%; display: grid; place-items: center;
+    background: linear-gradient(140deg, #3a1214, #120607); box-shadow: 0 0 0 2px rgba(255, 214, 90, .7), 0 10px 24px rgba(0, 0, 0, .5); }
+.rh-ava > b { font: 800 30px/1 var(--font-display); color: #ffd65a; }
+.rh-ava img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.rh-badge { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 4px 9px; border-radius: 999px; background: #ffd65a; color: #1a1206;
+    font: 800 12px/1 var(--font-display); white-space: nowrap; box-shadow: 0 4px 10px rgba(0, 0, 0, .45); }
+.rh-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.rh-name { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: #fff; }
 .rh-main b { font: 800 34px/1 var(--font-display); letter-spacing: -.02em; }
 .rh-main span { color: var(--muted); font-size: 13px; }
 .rh-gap { grid-column: 2; margin: 0; font-size: 13px; color: #ffd65a; line-height: 1.35; }
@@ -1256,7 +1261,8 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .rate-row { text-align: left; display: grid; grid-template-columns: 26px 34px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px 9px 8px; border-radius: 16px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
 .rate-row.me { border-color: var(--red); background: rgba(227, 52, 58, .12); }
 .rate-row .pl { font: 800 15px var(--font-display); color: var(--muted); text-align: center; }
-.rate-row .av { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #2a2224; font: 800 14px var(--font-display); color: #fff; }
+.rate-row .av { position: relative; overflow: hidden; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #2a2224; font: 800 14px var(--font-display); color: #fff; }
+.rate-row .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .rate-row.p1 .pl { color: #ffd65a; } .rate-row.p2 .pl { color: #d8dde3; } .rate-row.p3 .pl { color: #d08a4a; }
 .rate-row.p1 .av { background: linear-gradient(140deg, #ffe48a, #c9902a); color: #1a1206; }
 .rate-row.p2 .av { background: linear-gradient(140deg, #f2f4f7, #8e96a0); color: #15181c; }

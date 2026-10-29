@@ -87,8 +87,9 @@
             <div class="view sheet" id="view-rating" hidden>
                 <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Рейтинг игроков</p></div>
                 <div class="rate-hero">
-                    <div class="rh-place"><span>место</span><b id="rate-place">—</b></div>
-                    <div class="rh-main"><b id="rate-score">0</b><span>очков</span></div>
+                    <!-- фото профиля Telegram (нет фото — первая буква имени), место — значком снизу -->
+                    <div class="rh-ava" id="rate-ava"><b id="rate-ini">?</b><span class="rh-badge" id="rate-place">—</span></div>
+                    <div class="rh-main"><span class="rh-name" id="rate-name">Ты</span><b id="rate-score">0</b><span>очков</span></div>
                     <p class="rh-gap" id="rate-gap">Загружаем…</p>
                     <div class="rh-chips" id="rate-chips"></div>
                 </div>
