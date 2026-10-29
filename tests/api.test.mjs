@@ -6,7 +6,7 @@ import { memoryStore } from "../api/_lib/store.mjs";
 import { signInitData, verifyInitData } from "../api/_lib/telegram.mjs";
 
 const BOT = "123456:TEST-token";
-const env = { BOT_TOKEN: BOT, PRIZE_MIN_STEP_SEC: "30", PRIZE_MIN_TOTAL_SEC: "120", PRIZE_TOTAL: "100" };
+const env = { BOT_TOKEN: BOT, PRIZE_MIN_STEP_SEC: "30", PRIZE_MIN_TOTAL_SEC: "120", PRIZE_TOTAL: "100", TEST_CARDS: "0" }; // тестовые +1000 Карт — в своём тесте
 const T0 = 1_800_000_000_000;
 const init = (id, t = T0) => signInitData({ auth_date: String(Math.floor(t / 1000)), query_id: "q", user: JSON.stringify({ id, first_name: "Игрок" }) }, BOT);
 const run = (store, action, body, now) => handle(action, body, { store, env, now });
@@ -287,4 +287,12 @@ test("рейтинг: фото профиля из Telegram — в таблиц�
     const top = (await run(store, "top", { initData: a }, T0 + 41_000)).json.top;
     assert.equal(top.find((x) => x.id === "601").photo, "https://t.me/i/userpic/320/abc.jpg");
     assert.equal(top.find((x) => x.id === "602").photo, "");
+});
+
+test("тестовые Карты: каждому один раз при проверке баланса или старте забега", async () => {
+    const store = memoryStore(), d = init(77);
+    const t = { ...env, TEST_CARDS: "1000" };
+    assert.equal((await handle("cards", { initData: d }, { store, env: t, now: T0 })).json.cards, 1000);
+    assert.equal((await handle("cardrun", { initData: d }, { store, env: t, now: T0 + 1000 })).json.cards, 1000); // второй раз не даём
+    assert.equal((await handle("cards", { initData: init(78) }, { store, env, now: T0 })).json.cards, 0); // TEST_CARDS=0 — выключено
 });

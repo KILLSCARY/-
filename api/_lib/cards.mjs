@@ -10,6 +10,9 @@ export const cardsConfig = (env = process.env) => ({
     gapSec: num(env.CARDS_GAP_SEC, 12),      // вторая — через 500+ м
     caseDaily: num(env.CARDS_CASE_DAILY, 5), // сколько раз в сутки кейс может дать карты
     runTtlSec: num(env.CARDS_RUN_TTL_SEC, 3 * 3600),
+    // тест (30.10.2026): каждому игроку один раз +testCards Карт — при первой проверке баланса или старте забега.
+    // Выключить — TEST_CARDS=0 в настройках Vercel (уже выданное остаётся)
+    testCards: num(env.TEST_CARDS, 1000),
 });
 // цены в картах — должны совпадать с CARD_SHOP в js/config.js (клиент только показывает)
 export const CARD_PRICES = { x2run: 5, mizlate: 8, magnetrun: 12, dash: 15, hero_dima: 250, hero_tovarus: 250 };
@@ -23,6 +26,7 @@ const heroesOf = (perks) => Object.keys(perks || {}).filter((k) => isHero(k) && 
 export const CASE_CARDS = { merchant: [1, 1], conqueror: [2, 3] };
 export async function handleCards(action, body, who, { store, env = process.env, now = Date.now() }) {
     const cfg = cardsConfig(env);
+    if ((action === "cards" || action === "cardrun") && cfg.testCards > 0) await store.cardTestOnce(who.id, cfg.testCards);
     if (action === "cards") return { status: 200, json: { cards: await store.cardBalance(who.id), heroes: heroesOf(await store.perks(who.id)) } };
     if (action === "cardrun") {
         const runId = `${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
