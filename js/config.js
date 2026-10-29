@@ -129,16 +129,17 @@ export const HECKLERS = {
 export const LOOK2 = { exposure: 1.42, sat: 1.2, contrast: 1.07, vignette: 0.74, fog: [20, 100], hemi: 1.7, bloom: 0.95,
     glow: { color: 0xc4b6ff, strength: 0.9, radius: 2.2 }, squash: 0.16, stretch: 0.12, lean: 0.38, yaw: 0.28 };
 
-// Графика. "auto" — если на первых секундах забега меньше 40 fps, отражения и тени выключаются.
+// Графика. "auto" снижает разрешение и качество при устойчивой нехватке FPS.
 export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 
-// Уровни графики. auto: телефон — medium, компьютер — high; если в забеге fps проседает — уровень ниже.
+// Уровни графики. auto: телефон — low, компьютер — medium; high выбирается вручную.
+// direct — один проход без постобработки; animationHz — частота дальних фоновых анимаций.
 // ratio — потолок devicePixelRatio, bloom — во сколько раз уменьшен буфер свечения (0 — без свечения),
-// lights — сколько фонарей светят по-настоящему, rain — капель дождя, fps — потолок кадров в забеге / в меню,
+// lights — сколько фонарей светят по-настоящему, rain — капель дождя, fps — потолок кадров в игре / в меню,
 // lite — облегчённые модели из models/obj/lite (в ~3 раза меньше треугольников, текстуры 512 WebP);
 // npc — доля живых NPC со скелетом (девушки, кошки, стайки голубей): на слабом телефоне их меньше, остальные девушки — спрайты.
-// aa — сглаживание краёв: msaa (4 выборки, WebGL2) | fxaa (проход в конце, дёшево). medium ratio 1.4 (было 1.15 — мыло):
-// не тянет телефон — measureFps сам снизит разрешение. aniso — анизотропная фильтрация текстур моделей (под углом не мылятся).
+// aa — сглаживание постобработки: msaa (4 выборки, WebGL2) | fxaa; direct использует сглаживание холста.
+// aniso — анизотропная фильтрация текстур моделей (под углом не мылятся).
 // hd — HD-текстуры героев (CHARACTERS[…].hd, 2048): "webp" — цвет и нормали; "ktx2" — только цвет, сжатый Basis
 // (в памяти видеокарты легче обычной 1024); нет — обычные 1024.
 // heat — «тепловой ограничитель» на телефоне: после HEAT_AFTER секунд игры подряд разрешение на ступень ниже (меньше нагрев)
@@ -154,10 +155,10 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [60, 40], fight: 60, lite: false, far: 100, npc: 1 },
-    medium: { aa: "fxaa", cine: 0.6, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.4, reflections: false, shadows: false, bloom: 4, lights: 2, police: false, rain: 220, fps: [60, 30], fight: 40, lite: true,  far: 80,  npc: 0.6, heat: true },
-    // low: потолки кадров — кратные частоте экрана (60/30): 45 и 24 на 60 Гц шли неровно и картинка дёргалась
-    low:    { aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [60, 30], fight: 30, lite: true,  far: 62,  npc: 0.4, heat: true },
+    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1 },
+    medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  npc: 0.6, heat: true },
+    // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
+    low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  npc: 0.4, heat: true },
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

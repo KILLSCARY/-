@@ -1,3 +1,5 @@
+import { CoinBatch } from "./coin-batch.js";
+import { updateAmbientAnimation } from "./frame-timing.js";
 // Ночной район: мокрый асфальт, хрущёвки с окнами, рольставни, красные лампы у подъездов,
 // оранжевые фонари, дождь. Плюс препятствия и монеты, которые едут навстречу крысу.
 // Фасады и асфальт — текстуры из папки textures/ (см. TEXTURES в config.js),
@@ -1354,6 +1356,14 @@ export class World {
 
     makeCoin(boost = false) {
         const t = this.modelFor(boost ? "boost" : "coin");
+        if (t && !boost) {
+            if (!this.coinBatch) {
+                this.coinBatch = CoinBatch.fromTemplate(t);
+                if (this.coinBatch) this.scene.add(this.coinBatch.mesh);
+            }
+            const instance = this.coinBatch?.add();
+            if (instance) return instance;
+        }
         if (t) { // 3D-монета Tether (USDT)
             const g = new THREE.Group();
             g.add(t.clone());
@@ -1394,7 +1404,7 @@ export class World {
         const c = this.makeCoin(boost);
         c.position.set(this.lanes[lane], y, z);
         c.userData.baseY = y;
-        this.scene.add(c);
+        if (!c.userData.instanced) this.scene.add(c);
         this.coins.push(c);
     }
 
@@ -1427,6 +1437,9 @@ export class World {
                             o.material.emissiveIntensity = cfg.glow;
                         }
                     });
+                    let animated = gltf.animations.length > 0;
+                    m.traverse((o) => { if (o.isSkinnedMesh) animated = true; });
+                    if (!animated) m.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
                     const holder = new THREE.Group(); // оборачиваем, чтобы rotation/scale модели не сбивались при клонировании
                     holder.add(m);
                     holder.userData = { cfg, size: box.getSize(new THREE.Vector3()) }; // габариты — для столкновений (makeObstacle)
@@ -2224,6 +2237,7 @@ export class World {
     }
 
     dropObstacle(o) {
+        if (this.coinBatch?.remove(o)) return;
         this.scene.remove(o);
         o.traverse((m) => {
             m.skeleton?.dispose();
@@ -2288,7 +2302,7 @@ export class World {
         }
 
         // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
-        for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
+        for (const o of this.officers) updateAmbientAnimation(o, dt, this.tier);
         this.walkCheck = (this.walkCheck || 0) + 1;
         for (const o of this.critters) {
             if (o.userData.walk) {
@@ -2299,10 +2313,10 @@ export class World {
                 }
                 o.position.z += o.userData.walk * dt; // гуляют вдоль тротуара
             }
-            if (o.visible && o.position.z > -70 && o.position.z < 8) o.userData.mixer?.update(dt);
+            updateAmbientAnimation(o, dt, this.tier);
         }
         this.updateFlocks(dt, t);
-        for (const o of this.obstacles) if (o.userData.mixer && o.position.z > -70) o.userData.mixer.update(dt);
+        for (const o of this.obstacles) updateAmbientAnimation(o, dt, this.tier);
 
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const o = this.obstacles[i];
@@ -2369,7 +2383,8 @@ export class World {
             pos[k + 2] += move; pos[k + 5] += move;
             if (pos[k + 1] < 0 || pos[k + 2] > 8) {
                 const x = rnd(-9, 9), y = rnd(10, 14), z = rnd(-40, 4);
-                pos.set([x, y, z, x + 0.03, y - 0.45, z + 0.12], k);
+                pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
+                pos[k + 3] = x + 0.03; pos[k + 4] = y - 0.45; pos[k + 5] = z + 0.12;
             }
         }
         this.rain.geometry.attributes.position.needsUpdate = true;

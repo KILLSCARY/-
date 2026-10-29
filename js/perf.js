@@ -18,13 +18,13 @@ export class PerfHud {
     toggle(on) {
         if (on === this.on) return;
         this.on = on;
-        const r = this.g.renderer, c = this.g.composer;
+        const r = this.g.renderer, g = this.g;
         if (on) {
             this.frames.length = 0;
             this.lastFrame = 0;
             r.info.autoReset = false; // считаем все проходы постобработки за кадр, а не только последний
-            this.render = c.render.bind(c);
-            c.render = (...a) => this.measure(a);
+            this.render = g.render;
+            g.render = (...a) => this.measure(a);
             this.el = document.createElement("pre");
             this.el.className = "perf-hud";
             this.el.onclick = () => this.copy();
@@ -37,7 +37,7 @@ export class PerfHud {
                 } catch { this.obs = null; }
             }
         } else {
-            c.render = this.render;
+            g.render = this.render;
             r.info.autoReset = true;
             clearInterval(this.timer);
             this.el?.remove();
@@ -49,7 +49,7 @@ export class PerfHud {
     measure(args) {
         const r = this.g.renderer, t0 = performance.now();
         r.info.reset();
-        this.render(...args);
+        this.render.apply(this.g, args);
         const t1 = performance.now();
         const f = { dt: this.lastFrame ? t0 - this.lastFrame : 0, js: this.g.frameStart ? t0 - this.g.frameStart : 0, gpu: t1 - t0, calls: r.info.render.calls, tris: r.info.render.triangles };
         this.lastFrame = t0;

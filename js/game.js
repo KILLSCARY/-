@@ -4,6 +4,7 @@
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
+import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
 import { Hecklers } from "./hecklers.js";
 import { prize } from "./prize.js";
@@ -182,12 +183,10 @@ class Game {
         this.camKick = { dip: 0, shake: 0, fov: 0 };
         this.calm = matchMedia("(prefers-reduced-motion: reduce)").matches; // «уменьшить движение» — эффекты слабее
 
-        // телефон по умолчанию — средняя графика: он и так тянет 60 кадров, но греется
+        // Авто начинает с одного прохода рендера. Высокая графика с отражениями — вручную:
+        // мощный CPU/класс HIGH от Telegram не гарантирует запас GPU и охлаждения.
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
-        const cls = tgPerfClass(); // LOW → слабая графика, AVERAGE/HIGH → средняя (телефон греется и на сильном)
-        // По плейтесту средняя графика тормозит даже на сильных телефонах (iPhone 13 Pro, Xiaomi 17 Ultra): телефон по
-        // умолчанию — лёгкая; средняя — только Android с классом HIGH от Telegram. Игрок может поднять в настройках
-        this.quality = QUALITY === "auto" ? (mobile ? (cls === "HIGH" ? "medium" : "low") : cls === "LOW" || weakDevice() ? "medium" : "high") : QUALITY;
+        this.quality = QUALITY === "auto" ? (mobile || tgPerfClass() === "LOW" || weakDevice() ? "low" : "medium") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
@@ -241,6 +240,9 @@ class Game {
         tg.getBest().then((b) => { this.best = b; this.renderMenu(); });
 
         this.clock = new THREE.Clock();
+        this.pacer = new FramePacer();
+        this.frameMeter = new FrameMeter();
+        this.tick = this.loop.bind(this);
         this.loop();
     }
 
@@ -248,7 +250,7 @@ class Game {
         const canvas = $("game");
         // лёгкая графика рисует прямо на экран (см. render()): сглаживание — аппаратное MSAA холста, на телефонных
         // видеокартах оно почти бесплатное. Остальные уровни сглаживают в постобработке (FXAA/MSAA буферов)
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality === "low", powerPreference: "high-performance" });
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !!this.tier.direct, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
         setKtx2Renderer(this.renderer); // какие сжатые форматы умеет видеокарта — для HD-текстур в KTX2
@@ -309,11 +311,11 @@ class Game {
         const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1) * (this.heatScale || 1);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
-        this.composer.setPixelRatio(ratio);
-        this.composer.setSize(w, h);
+        this.composer.setPixelRatio(this.direct ? 1 : ratio);
+        this.composer.setSize(this.direct ? 1 : w, this.direct ? 1 : h);
         // свечение считается в уменьшенном буфере: в 2 раза на компьютере, в 4 на телефоне
         const div = this.tier.bloom || 4;
-        this.bloom.setSize(w * ratio / div, h * ratio / div);
+        this.bloom.setSize(this.direct ? 1 : w * ratio / div, this.direct ? 1 : h * ratio / div);
         this.bloom.enabled = this.tier.bloom > 0;
         this.fxaa.uniforms.res.value.set(1 / (w * ratio), 1 / (h * ratio));
         this.camera.aspect = w / h;
@@ -983,24 +985,17 @@ class Game {
 
     // ---- кадр ----------------------------------------------------------------------------
 
-    loop() {
-        requestAnimationFrame(() => this.loop());
-        const now = performance.now();
+    loop(now = performance.now()) {
+        requestAnimationFrame(this.tick);
+        // В фоне не прогреваем модели и не обновляем сцену. После возврата нет накопленного dt.
+        if (document.hidden || this.sceneCovered()) {
+            this.clock.getDelta();
+            this.pacer.reset();
+            this.frameMeter.reset();
+            return;
+        }
         if (this.world.warmQueue.length && now - (this.lastWarm || 0) > 400) this.warmUp();
-        // Разделы «Герои / Кейсы / NS Store» и открытие кейса закрывают сцену: её не рисуем вовсе — на холсте
-        // остаётся последний кадр. Иначе улица за затемнением дёргается, а каждый кадр сцены тормозит прокрутку.
-        if (this.sceneCovered()) { this.clock.getDelta(); return; }
-        this.rafCount = (this.rafCount || 0) + 1; // сколько кадров даёт экран — для measureFps
-        // Потолок кадров по расписанию, а не «прошло ли N мс с прошлого»: иначе на 90 Гц из 60 выходило 45,
-        // а в меню на 60 Гц из 40 — 30. Пол-интервала экрана запаса — кадр рисуем, если он ближе к сроку, чем следующий.
-        // Потолок — целое число интервалов экрана: 45 кадров на 60 Гц давали шаги то 16, то 33 мс — картинка дёргалась.
-        // Теперь на 60 Гц — 60 или 30, на 120 Гц — 120/60/40/30 (ближайшее кратное к желаемому потолку)
-        if (this.lastRaf) { const gap = now - this.lastRaf; if (gap < 50) this.vsync = this.vsync ? this.vsync * 0.95 + gap * 0.05 : gap; }
-        this.lastRaf = now;
-        const want = this.frameBudget(), vs = this.vsync || 16.7;
-        const budget = vs * Math.max(1, Math.round(want / vs));
-        if (now < (this.nextFrame || 0) - vs / 2) return; // пропускаем кадр
-        this.nextFrame = now - (this.nextFrame || 0) > budget ? now + budget : this.nextFrame + budget;
+        if (!this.pacer.ready(now, this.frameBudget())) return;
         // шаг времени сглажен: таймер телефона «гуляет» на ±2–4 мс, и без сглаживания дорога едет рывками.
         // Настоящий провал кадра (шаг заметно длиннее обычного) не сглаживаем — иначе мир «отстанет»
         const raw = Math.min(this.clock.getDelta(), 0.05);
@@ -1028,17 +1023,6 @@ class Game {
         if (still && this.stillDrawn) return;
         this.stillDrawn = still;
 
-        if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
-            this.world.update(dt, 0, this.t);
-            this.fight?.update(dt);
-            this.render();
-            if (this.fight?.phase === "fight") this.measureFps(dt); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
-            return;
-        }
-        if (this.state === "playing") this.step(dt);
-        else if (this.state === "over" && this.arrest) this.arrestStep(dt);
-        else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
-        if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps(dt);
         // тепловой ограничитель: телефон долго держит 60 кадров — греется и сам начинает тормозить. После HEAT_AFTER с
         // игры подряд рисуем в меньшем разрешении (почти незаметно на маленьком экране), сброс — после 2 мин в меню
         if (this.tier.heat) {
@@ -1047,6 +1031,18 @@ class Game {
             const want = this.hot > HEAT_AFTER ? 0.85 : 1;
             if ((this.heatScale || 1) !== want && (want < 1 || this.state === "menu")) { this.heatScale = want; this.onResize(); }
         }
+
+        if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
+            this.world.update(dt, 0, this.t);
+            this.fight?.update(dt);
+            this.render();
+            if (this.fight?.phase === "fight") this.measureFps(); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
+            return;
+        }
+        if (this.state === "playing") this.step(dt);
+        else if (this.state === "over" && this.arrest) this.arrestStep(dt);
+        else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
+        if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps();
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
@@ -1131,6 +1127,7 @@ class Game {
     // (тонмаппинг и FXAA): на телефонах это главный расход — видеокарта упирается в число закрашиваемых пикселей.
     // Тонмаппинг тогда делает сам Three.js (ACES), виньетка — слой #vig поверх холста
     render() {
+        this.world?.coinBatch?.sync(this.tier.far);
         if (this.direct) this.renderer.render(this.scene, this.camera);
         else this.composer.render();
     }
@@ -1171,7 +1168,7 @@ class Game {
         u.grade.value = k ? CINE.grade : 0; u.ca.value = CINE.ca * k;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * k; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * k : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
-        const direct = level === "low" && !this.look2;
+        const direct = !!this.tier.direct && !this.look2;
         if (direct !== !!this.direct) this.setDirect(direct);
         // дальше — туман: не рисуем то, чего всё равно не видно
         this.camera.far = this.tier.far;
@@ -1186,6 +1183,10 @@ class Game {
         try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         this.applySettings();
         if (key === "perf") this.perf.toggle(!!value);
+        if (key === "frameRate" || key === "quality") {
+            this.performanceFpsCap = 0;
+            this.frameMeter.reset();
+        }
         if (key === "quality") {
             this.resScale = 1;
             const level = value === "auto" ? this.autoQuality : value;
@@ -1226,46 +1227,44 @@ class Game {
     // Меряем кадры (в забеге, бою и меню): стабильно не успеваем — сначала меньше пикселей, потом графика на ступень ниже.
     // Графика выбрана вручную (настройка или QUALITY в конфиге) — уровень не трогаем, но разрешение снижаем всё равно:
     // иначе на «Высокой» телефон так и остаётся на 15 кадрах
-    measureFps(dt) {
+    measureFps() {
+        if (this.measuredState !== this.state) {
+            this.measuredState = this.state;
+            this.frameMeter.reset();
+        }
+        if (this.state === "playing" && this.runTime < 1.5) { this.frameMeter.reset(); return; }
+        const fps = this.frameMeter.sample(performance.now());
+        if (fps === null) return;
+        const target = Math.min(60, 1000 / this.frameBudget());
+        // Повышенная частота требует запаса. При нехватке сначала возвращаем 60,
+        // сохраняя разрешение; настройка «До 120» может быть выбрана повторно.
+        if (this.frameBudget() < 1000 / 60 && fps < 85) {
+            this.performanceFpsCap = 60;
+            if (fps >= 55) return;
+        }
+        if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
         const floor = this.resScale <= RES_MIN + 0.01;
-        if ((floor && (this.quality === "low" || this.qualityHinted)) || (this.state === "playing" && this.runTime < 1.5)) return;
-        if (!this.fpsFrames) { this.fpsStart = performance.now(); this.fpsRaf = this.rafCount; }
-        this.fpsFrames = (this.fpsFrames || 0) + 1;
-        this.fpsTime = (this.fpsTime || 0) + dt;
-        if (this.fpsTime < 2.5) return;
-        const fps = this.fpsFrames / this.fpsTime;
-        const screenHz = (this.rafCount - this.fpsRaf) / ((performance.now() - this.fpsStart) / 1000);
-        this.fpsFrames = this.fpsTime = 0;
-        // Экран сам может давать 30 Гц (энергосбережение) — это не лаг. Но когда телефон не успевает, браузер и кадры
-        // просит реже — «частота экрана» падает вместе с FPS. Раньше цель бралась по ней (min(потолок, screenHz)), и
-        // 15–25 кадров считались нормой: графика не снижалась никогда (плейтест: iPhone 13 Pro, Xiaomi 17 Ultra).
-        // Теперь ограничение экрана — только ровные ~30 Гц, иначе цель — потолок кадров
-        const screenCap = screenHz > 27 && screenHz < 33 ? 30 : 60;
-        const target = Math.min(1000 / this.frameBudget(), screenCap);
-        if (fps >= target * 0.8) return;
-        // сначала меньше пикселей мелкими шагами (без рывка, все эффекты на месте), потом — графика на ступень ниже
         if (!floor) {
-            this.resScale = Math.max(RES_MIN, Math.round((this.resScale - 0.1) * 100) / 100);
+            this.resScale = Math.max(RES_MIN, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
-        } else if (!tierLocked) {
-            if (this.state === "fight") return; // в бою графику не меняем: пересборка шейдеров — рывок посреди раунда
+        } else if (!tierLocked && this.quality !== "low") {
+            if (this.state === "fight") return; // не пересобираем шейдеры посреди раунда
             this.resScale = 0.85;
             this.setQuality(this.quality === "high" ? "medium" : "low");
-        } else { // графика выбрана вручную и не тянет даже на меньшем разрешении — подсказать раз за запуск
+        } else if (tierLocked && !this.qualityHinted) {
             this.qualityHinted = true;
             this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»");
         }
     }
 
-    // Потолок кадров: в забеге 60 (на 120-герцовых экранах иначе было бы 120), в меню 30–40,
-    // когда сцену закрывает вкладка, пауза или проигрыш — 12. Меньше кадров — меньше нагрев.
+    // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
     frameBudget() {
-        // бой: камера почти стоит, а телефон греется — на средней и слабой графике хватает 40 и 30 кадров
-        if (this.state === "fight") return 1000 / Math.min(this.tier.fps[0], this.tier.fight || 60);
-        if (this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / this.tier.fps[0];
-        if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / this.tier.fps[0]; // тряска при проигрыше — плавно
-        if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / Math.min(this.tier.fps[0], 45); // задержание: камера облетает — плавно
+        const requested = this.settings.frameRate === 60 ? 60 : 120;
+        const active = Math.min(requested, this.performanceFpsCap || requested);
+        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / active;
+        if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
+        if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / 60;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
     }
@@ -2459,7 +2458,7 @@ class Game {
         for (const id of ["wall-q", "wind-q", "mode"]) if ($(id)) $(id).hidden = true; // и окно «Режим забега» — не поверх боя
         const n = this.questions ? this.charges(s) : 0;
         this.state = "fight";
-        this.fpsFrames = this.fpsTime = 0; // замер кадров боя — с нуля, без хвоста забега
+        this.frameMeter.reset(); // замер кадров боя — с нуля, без хвоста забега
         this.clock.getDelta();
         // экзамен Инакова: вопросы перемешаны (пересдача — в другом порядке), заряды убирают неверные варианты
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
