@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { BALANCE, LINKS, DEATH_TEXT, TIPS, CHARACTERS, QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PerfHud } from "./perf.js";
 import { CardGirls } from "./cards.js";
@@ -24,18 +24,39 @@ THREE.ColorManagement.legacyMode = false;
 
 // Финальный проход после bloom: ACES-тонмаппинг, sRGB и лёгкая виньетка
 const OutputShader = {
-    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 } },
+    uniforms: { tDiffuse: { value: null }, exposure: { value: 1.1 }, sat: { value: 1 }, contrast: { value: 1 }, vig: { value: 0.55 } },
     vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
-        uniform sampler2D tDiffuse; uniform float exposure; varying vec2 vUv;
+        uniform sampler2D tDiffuse; uniform float exposure, sat, contrast, vig; varying vec2 vUv;
         vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
         void main() {
             vec3 c = aces(texture2D(tDiffuse, vUv).rgb * exposure);
             c = mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+            c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat); // насыщенность (LOOK2)
+            c = clamp((c - 0.5) * contrast + 0.5, 0.0, 1.0);              // контраст
             float v = smoothstep(0.95, 0.35, length(vUv - 0.5));
-            gl_FragColor = vec4(c * mix(0.55, 1.0, v), 1.0);
+            gl_FragColor = vec4(c * mix(vig, 1.0, v), 1.0);
         }`,
 };
+
+// Контур героя (LOOK2): свечение по краю силуэта — добавка к emissive по углу к камере (френель), только на материалах героя
+function heroRim(root) {
+    root.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [].concat(o.material)) {
+            if (!m?.isMeshStandardMaterial || m.userData.rim) continue;
+            m.userData.rim = true;
+            m.onBeforeCompile = (sh) => {
+                sh.uniforms.rimCol = { value: new THREE.Color(LOOK2.rim).multiplyScalar(LOOK2.rimK) };
+                sh.fragmentShader = "uniform vec3 rimCol;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>",
+                    `#include <emissivemap_fragment>
+                    totalEmissiveRadiance += rimCol * pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), ${LOOK2.rimPower.toFixed(2)});`);
+            };
+            m.customProgramCacheKey = () => "rim";
+            m.needsUpdate = true;
+        }
+    });
+}
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -172,13 +193,15 @@ class Game {
         // небо — картинка во весь экран (градиент, звёзды, луна; перерисовывается под размер экрана в onResize),
         // туман вдали — цвета горизонта (SKY)
         this.scene.background = new THREE.Color(SKY.color);
-        this.scene.fog = new THREE.Fog(SKY.color, 12, 85);
+        // «Довести ночь» (LOOK2) — проба по флагу
+        this.look2 = /[?&]look=2/.test(location.search) || (tg.startParam || "").toLowerCase() === "look" || !!this.settings?.look2;
+        this.scene.fog = this.look2 ? new THREE.Fog(SKY.color, LOOK2.fog[0], LOOK2.fog[1]) : new THREE.Fog(SKY.color, 12, 85);
         this.paintSky();
         this.scene.environment = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
-        this.scene.add(new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], SKY.light));
+        this.scene.add(new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], this.look2 ? LOOK2.hemi : SKY.light));
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -196,10 +219,11 @@ class Game {
         // постобработка: свечение окон, фонарей, фар и монет
         this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.5, 0.92);
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), this.look2 ? LOOK2.bloom : 0.8, 0.5, 0.92);
         this.composer.addPass(this.bloom);
         const output = new ShaderPass(OutputShader);
-        output.uniforms.exposure.value = SKY.exposure;
+        output.uniforms.exposure.value = this.look2 ? LOOK2.exposure : SKY.exposure;
+        if (this.look2) { output.uniforms.sat.value = LOOK2.sat; output.uniforms.contrast.value = LOOK2.contrast; output.uniforms.vig.value = LOOK2.vignette; }
         this.composer.addPass(output);
 
         window.addEventListener("resize", () => this.onResize());
@@ -630,6 +654,7 @@ class Game {
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // «Рывок» — прыжок выше
         this.camKick.dip = -0.16; // камера на миг приседает и догоняет героя
+        if (this.look2) this.squash = { t: 0, up: 1 };
         this.audio.play("swipe");
         tg.haptic("medium");
     }
@@ -1090,6 +1115,7 @@ class Game {
         const apply = (gltf) => {
             if (this.heroId !== id) return;
             attachModel(this.rat, gltf, opts);
+            if (this.look2) heroRim(gltf.scene);
             this.showRat(true);
             this.heroLoading = false;
             this.hub?.updatePlay();
@@ -1223,6 +1249,7 @@ class Game {
                 this.jumping = false;
                 this.world.splash(this.x, 0, 16);
                 this.world.ring(this.x, 0, 1.1, 0.35);
+                if (this.look2) this.squash = { t: 0, up: 0 };
             }
         }
         if (this.slideLeft > 0) {
@@ -1232,7 +1259,15 @@ class Game {
         }
         this.world.playerX = this.x;
         this.rat.position.set(this.x, this.y, 0);
-        this.rat.rotation.z = (this.x - targetX) * 0.25 - ((this.windSlide || 0) * 0.09 + (this.ventPush || 0) * 0.14); // наклон при перестроении и против ветра
+        this.rat.rotation.z = (this.x - targetX) * (this.look2 ? LOOK2.lean : 0.25) - ((this.windSlide || 0) * 0.09 + (this.ventPush || 0) * 0.14); // наклон при перестроении и против ветра
+        if (this.look2) { // доворот корпуса в сторону перестроения и сжатие/вытягивание (взлёт — 0,22 с, приземление — 0,2 с)
+            this.rat.rotation.y = (this.x - targetX) * -LOOK2.yaw;
+            const q = this.squash; let sy = 1, sx = 1;
+            if (q) { q.t += dt; const dur = q.up ? 0.22 : 0.2, k = Math.min(1, q.t / dur), a = Math.sin(Math.PI * k);
+                if (q.up) { sy = 1 + a * LOOK2.stretch; sx = 1 - a * LOOK2.stretch * 0.5; } else { sy = 1 - a * LOOK2.squash; sx = 1 + a * LOOK2.squash * 0.6; }
+                if (k >= 1) this.squash = null; }
+            this.rat.scale.set(sx, sy, sx);
+        }
         const blob = this.rat.userData.blob;
         blob.position.x = this.x;
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
