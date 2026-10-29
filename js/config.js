@@ -240,7 +240,7 @@ export const CHASER = { url: "models/obj/inspector.glb?v=2", height: 1.72, run: 
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
-        portrait: "img/heroes/malakhov.jpg", faceY: "34%", // лицо в репликах (рендер модели); faceY — где лицо по высоте
+        portrait: "img/heroes/malakhov.jpg?v=2", faceY: "36%", // лицо в репликах (рисованный портрет); faceY — где лицо по высоте
         start: "Пусть говорят! А вы куда так бежите?",
         caught: ["Малахов догнал: «Пусть говорят!»", "Второй удар — и ты в студии у Малахова", "Малахов: «Сенсация! Беглец пойман в прямом эфире»"],
         // погоня «из принципа» (после главы 1, CHASE_GRUDGE) — его реплики вместо Мизулины
