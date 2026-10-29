@@ -737,6 +737,8 @@ class Game {
             if (this.audio.mode === "off") this.audio.music(this.state === "playing" ? "run" : this.state === "paused" ? "pause" : "menu");
         };
         for (const ev of ["pointerdown", "keydown", "touchstart"]) document.addEventListener(ev, wake, { once: true, capture: true });
+        // и дальше — на каждое касание: музыка встала (вернулись в игру из Telegram) — запустить снова
+        for (const ev of ["pointerdown", "touchend"]) document.addEventListener(ev, () => this.audio.kick(), { capture: true, passive: true });
     }
 
     // ---- интерфейс -----------------------------------------------------------------------

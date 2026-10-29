@@ -119,6 +119,15 @@ export class Audio {
         this.syncTrack();
     }
 
+    // На каждое касание: музыка должна играть, а встала — запустить снова. Вернулся в Telegram (канал, «Поделиться»),
+    // и трек пытается продолжиться без касания — iPhone это блокирует, и музыка молчала до перезапуска игры,
+    // хотя звуки (Web Audio) играли. Касание — разрешённый момент: запускаем ещё раз
+    kick() {
+        if (!this.ctx || document.hidden) return;
+        if (this.ctx.state !== "running") this.ctx.resume()?.catch(() => {});
+        if (this.enabled && this.mode !== "off") for (const p of Object.values(this.players)) if (p.el.paused) p.el.play().catch(() => {});
+    }
+
     // оба плеера крутятся всегда, слышно только нужный (громкость в music()): iOS не даст
     // запустить второй трек позже, не по нажатию — поэтому оба стартуют с первого касания
     syncTrack() {
