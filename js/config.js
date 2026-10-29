@@ -562,7 +562,7 @@ export const CARDS = { perRun: 2, firstAt: 300, nextGap: [500, 800], edge: 1.15,
     banks: [
         { id: "sber", name: "СБЕР", line: "Держи карту Сбера!", of: "Сбера", bg: ["#2fc35a", "#0b6b26"], wave: "#16a34a", ink: "#ffffff", glow: 0x35e39b },
         { id: "alfa", name: "АЛЬФА", line: "Держи карту Альфы!", of: "Альфы", bg: ["#ff4a3d", "#b5160d"], wave: "#e3241a", ink: "#ffffff", glow: 0xff5a4d },
-        { id: "tinkoff", name: "ТИНЬКОФФ", line: "Держи карту Тинькофф!", of: "Тинькофф", bg: ["#ffe14d", "#f5c400"], wave: "#1f1f1f", ink: "#111111", glow: 0xffdd2d },
+        { id: "tinkoff", name: "ТИНЬКОФФ", line: "Держи карту Тинькофф!", of: "Тинькофф", bg: ["#ffe14d", "#f5c400"], wave: "#e0a400", ink: "#111111", glow: 0xffdd2d },
         { id: "ozon", name: "OZON", line: "Держи карту Озона!", of: "Озона", bg: ["#2f7bff", "#0040c8"], wave: "#f1117e", ink: "#ffffff", glow: 0x4d8dff },
     ],
     lines: ["Лови!", "Аккуратнее с ней!", "Только не теряй!", "Быстрый какой…", "Это тебе на удачу"], missed: "Эх, не успел",

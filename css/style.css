@@ -153,14 +153,18 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .cur { min-width: 0; border-left: 3px solid var(--red); }
 .cur .plate-in { display: flex; align-items: center; gap: 7px; padding: 8px 16px 8px 12px; font: 700 15px/1 var(--font-display); font-variant-numeric: tabular-nums; }
 .cur .ico-usdt { width: 18px; height: 18px; flex: none; }
+/* в той же плашке — сколько карт собрано: тонкий разделитель, значок карты, число */
+.cur-sep { flex: none; width: 1px; height: 16px; margin: 0 2px; background: rgba(255, 255, 255, .2); }
+.cur .ico-card { flex: none; width: 22px; height: 14px; margin: 0; vertical-align: 0; }
 .cur b, .hub-best b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* рекорд — подпись над числом, как «USDT | Очки» в забеге: так он вдвое уже */
 .hub-best { margin-left: auto; min-width: 0; }
 .hub-best .plate-in { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding: 6px 14px; font-size: 10px; line-height: 1; color: var(--muted); white-space: nowrap; }
 .hub-best b { max-width: 100%; color: var(--text); font: 700 14px/1 var(--font-display); }
 @media (max-width: 340px) { /* iPhone SE и похожие: иначе все числа сжимаются до «…» */
-    .hub-top { gap: 6px; } .cur .plate-in { gap: 5px; padding: 7px 11px 7px 9px; font-size: 13px; } .cur .ico-usdt { width: 16px; height: 16px; }
-    .hub-best .plate-in { padding: 5px 10px; font-size: 9px; } .hub-best b { font-size: 12px; } .gear { width: 34px; height: 32px; }
+    .hub-top { gap: 6px; } .cur .plate-in { gap: 4px; padding: 7px 9px 7px 8px; font-size: 12px; } .cur .ico-usdt { width: 15px; height: 15px; }
+    .cur .ico-card { width: 18px; height: 11px; } .cur-sep { margin: 0 1px; }
+    .hub-best .plate-in { padding: 5px 8px; font-size: 9px; } .hub-best b { font-size: 12px; } .gear { width: 32px; height: 32px; }
 }
 .chap {
     padding: 10px 12px; border-radius: 16px; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line);

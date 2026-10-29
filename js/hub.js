@@ -73,6 +73,7 @@ export class Hub {
         // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
         if (p.bonusCheck()) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
+        $("w-cards").textContent = fmt(p.cards || 0); // карты от девушек на обочине (в Telegram баланс — с сервера)
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
