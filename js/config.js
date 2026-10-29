@@ -260,6 +260,13 @@ export const CHARACTERS = [
     // модели (idle/walk) смотрят вбок — в забеге не используются
     { id: "gorilla", name: "Горилла", url: "models/gorilla.glb", hd: "models/hd/gorilla", clipsUrl: "models/gorilla_run.json?v=3", height: 1.9, portrait: "img/heroes/gorilla.jpg",
         clips: { run: "p_run", jump: "p_jump", slide: "p_slide", dead: "p_dead", fly: "p_fly", idle: "p_idle", fall: "p_fall", stumble: "p_stumble", cheer: "p_cheer" }, flyClip: { loop: true, speed: 1.3 } },
+    // Дима Мент и Саша Товарус — герои по фото (Meshy: модель, скелет, бег и бой). Без сюжета: покупаются (HERO_UNLOCKS act "buy").
+    // В одной .glb и забег, и бой (клипы собраны tools/meshy-convert.html; спотыкание — кусок 3,3–4,6 с, победа — до 5 с)
+    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=1", height: 1.82, portrait: "img/heroes/dima.jpg",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
+    // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
+    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=1", height: 1.7, portrait: "img/heroes/tovarus.jpg",
+        clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" }, flyClip: { loop: true, speed: 1.3 } },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -513,6 +520,9 @@ export const HERO_UNLOCKS = {
     sasha: { act: "boss", chapter: 3, text: "Пройди главу 3 «Первый миллион»", btn: "Пройди главу 3" },
     pavel: { act: "razbor", text: "Запишись на бесплатный разбор", btn: "Записаться на разбор" },
     gorilla: { act: "all", text: "Бонус за всё: пройди все главы и выполни задания", btn: "Бонус за всё" },
+    // act "buy" — покупка за USDT игрового кошелька (price)
+    dima: { act: "buy", price: 12000, text: "Покупка за 12 000 USDT", btn: "Купить" },
+    tovarus: { act: "buy", price: 15000, text: "Покупка за 15 000 USDT", btn: "Купить" },
 };
 // Бета-тест: все герои открыты сразу, без заданий (подписка, друг, глава 3, разбор, бонус Гориллы). Задания и их
 // проверка остаются — за них очки рейтинга, и сделанное запоминается. После беты — false: герои снова открываются действиями
@@ -535,6 +545,8 @@ export const HERO_PERKS = {
     denchik: { text: "Больной: на костылях только ходит — бегать не может, на середине пути его догоняет Мизулина. Мозг команды: +10% USDT", coinBonus: 10 },
     sasha: { text: "+1 жизнь за забег и +20% USDT", extraLife: 1, coinBonus: 5 },
     gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
+    dima: { text: "Свой среди постов: +15% USDT", coinBonus: 7 },
+    tovarus: { text: "Быстрые ноги: смена полосы на 10% быстрее, +12% USDT", lane: 1.1, coinBonus: 8 },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
@@ -868,6 +880,11 @@ for (const id of ["pavel", "sasha"]) FIGHTERS[`hero_${id}`] = { ...FIGHTERS[`her
 FIGHTERS.hero_gorilla = { ...FIGHTERS.hero_pavel, name: "Горилла", short: "Горилла", model: "models/gorilla.glb", clipsUrl: "models/gorilla_fight.json?v=2",
     hd: CHARACTERS.find((c) => c.id === "gorilla").hd }; // не Павла: hero_pavel выше — только источник приёмов
 // Ислам — коренастый, мышиная стойка на нём выглядела приседом: ему клипы Павла (человеческая боксёрская стойка), ростом ниже Мизулины
+// Дима и Саша Товарус: модель забега с боевыми клипами Meshy — приёмы как у Спиди, защита — свои клипы block/dodge/hit
+for (const id of ["dima", "tovarus"]) FIGHTERS[`hero_${id}`] = { ...FIGHTERS[`hero_${id}`], model: CHARACTERS.find((c) => c.id === id).url,
+    short: id === "tovarus" ? "Товарус" : "Дима", // «Саша» — уже Саша Белый
+    moves: { ...FIGHTERS.mouse.moves, win: HERO_WIN, block: { ...GUARD_MOVES.block, clip: "block" }, dodge: { ...GUARD_MOVES.dodge, clip: "dodge" },
+        hit: { ...GUARD_MOVES.hit, clip: "hit" }, recoil: { ...GUARD_MOVES.recoil, clip: "hit" } } };
 FIGHTERS.hero_islam = { ...FIGHTERS.hero_islam, model: "models/islam_hero_fight.glb?v=2", height: 1.62, yaw: 0.6, lunge: 0.15, capWhite: 0,
     moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.6 },
         jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 1.0 }, cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 1.0 },

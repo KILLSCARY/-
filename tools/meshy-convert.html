@@ -67,8 +67,33 @@ try {
     const g = await glb(job.glb);
     g.scene.traverse((m) => { if (m.isMesh) for (const mt of [].concat(m.material)) for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap"]) if (mt[k]) mt[k].userData.mimeType = "image/jpeg"; });
     let tris = 0; g.scene.traverse((m) => { if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
-    report.clips = g.animations.map((c) => [c.name, +c.duration.toFixed(2)]); report.tris = tris;
-    await save(job.out, g.scene, g.animations);
+    // job.clips — клипы из других .glb Meshy с тем же ригом: { имя: [файл, номер клипа в нём] } (набор действий Meshy —
+    // один файл, клип на действие по порядку). Без масштаба, бедро стоит на месте по X/Z (бег «на дорожке»), высота — как есть
+    // job.lean — герой для телефона: без карты металла/шероховатости (третья текстура) и без двусторонних граней
+    if (job.lean) g.scene.traverse((m) => { if (m.isMesh) for (const mt of [].concat(m.material)) {
+      mt.metalnessMap = mt.roughnessMap = null; mt.metalness = job.metal ?? 0.1; mt.roughness = job.rough ?? 0.7; mt.side = THREE.FrontSide;
+    } });
+    let clips = g.animations;
+    if (job.clips) {
+      clips = [];
+      const files = {};
+      for (const [name, [file, i = 0]] of Object.entries(job.clips)) {
+        const src = files[file] ||= await glb(file);
+        let clip = src.animations[i].clone(); clip.name = name;
+        // кости, кроме бедра, только поворачиваются: дорожки позиции Meshy пишет каждой — постоянные, лишний вес (job.lean)
+        clip.tracks = clip.tracks.filter((t) => !t.name.endsWith(".scale") && !(job.lean && t.name.endsWith(".position") && !/Hips\.position$/.test(t.name)));
+        // job.trim — { имя: [с, по] } в секундах: взять кусок длинного клипа (спотыкание Meshy — 11 с, нужна секунда)
+        const tr = job.trim?.[name];
+        if (tr) { clip = THREE.AnimationUtils.subclip(clip, name, Math.round(tr[0] * 30), Math.round(tr[1] * 30), 30); }
+        for (const t of clip.tracks) if (/Hips\.position$/.test(t.name)) {
+          const v = t.values, x0 = v[0], z0 = v[2];
+          for (let k = 0; k < v.length; k += 3) { v[k] = x0; v[k + 2] = z0; }
+        }
+        clips.push(clip);
+      }
+    }
+    report.clips = clips.map((c) => [c.name, +c.duration.toFixed(2)]); report.tris = tris;
+    await save(job.out, g.scene, clips);
     window.DONE = report;
     throw null;
   }

@@ -474,7 +474,8 @@ export class Hub {
             box.innerHTML = list.map((c) => {
                 const st = this.heroState(c);
                 const tag = st === "play" ? (c.id === this.game.heroId ? "В забеге" : "В команде")
-                    : st === "buy" ? (HERO_UNLOCKS[c.id]?.btn || "Закрыт") : st === "locked" ? "На связи" : "Скоро";
+                    : st === "buy" ? (HERO_UNLOCKS[c.id]?.act === "buy" ? `${fmt(HERO_UNLOCKS[c.id].price)} USDT` : HERO_UNLOCKS[c.id]?.btn || "Закрыт")
+                    : st === "locked" ? "На связи" : "Скоро";
                 const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
                 return `<div class="hcard st-${st}" data-id="${c.id}">
                     <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
@@ -566,7 +567,7 @@ export class Hub {
         const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
             : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
         const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
-        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? "Открывается действием" : st === "locked" ? "На связи" : "Скоро"}</p>
+        box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? (u?.act === "buy" ? "Покупка" : "Открывается действием") : st === "locked" ? "На связи" : "Скоро"}</p>
             <h3>${c.name}</h3><p class="perk">${text}</p>
             ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : u.act === "all" ? `<b>${this.p.bonusSteps().filter((x) => x.done).length}/${this.p.bonusSteps().length}</b>` : ""}</div>` : ""}
             ${st === "buy" && u?.act === "all" ? `<ul class="bonus-list">${this.p.bonusSteps().map((x) => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${x.text}</li>`).join("")}</ul>` : ""}`;
@@ -576,6 +577,17 @@ export class Hub {
             b.textContent = on ? "Выбран" : "Выбрать";
             b.disabled = on;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); };
+        } else if (st === "buy" && u?.act === "buy") { // покупка за USDT игрового кошелька (Дима Мент, Таварус)
+            b.textContent = `Купить за ${fmt(u.price)} USDT`;
+            b.disabled = this.p.usdt < u.price;
+            b.onclick = () => {
+                if (!this.p.pay({ usdt: u.price })) return this.toast("USDT маловато. Пробеги ещё пару забегов.");
+                this.p.unlockHero(c.id);
+                this.game.audio.play("buy");
+                this.toast(`${c.name} в команде!`);
+                this.game.selectHero(c.id);
+                this.render();
+            };
         } else if (st === "buy" && u) { // открыть действием (shop_v6): подписка, приглашение, разбор; босс — в забеге
             // подписку и приглашение проверяет сервер (бот спрашивает Telegram): сначала действие, потом «Проверить»
             const kind = u.act === "subscribe" ? "store" : u.act === "invite" ? "invite" : null;

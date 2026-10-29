@@ -277,18 +277,40 @@ export function animateRat(rat, pose, t, phase, dt = 0, speed = 1) {
 // ---- персонаж из .glb ----------------------------------------------------------------------
 
 // Заменяет крыса из примитивов на загруженную модель: масштаб, разворот, анимации.
+// Габариты героя. У части сеток (Дима Мент, Таварус — сборка Meshy) коробка скина в других единицах, чем кости
+// (×100): по ней рост выходил в сто раз больше, герой улетал за кадр. Тогда рост — по костям, от стоп до макушки
+// (так же в бою — Fight.attach, у Мизулины)
+function heroBox(model) {
+    const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3());
+    const bones = new THREE.Box3(), p = new THREE.Vector3();
+    model.traverse((o) => { if (o.isBone) bones.expandByPoint(o.getWorldPosition(p)); });
+    const bh = bones.getSize(p).y;
+    if (bh > 0 && (size.y / bh > 1.6 || size.y / bh < 0.6)) {
+        // по самим вершинам с учётом костей (каждая 5-я): у Таваруса верхняя кость сильно ниже макушки — по костям
+        // рост выходил на 12% больше заданного
+        const real = new THREE.Box3();
+        model.traverse((o) => {
+            if (!o.isSkinnedMesh) return;
+            o.skeleton.update();
+            for (let i = 0, n = o.geometry.attributes.position.count; i < n; i += 5) real.expandByPoint(o.getVertexPosition(i, p).applyMatrix4(o.matrixWorld));
+        });
+        return real.isEmpty() ? bones : real;
+    }
+    return box;
+}
+
 export function attachModel(rat, gltf, cfg) {
     const model = gltf.scene;
     model.rotation.set(0, cfg.rotateY ?? Math.PI, 0); // Meshy/Mixamo смотрят в +Z, а бежим мы в -Z
     model.position.set(0, 0, 0);
     model.scale.setScalar(1);
     model.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(model);
+    const box = heroBox(model);
     const size = box.getSize(new THREE.Vector3());
     const k = cfg.height / (size.y || 1);
     model.scale.multiplyScalar(k);
     model.updateMatrixWorld(true);
-    box.setFromObject(model);
+    box.copy(heroBox(model));
     const c = box.getCenter(new THREE.Vector3());
     model.position.x -= c.x;
     model.position.z -= c.z;
