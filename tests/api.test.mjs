@@ -178,7 +178,8 @@ test("рейтинг: только забег — лучший результа�
     assert.equal((await rs(a, "zzzzzzzz", 100, 1, T0 + 60_000)).json.error, "no_run"); // чужой или выдуманный забег
     assert.equal((await rs(a, "x", 100, 1, T0 + 60_000)).status, 400);
     const ra2 = (await run(store, "cardrun", { initData: a }, T0 + 100_000)).json.runId;
-    assert.equal((await rs(a, ra2, 50, 1, T0 + 105_000)).json.error, "too_fast"); // меньше 20 с
+    assert.equal((await rs(a, ra2, 50, 1, T0 + 105_000)).json.error, "too_fast"); // меньше 10 с — не считаем
+    assert.equal((await rs(a, ra2, 150, 2, T0 + 112_000)).status, 200); // 12 с — уже считаем
     const rb = (await run(store, "cardrun", { initData: b }, T0)).json.runId;
     assert.equal((await rs(b, rb, 2000, 300, T0 + 80_000)).json.best, 5000);
     // карты, боссы, задания — в рейтинг не идут

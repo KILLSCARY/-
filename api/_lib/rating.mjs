@@ -6,7 +6,7 @@
 // Хранилище: p2p:lbr — sorted set tgId → лучший результат (ZADD GT); p2p:lbn — hash tgId → имя; p2p:lbp — фото;
 // p2p:tk:<tgId> — hash задание → метка (HSETNX: второй раз не засчитывается). p2p:lb/p2p:lbs — старая сумма очков, не читается.
 export const RATING = {
-    run: { vmax: 32, dash: 520, usdtPerM: 4, usdtBase: 150, minSec: 20, ttlSec: 3 * 3600 },
+    run: { vmax: 32, dash: 520, usdtPerM: 4, usdtBase: 150, minSec: 10, ttlSec: 3 * 3600 },
     tasks: { razbor: 0, anketa: 0, invite: 0, store: 0 }, // задания есть, очков за них нет
 };
 export const STATS = [];
