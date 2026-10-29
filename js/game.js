@@ -345,7 +345,7 @@ class Game {
         this.phase = 0;
         this.nextRowZ = -40;
         // стены-возражения: где следующая, серия правильных, ошибки по типам клиентов за забег
-        this.nextWallAt = this.questions ? WALLS.firstAt : ARCHES.firstAt;
+        this.nextWallAt = this.wallGap(this.questions ? WALLS.firstAt : ARCHES.firstAt);
         this.endBossFight(true); // экзамен Инакова (this.boss) — часть финального боя
         this.bossCalm = null; // тишина перед боссом: { left: метров, i }
         this.bossTried = false; // босс в этом забеге уже был
@@ -1171,6 +1171,10 @@ class Game {
 
     get heroCfg() { return CHARACTERS.find((c) => c.id === this.heroId); }
 
+    // расстояние до следующей стены или арки (м): больному герою (Денчик, sick.walls) — ближе, он идёт в разы медленнее,
+    // и стены по времени встречаются так же часто, как у остальных
+    wallGap(m) { return m * (this.heroCfg?.sick?.walls ?? 1); }
+
     selectHero(id) {
         this.heroId = id;
         this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
@@ -1217,9 +1221,8 @@ class Game {
 
     step(dt) {
         this.runTime += dt;
-        const sick = this.heroCfg?.sick; // больной герой (Денчик) — ходит, а не бежит: свой старт, потолок и прирост скорости
-        this.speed = sick ? Math.min(sick.speedMax, sick.speedStart + this.runTime * sick.ramp)
-            : Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
+        const sick = this.heroCfg?.sick; // больной герой (Денчик) — ковыляет весь забег с одной скоростью, без разгона
+        this.speed = sick ? sick.speed : Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         // раз за забег; после апелляции забег идёт дальше без повторного ареста — так главу за Денчика можно пройти
         if (sick && !this.sickDone && this.runTime >= sick.catchAt && this.state === "playing" && !this.bossFight && !this.storyOn && !this.flight) this.sickCatchStart(sick);
         if (this.slowLeft > 0) { // споткнулся — пару шагов медленнее
@@ -1242,7 +1245,8 @@ class Game {
         // Ислам вдыхает — почти стоим (камера на нём), дует — вполовину скорости
         const windSlow = this.wind?.state === "inhale" ? 0.25 : this.wind?.state === "gust" ? 0.45 : 1;
         const ventSlow = this.vent?.state === "blow" ? VENT.slow : 1; // в ветре вентилятора — тяжелее бежать
-        const slowTo = slow ? 0.08 : Math.min(windSlow, ventSlow);
+        // у стены больной герой не замедляется: он и так идёт со скоростью «у таблички» (×0,08 — почти стоял бы на месте)
+        const slowTo = slow && !sick ? 0.08 : Math.min(windSlow, ventSlow);
         this.slowK = (this.slowK ?? 1) + (slowTo - (this.slowK ?? 1)) * Math.min(1, dt * (slowTo < 1 ? 5 : 3));
         this.speed *= this.slowK;
         if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми ответ или свайпни вверх на его полосе" : "Беги в правильный ответ"; }
@@ -1675,7 +1679,7 @@ class Game {
         if (pend) { // 1.4 ещё не отвечена — первой стеной этого забега
             this.afterSpawned = true; // ставим один раз за забег
             const z = -(this.nextWallAt - this.distance);
-            this.nextWallAt += WALLS.every[0] + Math.random() * (WALLS.every[1] - WALLS.every[0]);
+            this.nextWallAt += this.wallGap(WALLS.every[0] + Math.random() * (WALLS.every[1] - WALLS.every[0]));
             this.gorilla(pend.afterLead || pend.afterKo, false, 3600);
             return this.spawnAfterWall(pend, z);
         }
@@ -1683,7 +1687,7 @@ class Game {
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = WALLS.every;
         // старый экзамен на ~900 м убран: экзамен Инакова — часть финального боя (spawnExamWall)
-        this.nextWallAt += a + Math.random() * (b - a);
+        this.nextWallAt += this.wallGap(a + Math.random() * (b - a));
         const chWall = CHAPTERS[Math.min(this.profile.chapter().index, CHAPTERS.length - 1)].wall;
         const pool = QUESTIONS.filter((q) => q !== this.lastQ);
         const q = chWall && Math.random() < WALLS.chapterWall ? QUESTIONS.find((x) => x.id === chWall) : pick(pool);
@@ -1955,7 +1959,7 @@ class Game {
         if (this.wind) { this.nextWallAt += 40; return; } // как у стен: арка не встаёт за Исламом, пока он дует
         const z = -(this.nextWallAt - this.distance);
         const [a, b] = ARCHES.every;
-        this.nextWallAt += a + Math.random() * (b - a);
+        this.nextWallAt += this.wallGap(a + Math.random() * (b - a));
         const gold = Math.floor(Math.random() * 3);
         const q = { q: "Арка профита", type: "arch", a: [] };
         const answers = [0, 1, 2].map((l) => (l === gold ? `+${ARCHES.reward[2]} USDT` : `+${ARCHES.reward[0]} USDT`));
@@ -2033,9 +2037,9 @@ class Game {
 
     spawnStoryWall() {
         const s = this.story, list = this.storyList(s);
-        if (this.storyQ >= list.length) { this.nextWallAt += 200; return; } // все таблички главы позади — дальше бой
+        if (this.storyQ >= list.length) { this.nextWallAt += this.wallGap(200); return; } // все таблички главы позади — дальше бой
         const q = list[this.storyQ++], at = this.nextWallAt;
-        this.nextWallAt += WALLS.every[0] + Math.random() * (WALLS.every[1] - WALLS.every[0]);
+        this.nextWallAt += this.wallGap(WALLS.every[0] + Math.random() * (WALLS.every[1] - WALLS.every[0]));
         if (q.input) { this.pendingInput = { q, at }; return; } // число вводим с клавиатуры — без табличек на полосах
         const z = -(at - this.distance);
         const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5); // варианты перемешиваются
@@ -2379,7 +2383,7 @@ class Game {
         // табличка 1.4 — первой, следом таблички новой главы
         this.spawnAfterWall(s, -70);
         this.afterSpawned = true;
-        this.nextWallAt = this.distance + 70 + WALLS.every[0];
+        this.nextWallAt = this.distance + 70 + this.wallGap(WALLS.every[0]);
         this.state = "countdown";
         const run = this.runId, cd = $("countdown");
         cd.hidden = false;
