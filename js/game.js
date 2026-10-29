@@ -879,6 +879,7 @@ class Game {
             this.world.update(dt, 0, this.t);
             this.fight?.update(dt);
             this.composer.render();
+            if (this.fight?.phase === "fight") this.measureFps(dt); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
             return;
         }
         if (this.state === "playing") this.step(dt);
@@ -1055,7 +1056,7 @@ class Game {
         if (this.resScale > 0.7) {
             this.resScale = Math.max(0.7, this.resScale - 0.15);
             this.onResize();
-        } else {
+        } else if (this.state !== "fight") { // в бою графику не меняем: пересборка шейдеров — рывок посреди раунда; ступень ниже — уже в забеге
             this.resScale = 0.85;
             this.setQuality(this.quality === "high" ? "medium" : "low");
         }
@@ -2207,6 +2208,7 @@ class Game {
         for (const id of ["wall-q", "wind-q", "mode"]) if ($(id)) $(id).hidden = true; // и окно «Режим забега» — не поверх боя
         const n = this.questions ? this.charges(s) : 0;
         this.state = "fight";
+        this.fpsFrames = this.fpsTime = 0; // замер кадров боя — с нуля, без хвоста забега
         this.clock.getDelta();
         // экзамен Инакова: вопросы перемешаны (пересдача — в другом порядке), заряды убирают неверные варианты
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
