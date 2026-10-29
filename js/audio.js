@@ -61,18 +61,24 @@ export class Audio {
             if (document.hidden) {
                 g.cancelScheduledValues(now);
                 g.setValueAtTime(0, now);
+                this.muted = true; // громкость вернёт fadeIn — по возврату или по первому касанию
                 this.ctx.suspend()?.catch(() => {});
             } else {
                 this.quietUntil = performance.now() + 400;
-                this.ctx.resume()?.then(() => {
-                    const t = this.ctx.currentTime;
-                    g.cancelScheduledValues(t);
-                    g.setValueAtTime(0, t);
-                    g.linearRampToValueAtTime(this.enabled ? 1 : 0, t + 0.8);
-                }).catch(() => {});
+                this.ctx.resume()?.then(() => this.fadeIn()).catch(() => {});
             }
             this.syncTrack();
         });
+    }
+
+    // после сворачивания — плавно вернуть громкость (один раз, когда звук снова идёт)
+    fadeIn() {
+        if (!this.muted || this.ctx.state !== "running") return;
+        this.muted = false;
+        const g = this.master.gain, t = this.ctx.currentTime;
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(0, t);
+        g.linearRampToValueAtTime(this.enabled ? 1 : 0, t + 0.8);
     }
 
     setEnabled(on) {
@@ -124,7 +130,10 @@ export class Audio {
     // хотя звуки (Web Audio) играли. Касание — разрешённый момент: запускаем ещё раз
     kick() {
         if (!this.ctx || document.hidden) return;
-        if (this.ctx.state !== "running") this.ctx.resume()?.catch(() => {});
+        // открыл ссылку (NS Store, канал) и вернулся: iPhone не даёт возобновить звук без касания — resume() при возврате
+        // не срабатывал, и громкость, сброшенная в 0 при уходе, так и оставалась нулём: музыка молчала при включённой настройке
+        if (this.ctx.state !== "running") this.ctx.resume()?.then(() => this.fadeIn()).catch(() => {});
+        else this.fadeIn();
         if (this.enabled && this.mode !== "off") for (const p of Object.values(this.players)) if (p.el.paused) p.el.play().catch(() => {});
     }
 
@@ -173,8 +182,25 @@ export class Audio {
             amp.gain.value = s.volume;
             src.connect(amp).connect(this.master);
             src.start();
+            // max — звук длиннее сцены (сирена ~12 с): гасим к концу, а новый забег глушит его сразу (stop)
+            if (s.max) amp.gain.setTargetAtTime(0, this.ctx.currentTime + s.max, 0.3);
+            (this.playing ||= {})[name] = { src, amp };
+            src.onended = () => { if (this.playing[name]?.src === src) delete this.playing[name]; };
         } catch {}
         return true;
+    }
+
+    // заглушить звук из файла, если ещё звучит (плавно, без щелчка)
+    stop(name) {
+        const p = this.playing?.[name];
+        if (!p || !this.ctx) return;
+        delete this.playing[name];
+        try {
+            const t = this.ctx.currentTime;
+            p.amp.gain.cancelScheduledValues(t);
+            p.amp.gain.setTargetAtTime(0, t, 0.08);
+            p.src.stop(t + 0.5);
+        } catch {}
     }
 
     tone(freq, { at = 0, dur = 0.15, vol = 0.2, type = "sine", to = 0 } = {}) {

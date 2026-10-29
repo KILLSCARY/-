@@ -716,7 +716,8 @@ class Game {
         // порыв ветра: каждое касание в любом месте экрана (и каждым пальцем) — «держусь»
         const tap = (n = 1) => {
             const w = this.wind;
-            if (this.state !== "playing" || !w || (w.state !== "gust" && w.state !== "inhale")) return false;
+            // на вдохе тапы не считаются: раньше 5 тапов набирались ещё до порыва, и он кончался в первый же кадр — Ислам не дул
+            if (this.state !== "playing" || !w || w.state !== "gust") return false;
             w.taps += n;
             tg.haptic("light");
             this.x += this.wind.side * 0.12; // откат против ветра — видно, что тап помогает
@@ -2462,6 +2463,7 @@ class Game {
     }
 
     endArrest() {
+        this.audio.stop("busted"); // новый забег, меню, апелляция — сирена прошлого не доигрывает поверх
         if (!this.arrest) return;
         const { c, act } = this.arrest, m = c.userData.mixer;
         if (m) {
@@ -2554,7 +2556,7 @@ class Game {
                 w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane;
                 this.audio.play("swipe");
                 $("wind-title").textContent = "Ислам вдыхает…";
-                $("wind-sub").textContent = "Готовься тапать!";
+                $("wind-sub").textContent = "Тапай, когда задует!";
                 $("wind-taps").innerHTML = "<i></i>".repeat(WIND.taps);
                 $("wind-q").classList.add("inhale");
                 $("wind-q").hidden = false;
@@ -2592,7 +2594,8 @@ class Game {
             const grip = Math.min(1, w.taps / WIND.taps);
             if (!flying) this.windSlide = -w.side * WIND.push * (1 - grip) * k; // скольжением поперёк полос
             if (this.fx.windproof) w.taps = WIND.taps; // «Устойчивость»: ветер не сносит
-            if (grip >= 1 || w.t <= 0 || flying) {
+            // удержался — но порыв всё равно идёт не меньше minGust: выдох Ислама и ветер должно быть видно
+            if ((grip >= 1 && WIND.gust - w.t >= WIND.minGust) || w.t <= 0 || flying) {
                 w.state = "done";
                 this.windCalm = 1.5; // пара секунд встать на полосу
                 box.hidden = true;

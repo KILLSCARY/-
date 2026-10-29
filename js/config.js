@@ -284,7 +284,7 @@ export const SOUNDS = {
         hit: { urls: ["audio/crash.mp3", "audio/crash2.mp3"], volume: 0.9 },
         boost: { urls: ["audio/purchase.mp3"], volume: 0.7 }, // золотая монета ×2 и прочие «бонусы»
         whistle: { urls: ["audio/police_whistle.mp3"], volume: 0.6 }, // пробегаешь мимо ДПС
-        busted: { urls: ["audio/police.mp3"], volume: 0.6 }, // поймал ДПС
+        busted: { urls: ["audio/police.mp3"], volume: 0.6, max: 3.5 }, // поймал ДПС; файл ~12 с — гасим после сцены задержания
         record: { urls: ["audio/achievement.mp3"], volume: 0.8 }, // новый рекорд, новая глава
         buy: { urls: ["audio/purchase.mp3"], volume: 0.8 }, // покупка в магазине, выкуп героя
         chest: { urls: ["audio/chest.mp3"], volume: 0.8 }, // кейс открылся
@@ -365,7 +365,7 @@ export const ARCHES = { firstAt: 160, every: [200, 280], reward: [3, 8, 20] };
 // npc — Ислам у обочины (новая модель в чёрном): стоит в idle (первый кадр), на вдохе приседает (idle до кадра crouch),
 // дует клипом blow — до кадра hold (сек):
 // присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
-export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, push: 2.4, taps: 5, reward: 3,
+export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, minGust: 0.9, push: 2.4, taps: 5, reward: 3,
     npc: { url: "models/obj/islam_wind.glb", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»)
