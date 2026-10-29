@@ -58,6 +58,10 @@ function heroRim(root) {
     });
 }
 
+// Клип из JSON (clipsUrl). В файлах Гориллы у клипов uuid = null, а Three.js кэширует действия микшера по uuid:
+// все клипы становились одним действием — включали «бег» и тут же гасили «стойку» (тот же объект), и Горилла ехала
+// застывшей фигурой. Без uuid — выдаём свой
+const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.uuid) c.uuid = THREE.MathUtils.generateUUID(); return c; };
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // число «досчитывается» от 0 (easeOutCubic); без анимаций — сразу итог
@@ -1146,7 +1150,7 @@ class Game {
         this.hub?.updatePlay();
         // clipsUrl — клипы, перенесённые с другого героя (у Гориллы — бег, прыжок, подкат Павла): докладываем к модели
         const withClips = (gltf) => !cfg.clipsUrl ? Promise.resolve(gltf) : fetch(cfg.clipsUrl).then((r) => r.json())
-            .then((list) => { for (const c of list) gltf.animations.push(THREE.AnimationClip.parse(c)); return gltf; }).catch(() => gltf);
+            .then((list) => { for (const c of list) gltf.animations.push(parseClip(c)); return gltf; }).catch(() => gltf);
         loadModel(
             cfg.url,
             (gltf) => withClips(gltf).then((g) => { this.heroes[id] = g; apply(g); }),

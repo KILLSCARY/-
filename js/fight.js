@@ -121,7 +121,8 @@ export class Fight {
         this.loadFailT = setTimeout(() => { if (this.phase === "load" && !this.disposed) this.loadFailed(); }, 25000);
         // clipsUrl — боевые клипы, перенесённые с другого бойца (Горилла): докладываем к модели до attach
         const withClips = (f, gltf) => !f.cfg.clipsUrl ? Promise.resolve(gltf) : fetch(f.cfg.clipsUrl).then((r) => r.json())
-            .then((list) => { for (const c of list) gltf.animations.push(THREE.AnimationClip.parse(c)); return gltf; }).catch(() => gltf);
+            // uuid клипа в JSON бывает null, а микшер кэширует действия по uuid: без своего все клипы — одно действие
+            .then((list) => { for (const c of list) { const clip = THREE.AnimationClip.parse(c); if (!clip.uuid) clip.uuid = THREE.MathUtils.generateUUID(); gltf.animations.push(clip); } return gltf; }).catch(() => gltf);
         for (const f of this.f) loadModel(f.cfg.model, (gltf) => withClips(f, gltf).then((g) => { if (this.disposed) return; this.attach(f, g); if (--left === 0) this.ready(); }),
             () => { if (--left === 0) this.ready(); });
         // подсветка бойцов: тёплый слева-спереди, красный и оранжевый контровые
