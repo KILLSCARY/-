@@ -209,7 +209,12 @@ export const CHARACTERS = [
         // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
         // бег — хромота limp (шаг на гипсе и рывок корпусом): клип «run» — медленная ходьба с ходунками (цикл 3,7 с),
         // на скорости забега ноги почти стояли — будто едет на скейте. limp ускорен до цикла 1,0 с (durations.run; у остальных героев бег — 0,63 с)
-        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 } },
+        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle" }, durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 },
+        // больной: на костылях только ходит — скорость забега ограничена (м/с: старт, потолок, прирост в секунду),
+        // на catchAt-й секунде его догоняет Мизулина и задерживает (раз за забег; после апелляции — дальше)
+        sick: { speedStart: 7, speedMax: 10, ramp: 0.06, catchAt: 40,
+            start: "Денчик на костылях — бегать не может, только ковыляет. Мизулина уже идёт по следу…",
+            catchLine: "Далеко собрался на костылях? Пройдёмте.", over: "Мизулина: «На костылях от меня не уходят»" } },
     { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=4", height: 1.82, portrait: "img/heroes/sasha.webp",
         // полёт — «Swim Forward»: плывёт по воздуху по кругу, без приседа на взлёте и посадке
         clips: { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly" }, flyClip: { loop: true, speed: 1.3 } },
@@ -478,7 +483,7 @@ export const HERO_PERKS = {
     mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее, +4% USDT", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
     pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
     islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
-    denchik: { text: "Мозг команды: +10% USDT", coinBonus: 10 },
+    denchik: { text: "Больной: на костылях только ходит — бегать не может, на середине пути его догоняет Мизулина. Мозг команды: +10% USDT", coinBonus: 10 },
     sasha: { text: "+1 жизнь за забег и +20% USDT", extraLife: 1, coinBonus: 5 },
     gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
 };

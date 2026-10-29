@@ -313,6 +313,7 @@ class Game {
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
+        this.sickCatch = null; this.sickDone = false; // больной герой: Мизулина ещё не догоняла
         this.slowLeft = 0;
         this.prevLane = 1;
         if (this.chaser) this.chaser.visible = false;
@@ -405,6 +406,8 @@ class Game {
         if (!st && nb) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla(nb.text, false, 5200), ch2 ? 5600 : 900);
         if (st && this.questions) setTimeout(() => this.runId === run && this.state === "playing" && this.gorilla((st.chase && !this.grudge && st.chaseHint) || st.hub || `${st.name}: ${st.title}. Страх ${st.fear}. Каждая верная табличка — заряд против босса.`, true, 4500), 900);
         this.chaserSaid = false;
+        const sick = this.heroCfg?.sick;
+        if (sick) setTimeout(() => this.runId === run && this.state === "playing" && this.hub.toast(sick.start), 1200);
         const lines = HERO_LINES[this.heroId];
         // реплика героя — после подсказки Гориллы о главе или боссе (она выходит на старте), а не поверх неё
         const told = this.questions && (this.story || this.nextBoss());
@@ -561,7 +564,8 @@ class Game {
             tg.saveBest(score);
             setTimeout(() => this.audio.play("record"), 700);
         }
-        $("over-cause").textContent = cause === "caught" && this.grudge ? `Мизулина: «${CHASE_GRUDGE.lines.caught}»` : pick(DEATH_TEXT[cause]);
+        $("over-cause").textContent = cause === "caught" && this.grudge ? `Мизулина: «${CHASE_GRUDGE.lines.caught}»`
+            : cause === "caught" && this.sickDone && this.heroCfg?.sick ? this.heroCfg.sick.over : pick(DEATH_TEXT[cause]);
         $("over-new").hidden = !isBest;
         $("over-best").innerHTML = isBest ? "" : `Рекорд <b>${fmt(this.best)}</b>`;
         document.querySelector(".over-card").classList.toggle("is-best", isBest);
@@ -1103,6 +1107,8 @@ class Game {
         setTimeout(tick, 150);
     }
 
+    get heroCfg() { return CHARACTERS.find((c) => c.id === this.heroId); }
+
     selectHero(id) {
         this.heroId = id;
         try { localStorage.setItem("p2p_hero", id); } catch {}
@@ -1148,7 +1154,11 @@ class Game {
 
     step(dt) {
         this.runTime += dt;
-        this.speed = Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
+        const sick = this.heroCfg?.sick; // больной герой (Денчик) — ходит, а не бежит: свой старт, потолок и прирост скорости
+        this.speed = sick ? Math.min(sick.speedMax, sick.speedStart + this.runTime * sick.ramp)
+            : Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
+        // раз за забег; после апелляции забег идёт дальше без повторного ареста — так главу за Денчика можно пройти
+        if (sick && !this.sickDone && this.runTime >= sick.catchAt && this.state === "playing" && !this.bossFight && !this.storyOn && !this.flight) this.sickCatchStart(sick);
         if (this.slowLeft > 0) { // споткнулся — пару шагов медленнее
             this.slowLeft -= dt;
             this.speed *= 0.55 + 0.45 * (1 - this.slowLeft / BALANCE.stumbleSlow);
@@ -1272,7 +1282,8 @@ class Game {
         blob.position.x = this.x;
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
 
-        if (this.stumble > 0) this.chase(dt);
+        if (this.sickCatch) this.sickCatchStep(dt);
+        else if (this.stumble > 0) this.chase(dt);
         else if (this.storyChasing()) this.storyChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe", "turbo"]) if (this.fx[k] > 0) this.fx[k] -= dt;
@@ -1439,6 +1450,29 @@ class Game {
         if (this.calm || now - (this.lastPulse || 0) < 120) return;
         this.lastPulse = now;
         chip.animate([{ transform: "scale(1)" }, { transform: "scale(1.14)" }, { transform: "scale(1)" }], { duration: 220, easing: "ease-out" });
+    }
+
+    // больной герой: на середине пути Мизулина догоняет (за 2,6 с из-за спины к плечу) и задерживает — сцена ареста
+    sickCatchStart(sick) {
+        this.sickDone = true;
+        this.sickCatch = { t: 0 };
+        this.stumble = 0;
+        this.ensureChaser();
+        this.chaser.visible = true;
+        this.chaser.position.set(this.x, 0, 7);
+        this.chaser.userData.side = this.lane === 2 ? -1 : 1;
+        this.audio.play("whistle");
+        this.speech("Мизулина", sick.catchLine, 2600);
+    }
+
+    sickCatchStep(dt) {
+        const c = this.chaser, q = this.sickCatch;
+        q.t += dt;
+        const k = Math.min(1, q.t / 2.6);
+        c.position.z += ((7 - 6.2 * k * k) - c.position.z) * Math.min(1, dt * 6);
+        c.position.x += (this.x + c.userData.side * 0.7 - c.position.x) * Math.min(1, dt * 5);
+        if (c.userData.mixer) { c.rotation.y = Math.PI; c.userData.mixer.update(dt * 1.2); }
+        if (k >= 1 && this.state === "playing") { this.sickCatch = null; this.gameOver("caught"); }
     }
 
     // ДПС бежит за спиной, пока не отстанет
