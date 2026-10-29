@@ -360,20 +360,18 @@ export class Hub {
     }
 
     renderRating(r) {
-        const n = (x) => fmt(x || 0), me = r.me || {}, top = r.top || [], R = r.rules;
-        const stats = (x) => [x.cards && `карт ${x.cards}`, x.bosses && `боссов ${x.bosses}`, x.signs && `табличек ${x.signs}`, x.tasks && `заданий ${x.tasks}`].filter(Boolean).join(" · ") || "только начал";
+        // рейтинг (с 29.10) — лучший результат забега: очки = USDT × 10 + метры; карты, боссы и задания не в счёт
+        const n = (x) => fmt(x || 0), me = r.me || {}, top = r.top || [];
+        const stats = () => "лучший забег";
         $("rate-place").textContent = me.rank ? `№${me.rank}` : "—";
         this.renderRateMe();
         $("rate-score").textContent = n(me.score);
         const above = me.rank > 1 ? top[me.rank - 2] : null;
-        $("rate-gap").textContent = !me.rank ? "Собери карту, победи босса или выполни задание — и попадёшь в таблицу"
+        $("rate-gap").textContent = !me.rank ? "Пробеги забег — лучший результат попадёт в таблицу"
             : me.rank === 1 ? (top[1] ? `Ты лидер · отрыв ${n(me.score - top[1].score)} очков` : "Ты лидер")
             : above ? `До №${me.rank - 1} — ${n(above.score - me.score + 1)} очков` : `Ты №${me.rank}`;
-        // задания у себя — по списку сервера (место в сотне в «задания» не входит)
-        const mine = { ...me, tasks: me.done ? me.done.length : me.tasks };
-        $("rate-chips").innerHTML = [["Карты", mine.cards], ["Боссы", mine.bosses], ["Таблички", mine.signs], ["Задания", mine.tasks]]
-            .map(([t, v]) => `<span><b>${v || 0}</b>${t}</span>`).join("");
-        $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Карты, боссы, задания";
+        $("rate-chips").innerHTML = `<span><b>${n(this.game.best)}</b>Рекорд на телефоне</span><span><b>${n(me.score)}</b>В таблице</span>`;
+        $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Лучший забег";
         const list = $("rate-list");
         const row = (x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="av"></span>`
             + `<span class="nm"><b></b><span>${stats(x)}</span></span><span class="sc">${n(x.score)}</span></div>`;
@@ -390,25 +388,15 @@ export class Hub {
             if (TG_PHOTO.test(ph || "")) { const img = new Image(); img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer"; img.onerror = () => img.remove(); img.src = ph; av.append(img); }
             if (rows[i].id === me.id) el.querySelector(".nm b").insertAdjacentHTML("beforeend", ` <i>ты</i>`);
         });
-        if (!R) return;
-        // «За что очки»: сначала твои — из чего сложился счёт, потом правила
-        const P = me.parts, BOSS = { 1: "Мизулина", 2: "Полиция", 3: "Инаков" }, TASK = { razbor: "Разбор", anketa: "Анкета Гориллы", invite: "Друг", store: "Подписка на NS Store" };
-        const mineRows = P ? [
-            me.cards && [`Карты × ${me.cards}`, me.cards * R.card],
-            ...Object.entries(P.bosses || {}).map(([k, v]) => [`Босс: ${BOSS[k] || k}`, v]),
-            me.signs && [`Таблички × ${me.signs}`, me.signs * R.sign],
-            P.top100 && ["Место в первой сотне", P.top100],
-            ...Object.entries(P.tasks || {}).map(([k, v]) => [`Задание: ${TASK[k] || k}`, v]),
-        ].filter(Boolean) : [];
-        $("rate-mine").innerHTML = mineRows.length ? `<p class="rm-h"><span>Твои очки</span><b>${n(me.score)}</b></p>` + mineRows.map(([t, v]) => `<p><span>${t}</span><b>+${n(v)}</b></p>`).join("") : "";
-        $("rate-rules").innerHTML = `<p class="rm-h"><span>Сколько дают</span></p>` + [["Карта", R.card], ["Мизулина", R.boss[1]], ["Полиция", R.boss[2]], ["Инаков", R.boss[3]], ["Верная табличка (первый раз)", R.sign], ["Место в первой сотне", R.top100],
-            ["Записаться на разбор", R.tasks.razbor], ["Анкета Гориллы", R.tasks.anketa], ["Друг зашёл по твоей ссылке", R.tasks.invite], ["Подписка на NS Store", R.tasks.store]]
-            .map(([t, v]) => `<p><span>${t}</span><b>+${v}</b></p>`).join("");
+        // «За что очки»: только забег
+        $("rate-mine").innerHTML = "";
+        $("rate-rules").innerHTML = `<p class="rm-h"><span>Как считаем</span></p><p><span>Очки забега</span><b>USDT × 10 + метры</b></p>`
+            + `<p><span>В таблице</span><b>лучший забег</b></p><p><span>Карты, боссы, таблички, задания</span><b>не в счёт</b></p>`;
     }
 
     // задания рейтинга — кнопками; сделанные (здесь или по ответу сервера) — внизу с галочкой
     renderRateTasks() {
-        const d = this.p.data, srv = this.rateData?.me?.done || [], T = this.rateData?.rules?.tasks || { razbor: 50, anketa: 30, invite: 20, store: 10 };
+        const d = this.p.data, srv = this.rateData?.me?.done || []; // задания очков в рейтинг не дают — только отметка
         const done = { ...(d.tasksDone || {}), invite: d.checked?.invite, store: d.checked?.store, ...Object.fromEntries(srv.map((id) => [id, 1])) }, tried = d.tried || {};
         const box = $("rate-tasks");
         box.innerHTML = "";
@@ -423,14 +411,14 @@ export class Hub {
         for (const [id, label, sub, go] of list) {
             const b = document.createElement("button");
             b.className = `rate-task${done[id] ? " done" : ""}`;
-            b.innerHTML = `<span class="rt-t"><span></span><small></small></span><b>${done[id] ? "✓" : `+${T[id]}`}</b>`;
+            b.innerHTML = `<span class="rt-t"><span></span><small></small></span><b>${done[id] ? "✓" : "→"}</b>`;
             b.querySelector(".rt-t span").textContent = label;
             b.querySelector("small").textContent = done[id] ? "Засчитано" : sub;
             if (done[id]) b.disabled = true;
-            else { left += T[id] || 0; b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); }; }
+            else { left++; b.onclick = () => { go(); setTimeout(() => this.renderRateTasks(), 300); }; }
             box.append(b);
         }
-        $("rate-left").textContent = left ? `· ещё +${left}` : "· все выполнены";
+        $("rate-left").textContent = left ? `· осталось ${left}` : "· все выполнены";
     }
 
     // Чат с менеджером с готовым сообщением: кодовые фразы и код типа клиента (сам тип игроку не показываем)

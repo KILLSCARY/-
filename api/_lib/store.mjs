@@ -51,21 +51,24 @@ return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
-    const lb = new Map(), lbn = new Map(), lbp = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
+    const lb = new Map(), lbr = new Map(), lbn = new Map(), lbp = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
     return {
         kind: "memory",
         // рейтинг (api/_lib/rating.mjs)
         async lbAdd(id, pts, name, stat, n = 1, photo = "") { lb.set(id, (lb.get(id) || 0) + pts); lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); if (stat) lbs.set(`${id}:${stat}`, (lbs.get(`${id}:${stat}`) || 0) + n); },
-        async lbName(id, name, photo = "") { if (!lb.has(id)) return; lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); },
+        async lbName(id, name, photo = "") { if (!lbr.has(id)) return; lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); },
         async lbTop(n) {
-            return [...lb].sort((a, b) => b[1] - a[1]).slice(0, n)
+            return [...lbr].sort((a, b) => b[1] - a[1]).slice(0, n)
                 .map(([id, score], i) => ({ id, rank: i + 1, score, name: lbn.get(id) || "Игрок", photo: lbp.get(id) || "", ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) }));
         },
         async lbMe(id) {
-            if (!lb.has(id)) return { rank: 0, score: 0 };
-            const score = lb.get(id), rank = [...lb.values()].filter((v) => v > score).length + 1;
+            if (!lbr.has(id)) return { rank: 0, score: 0 };
+            const score = lbr.get(id), rank = [...lbr.values()].filter((v) => v > score).length + 1;
             return { rank, score, ...Object.fromEntries(STATS.map((s) => [s, lbs.get(`${id}:${s}`) || 0])) };
         },
+        // рейтинг забегов (с 29.10): лучший результат игрока — lbr (p2p:lbr); старая сумма очков (lb) таблицу больше не задаёт
+        async lbBest(id, pts, name, photo = "") { if (!(lbr.get(id) >= pts)) lbr.set(id, pts); lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); return lbr.get(id); },
+        async runStart(id, runId) { return cr.get(id)?.get(runId)?.start || 0; },
         async taskOnce(id, task) { const k = `${id}:${task}`; if (tk.has(k)) return false; tk.add(k); return true; },
         async tasksDone(id) { return [...tk].filter((k) => k.startsWith(`${id}:`) && !k.endsWith(":#backfill")).map((k) => k.slice(String(id).length + 1)); },
         async lbOnce(id) { const k = `${id}:#backfill`; if (tk.has(k)) return false; tk.add(k); return true; },
@@ -125,7 +128,7 @@ export function redisStore(url, token, fetchImpl = fetch) {
         return j.result;
     };
     const statsOf = async (ids) => {
-        if (!ids.length) return [];
+        if (!ids.length || !STATS.length) return ids.map(() => ({}));
         const v = (await cmd("HMGET", "p2p:lbs", ...ids.flatMap((id) => STATS.map((s) => `${id}:${s}`)))) || [];
         return ids.map((_, i) => Object.fromEntries(STATS.map((s, j) => [s, Number(v[i * STATS.length + j] || 0)])));
     };
@@ -138,12 +141,12 @@ export function redisStore(url, token, fetchImpl = fetch) {
             if (stat) await cmd("HINCRBY", "p2p:lbs", `${id}:${stat}`, String(n));
         },
         async lbName(id, name, photo = "") {
-            if ((await cmd("ZSCORE", "p2p:lb", String(id))) == null) return;
+            if ((await cmd("ZSCORE", "p2p:lbr", String(id))) == null) return;
             await cmd("HSET", "p2p:lbn", String(id), name);
             await (photo ? cmd("HSET", "p2p:lbp", String(id), photo) : cmd("HDEL", "p2p:lbp", String(id)));
         },
         async lbTop(n) {
-            const a = (await cmd("ZREVRANGE", "p2p:lb", "0", String(n - 1), "WITHSCORES")) || [];
+            const a = (await cmd("ZREVRANGE", "p2p:lbr", "0", String(n - 1), "WITHSCORES")) || [];
             const ids = [], scores = [];
             for (let i = 0; i < a.length; i += 2) { ids.push(a[i]); scores.push(Number(a[i + 1])); }
             if (!ids.length) return [];
@@ -151,11 +154,19 @@ export function redisStore(url, token, fetchImpl = fetch) {
             return ids.map((id, i) => ({ id, rank: i + 1, score: scores[i], name: names[i] || "Игрок", photo: photos[i] || "", ...st[i] }));
         },
         async lbMe(id) {
-            const s = await cmd("ZSCORE", "p2p:lb", String(id));
+            const s = await cmd("ZSCORE", "p2p:lbr", String(id));
             if (s == null) return { rank: 0, score: 0 };
-            const r = await cmd("ZREVRANK", "p2p:lb", String(id));
+            const r = await cmd("ZREVRANK", "p2p:lbr", String(id));
             return { rank: Number(r) + 1, score: Number(s), ...(await statsOf([String(id)]))[0] };
         },
+        // рейтинг забегов: ZADD GT — сохраняется только лучший результат
+        async lbBest(id, pts, name, photo = "") {
+            await cmd("ZADD", "p2p:lbr", "GT", String(pts), String(id));
+            await cmd("HSET", "p2p:lbn", String(id), name);
+            await (photo ? cmd("HSET", "p2p:lbp", String(id), photo) : cmd("HDEL", "p2p:lbp", String(id)));
+            return Number(await cmd("ZSCORE", "p2p:lbr", String(id)));
+        },
+        async runStart(id, runId) { const v = await cmd("HGET", `p2p:cr:${id}`, runId); return v ? Number(String(v).split(":")[0]) : 0; },
         async taskOnce(id, task, ts) { return Number(await cmd("HSETNX", `p2p:tk:${id}`, task, String(ts || Date.now()))) === 1; },
         async tasksDone(id) { return (await cmd("HKEYS", `p2p:tk:${id}`)) || []; },
         async lbOnce(id, ts) { return Number(await cmd("HSETNX", "p2p:lbb", String(id), String(ts || Date.now()))) === 1; },

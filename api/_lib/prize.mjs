@@ -57,7 +57,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
     if (action === "apply") return handleLead(body, who, { store, env, now, fetchImpl });
-    if (action === "task" || action === "top") return handleRating(action, body, who, { store, now });
+    if (action === "task" || action === "top" || action === "runscore") return handleRating(action, body, who, { store, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {
         const had = await store.place(who.id);

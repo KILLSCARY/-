@@ -512,6 +512,7 @@ class Game {
     toMenu() {
         this.endArrest();
         if (this.state === "paused") {
+            this.submitRun(); // вышел с паузы — набранное тоже результат забега
             const du = this.usdt - this.credited.usdt;
             this.credited = { usdt: this.usdt };
             if (du) {
@@ -560,6 +561,7 @@ class Game {
         this.overAt = this.t;
 
         const score = this.score();
+        this.submitRun();
         const isBest = score > this.best;
         if (isBest) {
             this.best = score;
@@ -629,7 +631,13 @@ class Game {
         }, arrest ? 2700 : 700);
     }
 
-    // очки = профит в USDT ×10 + пройденные метры
+    // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
+    // Один забег можно прислать несколько раз (после апелляции очков больше) — в таблице всё равно максимум
+    submitRun() {
+        if (this.cardRunId && this.distance > 0) prize.runScore(this.cardRunId, this.distance, this.usdt);
+    }
+
+    // очки = профит в USDT ×10 + пройденные метры (так же считает сервер рейтинга — api/_lib/rating.mjs)
     score() {
         return this.usdt * 10 + Math.floor(this.distance);
     }
@@ -2224,6 +2232,7 @@ class Game {
     // бой не загрузился или не собрался — в меню без поражения: заработанное в забеге — в кошелёк, сюжет и заряды на месте,
     // следующий забег главы снова приведёт к боссу
     abortFight() {
+        this.submitRun();
         this.fight = null;
         $("f-load").hidden = true;
         this.storyOn = false;
@@ -2241,6 +2250,7 @@ class Game {
     }
 
     endStoryFight(win) {
+        this.submitRun();
         const s = this.story;
         this.fight = null;
         this.rat.visible = true;

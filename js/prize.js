@@ -24,6 +24,8 @@ export const prize = {
     // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)
     top(n = 50) { return tg.initData ? post({ action: "top", n }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     task(id) { return tg.initData ? post({ action: "task", task: id }) : Promise.resolve(null); },
+    // результат забега в рейтинг: runId — от cardRun (сервер засёк старт), метры и USDT; очки и проверку считает сервер
+    runScore(runId, distance, usdt) { return tg.initData && runId ? post({ action: "runscore", runId, distance: Math.floor(distance), usdt: Math.floor(usdt) }) : Promise.resolve(null); },
     // заявка на разбор: сервер отправляет её менеджерам; очки за «разбор» — только после доставки
     apply(lead) { return tg.initData ? post({ action: "apply", ...lead }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },

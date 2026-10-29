@@ -164,27 +164,33 @@ test("перки за карты: cardbuy кладёт на сервер, cardru
 });
 
 // ---- рейтинг ----
-test("рейтинг: очки за карту, босса, табличку и задание — один раз; таблица по убыванию", async () => {
+test("рейтинг: только забег — лучший результат, очки считает сервер, подозрительное не принимается", async () => {
     const store = memoryStore(), a = init(101), b = init(102);
-    // игрок A: карта в забеге (+10) и задание «анкета» (+30), повтор задания — без очков
-    const { runId } = (await run(store, "cardrun", { initData: a }, T0)).json;
-    assert.equal((await run(store, "card", { initData: a, runId }, T0 + 45_000)).status, 200);
-    assert.equal((await run(store, "task", { initData: a, task: "anketa" }, T0)).json.points, 30);
+    const rs = (who, runId, distance, usdt, t) => run(store, "runscore", { initData: who, runId, distance, usdt }, t);
+    const ra = (await run(store, "cardrun", { initData: a }, T0)).json.runId;
+    const ok = await rs(a, ra, 1200, 150, T0 + 60_000);
+    assert.equal(ok.status, 200); assert.equal(ok.json.score, 2700); assert.equal(ok.json.best, 2700); // 150 × 10 + 1200
+    assert.equal((await rs(a, ra, 500, 10, T0 + 70_000)).json.best, 2700); // хуже — лучший не меняется
+    assert.equal((await rs(a, ra, 5000, 10, T0 + 61_000)).json.error, "implausible"); // за 61 с столько не пробежать
+    assert.equal((await rs(a, ra, 1000, 5000, T0 + 60_000)).json.error, "implausible"); // столько USDT на 1000 м не собрать
+    assert.equal((await rs(a, "zzzzzzzz", 100, 1, T0 + 60_000)).json.error, "no_run"); // чужой или выдуманный забег
+    assert.equal((await rs(a, "x", 100, 1, T0 + 60_000)).status, 400);
+    const ra2 = (await run(store, "cardrun", { initData: a }, T0 + 100_000)).json.runId;
+    assert.equal((await rs(a, ra2, 50, 1, T0 + 105_000)).json.error, "too_fast"); // меньше 20 с
+    const rb = (await run(store, "cardrun", { initData: b }, T0)).json.runId;
+    assert.equal((await rs(b, rb, 2000, 300, T0 + 80_000)).json.best, 5000);
+    // карты, боссы, задания — в рейтинг не идут
+    const rc = (await run(store, "cardrun", { initData: a }, T0 + 200_000)).json.runId;
+    await run(store, "card", { initData: a, runId: rc }, T0 + 245_000);
     assert.equal((await run(store, "task", { initData: a, task: "anketa" }, T0)).json.points, 0);
     assert.equal((await run(store, "task", { initData: a, task: "usdt" }, T0)).status, 400);
-    // игрок B: босс главы 1 (+100) и табличка (+20); повтор награды очков не даёт
     await run(store, "event", { initData: b, event: "run:1" }, T0);
-    assert.equal((await run(store, "reward", { initData: b, key: "boss:1" }, T0 + 60_000)).json.granted, true);
-    await run(store, "reward", { initData: b, key: "boss:1" }, T0 + 70_000);
-    await run(store, "reward", { initData: b, key: "sign:1.1" }, T0 + 80_000);
-    const r = (await run(store, "top", { initData: a }, T0 + 90_000)).json;
-    assert.deepEqual(r.top.map((x) => [x.id, x.score]), [["102", 120], ["101", 40]]);
-    assert.equal(r.top[0].bosses, 1); assert.equal(r.top[0].signs, 1); assert.equal(r.top[1].cards, 1); assert.equal(r.top[1].tasks, 1);
-    assert.equal(r.me.rank, 2); assert.equal(r.me.score, 40); assert.deepEqual(r.me.done, ["anketa"]);
-    const rb = (await run(store, "top", { initData: b }, T0 + 95_000)).json.me; // раскладка: босс главы 1, задания пусты
-    assert.deepEqual(rb.parts.bosses, { 1: 100 }); assert.deepEqual(rb.done, []);
+    await run(store, "reward", { initData: b, key: "boss:1" }, T0 + 60_000);
+    const r = (await run(store, "top", { initData: a }, T0 + 300_000)).json;
+    assert.deepEqual(r.top.map((x) => [x.id, x.score]), [["102", 5000], ["101", 2700]]);
+    assert.equal(r.me.rank, 2); assert.equal(r.me.score, 2700); assert.deepEqual(r.me.done, ["anketa"]);
     assert.equal(r.top[0].name, "Игрок");
-    // новичок без очков — вне таблицы, место 0
+    // новичок без забега — вне таблицы, место 0
     assert.equal((await run(store, "top", { initData: init(103) }, T0)).json.me.rank, 0);
 });
 
@@ -200,21 +206,19 @@ test("заявка: уходит в чат менеджеров, очки тол
     assert.equal((await ap({ contact: "" }, T0, tgOk)).status, 400);
     assert.equal((await ap({ contact: "@igrok" }, T0, tgFail)).status, 502); // не дошло — без очков
     const ok = await ap({ contact: "@igrok", note: "<b>вечером</b>", anketa: [["Доход", "до 50к"]], phrases: ["Законно"], code: "N1" }, T0 + 1000, tgOk);
-    assert.equal(ok.status, 200); assert.equal(ok.json.points, 50);
+    assert.equal(ok.status, 200); assert.equal(ok.json.points, 0); // заявка доходит, очков в рейтинг нет (рейтинг — забеги)
     assert.equal(sent[0].body.chat_id, "-100123");
     assert.match(sent[0].body.text, /@igrok/); assert.match(sent[0].body.text, /&lt;b&gt;вечером/); assert.match(sent[0].body.text, /Доход — до 50к/);
     assert.equal((await ap({ contact: "@igrok" }, T0 + 60_000, tgOk)).status, 429); // спам — не чаще раза в 10 мин
     const again = await ap({ contact: "@igrok" }, T0 + 700_000, tgOk);
-    assert.equal(again.status, 200); assert.equal(again.json.points, 0); // вторая заявка доходит, очки — один раз
+    assert.equal(again.status, 200); assert.equal(again.json.points, 0); // вторая заявка тоже доходит
 });
 
-test("рейтинг: прошлые награды засчитываются один раз при первом открытии", async () => {
+test("рейтинг: награды, выданные до рейтинга забегов, в таблицу не попадают", async () => {
     const store = memoryStore(), d = init(301);
-    await store.grant("301", "boss:1", 3000, T0); await store.grant("301", "sign:1.2", 250, T0); // выдано до появления рейтинга
+    await store.grant("301", "boss:1", 3000, T0); await store.grant("301", "sign:1.2", 250, T0);
     const a = (await run(store, "top", { initData: d }, T0 + 1000)).json;
-    assert.equal(a.me.score, 120); assert.equal(a.me.bosses, 1);
-    const b = (await run(store, "top", { initData: d }, T0 + 2000)).json;
-    assert.equal(b.me.score, 120); // второй раз — не добавляет
+    assert.equal(a.me.score, 0); assert.equal(a.me.rank, 0);
 });
 
 // ---- проверка действий: подписка на канал и приглашения (verify.mjs) ----
@@ -229,7 +233,7 @@ test("подписка: бот спрашивает Telegram; подписан �
     assert.match(asked[0].url, /\/getChatMember$/); assert.equal(asked[0].body.chat_id, "@Nesuschiystore"); assert.equal(asked[0].body.user_id, 401);
     assert.equal((await sub(tg("x", false))).status, 503); // бот не админ канала — проверить нельзя
     const yes = await sub(tg("member"));
-    assert.equal(yes.json.subscribed, true); assert.equal(yes.json.points, 10);
+    assert.equal(yes.json.subscribed, true); assert.equal(yes.json.points, 0); // подписка засчитана, очков в рейтинг нет
     assert.equal((await sub(tg("administrator"))).json.points, 0); // очки — один раз
     assert.equal((await run(store, "task", { initData: d, task: "store" }, T0)).status, 400); // кнопкой не засчитать
     assert.equal((await run(store, "task", { initData: d, task: "invite" }, T0)).status, 400);
@@ -248,7 +252,7 @@ test("приглашение: засчитывается, когда нович�
     await run(store, "rewards", { initData: initRef(504, "ref_999") }, T0); // другой друг
     await run(store, "rewards", { initData: initRef(504, "ref_501") }, T0 + 1000); // уже засчитан другому — не переходит
     const r1 = await refs(501);
-    assert.equal(r1.json.invited, 1); assert.equal(r1.json.points, 20);
+    assert.equal(r1.json.invited, 1); assert.equal(r1.json.points, 0); // друг засчитан, очков в рейтинг нет
     assert.equal((await refs(501)).json.points, 0); // очки за «Позвать друга» — один раз
     assert.equal((await refs(999)).json.invited, 1);
     const own = await handle("refs", { initData: init(505) }, { store, env: { ...env, INVITE_LINK: "https://t.me/p2p_game_bot/play" }, now: T0, fetchImpl: getMe });
@@ -259,9 +263,11 @@ test("рейтинг: фото профиля из Telegram — в таблиц�
     const store = memoryStore();
     const withPhoto = (id, photo_url) => signInitData({ auth_date: String(Math.floor(T0 / 1000)), user: JSON.stringify({ id, first_name: "Фото", photo_url }) }, BOT);
     const a = withPhoto(601, "https://t.me/i/userpic/320/abc.jpg"), b = withPhoto(602, "javascript:alert(1)");
-    await run(store, "task", { initData: a, task: "anketa" }, T0);
-    await run(store, "task", { initData: b, task: "anketa" }, T0);
-    const top = (await run(store, "top", { initData: a }, T0 + 1000)).json.top;
+    for (const who of [a, b]) { // в таблицу — после забега
+        const runId = (await run(store, "cardrun", { initData: who }, T0)).json.runId;
+        await run(store, "runscore", { initData: who, runId, distance: 600, usdt: 20 }, T0 + 40_000);
+    }
+    const top = (await run(store, "top", { initData: a }, T0 + 41_000)).json.top;
     assert.equal(top.find((x) => x.id === "601").photo, "https://t.me/i/userpic/320/abc.jpg");
     assert.equal(top.find((x) => x.id === "602").photo, "");
 });
