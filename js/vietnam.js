@@ -3,7 +3,8 @@
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { loadModel } from './models.js';
-import { billboardAtlas, yachtHullGeometry } from './dubai-art.js';
+import { billboardAtlas } from './dubai-art.js';
+import { makeYachtParts } from './dubai-yacht.js';
 
 function texture(w, h, draw) {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -101,6 +102,21 @@ export class Vietnam {
             darkGlass: new THREE.MeshStandardMaterial({ color: 0x254652, roughness: .22, metalness: .5 }),
             banners: new THREE.MeshBasicMaterial({ color: 0xeee6da, toneMapped: false }),
         });
+        this.materials.darkGlass.map = texture(256, 256, (g, w, h) => {
+            const sky = g.createLinearGradient(0, 0, 0, h);
+            sky.addColorStop(0, '#587585'); sky.addColorStop(.42, '#3e5969');
+            sky.addColorStop(.5, '#a99c8b'); sky.addColorStop(.56, '#405766'); sky.addColorStop(1, '#192c39');
+            g.fillStyle = sky; g.fillRect(0, 0, w, h);
+            g.fillStyle = '#e6d2ab18'; g.fillRect(0, h * .22, w, 5); g.fillRect(0, h * .29, w, 2);
+        });
+        this.materials.darkGlass.color.set(0xa3b9c4);
+        this.materials.darkGlass.emissiveMap = this.materials.darkGlass.map;
+        this.materials.darkGlass.emissive.set(0x8498ac); this.materials.darkGlass.emissiveIntensity = .12;
+        this.materials.cushion = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1,
+            map: texture(128, 128, (g, w, h) => {
+                g.fillStyle = '#e5e1d8'; g.fillRect(0, 0, w, h); g.fillStyle = '#b7b2a820';
+                for (let i = 0; i < w; i += 3) { g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
+            }) });
         const shadow = texture(128, 256, (g, w, h) => {
             g.strokeStyle = '#302a35'; g.lineWidth = 5;
             g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, h * .3); g.stroke();
@@ -115,7 +131,8 @@ export class Vietnam {
         this.sources = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8),
             cone: new THREE.ConeGeometry(1, 1, 10), plane: new THREE.PlaneGeometry(1, 1, 1, 5),
             dome: new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2) };
-        Object.assign(this.sources, { hull: yachtHullGeometry(), round: new THREE.CylinderGeometry(1, 1, 1, 24),
+        this.yachtGeometry = makeYachtParts();
+        Object.assign(this.sources, { round: new THREE.CylinderGeometry(1, 1, 1, 24),
             bush: new THREE.IcosahedronGeometry(1, 1), blossom: new THREE.OctahedronGeometry(1), trunk: new THREE.CylinderGeometry(.58, 1, 1, 9, 7) });
         const trunk = this.sources.trunk.attributes.position;
         for (let i = 0; i < trunk.count; i++) { const t = trunk.getY(i) + .5; trunk.setX(i, trunk.getX(i) + 1.6 * t * t); }
@@ -202,7 +219,8 @@ export class Vietnam {
         }
         this.buildSkyline();
         for (const source of Object.values(this.sources)) source.dispose();
-        this.sources = null; this.parts = null;
+        for (const part of this.yachtGeometry) part.geometry.dispose();
+        this.yachtGeometry = null; this.sources = null; this.parts = null;
     }
 
     add(o) { o.userData.dubai = true; this.items.push(o); this.world.scene.add(o); return o; }
@@ -377,31 +395,21 @@ export class Vietnam {
         this.billboardSites.push({ x, y, z, index });
     }
     yacht(x, z, style) {
-        this.yachtSites.push({ x, z });
-        const width = style ? 4.8 : 5.4, length = style ? 16 : 19;
-        this.part('hull', 'hull', 0xf5f4ed, x, -.35, z, width, 1.65, length);
-        this.part('hull', 'metal', 0x283e4c, x, .2, z, width * .99, .15, length * .99);
-        this.part('hull', 'deck', 0xffffff, x, 1.3, z, width * .93, .055, length * .96);
-        this.part('hull', 'hull', 0xf8f5e9, x, 1.4, z - 2, width * .78, 1.25, length * .48);
-        this.part('hull', 'darkGlass', 0xffffff, x, 2.45, z - 1.7, width * .76, .75, length * .43);
-        this.part('hull', 'hull', 0xffffff, x, 3.14, z - 1.8, width * .86, .18, length * .51);
-        this.part('hull', 'deck', 0xffffff, x, 3.34, z - 2, width * .7, .03, length * .38);
-        // Flybridge, sunbeds, radar mast, chrome railings and individual dark portholes.
-        this.part('box', 'hull', 0xe8ddcb, x, 3.6, z - 3, width * .5, .45, 1.5);
-        this.part('box', 'hull', 0xe4d2b8, x, 1.65, z + length * .26, width * .56, .22, 2.5);
-        this.part('box', 'metal', 0xd6d8d6, x, 4.1, z - 1.3, .12, 1.4, .14);
-        this.part('box', 'hull', 0xffffff, x, 4.65, z - 1.3, 1.6, .18, .3);
-        this.part('dome', 'hull', 0xffffff, x + .55, 3.35, z - 1.3, .32, .4, .32);
-        for (const side of [-1, 1]) {
-            this.part('box', 'metal', 0xc4cacc, x + side * width * .45, 1.94, z - 1, .035, .035, length * .7);
-            for (let dz = -length * .4; dz < length * .3; dz += 1.6) {
-                this.part('cylinder', 'metal', 0xc4cacc, x + side * width * .45, 1.64, z + dz, .025, .6, .025);
-                this.part('box', 'darkGlass', 0xffffff, x + side * width * .445, .85, z + dz, .06, .22, .45);
+        const scale = style ? .88 : 1;
+        this.yachtSites.push({ x, z, scale });
+        const matrix = new THREE.Matrix4().compose(new THREE.Vector3(x, -.12, z),
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -.08), new THREE.Vector3(scale, scale, scale));
+        for (const part of this.yachtGeometry) {
+            const geo = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone(); geo.applyMatrix4(matrix);
+            // Extruded trim has extra attributes that are not shared with the lofted hull.
+            for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name);
+            if (this.materials[part.kind].vertexColors) {
+                const c = new THREE.Color(part.color), count = geo.attributes.position.count, colors = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3);
+                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             }
-            for (const dz of [-length * .31, -length * .15]) this.part('cylinder', 'hull', 0xefebe1,
-                x + side * width * .5, 1.15, z + dz, .14, .7, .14);
+            (this.parts[part.kind] ||= []).push(geo);
         }
-        this.part('box', 'deck', 0xffffff, x, .75, z - length * .5 - .35, width * .7, .12, 1.1);
     }
     async loadDetailArtwork() {
         const loader = new THREE.TextureLoader();

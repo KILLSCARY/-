@@ -42,18 +42,3 @@ export async function billboardAtlas() {
     const map = new THREE.CanvasTexture(canvas); map.encoding = THREE.sRGBEncoding; map.anisotropy = 4;
     return map;
 }
-
-export function yachtHullGeometry() {
-    // Three shaped rings produce a pointed bow, flared white hull and a narrower waterline.
-    const outline = [[0, .5], [.23, .43], [.43, .28], [.5, -.28], [.4, -.5], [-.4, -.5], [-.5, -.28], [-.43, .28], [-.23, .43]];
-    const vertices = [], uv = [], indices = [], n = outline.length;
-    for (const [y, scale] of [[0, .55], [.3, .88], [1, 1]]) for (const [x, z] of outline) { vertices.push(x * scale, y, z * scale); uv.push(x + .5, z + .5); }
-    for (let ring = 0; ring < 2; ring++) for (let j = 0; j < n; j++) {
-        const a = ring * n + j, b = ring * n + (j + 1) % n;
-        indices.push(a, b, b + n, a, b + n, a + n);
-    }
-    for (let j = 1; j < n - 1; j++) { indices.push(2 * n, 2 * n + j, 2 * n + j + 1); indices.push(0, j + 1, j); }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(indices); geo.computeVertexNormals();
-    return geo;
-}
