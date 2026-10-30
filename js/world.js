@@ -163,8 +163,8 @@ function fitText(g, text, maxW, size, font) {
 }
 
 // несколько строк по центру блока (align "left" — по левому краю): подбираем размер, чтобы влезло по ширине и высоте
-function wrapText(g, text, cx, top, maxW, maxH, font, align = "center") {
-    for (let s = 60; s >= 26; s -= 2) {
+function wrapText(g, text, cx, top, maxW, maxH, font, align = "center", start = 60) {
+    for (let s = start; s >= 26; s -= 2) {
         g.font = font.replace("{s}", s);
         const words = text.split(" "), lines = [];
         let line = "";
@@ -2106,7 +2106,8 @@ export class World {
         // размер подбирается). Пузырь не чисто белый: белое выше порога bloom — расплывалось бы ореолом и съедало буквы.
         // Под табличкой светящаяся планка и пятно на асфальте. Два варианта — карточки шире (стоят на крайних полосах)
         const two = answers.length === 2;
-        const PW = two ? 2.5 : 1.86, PH = 1.5, CW = two ? 680 : 512, CH = 412;
+        // 30.10: выше (было 1,5 м) и буквы крупнее — издалека «+20 USDT» читалось с трудом. Шире нельзя: полосы через 1,7 м
+        const PW = two ? 2.5 : 1.86, PH = 2, CW = two ? 680 : 512, CH = Math.round(CW * PH / PW);
         const plateGeo = new THREE.PlaneGeometry(PW, PH);
         plateGeo.userData.own = true;
         answers.forEach((text, i) => {
@@ -2132,9 +2133,9 @@ export class World {
                 if ("letterSpacing" in c) c.letterSpacing = "0px";
                 // ответ: тёмный, крупно, в оставшейся части пузыря
                 c.fillStyle = "#121216";
-                wrapText(c, text, x + 30, py + ph + 8, bw - 60, y + bh - py - ph - 26, '800 {s}px "Inter Tight", Arial, sans-serif', "left");
+                wrapText(c, text, x + 30, py + ph + 8, bw - 60, y + bh - py - ph - 26, '800 {s}px "Inter Tight", Arial, sans-serif', "left", 96);
             }));
-            board.position.y = 1.32;
+            board.position.y = 0.6 + PH / 2 + 0.02; // низ таблички — на светящейся планке
             g.add(board);
             const bar = new THREE.Mesh(this.geo.box, lightMat); // неоновая планка под табличкой
             bar.scale.set(PW * 0.7, 0.045, 0.05);
