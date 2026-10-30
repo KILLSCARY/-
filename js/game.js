@@ -1231,6 +1231,11 @@ class Game {
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
         }
         cam.lookAt(target);
+        if (this.storyStage?.chapter === 1 && this.state === 'bossintro') {
+            const z = this.storyStage.exchangeZ;
+            cam.position.set(3.2, 2.2, z + 8);
+            cam.lookAt(8.2, 1.5, z);
+        }
         this.phoneScene?.update(dt);
         this.chapterScene?.update(dt);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
@@ -2594,15 +2599,17 @@ class Game {
         const run = this.runId;
         this.storyOn = true;
         this.state = "bossintro";
-        const stage = new StoryStage(this.scene, s.id, this.x);
+        const stage = new StoryStage(this.scene, s.id, this.x, undefined, this.world);
+        this.storyStage = stage;
         const lines = {
-            1: "Мизулина уже рядом. Приготовься к встрече.",
+            1: "Станция «Обмен». Мизулина уже рядом.",
             2: "Полиция на пути. Время пройти проверку.",
             3: "Последний отрезок позади. Павел ждёт тебя на испытании.",
         };
         this.gorilla(lines[s.id], true, 2500);
         await wait(3000);
         stage.dispose();
+        if (this.storyStage === stage) this.storyStage = null;
         if (this.runId !== run || this.state !== "bossintro") return;
         if (s.chase && this.questions && !this.profile.data.mizBeaten) this.catchScene();
         else this.startStoryFight();

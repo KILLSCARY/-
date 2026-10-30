@@ -52,12 +52,30 @@ function headquartersEntrance() {
 }
 
 export class StoryStage {
-    constructor(scene, chapter, x, loader = loadModel) {
+    constructor(scene, chapter, x, loader = loadModel, world = null) {
         this.scene = scene;
+        this.chapter = chapter;
         this.mixers = [];
         this.root = new THREE.Group();
         this.root.position.set(x, 0, -7);
         scene.add(this.root);
+        if (chapter === 1) {
+            const chunks = world?.winter?.chunks || [];
+            const candidates = [chunks[0], chunks[3]].filter(Boolean);
+            const nearest = candidates.reduce((best, chunk) => !best || Math.abs(chunk.position.z) < Math.abs(best.position.z) ? chunk : best, null);
+            this.exchangeZ = nearest ? nearest.position.z - .5 : -4;
+            if (nearest) {
+                const frame = new THREE.MeshStandardMaterial({ color: 0x526579, roughness: .8 });
+                const snow = new THREE.MeshStandardMaterial({ color: 0xe4edf7, roughness: 1 });
+                const add = (material, sx, sy, sz, px, py, pz) => {
+                    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+                    mesh.position.set(px - x, py, pz - this.root.position.z); this.root.add(mesh);
+                };
+                for (const offset of [-2.1, 2.1]) add(frame, .25, 2.8, .15, 8.0, 1.55, this.exchangeZ + offset);
+                add(frame, .55, .14, 4.55, 7.96, 3.08, this.exchangeZ);
+                add(snow, .65, .14, 4.65, 7.93, 3.22, this.exchangeZ);
+            }
+        }
         if (chapter === 2) {
             const light = new THREE.PointLight(0xffd8aa, 1.5, 8, 2);
             light.position.set(1.3, 3, 0);

@@ -22,11 +22,14 @@ test('главы загружают нужные модели и удаляют 
     }
 });
 
-test('перед Мизулиной нет пересекающего дорогу киоска', () => {
+test('станция привязана к существующей витрине зимнего района', () => {
     const scene = new THREE.Scene();
-    const stage = new StoryStage(scene, 1, 0, () => assert.fail('модели не должны загружаться'));
-    assert.equal(stage.root.children.length, 0);
+    const world = { winter: { chunks: [{ position: { z: 24 } }, {}, {}, { position: { z: -40 } }] } };
+    const stage = new StoryStage(scene, 1, 1.5, () => assert.fail('сетевые модели не нужны'), world);
+    assert.equal(stage.exchangeZ, 23.5);
+    assert.equal(stage.root.children.length, 4);
     stage.dispose();
+    assert.equal(scene.children.length, 0);
 });
 
 test('вход штаба крепится к фасаду и удаляется после заставки', () => {
