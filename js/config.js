@@ -113,7 +113,7 @@ export const VIETNAM = {
 export const HECKLERS = {
     models: [1.68, 1.65, 1.66, 1.6, 1.7, 1.66, 1.68, 1.66, 1.64, 1.62].map((height, i) => ({ url: `models/hecklers/girl${i + 1}.glb?v=2`, height })),
     clips: { idle: "shout", throw: "throw", release: 0.85, throwEnd: 1.25 },
-    firstAt: 35, gap: [16, 30], group: [3, 5], spawnZ: -78, throwAt: [-44, -28], flight: 0.9, arc: 2.4, aimY: 1.05,
+    firstAt: 35, gap: [16, 30], group: [3, 5], spawnZ: -78, throwAt: [-30, -20], flight: 0.85, arc: 1.8, aimY: 1.05, // бросок ближе: предмет виден весь полёт, а не влетает издалека за один кадр
     aimOwn: 0.7, dodgeY: 0.9, mark: false, // mark — розовое пятно на дороге, куда прилетит: по просьбе убрано (30.10)
     items: [
         { id: "tomato", w: 5, color: "#d42a1e" },

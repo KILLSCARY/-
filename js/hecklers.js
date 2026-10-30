@@ -92,48 +92,108 @@ function splatImage(id, variant) {
     return url;
 }
 
-// предметы — из простых фигур, геометрии общие на все броски
+// предметы: узнаваемые силуэты из простых фигур, геометрии общие на все броски. Лёгкая подсветка — ночью и в тени не чёрные
 function makeItems() {
-    const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...o });
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, emissive: color, emissiveIntensity: 0.22, ...o });
     const out = {};
     out.tomato = () => {
         const g = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 9), std(0xd42a1e, { roughness: 0.25 }));
-        body.scale.y = 0.85;
-        const top = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.04, 5), std(0x2f7a2a));
-        top.position.y = 0.11;
-        g.add(body, top);
+        const geo = new THREE.SphereGeometry(0.14, 16, 12), pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) { // приплюснут, сверху ямка, по бокам дольки
+            const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), a = Math.atan2(z, x), lobes = 1 + Math.cos(a * 5) * 0.035;
+            pos.setXYZ(i, x * lobes, y * 0.82 - (y > 0.09 ? (y - 0.09) * 0.8 : 0), z * lobes);
+        }
+        geo.computeVertexNormals();
+        g.add(new THREE.Mesh(geo, std(0xd92b1f, { roughness: 0.22 })));
+        const green = std(0x3f8f35);
+        for (let i = 0; i < 5; i++) { // чашелистики звездой
+            const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.09, 4), green), a = i / 5 * Math.PI * 2;
+            leaf.position.set(Math.cos(a) * 0.04, 0.105, Math.sin(a) * 0.04);
+            leaf.rotation.set(Math.sin(a) * 1.35, 0, -Math.cos(a) * 1.35);
+            g.add(leaf);
+        }
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.04, 5), green);
+        stem.position.y = 0.125;
+        g.add(stem);
         return g;
     };
     out.banana = () => {
-        const m = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.045, 7, 12, Math.PI * 0.8), std(0xf2d03a, { roughness: 0.6 }));
-        m.rotation.z = Math.PI * 0.6;
-        const g = new THREE.Group(); g.add(m);
+        const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-0.2, 0.09, 0), new THREE.Vector3(0, -0.13, 0), new THREE.Vector3(0.2, 0.09, 0));
+        const seg = 16, sides = 6, geo = new THREE.TubeGeometry(curve, seg, 0.05, sides, false), pos = geo.attributes.position, c = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) { // сужается к концам, как настоящий банан, а не бублик
+            const ring = Math.floor(i / (sides + 1)), u = ring / seg, k = 0.38 + 0.62 * Math.pow(Math.sin(u * Math.PI), 0.55);
+            curve.getPointAt(u, c);
+            pos.setXYZ(i, c.x + (pos.getX(i) - c.x) * k, c.y + (pos.getY(i) - c.y) * k, c.z + (pos.getZ(i) - c.z) * k);
+        }
+        geo.computeVertexNormals();
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(geo, std(0xf5d33c, { roughness: 0.55 })));
+        const dark = std(0x4a3417, { roughness: 0.9 });
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.021, 6, 5), dark);
+        tip.position.set(0.2, 0.09, 0);
+        const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.06, 6), dark);
+        stalk.position.set(-0.215, 0.115, 0);
+        stalk.rotation.z = 0.75;
+        g.add(tip, stalk);
         return g;
     };
     out.can = () => {
-        const g = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 12), std(pick([0xc8102e, 0x1f6fd1, 0x2ea84a]), { metalness: 0.7, roughness: 0.3 }));
-        const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.02, 12), std(0xd0d0d0, { metalness: 0.9, roughness: 0.25 }));
-        lid.position.y = 0.11;
-        g.add(body, lid);
+        const g = new THREE.Group(), color = pick([0xc8102e, 0x1f6fd1, 0x2ea84a]);
+        const metal = std(0xd8dadd, { metalness: 0.55, roughness: 0.3, emissiveIntensity: 0.12 });
+        g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.2, 16), std(color, { metalness: 0.45, roughness: 0.32 })));
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0695, 0.0695, 0.05, 16), std(0xf4f4f4, { roughness: 0.4 }));
+        const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.068, 0.02, 16), metal);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.056, 0.02, 16), metal);
+        const tab = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.005, 0.016), metal);
+        lid.position.y = 0.11; foot.position.y = -0.11; tab.position.y = 0.122;
+        g.add(band, lid, foot, tab);
         return g;
     };
     out.slipper = () => {
+        const s = new THREE.Shape(); // подошва по форме стопы, а не брусок
+        s.moveTo(0, -0.15);
+        s.bezierCurveTo(0.055, -0.15, 0.058, -0.08, 0.05, -0.03);
+        s.bezierCurveTo(0.046, 0.02, 0.075, 0.07, 0.07, 0.11);
+        s.bezierCurveTo(0.064, 0.16, -0.064, 0.16, -0.07, 0.11);
+        s.bezierCurveTo(-0.075, 0.07, -0.046, 0.02, -0.05, -0.03);
+        s.bezierCurveTo(-0.058, -0.08, -0.055, -0.15, 0, -0.15);
+        const sole = new THREE.ExtrudeGeometry(s, { depth: 0.022, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 1, curveSegments: 8 });
+        sole.rotateX(-Math.PI / 2);
         const g = new THREE.Group();
-        const sole = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 0.27), std(0x3a7bd5));
-        const strap = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 5, 10, Math.PI), std(0xf0f0f0));
-        strap.position.set(0, 0.012, -0.03);
-        g.add(sole, strap);
+        g.add(new THREE.Mesh(sole, std(0x2f6fd0, { roughness: 0.7 })));
+        const strapMat = std(0xf3f3f3, { roughness: 0.6 });
+        for (const side of [-1, 1]) { // перемычки-«вьетнамки» от пальцев к бокам
+            const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.026, -0.1), new THREE.Vector3(side * 0.035, 0.062, -0.045), new THREE.Vector3(side * 0.056, 0.024, 0.015)]);
+            g.add(new THREE.Mesh(new THREE.TubeGeometry(c, 8, 0.008, 5, false), strapMat));
+        }
         return g;
     };
     out.coconut = () => {
-        const g = new THREE.Group();
-        g.add(new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), std(0x5a3a22, { roughness: 0.95 })));
+        const c = document.createElement("canvas"); c.width = c.height = 128;
+        const x = c.getContext("2d");
+        x.fillStyle = "#6d4728"; x.fillRect(0, 0, 128, 128);
+        for (let i = 0; i < 260; i++) { // волокна скорлупы
+            const px = Math.random() * 128, py = Math.random() * 128;
+            x.strokeStyle = Math.random() < 0.5 ? "rgba(48,28,14,.55)" : "rgba(168,126,84,.5)"; x.lineWidth = 0.6 + Math.random();
+            x.beginPath(); x.moveTo(px, py); x.lineTo(px + (Math.random() - 0.5) * 7, py + 8 + Math.random() * 18); x.stroke();
+        }
+        const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding;
+        const g = new THREE.Group(), geo = new THREE.SphereGeometry(0.15, 14, 11);
+        geo.scale(1, 1.1, 1);
+        g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map, roughness: 0.95, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.2 })));
+        const eye = std(0x24140a, { roughness: 0.8, emissiveIntensity: 0 });
+        for (let i = 0; i < 3; i++) { // три «глазка» кокоса
+            const a = i / 3 * Math.PI * 2, m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5), eye);
+            m.position.set(Math.cos(a) * 0.035, 0.158, Math.sin(a) * 0.035);
+            g.add(m);
+        }
         return g;
     };
     return out;
 }
+
+// цвет брызг при шлепке: сок, пена, стружка
+const BURST = { tomato: [0xd92b1f, 0xff7d52], banana: [0xf5d33c, 0xfff2a0], can: [0xf4efe2, 0xffffff], coconut: [0x6d4728, 0xf3eee2], slipper: [0x2f6fd0, 0xf3f3f3] };
 
 export class Hecklers {
     constructor(game) {
@@ -145,6 +205,7 @@ export class Hecklers {
         this.make = (id) => (tpl[id] ||= make[id]()).clone(); // геометрии и материалы — общие у всех бросков
         this._v = new THREE.Vector3();
         this.marks = [];
+        this.bursts = [];
         this.reset();
     }
 
@@ -172,6 +233,7 @@ export class Hecklers {
         for (const f of this.flying) { f.removeFromParent(); f.userData.mark.visible = false; }
         this.flying.length = 0;
         for (const m of this.marks) m.visible = false;
+        for (const b of this.bursts || []) b.mesh.visible = false;
         this.splatEl?.replaceChildren();
     }
 
@@ -264,24 +326,68 @@ export class Hecklers {
             const f = this.flying[i], d = f.userData;
             d.t += dt / HECKLERS.flight;
             const k = Math.min(1, d.t);
-            f.position.lerpVectors(d.from, d.to, k);
-            f.position.y += Math.sin(k * Math.PI) * HECKLERS.arc;
+            if (!d.done) {
+                f.position.lerpVectors(d.from, d.to, k);
+                f.position.y += Math.sin(k * Math.PI) * HECKLERS.arc;
+                f.scale.setScalar(Math.min(1, 0.55 + d.t * 4)); // появляется из руки, а не возникает целиком
+                d.mark.material.opacity = 0.35 + 0.45 * Math.abs(Math.sin(d.t * 14));
+                d.mark.scale.setScalar(0.6 + k * 0.6);
+            }
             f.rotation.x += dt * d.spin; f.rotation.z += dt * d.spin * 0.6;
-            d.mark.material.opacity = 0.35 + 0.45 * Math.abs(Math.sin(d.t * 14));
-            d.mark.scale.setScalar(0.6 + k * 0.6);
             if (k >= 1 && !d.done) {
                 d.done = true;
                 d.mark.visible = false;
                 const hit = g.state === "playing" && Math.abs(g.x - d.to.x) < 0.75 && g.y < HECKLERS.dodgeY && !(g.fx?.fly > 0);
-                if (hit) { f.removeFromParent(); this.flying.splice(i, 1); this.hit(d.item); continue; }
-                d.miss = 0; // промах: летит дальше за спину и падает
+                if (hit) { this.impact(d.item, f.position); f.removeFromParent(); this.flying.splice(i, 1); this.hit(d.item); continue; }
+                d.miss = 0; // промах: падает у героя, подпрыгивает и уезжает вместе с дорогой. В камеру не летит
+                d.vel = new THREE.Vector3(rnd(-0.8, 0.8), 1.2, 0.6);
             }
             if (d.done) {
                 d.miss += dt;
-                f.position.z += dt * 9; f.position.y -= d.miss * 6 * dt * 4;
-                if (f.position.y < 0 || d.miss > 1) { f.removeFromParent(); this.flying.splice(i, 1); }
+                d.vel.y -= 9.8 * dt;
+                f.position.addScaledVector(d.vel, dt);
+                f.position.z += move;
+                if (f.position.y < 0.09) {
+                    f.position.y = 0.09;
+                    d.vel.y = Math.abs(d.vel.y) > 1 ? -d.vel.y * 0.42 : 0;
+                    d.vel.x *= 0.6;
+                    d.spin *= 0.55;
+                }
+                if (f.position.z > 1.2) f.scale.setScalar(Math.max(0.01, 1 - (f.position.z - 1.2) / 1.3)); // тает, не доезжая до камеры
+                if (f.position.z > 2.5 || d.miss > 2.5) { f.removeFromParent(); this.flying.splice(i, 1); }
             }
         }
+        for (const b of this.bursts) {
+            if (!b.mesh.visible) continue;
+            b.life -= dt;
+            if (b.life <= 0) { b.mesh.visible = false; continue; }
+            b.vel.y -= 11 * dt;
+            b.mesh.position.addScaledVector(b.vel, dt); // брызги остаются у героя: с дорогой они уезжали бы в камеру крупными кляксами
+            b.mesh.rotation.x += dt * 9;
+            b.mesh.scale.setScalar(b.size * Math.min(1, b.life / 0.22));
+        }
+    }
+
+    // шлепок по герою: брызги из точки удара, короткий толчок камеры и звук; на сам забег не влияет
+    impact(item, at) {
+        const g = this.g, [c1, c2] = BURST[item.id] || BURST.tomato;
+        if (!this.burstGeo) this.burstGeo = new THREE.IcosahedronGeometry(0.05, 0);
+        for (let n = 0; n < 12; n++) {
+            let b = this.bursts.find((x) => !x.mesh.visible);
+            if (!b) {
+                b = { mesh: new THREE.Mesh(this.burstGeo, new THREE.MeshBasicMaterial()), vel: new THREE.Vector3() };
+                g.world.scene.add(b.mesh);
+                this.bursts.push(b);
+            }
+            b.mesh.material.color.setHex(n % 3 ? c1 : c2);
+            b.mesh.position.copy(at);
+            const a = Math.random() * Math.PI * 2, sp = rnd(1.4, 3.6);
+            b.vel.set(Math.cos(a) * sp, rnd(0.8, 3.4), Math.sin(a) * sp * 0.6 - 0.4);
+            b.life = rnd(0.35, 0.6); b.size = rnd(0.6, 1.5);
+            b.mesh.visible = true;
+        }
+        g.kick?.(0.1, 5);
+        g.audio?.play("swipe");
     }
 
     // замах: свой клип броска (из него берётся только начало — замах и бросок вперёд, release — когда предмет
@@ -351,10 +457,11 @@ export class Hecklers {
         const el = document.createElement("img");
         el.className = "splat"; el.alt = ""; el.draggable = false;
         el.src = splatImage(item.id, Math.floor(Math.random() * 3));
-        el.style.left = `${rnd(25, 75)}%`; el.style.top = `${rnd(22, 43)}%`;
+        const leftSide = Math.random() < 0.5; // сбоку и выше героя: шлепок виден, дорога впереди нет
+        el.style.left = `${leftSide ? rnd(14, 34) : rnd(66, 86)}%`; el.style.top = `${rnd(20, 46)}%`;
         el.style.setProperty("--tilt", `${rnd(-28, 28)}deg`);
         this.splatEl.appendChild(el);
-        this.splatTimers.set(el, setTimeout(() => { el.remove(); this.splatTimers.delete(el); }, 2400));
+        this.splatTimers.set(el, setTimeout(() => { el.remove(); this.splatTimers.delete(el); }, 1900));
     }
 
     placeBubble(p) {
