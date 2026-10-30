@@ -273,7 +273,7 @@ export const NPCS = {
     cat: { url: "models/obj/cat.glb", length: 0.55, walk: "walk", count: 3, speed: 0.6 },
     pigeon: { url: "models/obj/pigeon.glb", height: 0.55, flocks: 3, flock: [3, 5], flee: 9 }, // height — с поднятыми крыльями, как в модели
     // Никита Енот: у каждого бака своя сценка. binRim — высота края бака в модели; sitY, insideY, diveY — высота Никиты в сценке
-    nikita: { url: "models/obj/nikita.glb?v=1", bin: "models/obj/trash_bin.glb?v=1", binRim: 0.513, height: 1.78, spots: ["dig", "inside", "sit", "dig"], sitY: 0.67, insideY: 0.1, diveY: -0.75 },
+    nikita: { url: "models/obj/nikita.glb?v=2", bin: "models/obj/trash_bin.glb?v=1", binRim: 0.513, panties: "models/obj/panties.glb?v=1", height: 1.78, spots: ["dig", "inside", "sit", "dig"], sitY: 0.67, insideY: 0.1, diveY: -0.75 },
 };
 
 // Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой

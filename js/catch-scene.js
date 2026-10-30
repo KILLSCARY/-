@@ -14,7 +14,7 @@ const ss = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x);
 const lerp = (a, b, k) => a + (b - a) * k;
 const wp = (b) => b.getWorldPosition(new THREE.Vector3());
 
-function aim(b, c, d) {
+export function aim(b, c, d) {
     const v = wp(c).sub(wp(b));
     if (v.lengthSq() < 1e-9) return;
     const turn = new THREE.Quaternion().setFromUnitVectors(v.normalize(), d.clone().normalize());
@@ -32,7 +32,7 @@ function rotW(b, axis, ang) {
     b.updateMatrixWorld(true);
 }
 // две кости: колено или локоть — из длин, в сторону pole
-function ik(a, b, c, target, pole) {
+export function ik(a, b, c, target, pole) {
     const A = wp(a), la = wp(b).distanceTo(A), lb = wp(c).distanceTo(wp(b));
     const d = target.clone().sub(A), L = Math.min(d.length(), (la + lb) * 0.998);
     d.normalize();

@@ -11,6 +11,7 @@ import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
+import { aim, ik } from "./catch-scene.js";
 import { Vietnam } from "./vietnam.js";
 import { Winter, WINTER_OBSTACLES } from "./winter.js";
 
@@ -1581,7 +1582,14 @@ export class World {
                     loadModel(this.lite(cfg.bin), (bin) => { // сцены ставим, когда загрузились и бак, и Никита
                         const b = bin.scene;
                         b.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.3; o.material.needsUpdate = true; } });
-                        for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b);
+                        const spawn = () => { for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b); };
+                        loadModel(cfg.panties, (gltf) => {
+                            const s = gltf.scene, k = 0.52 / new THREE.Box3().setFromObject(s).getSize(new THREE.Vector3()).x;
+                            s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.side = THREE.DoubleSide; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.35; o.material.needsUpdate = true; } });
+                            s.scale.setScalar(k);
+                            this.pantiesModel = new THREE.Group().add(s);
+                            spawn();
+                        }, spawn, { deferred: true });
                     }, () => {}, { deferred: true });
                 }
             }, () => {}, { deferred: true });
@@ -1706,12 +1714,26 @@ export class World {
             rig.rotation.y = -side * (Math.PI / 2 - 0.35);
             d.bag(side * 0.1, d.H - 0.08, 0.1, 0.32);
             d.bag(side * -0.3, 0.2, 1.1, 0.26); d.bag(side * 0.25, 0.17, 1.15, 0.2);
-            u.script = [["sit", 8, cfg.sitY, true]];
+            u.script = [["sit", 8, cfg.sitY]];
+            u.rub = { pants: this.makePants(), bones: {} };
+            root.add(u.rub.pants);
+            rig.traverse((b) => { if (b.isBone) u.rub.bones[b.name.replace(/^mixamorig:?/, "")] = b; });
         } else { // в баке: выглядывает, ныряет с головой, вылетает мусор, снова выглядывает
             d.bag(side * 0.2, 0.2, 1.12, 0.24);
             d.box(0.95, 0.2, 1.05, d.m.bag, 0, 0.1, 0); // под днищем: ноги ныряющего не видны между колёсами
             rig.rotation.y = face;
             u.script = [["look", 3, cfg.insideY], ["look", 2.6, cfg.diveY, true], ["look", 1.8, cfg.insideY], ["look", 2.2, cfg.diveY, true]];
+        }
+        if (this.pantiesModel) { // одни висят на краю бака, другие валяются на земле лицевой стороной вверх
+            const hang = this.pantiesModel.clone();
+            hang.position.set(-side * 0.65, 0.78, 0.4);
+            hang.rotation.y = -side * Math.PI / 2;
+            root.add(hang);
+            const floor = this.pantiesModel.clone();
+            floor.rotation.order = "YXZ";
+            floor.position.set(-side * 0.95, 0.04, -0.85);
+            floor.rotation.set(-1.42, -side * 1.1, 0);
+            root.add(floor);
         }
         rig.visible = true;
         for (let k = 0; k < 5; k++) { // что вылетает из бака
@@ -1728,6 +1750,69 @@ export class World {
         (this.nikitas || []).forEach((o, i, all) => { o.position.z = BEHIND_Z - 40 - i * (STREET_LEN / all.length); });
     }
 
+    // женские трусы: сетка с вырезанным по текстуре силуэтом, чтобы ткань мялась (Nikita rubPants двигает вершины)
+    makePants() {
+        const tex = (this.pantsTex ||= (() => {
+            const c = document.createElement("canvas"); c.width = 128; c.height = 96;
+            const g = c.getContext("2d");
+            g.beginPath(); g.moveTo(2, 8); g.lineTo(126, 8); g.lineTo(126, 24);
+            g.quadraticCurveTo(84, 44, 76, 92); g.lineTo(52, 92); g.quadraticCurveTo(44, 44, 2, 24); g.closePath();
+            g.fillStyle = "#ff78ad"; g.fill(); g.save(); g.clip();
+            g.fillStyle = "#ffe3ee";
+            for (let y = 16; y < 96; y += 14) for (let x = (y % 28 ? 0 : 7); x < 128; x += 14) { g.beginPath(); g.arc(x, y, 2.6, 0, Math.PI * 2); g.fill(); }
+            g.restore();
+            g.fillStyle = "#fff"; g.fillRect(2, 6, 124, 8); // кружевной пояс
+            g.fillStyle = "#d81e5b"; g.beginPath(); g.moveTo(64, 15); g.lineTo(54, 10); g.lineTo(54, 20); g.closePath(); g.moveTo(64, 15); g.lineTo(74, 10); g.lineTo(74, 20); g.closePath(); g.fill(); // бантик
+            const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+            return t;
+        })());
+        const geo = new THREE.PlaneGeometry(0.3, 0.22, 14, 10);
+        const p = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 }));
+        p.castShadow = true;
+        p.frustumCulled = false;
+        p.userData.base = geo.attributes.position.array.slice();
+        return p;
+    }
+
+    // ткань сжимается между ладонями и идёт складками; вершин мало, а считается только у ближнего бака
+    crumplePants(p, t) {
+        const pos = p.geometry.attributes.position, b = p.userData.base, sq = 0.62 + 0.16 * Math.sin(t * 13), lift = 0.86 + 0.08 * Math.cos(t * 13);
+        for (let i = 0; i < pos.count; i++) {
+            const x = b[i * 3], y = b[i * 3 + 1], edge = Math.abs(x) / 0.15;
+            pos.setXYZ(i, x * sq, y * lift + Math.sin(x * 34 + t * 8) * 0.012,
+                Math.sin(x * 42 + t * 11) * Math.cos(y * 30 - t * 7) * 0.028 * (1 - 0.4 * edge) + Math.sin(y * 52 + t * 13) * 0.012);
+        }
+        pos.needsUpdate = true;
+        p.geometry.computeVertexNormals();
+    }
+
+    // сидит на баке и трёт трусы: кисти ходят навстречу друг другу, поверх клипа sit
+    rubPants(o, t) {
+        const u = o.userData, { pants, bones: b } = u.rub, A = this._rubA ||= { c: new THREE.Vector3(), f: new THREE.Vector3(), l: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), L: new THREE.Vector3(), R: new THREE.Vector3(), p: new THREE.Vector3() };
+        u.rig.updateMatrixWorld(true);
+        u.rig.getWorldDirection(A.f);
+        A.f.y = 0; A.f.normalize();
+        A.l.crossVectors(A.up, A.f).normalize();
+        // клип sit сгорблен: голова падала на руки. Спина прямая, голова чуть наклонена к рукам (направления мировые, не накапливаются)
+        const back = A.up.clone().addScaledVector(A.f, 0.06), neck = A.up.clone().addScaledVector(A.f, 0.2), look = A.up.clone().addScaledVector(A.f, 0.55);
+        aim(b.Spine, b.Spine1, back); aim(b.Spine1, b.Spine2, back); aim(b.Spine2, b.Neck, back); aim(b.Neck, b.Head, neck); aim(b.Head, b.HeadTop_End, look);
+        const s = Math.sin(t * 13), c = Math.cos(t * 13);
+        b.Hips.getWorldPosition(A.c);
+        const mid = A.p.copy(A.c).addScaledVector(A.f, 0.36).addScaledVector(A.up, 0.2); // над коленями, далеко от лица
+        A.L.copy(mid).addScaledVector(A.l, 0.11 + s * 0.05).addScaledVector(A.f, c * 0.035);
+        A.R.copy(mid).addScaledVector(A.l, -0.11 + s * 0.05).addScaledVector(A.f, -c * 0.035);
+        const pole = (side) => A.l.clone().multiplyScalar(side * 0.8).addScaledVector(A.up, -0.6).addScaledVector(A.f, -0.2);
+        ik(b.LeftArm, b.LeftForeArm, b.LeftHand, A.L, pole(1));
+        ik(b.RightArm, b.RightForeArm, b.RightHand, A.R, pole(-1));
+        b.LeftHand.getWorldPosition(A.L); b.RightHand.getWorldPosition(A.R);
+        mid.copy(A.L).add(A.R).multiplyScalar(0.5).addScaledVector(A.f, 0.05); // ткань между настоящими кистями
+        o.worldToLocal(mid);
+        pants.position.copy(mid);
+        pants.rotation.set(-0.5 + c * 0.06, u.rig.rotation.y * 0.45, s * 0.12); // развёрнуты к камере забега
+        pants.scale.setScalar(1.2);
+        this.crumplePants(pants, t);
+    }
+
     updateNikitas(dt, move) {
         if (!this.nikitas) return;
         const y0 = (this.location || "street") === "street" ? 0.18 : 0.02;
@@ -1738,6 +1823,7 @@ export class World {
             o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
             const u = o.userData;
             updateAmbientAnimation(o, dt, this.tier);
+            if (u.rub && o.position.z > -45 && o.position.z < 10) this.rubPants(o, this.rubT = (this.rubT || 0) + dt);
             if (o.position.z < -75 || o.position.z > 10) continue;
             u.t -= dt;
             if (u.t <= 0) { // следующий шаг сценки
