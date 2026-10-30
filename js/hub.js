@@ -630,7 +630,7 @@ export class Hub {
         if (st === "play") {
             b.textContent = on ? "Выбран" : "Выбрать";
             b.disabled = on;
-            b.onclick = () => { this.game.selectHero(c.id); this.render(); };
+            b.onclick = () => { this.game.selectHero(c.id); this.render(); if (!this.guide?.active) this.back(); }; // выбрал — сразу в меню, без кнопки «назад»
         } else if (st === "buy" && u?.act === "cards") { // эксклюзив за Карты (Дима Мент, Саша Товарус): цену и баланс решает сервер
             b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> Купить за ${fmt(u.cards)} Карт`;
             b.onclick = async () => {

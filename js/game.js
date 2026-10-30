@@ -2,7 +2,8 @@
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
 import { STORY_HERO_LINES, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
-import { CURVE, curveUniform } from "./curve.js";
+import { CURVE, curveUniform, curveSide } from "./curve.js";
+import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
@@ -289,7 +290,7 @@ class Game {
         this.scene.background = new THREE.Color(SKY.color);
         // «Довести ночь» (LOOK2) — проба по флагу
         this.look2 = /[?&]look=2/.test(location.search) || (tg.startParam || "").toLowerCase() === "look" || !!this.settings?.look2;
-        this.scene.fog = this.look2 ? new THREE.Fog(SKY.color, LOOK2.fog[0], LOOK2.fog[1]) : new THREE.Fog(SKY.color, 12, 85);
+        this.scene.fog = this.look2 ? new THREE.Fog(SKY.color, LOOK2.fog[0], LOOK2.fog[1]) : new THREE.Fog(SKY.color, 30, 85);
         this.paintSky();
         this.scene.environment = buildEnvironment(this.renderer);
 
@@ -852,11 +853,16 @@ class Game {
             const bp = $("btn-phrase");
             if (bp) bp.onclick = () => this.hub.razbor();
         }
-        setTimeout(() => {
+        const showOver = () => {
             if (this.state !== "over") return;
             this.show("over");
             $("arrest").hidden = true;
             for (const [id, to, delay] of counters) countUp($(id), to, delay);
+        };
+        setTimeout(() => {
+            if (this.state !== "over") return;
+            if (isBest && score > 0) this.recordScreen = new RecordScreen(this, score, showOver);
+            else showOver();
         }, this.arrest?.scene ? CATCH_END * 1000 : arrest ? 2700 : 700);
     }
 
@@ -1171,6 +1177,8 @@ class Game {
             return;
         }
         // мир-шар только в забеге; в заставках и меню плавно выпрямляется
+        if (this.recordScreen) return this.recordScreen.update(dt); // экран рекорда: улица стоит и не рисуется
+        curveSide.value = Math.sin((this.distance || 0) / CURVE.sideLen) * CURVE.side * (curveUniform.value / CURVE.strength);
         curveUniform.value += (((this.state === "playing" || this.state === "paused" || this.state === "over") && !this.arrest?.scene ? CURVE.strength : 0) - curveUniform.value) * Math.min(1, dt * 2.5);
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
@@ -1562,7 +1570,7 @@ class Game {
         if (vn && !this.envs.vietnam) this.envs.vietnam = buildEnvironment(this.renderer, VIETNAM.env);
         this.scene.environment = this.envs[vn ? "vietnam" : "street"] || this.scene.environment;
         this.world.dayGlow(vn ? VIETNAM.glow : 1); // днём фонари и окна не горят по-ночному
-        this.scene.fog.near = vn ? VIETNAM.fogNear : this.look2 ? LOOK2.fog[0] : 12; // днём воздух прозрачнее — дымка дальше
+        this.scene.fog.near = vn ? VIETNAM.fogNear : this.look2 ? LOOK2.fog[0] : 30; // днём воздух прозрачнее — дымка дальше
         this.applyLook();
         this.skyKey = null;
         this.paintSky();

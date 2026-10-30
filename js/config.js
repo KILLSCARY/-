@@ -272,6 +272,8 @@ export const NPCS = {
     girl: { url: "models/obj/girl_npc.glb", height: 1.7, walk: "walk", idle: "dance", walkShare: 0.4, speed: 1.1 },
     cat: { url: "models/obj/cat.glb", length: 0.55, walk: "walk", count: 3, speed: 0.6 },
     pigeon: { url: "models/obj/pigeon.glb", height: 0.55, flocks: 3, flock: [3, 5], flee: 9 }, // height — с поднятыми крыльями, как в модели
+    // Никита Енот: у каждого бака своя сценка. sitY, insideY, hiddenY — высота модели в сценке
+    nikita: { url: "models/obj/nikita.glb?v=1", height: 1.78, spots: ["dig", "inside", "sit"], sitY: 0.62, insideY: 0.1, hiddenY: -1.25 },
 };
 
 // Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой
@@ -685,8 +687,8 @@ export const CARD_SHOP = [
 export const POWERUP_SPAWN = { chance: 0.08, gap: 8 };
 
 // Апелляция — продолжить забег после проигрыша, один раз за забег
-export const APPEAL_PRICE = 1500; // v2.8: апелляция убрана (APPEAL_ENABLED)
-export const APPEAL_ENABLED = false;
+export const APPEAL_PRICE = 1500;
+export const APPEAL_ENABLED = true;
 
 // Прокачка навсегда: сколько секунд действует монета TRX ×2 на уровнях 1…5 и цена следующего уровня
 export const UPGRADES = {

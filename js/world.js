@@ -17,6 +17,7 @@ import { Winter, WINTER_OBSTACLES } from "./winter.js";
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
 const STREET_LEN = 160;
+const NIKITA_X = { street: 3.9, winter: 3.25, vietnam: 4.4 }; // где у района край дороги: в зимнем сразу за ней сугроб и ограда
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
@@ -82,7 +83,7 @@ function lampGlowMaterial(kind, color, strength, far) {
                     vN = normalize(normalMatrix * normal);
                 #endif
                 vDepth = -mv.z; vV = normalize(-mv.xyz);
-                mv.y -= curveDrop(mv.z);
+                curveBend(mv);
                 gl_Position = projectionMatrix * mv;
             }`,
         fragmentShader: `
@@ -643,7 +644,7 @@ export class World {
         // мокрый асфальт отражает не зеркалом: размыто, вытянуто по вертикали (полосы от фонарей и окон) и с рябью.
         // Было texture2DProj — чёткое отражение, как пластик
         const sh = this.reflector.material;
-        sh.vertexShader = sh.vertexShader.replace("gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );", "vec4 mv = modelViewMatrix * vec4(position, 1.0); mv.y -= curveDrop(mv.z); gl_Position = projectionMatrix * mv;");
+        sh.vertexShader = sh.vertexShader.replace("gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );", "vec4 mv = modelViewMatrix * vec4(position, 1.0); curveBend(mv); gl_Position = projectionMatrix * mv;");
         sh.fragmentShader = sh.fragmentShader
             .replace("void main() {", "float rh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n\t\tvoid main() {")
             .replace("vec4 base = texture2DProj( tDiffuse, vUv );", `vec2 p = vUv.xy / vUv.w;
@@ -1575,6 +1576,10 @@ export class World {
                 if (kind === "girl") for (const g of girls.slice(0, this.npcLimit(girls.length))) this.makeGirl(g, m, cfg);
                 if (kind === "cat") for (let i = 0; i < this.npcLimit(cfg.count); i++) this.makeCat(m, cfg);
                 if (kind === "pigeon") for (let i = 0; i < this.npcLimit(cfg.flocks); i++) this.makeFlock(m, cfg, i);
+                if (kind === "nikita") { // ночью текстура почти чёрная и он теряется на фоне бака: подсвечиваем её саму, без лишнего источника света
+                    m.gltf.scene.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.42; o.material.needsUpdate = true; } });
+                    for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i);
+                }
             }, () => {}, { deferred: true });
         }
     }
@@ -1657,6 +1662,96 @@ export class World {
         cat.rotation.y = dir > 0 ? 0 : Math.PI;
         this.addScenery(cat);
         this.critters.push(cat);
+    }
+
+    // Никита Енот у мусорки: своя сцена у каждого бака. Стоит во всех районах, поэтому не в общей декорации улицы
+    makeDumpster() {
+        const m = (this.dumpMat ||= {
+            wall: new THREE.MeshStandardMaterial({ color: 0x3f8a5f, roughness: 0.75, emissive: 0x12301f }),
+            rim: new THREE.MeshStandardMaterial({ color: 0x2a5a42, roughness: 0.6, emissive: 0x0c2016 }),
+            bag: new THREE.MeshStandardMaterial({ color: 0x2b2b33, roughness: 0.35, emissive: 0x08080c }),
+            box: new THREE.MeshStandardMaterial({ color: 0xa8804f, roughness: 1 }),
+            trash: new THREE.MeshStandardMaterial({ color: 0xd8c24a, roughness: 0.8 }),
+        });
+        const g = new THREE.Group(), W = 1.1, L = 1.6, H = 1.12;
+        const box = (w, h, d, mat, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); b.castShadow = true; g.add(b); return b; };
+        for (const s of [-1, 1]) { box(0.05, H - 0.1, L, m.wall, s * W / 2, H / 2 + 0.05, 0); box(W, H - 0.1, 0.05, m.wall, 0, H / 2 + 0.05, s * L / 2); }
+        for (const s of [-1, 1]) { box(0.09, 0.06, L + 0.08, m.rim, s * W / 2, H, 0); box(W + 0.08, 0.06, 0.09, m.rim, 0, H, s * L / 2); }
+        for (const x of [-1, 1]) for (const z of [-1, 1]) box(0.09, 0.09, 0.09, m.rim, x * (W / 2 - 0.08), 0.045, z * (L / 2 - 0.1));
+        const bag = (x, y, z, r) => { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m.bag); b.position.set(x, y, z); b.scale.y = 0.8; b.rotation.y = x * 3; b.castShadow = true; g.add(b); return b; };
+        return { g, m, W, L, H, box, bag };
+    }
+
+    makeNikita(model, cfg, i) {
+        const mode = cfg.spots[i], side = i % 2 ? -1 : 1, d = this.makeDumpster(), root = d.g;
+        root.position.set(side * cfg.x, 0, BEHIND_Z - 40 - i * (STREET_LEN / cfg.spots.length));
+        const rig = this.rig(model, "look");
+        rig.userData.mixer.stopAllAction();
+        const face = -side * 0.75; // к дороге и навстречу бегущему
+        const u = root.userData = { mode, rig, side, t: 0, step: -1, y: 0, yTo: 0, mixer: rig.userData.mixer, acts: {}, thrown: [], nextThrow: 0, rim: d.H };
+        for (const c of model.gltf.animations) { const a = u.mixer.clipAction(c); a.setLoop(THREE.LoopPingPong, Infinity); u.acts[c.name] = a; }
+        root.add(rig);
+        if (mode === "dig") { // стоит у бака со стороны дороги, роется внутри; рядом мешки и коробка
+            rig.position.set(-side * 0.78, 0, 0.1); rig.rotation.y = side * Math.PI / 2;
+            d.bag(side * 0.1, d.H - 0.12, 0.35, 0.3); d.bag(side * 0.1, d.H - 0.18, -0.35, 0.34);
+            d.bag(-side * 0.72, 0.2, -1.02, 0.28); d.bag(-side * 0.36, 0.17, -1.12, 0.22);
+            d.box(0.42, 0.3, 0.42, d.m.box, -side * 0.72, 0.15, 1.0).rotation.y = 0.5;
+            u.script = [["shovel", 5, 0, true], ["look", 2.6, 0], ["shovel", 4, 0, true], ["laugh", 3, 0], ["dig", 4, 0]];
+        } else if (mode === "sit") { // сидит на закрытой крышке, потом встаёт и ржёт сверху
+            d.box(d.W + 0.1, 0.06, d.L + 0.1, d.m.rim, 0, d.H + 0.05, 0);
+            d.bag(side * -0.3, 0.2, 1.1, 0.26); d.bag(side * 0.25, 0.17, 1.15, 0.2);
+            rig.rotation.y = face;
+            u.script = [["sit", 6, cfg.sitY], ["laugh", 3.2, d.H + 0.08], ["sit", 5, cfg.sitY], ["frustrated", 2.6, d.H + 0.08]];
+        } else { // сидит в баке: выглядывает, ныряет с головой, выбрасывает мусор и снова прячется
+            d.bag(side * -0.3, d.H - 0.1, 0.5, 0.28);
+            d.bag(side * 0.2, 0.2, 1.12, 0.24);
+            rig.rotation.y = face;
+            u.script = [["look", 3.2, cfg.insideY], ["shovel", 4, cfg.insideY, true], ["laugh", 2.8, cfg.insideY], ["look", 1.6, cfg.hiddenY]];
+        }
+        rig.visible = true;
+        for (let k = 0; k < 3; k++) { // что вылетает из бака
+            const t = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), k === 1 ? d.m.box : d.m.trash);
+            t.visible = false; t.castShadow = true; root.add(t); u.thrown.push({ t, v: new THREE.Vector3(), on: false });
+        }
+        this.scene.add(root);
+        (this.nikitas ||= []).push(root);
+        this.warmQueue.push(this.rig(model, null));
+    }
+
+    updateNikitas(dt, move) {
+        if (!this.nikitas) return;
+        const y0 = (this.location || "street") === "street" ? 0.18 : 0.02;
+        for (const o of this.nikitas) {
+            o.position.z += move;
+            if (o.position.z > BEHIND_Z) o.position.z -= STREET_LEN;
+            o.position.y = y0;
+            o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
+            const u = o.userData;
+            updateAmbientAnimation(o, dt, this.tier);
+            if (o.position.z < -75 || o.position.z > 10) continue;
+            u.t -= dt;
+            if (u.t <= 0) { // следующий шаг сценки
+                u.step = (u.step + 1) % u.script.length;
+                const [clip, time, y, throws] = u.script[u.step], act = u.acts[clip];
+                if (u.act && u.act !== act) u.act.fadeOut(0.35);
+                if (u.act !== act) { act.reset(); act.time = Math.random() * act.getClip().duration * 0.5; act.fadeIn(0.35).play(); }
+                u.act = act; u.t = time; u.yTo = y; u.throws = !!throws; u.nextThrow = 1.2;
+            }
+            u.y += (u.yTo - u.y) * Math.min(1, dt * 6);
+            u.rig.position.y = u.y;
+            if (u.throws && (u.nextThrow -= dt) <= 0) {
+                u.nextThrow = 1 + Math.random() * 0.8;
+                const p = u.thrown.find((x) => !x.on);
+                if (p) { p.on = true; p.t.visible = true; p.t.position.set(0, u.rim + 0.1, Math.random() * 0.5 - 0.25); p.v.set(-u.side * (1 + Math.random() * 0.8), 2.4 + Math.random(), Math.random() * 1.6 - 0.8); }
+            }
+            for (const p of u.thrown) {
+                if (!p.on) continue;
+                p.v.y -= 9.8 * dt;
+                p.t.position.addScaledVector(p.v, dt);
+                p.t.rotation.x += dt * 9; p.t.rotation.z += dt * 6;
+                if (p.t.position.y < 0.05) { p.t.position.y = 0.05; p.on = false; p.t.rotation.set(0, Math.random() * 3, 0); setTimeout(() => { if (!p.on) p.t.visible = false; }, 2500); }
+            }
+        }
     }
 
     // Стайка голубей у бордюра: сидят и клюют, а когда герой подбегает — взлетают в стороны
@@ -2386,6 +2481,7 @@ export class World {
             o.position.z += move;
             if (o.position.z > BEHIND_Z) o.position.z -= o.userData.loop;
         }
+        this.updateNikitas(dt, move);
         for (const l of this.lights) {
             l.position.z += move;
             if (l.position.z > DESPAWN_Z) l.position.z -= l.userData.loop;
