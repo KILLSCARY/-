@@ -189,8 +189,8 @@ test('одиночные просадки не снижают качество; 
 
 test('все активные сцены получают бюджет 120 FPS; ограничение нагрузки применяется отдельно', () => {
     const frameBudget = gameMethod('frameBudget');
-    const g = { frameRate: () => 120, tier: { fps: [120, 40] } };
-    for (const state of ['playing', 'fight', 'countdown', 'bossintro']) {
+    const g = { frameRate: () => 120, chapterScene: {}, tier: { fps: [120, 40] } };
+    for (const state of ['playing', 'fight', 'countdown', 'bossintro', 'storyintro']) {
         g.state = state;
         assert.equal(frameBudget.call(g), 1000 / 120);
     }

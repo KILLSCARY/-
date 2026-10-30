@@ -3,6 +3,9 @@
 
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
+import { PhoneScene } from "./phone-scene.js";
+import { StoryStage, preloadStoryStage } from "./story-stage.js";
+import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
@@ -549,6 +552,37 @@ class Game {
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
         if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
+        const chapterStory = this.story;
+        if (chapterStory) {
+            // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
+            this.setLocation(["winter", "street", "street"][chapterStory.id - 1]);
+            if (chapterStory.id === 1 && !this.profile.data.phoneSceneSeen) {
+                this.state = "storyintro";
+                this.rat.position.set(0, 0, 0);
+                this.rat.rotation.set(0, 0, 0);
+                this.show("hud");
+                $("hud").hidden = true;
+                await new Promise(resolve => { this.phoneScene = new PhoneScene(this, resolve); });
+                this.phoneScene = null;
+                if (this.state !== "storyintro") return;
+                this.profile.data.phoneSceneSeen = true;
+                (this.profile.data.storyIntros ||= {})[1] = true;
+                this.profile.save();
+                this.state = "menu";
+            } else if (chapterStory.id > 1 && !(this.profile.data.chapterScenes || {})[chapterStory.id]) {
+                this.state = "storyintro";
+                this.rat.position.set(0, 0, 0);
+                this.rat.rotation.set(0, 0, 0);
+                this.show("hud"); $("hud").hidden = true;
+                await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve); });
+                this.chapterScene = null;
+                if (this.state !== "storyintro") return;
+                (this.profile.data.storyIntros ||= {})[chapterStory.id] = true;
+                (this.profile.data.chapterScenes ||= {})[chapterStory.id] = true;
+                this.profile.save();
+                this.state = "menu";
+            }
+        } else this.setLocation(this.heroLocation(this.heroId));
         this.endArrest();
         const run = this.runId = (this.runId || 0) + 1;
         this.audio.unlock();
@@ -557,7 +591,7 @@ class Game {
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
         // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
         const st0 = this.story;
-        if (st0) setTimeout(() => { for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
+        if (st0) setTimeout(() => { preloadStoryStage(st0.id); for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -1110,7 +1144,11 @@ class Game {
         if (this.tier.heat) {
             if (this.state === "playing" || this.state === "fight") this.hot = (this.hot || 0) + dt;
             else if (this.state === "menu") this.hot = Math.max(0, (this.hot || 0) - dt * (HEAT_AFTER / 120));
-            const want = this.hot > HEAT_AFTER ? (this.mobile ? 0.9 : 0.85) : 1; // телефон: ниже — заметно мыльнее
+            // Мобильный запас быстро уходит в Telegram: после 45 с понижаем площадь кадра, после 90 с — ещё раз.
+            // Это снижает нагрев до того, как iOS сам урежет частоту и вызовет рывки.
+            const want = this.mobile && this.hot > HEAT_AFTER * 2 ? 0.68
+                : this.mobile && this.hot > HEAT_AFTER ? 0.8
+                    : this.hot > HEAT_AFTER ? 0.85 : 1;
             if ((this.heatScale || 1) !== want && (want < 1 || this.state === "menu")) { this.heatScale = want; this.onResize(); }
         }
 
@@ -1134,9 +1172,10 @@ class Game {
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
-            : this.state === "countdown" || this.state === "paused" || (this.state === "bossintro" && !this.runout) ? "idle" : "run";
+            : this.state === "countdown" || this.state === "paused" || this.state === "storyintro" || (this.state === "bossintro" && !this.runout) ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
         if (this.trip > 0) this.trip -= dt;
+        this.phoneScene?.restorePose();
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.updateStars(dt);
         this.moon.position.set(this.x - 4, 12, -14);
@@ -1200,6 +1239,13 @@ class Game {
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
         }
         cam.lookAt(target);
+        if (this.storyStage?.chapter === 1 && this.state === 'bossintro') {
+            const z = this.storyStage.exchangeZ;
+            cam.position.set(3.2, 2.2, z + 8);
+            cam.lookAt(8.2, 1.5, z);
+        }
+        this.phoneScene?.update(dt);
+        this.chapterScene?.update(dt);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
@@ -1409,7 +1455,7 @@ class Game {
     frameBudget() {
         const requested = this.frameRate();
         const active = Math.min(requested, this.performanceFpsCap || requested);
-        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / active;
+        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && (this.phoneScene || this.chapterScene))) return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
         if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / 60;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
@@ -2415,6 +2461,9 @@ class Game {
         const d = this.profile.data;
         Object.assign(d, { story: 0, beaten: 0, earned: 0, quiz: {}, mizBeaten: false, bossPaid: {}, badges: {}, exam: false });
         for (const k of ["anketa", "place", "left"]) delete d[k];
+        delete d.storyIntros;
+        delete d.phoneSceneSeen;
+        delete d.chapterScenes;
         this.profile.save();
         this.renderMenu();
     }
@@ -2579,7 +2628,27 @@ class Game {
         const ready = this.questions ? this.storyQ >= this.storyList(s).length && !this.walls.length && !this.pendingInput : this.distance >= (s.noqDistance || 450);
         if (ready && s.hint && !this.hintSaid) { this.hintSaid = true; this.gorilla(s.hint, false, 2600); this.storyWaitT = performance.now() + 2600; return; } // намёк «Горилла = Павел»
         if (ready && this.storyWaitT && performance.now() < this.storyWaitT) return;
-        if (ready) s.chase && this.questions && !this.profile.data.mizBeaten ? this.catchScene() : this.startStoryFight();
+        if (ready) this.showStoryStage(s);
+    }
+
+    async showStoryStage(s) {
+        const run = this.runId;
+        this.storyOn = true;
+        this.state = "bossintro";
+        const stage = new StoryStage(this.scene, s.id, this.x, undefined, this.world);
+        this.storyStage = stage;
+        const lines = {
+            1: "Станция «Обмен». Мизулина уже рядом.",
+            2: "Полиция на пути. Время пройти проверку.",
+            3: "Последний отрезок позади. Павел ждёт тебя на испытании.",
+        };
+        this.gorilla(lines[s.id], true, 2500);
+        await wait(3000);
+        stage.dispose();
+        if (this.storyStage === stage) this.storyStage = null;
+        if (this.runId !== run || this.state !== "bossintro") return;
+        if (s.chase && this.questions && !this.profile.data.mizBeaten) this.catchScene();
+        else this.startStoryFight();
     }
 
     // Глава 1: догнала по сценарию — хватает за шиворот, затемнение, арена
@@ -2784,7 +2853,6 @@ class Game {
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
         if (s.chase) d.mizBeaten = true;
         this.profile.save();
-        if (s.after) return this.resumeAfterFight(s, paid);
         tg.haptic("success");
         this.audio.play("boost");
         this.state = "menu";
@@ -2797,11 +2865,12 @@ class Game {
         $("sw-label").textContent = `${s.name} пройдена`;
         // род по бойцу: «Полиция повержена», «Мизулина повержена», «Павел Инаков повержен» (FIGHTERS[].she)
         $("sw-title").textContent = `${FIGHTERS[s.opponent].name} ${FIGHTERS[s.opponent].she ? "повержена" : "повержен"}!`;
-        $("sw-text").textContent = `Страх ${s.fear} побеждён.${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} USDT.`} Забери бесплатный разбор у менеджера.`;
+        $("sw-text").textContent = `${s.id === 1 ? "Горилла: «Первую преграду прошёл. Впереди ночной город — держи голову холодной»." : "Горилла: «Проверка позади. Готовься: впереди Павел и последнее испытание»."}${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} игровых USDT.`}`;
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
-        $("sw-next-text").textContent = next ? `Страх ${next.fear}. Таблички главы — заряды против босса.` : "";
-        $("btn-razbor").onclick = () => this.hub.razbor();
+        $("sw-next-text").textContent = next ? `${next.fear}. Верные ответы дадут преимущество в бою.` : "";
+        $("btn-razbor").textContent = "Следующая глава →";
+        $("btn-razbor").onclick = () => { $("story-win").hidden = true; this.start(); };
         $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
         $("story-win").hidden = false;
     }
@@ -2866,11 +2935,11 @@ class Game {
         const full = soldOut || (d.place && d.place > GORILLA.top);
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
         $("fn-ph").querySelector("b").hidden = full || !d.place; // плашка «10 USDT» — только с подтверждённым местом
-        $("fn-title").textContent = "Ты прошёл Воронку до конца";
+        $("fn-title").textContent = "Последний экзамен пройден";
         // «ты в первой сотне, тебе положены 10 USDT» — только с местом от сервера. Сервер не ответил (5 с), недоступен
         // или игра не из Telegram — места нет, и обещать приз нельзя: раньше его так получал каждый, кто дошёл до финала
-        $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
-            : !d.place ? "Созвонись с менеджером: он проверит, попал ли ты в первую сотню (10 USDT), и разберёт твой старт."
+        $("fn-text").textContent = full ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Сотня призов разобрана, но бесплатный разбор с менеджером остаётся за тобой."
+            : !d.place ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Менеджер проверит место в первой сотне и разберёт твой старт."
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);

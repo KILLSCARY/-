@@ -94,8 +94,8 @@ export class Hub {
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
-        $("chap-num").textContent = ch.done ? fmt(ch.earned) : `${fmt(ch.earned)} / ${fmt(ch.goal)}`;
-        $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
+        $("chap-num").textContent = `${Math.min(ch.index, CHAPTERS.length)} / ${CHAPTERS.length} глав`;
+        $("chap-bar").style.width = `${Math.min(100, ch.index / CHAPTERS.length * 100)}%`;
         const free = this.freeReady();
         // плитки главной
         // плитка карты: в каком районе сейчас забег
@@ -110,9 +110,8 @@ export class Hub {
         $("tile-heroes-sub").textContent = hero?.name ?? "";
         $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
         $("tile-chap-name").textContent = ch.done ? "Сезон 1" : `Глава ${ch.index + 1}`;
-        const nb = this.game.nextBoss?.();
-        $("tile-chap-sub").textContent = ch.done ? "пройден" : nb ? `${ch.name} · босс в гл. ${nb.s.chapter}` : `${ch.name} · ${Math.floor(Math.min(1, ch.earned / ch.goal) * 100)}%`;
-        $("tile-chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
+        $("tile-chap-sub").textContent = ch.done ? "пройден" : `${ch.name} · ${FIGHTERS[CHAPTERS[ch.index].boss].name}`;
+        $("tile-chap-bar").style.width = `${Math.min(100, ch.index / CHAPTERS.length * 100)}%`;
         $("tile-earned").textContent = `${fmt(p.data.earned || 0)} USDT`;
         document.querySelector(".hub").dataset.tab = this.current;
         this.updatePlay();
@@ -495,11 +494,11 @@ export class Hub {
         $("chapter-list").innerHTML = CHAPTERS.map((c, i) => {
             const st = i < ch.index ? "done" : i === ch.index ? "now" : "locked";
             const from = i ? CHAPTERS[i - 1].goal : 0;
-            const k = st === "done" ? 1 : st === "now" ? Math.min(1, earned / c.goal) : 0; // как на плитке 05: заработано / цель
+            const k = st === "done" ? 1 : 0;
             const tag = st === "done" ? "Пройдена" : st === "now" ? "Сейчас" : "Закрыта";
-            const line = st === "done" ? `Заработано ${fmt(c.goal)} USDT`
-                : st === "now" ? `${fmt(earned)} из ${fmt(c.goal)} USDT, осталось ${fmt(Math.max(0, c.goal - earned))}`
-                : `Откроется на ${fmt(from)} USDT`;
+            const line = st === "done" ? "Босс побеждён"
+                : st === "now" ? "Ответь на вопросы в забеге и победи босса"
+                : "Откроется после победы в предыдущей главе";
             const phrase = !this.game.questions ? "" : st === "done" ? `<p class="ch-phrase">Кодовая фраза <b>${c.phrase}</b></p>` : `<p class="ch-phrase">Кодовая фраза откроется после главы</p>`;
             return `<div class="card chapter st-${st}">
                 <span class="ch-n">${String(i + 1).padStart(2, "0")}</span>
