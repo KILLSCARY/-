@@ -7,7 +7,7 @@ import { loadModel } from './models.js';
 import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
 // Existing lightweight Corvette is used until the newly supplied high-resolution model is available.
-const PARKED_CAR = 'models/obj/lite/car1.glb';
+const PARKED_CAR = 'models/obj/lite/car1.glb?v=2'; // красный Corvette C8 (30.10, с Диска «для кодекса»)
 
 export const WINTER = {
     fog: 0x777fae, near: 60, far: 245, viewFar: 285,
@@ -246,11 +246,13 @@ export class Winter {
         });
         this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping;
         this.roadMap.repeat.set(1, this.length / 12);
-        const vistaLength = 320;
+        // дорога и снег: 320 м вперёд и 160 м за спину — в меню камера смотрит назад, раньше там улица обрывалась в небо
+        const vistaLength = 480, vistaBack = 160;
+        this.vistaLength = vistaLength;
         this.roadMap.repeat.y = vistaLength / 12;
         const road = new THREE.Mesh(new THREE.PlaneGeometry(6, vistaLength),
             new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .96, metalness: 0, envMapIntensity: .05 }));
-        road.rotation.x = -Math.PI / 2; road.position.set(0, .014, this.behind - vistaLength / 2);
+        road.rotation.x = -Math.PI / 2; road.position.set(0, .014, this.behind + vistaBack - vistaLength / 2);
         road.receiveShadow = true; add(road);
         const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, vistaLength),
             new THREE.MeshStandardMaterial({ color: colours.snowShade, roughness: 1 }));
@@ -299,13 +301,14 @@ export class Winter {
         // Never clone the expensive foreground trees, cars or apartment interiors into this layer.
         this.parts = {};
         const c = this.colours;
-        for (let row = 0; row < 5; row++) for (const side of [-1, 1]) {
-            const z = -124 - row * 29, height = 12 + (row * 3 + (side > 0 ? 2 : 0)) % 9;
+        // dir −1 — впереди (вид в забеге), +1 — за спиной героя (вид в меню): там улица кончалась пустым небом
+        for (const dir of [-1, 1]) for (let row = 0; row < (dir < 0 ? 5 : 4); row++) for (const side of [-1, 1]) {
+            const z = dir < 0 ? -124 - row * 29 : 75 + row * 29, height = 12 + (row * 3 + (side > 0 ? 2 : 0) + (dir > 0 ? 4 : 0)) % 9;
             const x = side * (14 + row * .35), front = x - side * 4;
             this.box(0x657392, x, height / 2, z, 8, height, 26);
             this.part('plane', 0xc4cee1, front - side * .015, height / 2, z, 26, height, 1,
                 [0, -side * Math.PI / 2, 0], 'facade');
-            this.part('plane', 0xc4cee1, x, height / 2, z + 13.015, 8, height, 1, null, 'facade');
+            this.part('plane', 0xc4cee1, x, height / 2, z - dir * 13.015, 8, height, 1, dir > 0 ? [0, Math.PI, 0] : null, 'facade');
             this.box(c.snow, x, height + .15, z, 8.4, .3, 26.4);
             this.box(c.snowShade, side * 6.25, .1, z, 6.5, .2, 29);
             this.lamp(side * 4.1, z + 4);
@@ -733,7 +736,7 @@ export class Winter {
             mesh.material.copy(this.materials[mesh.userData.winterMaterial]);
             mesh.material.fog = false; mesh.material.needsUpdate = true;
         }
-        const groundMap = snow.clone(); groundMap.repeat.set(130 / 2, 320 / 2);
+        const groundMap = snow.clone(); groundMap.repeat.set(130 / 2, this.vistaLength / 2);
         this.ground.material.map = groundMap; this.ground.material.needsUpdate = true;
         const g = this.roadMap.image.getContext('2d'), W = this.roadMap.image.width, H = this.roadMap.image.height;
         // Asphalt sample is repeated at a plausible stone scale before adding lane paint and tyre wear.
