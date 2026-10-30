@@ -3,6 +3,7 @@
 import { tg } from "./tg.js";
 import { GorillaGuide } from "./guide.js";
 import { prize } from "./prize.js";
+import { CityMap } from "./map.js";
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -97,6 +98,10 @@ export class Hub {
         $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
         const free = this.freeReady();
         // плитки главной
+        // плитка карты: в каком районе сейчас забег
+        const loc = { winter: "Зимняя сказка", street: "Ночной район", vietnam: "Дубайский отдых" }[this.game.location];
+        if (loc) $("tile-map-sub").textContent = `Сейчас: ${loc}`;
+        if (this.current === "map") (this.cityMap ||= new CityMap(this)).render();
         $("tile-cases-badge").hidden = !free;
         $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
         const next = Object.values(p.data.next || {}).reduce((a, b) => a + b, 0);
