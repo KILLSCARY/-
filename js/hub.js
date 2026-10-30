@@ -148,9 +148,19 @@ export class Hub {
         const q = g.settings.quality || "auto";
         box.innerHTML = toggles.map((t) => `<div class="card set-row"><div class="card-main"><h3>${t.name}</h3><p>${t.text}</p></div>
             <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"${t.locked ? " disabled" : ""}><i></i></button></div>`).join("")
-            + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
+            + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>Высокая — чёткие текстуры, мягкие тени и свечение. «Авто» подстраивается под устройство. Смена детализации перезапустит игру.</p>
+            <button id="btn-high-120" class="btn-small">Высокая + 120 FPS</button>
             <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
         const rate = g.frameRate();
+        const applyQuality = (quality, frameRate) => {
+            const lite = !!g.tier.lite;
+            g.setSetting("quality", quality);
+            if (frameRate) g.setSetting("frameRate", frameRate);
+            // Набор моделей окружения выбирается при запуске; перезапуск освобождает старые текстуры.
+            if (lite !== !!g.tier.lite) location.reload();
+            else this.renderSettings();
+        };
+        $("btn-high-120").onclick = () => applyQuality("high", 120);
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Частота кадров</h3><p>До 120 FPS в забеге и бою, если экран и Telegram поддерживают. При нехватке мощности — 60. Режим 60 FPS экономит заряд.</p>
             <div class="seg">${[[60, "60 FPS"], [120, "До 120 FPS"]].map(([v, n]) => `<button data-rate="${v}" class="${rate === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Советы Гориллы</h3><p>Короткий комикс: где герои, награды и как играть.</p>
@@ -189,7 +199,7 @@ export class Hub {
         };
         for (const b of box.querySelectorAll("[data-set]")) b.onclick = () => { g.setSetting(b.dataset.set, !b.classList.contains("on")); this.renderSettings(); };
         for (const b of box.querySelectorAll("[data-rate]")) b.onclick = () => { g.setSetting("frameRate", +b.dataset.rate); this.renderSettings(); };
-        for (const b of box.querySelectorAll("[data-q]")) b.onclick = () => { g.setSetting("quality", b.dataset.q); this.renderSettings(); };
+        for (const b of box.querySelectorAll("[data-q]")) b.onclick = () => applyQuality(b.dataset.q);
     }
 
     // ---- ежедневный вход ----

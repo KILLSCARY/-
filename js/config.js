@@ -156,14 +156,10 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1,
-        // хорошая графика на телефоне (30.10, по диагностике iPhone: 38 FPS, разрешение падало до 0,6, грелся): то же, но
-        // FXAA вместо 4× MSAA на плотном экране, пикселей ×1,5, свечение в четверть экрана, тени 512, зеркало луж —
-        // через кадр (оно рисует всю сцену второй раз), тепловой ограничитель как у средней
-        // 30.10 (жалоба «мыло и шум» с iPhone): FXAA, зерно, хроматика и размытие на скорости на маленьком плотном экране
-        // и были «мылом» — на телефоне их нет (fx: false), цветокоррекция и свечение остаются. FXAA сглаживает
-        // именно контуры героя, проводов и декора; оно доступно только при добровольно выбранной высокой графике.
-        phone: { aa: "fxaa", fx: false, ratio: 1.6, aniso: 4, bloom: 4, shadowSize: 512, mirrorEvery: 2, heat: true } },
+    high:   { aa: "msaa", samples: 4, cine: .5, fx: false, blob: 0.3, aniso: 16, hd: "webp", ratio: 2, reflections: false, shadows: true, shadowSize: 2048, bloom: 2, bloomStrength: .35, lights: 4, police: true, rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1, animationHz: 30,
+        // Чёткий кадр без зерна/размытия; 2× MSAA вместо полного прохода FXAA.
+        // Разрешение не падает по таймеру: адаптация реагирует на устойчивые просадки FPS.
+        phone: { samples: 2, ratio: 2, aniso: 8, bloom: 4, shadowSize: 1024 } },
     medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  npc: 0.6, heat: true,
         // телефон по умолчанию (30.10): плотный экран ×2–3 — в 1,15 пикселя картинка была мылом. Пикселей ×1,75 (рисуем без
         // постобработки — это дёшево), герой и ближние NPC — 60 Гц, дальние NPC — 30 Гц. Не тянет — measureFps

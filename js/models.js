@@ -46,13 +46,12 @@ export function matteCharacters(root) {
 // к камере расплывались в мыло. Уровень ставит игра по графике (setModelAnisotropy) — до загрузки моделей
 let aniso = 1;
 export const setModelAnisotropy = (n) => { aniso = n; };
-function sharpen(root) {
-    if (aniso <= 1) return;
+export function sharpen(root) {
     root.traverse((o) => {
         if (!o.isMesh) return;
-        for (const m of Array.isArray(o.material) ? o.material : [o.material]) for (const k of ["map", "normalMap", "emissiveMap"]) {
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) for (const k of ["map", "normalMap", "emissiveMap", "roughnessMap", "metalnessMap"]) {
             const t = m?.[k];
-            if (t && t.anisotropy < aniso) { t.anisotropy = aniso; t.needsUpdate = true; }
+            if (t && t.anisotropy !== aniso) { t.anisotropy = aniso; t.needsUpdate = true; }
         }
     });
 }
@@ -77,30 +76,40 @@ const hdTexture = (url) => {
     }));
     return hdCache.get(url);
 };
-export function upgradeTextures(root, base, mode = "webp") {
-    if (!base || !mode || (mode === "ktx2" && !ktxRenderer)) return;
+export function upgradeTextures(root, base, mode, loadTexture = hdTexture) {
+    if (!base || !mode || (mode === "ktx2" && !ktxRenderer && loadTexture === hdTexture)) return Promise.resolve();
+    const requests = root.userData.hdRequests ||= {};
     const files = mode === "ktx2" ? [["map", "_c.ktx2"]] : [["map", "_c.webp"], ["normalMap", "_n.webp"]];
     // HD-нормали — только если у модели есть карта нормалей (у Денчика её нет: запрос _n.webp был всегда 404)
     let normals = false;
     root.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m?.normalMap) normals = true; });
-    for (const [key, suffix] of files) if (key !== "normalMap" || normals) hdTexture(`${base}${suffix}`).then((hd) => {
-        if (!hd) return;
-        root.traverse((o) => {
-            if (!o.isMesh) return;
-            for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-                const old = m?.[key];
-                if (!old || old.userData.hd) continue;
-                const t = hd.clone(); // свой объект на материал: повтор/сдвиг UV у сеток бывают разные
-                for (const k of ["flipY", "encoding", "wrapS", "wrapT", "anisotropy", "channel", "matrixAutoUpdate"]) if (k in old) t[k] = old[k];
-                t.repeat.copy(old.repeat); t.offset.copy(old.offset); t.center.copy(old.center); t.rotation = old.rotation;
-                if (!old.matrixAutoUpdate) t.matrix.copy(old.matrix);
-                t.userData.hd = true;
-                t.needsUpdate = true;
-                m[key] = t;
-                m.needsUpdate = true;
-            }
+    return Promise.all(files.filter(([key]) => key !== "normalMap" || normals).map(([key, suffix]) => {
+        const url = `${base}${suffix}`;
+        requests[key] = url;
+        return loadTexture(url).then((hd) => {
+            if (!hd || requests[key] !== url) return;
+            const replaced = new Set();
+            root.traverse((o) => {
+                if (!o.isMesh) return;
+                for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+                    const old = m?.[key];
+                    if (!old || old.userData.hdMode === mode || old.userData.hdMode === "webp") continue;
+                    const t = hd.clone(); // свой объект на материал: повтор/сдвиг UV у сеток бывают разные
+                    for (const k of ["flipY", "encoding", "wrapS", "wrapT", "anisotropy", "channel", "matrixAutoUpdate"]) if (k in old) t[k] = old[k];
+                    t.repeat.copy(old.repeat); t.offset.copy(old.offset); t.center.copy(old.center); t.rotation = old.rotation;
+                    if (!old.matrixAutoUpdate) t.matrix.copy(old.matrix);
+                    t.userData.hd = true;
+                    t.userData.hdMode = mode;
+                    t.anisotropy = aniso;
+                    t.needsUpdate = true;
+                    m[key] = t;
+                    m.needsUpdate = true;
+                    if (old.userData.hd) replaced.add(old);
+                }
+            });
+            replaced.forEach(texture => texture.dispose());
         });
-    });
+    }));
 }
 
 // Заранее скачанные модели (байты): бойцов босса качаем ещё в забеге, чтобы встреча с ним не стояла на загрузке.
