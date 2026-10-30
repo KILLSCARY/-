@@ -218,7 +218,7 @@ export const ATMS = [
 const R = Math.PI / 2;
 export const MODELS = {
     car: [
-        { url: "models/obj/car1.glb?v=2", axis: "z", size: 4.4, rotateY: R },
+        { url: "models/obj/car1.glb?v=3", axis: "z", size: 4.4, rotateY: R },
         { url: "models/obj/car2.glb", axis: "z", size: 4.4, rotateY: R }],
     police: [ // патрульные машины постов ДПС (инспектор рядом — живой, POLICE_OFFICER)
         { url: "models/obj/patrol1.glb", axis: "z", size: 4.6, rotateY: R },

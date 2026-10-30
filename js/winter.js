@@ -7,7 +7,7 @@ import { loadModel } from './models.js';
 import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
 // Existing lightweight Corvette is used until the newly supplied high-resolution model is available.
-const PARKED_CAR = 'models/obj/lite/car1.glb?v=2'; // красный Corvette C8 (30.10, с Диска «для кодекса»)
+const PARKED_CAR = 'models/obj/lite/car1.glb?v=3'; // красный Corvette C8 (30.10, с Диска «для кодекса»)
 
 export const WINTER = {
     fog: 0x777fae, near: 60, far: 245, viewFar: 285,
