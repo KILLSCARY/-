@@ -30,6 +30,7 @@ const save = async (name, obj, animations = []) => {
 async function simplifyTo(obj, target) {
   const { MeshoptSimplifier } = await import("https://cdn.jsdelivr.net/npm/meshoptimizer@0.21.0/meshopt_simplifier.module.js");
   await MeshoptSimplifier.ready;
+  MeshoptSimplifier.useExperimentalFeatures = true; // simplifyWithAttributes (job.weldUv) в 0.21 — «экспериментальная»
   const meshes = []; obj.traverse((m) => { if (m.isMesh && m.geometry.index) meshes.push(m); });
   const total = meshes.reduce((s, m) => s + m.geometry.index.count / 3, 0);
   if (total <= target) return total;
@@ -48,8 +49,22 @@ async function simplifyTo(obj, target) {
         idx[i] = first.get(key);
       }
     }
+    // job.weldUv — склеить только вершины с одной позицией И одной точкой развёртки: у Meshy каждый треугольник
+    // часто со своими вершинами, и упрощать нечего (всё — края), а склейка по одной позиции рвёт швы текстуры (пятна)
+    const uv = g.attributes.uv && new Float32Array(g.attributes.uv.array);
+    if (job.weldUv && uv) {
+      const first = new Map();
+      for (let i = 0; i < idx.length; i++) {
+        const v = idx[i], key = `${pos[v * 3].toFixed(5)},${pos[v * 3 + 1].toFixed(5)},${pos[v * 3 + 2].toFixed(5)},${uv[v * 2].toFixed(4)},${uv[v * 2 + 1].toFixed(4)}`;
+        if (!first.has(key)) first.set(key, v);
+        idx[i] = first.get(key);
+      }
+    }
     const count = Math.max(3, Math.floor(idx.length * k / 3) * 3);
-    const [out] = MeshoptSimplifier.simplify(idx, pos, 3, count, job.error ?? 0.05);
+    // с развёрткой — упрощение учитывает и её (швы и рисунок текстуры не ползут)
+    const [out] = job.weldUv && uv && MeshoptSimplifier.simplifyWithAttributes
+      ? MeshoptSimplifier.simplifyWithAttributes(idx, pos, 3, uv, 2, [job.uvWeight ?? 1, job.uvWeight ?? 1], null, count, job.error ?? 0.05)
+      : MeshoptSimplifier.simplify(idx, pos, 3, count, job.error ?? 0.05);
     g.setIndex(new THREE.BufferAttribute(out, 1));
     m.geometry = compact(g);
     after += out.length / 3;
