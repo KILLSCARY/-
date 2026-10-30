@@ -2024,8 +2024,10 @@ export class World {
         const wall = { q, answers, correct, answered: false, plates: [], type: q.type };
         const textMat = (w, h, draw) => {
             const map = canvasTex(w, h, draw);
-            map.anisotropy = 4;
-            const m = new THREE.MeshBasicMaterial({ map, transparent: true });
+            map.anisotropy = 16; // видеокарта сама ограничит своим максимумом; под углом издалека текст не расплывается
+            // надписи — часть интерфейса: без дымки (зимой она с 60 м и светлая — щит и таблички выцветали в белые пятна)
+            // и без тонмаппинга (он сереет белое и гасит контраст букв)
+            const m = new THREE.MeshBasicMaterial({ map, transparent: true, fog: false, toneMapped: false });
             m.userData.own = true;
             return m;
         };
