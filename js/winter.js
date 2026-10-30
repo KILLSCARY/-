@@ -3,6 +3,7 @@
 // No snowfall, mirror render, per-window lights or animated scenery on the mobile GPU.
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
+import { curveShader } from './curve.js';
 import { loadModel } from './models.js';
 import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
@@ -252,11 +253,11 @@ export class Winter {
         const vistaLength = 480, vistaBack = 160;
         this.vistaLength = vistaLength;
         this.roadMap.repeat.y = vistaLength / 12;
-        const road = new THREE.Mesh(new THREE.PlaneGeometry(6, vistaLength),
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(6, vistaLength, 1, 60),
             new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .96, metalness: 0, envMapIntensity: .05 }));
         road.rotation.x = -Math.PI / 2; road.position.set(0, .014, this.behind + vistaBack - vistaLength / 2);
         road.receiveShadow = true; add(road);
-        const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, vistaLength),
+        const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, vistaLength, 1, 60),
             new THREE.MeshStandardMaterial({ color: colours.snowShade, roughness: 1 }));
         ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.04, road.position.z); add(ground);
 
@@ -794,7 +795,7 @@ export class Winter {
             const original = o.material, material = original.clone();
             material.roughness = .65; material.metalness = .2;
             material.onBeforeCompile = shader => {
-                shader.uniforms.winterSnow = { value: snow };
+                curveShader(shader); shader.uniforms.winterSnow = { value: snow };
                 shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWinterUp; varying vec3 vWinterPoint;')
                     .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWinterUp = normalize(mat3(modelMatrix) * normal).y; vWinterPoint = position;');
                 shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D winterSnow; varying float vWinterUp; varying vec3 vWinterPoint;')

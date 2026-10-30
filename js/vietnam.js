@@ -153,9 +153,9 @@ export class Vietnam {
         });
         this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping; this.roadMap.repeat.set(1, 480 / 12);
         // 30.10: земля, дорога и вода идут и на 160 м за спину героя — в меню камера смотрит назад, там было пусто
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 520), new THREE.MeshStandardMaterial({ color: 0xd8b585, roughness: 1 }));
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 520, 1, 70), new THREE.MeshStandardMaterial({ color: 0xd8b585, roughness: 1 }));
         ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.08, -50); this.add(ground);
-        const road = this.road = new THREE.Mesh(new THREE.PlaneGeometry(7, 480), new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .92 }));
+        const road = this.road = new THREE.Mesh(new THREE.PlaneGeometry(7, 480, 1, 70), new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .92 }));
         road.rotation.x = -Math.PI / 2; road.position.set(0, .015, -35); this.add(road);
         // Gulf water is a single opaque surface, without a reflection render pass.
         const waterMap = texture(256, 256, (g, w, h) => {
@@ -163,7 +163,7 @@ export class Vietnam {
             for (let i = 0; i < 500; i++) { g.fillStyle = '#f6c68b40'; g.fillRect(rand() * w, rand() * h, 4 + rand() * 25, 1); }
         });
         waterMap.wrapS = waterMap.wrapT = THREE.RepeatWrapping; waterMap.repeat.set(10, 35);
-        const sea = new THREE.Mesh(new THREE.PlaneGeometry(150, 500), new THREE.MeshStandardMaterial({ map: waterMap, roughness: .4, metalness: .25 }));
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(150, 500, 1, 70), new THREE.MeshStandardMaterial({ map: waterMap, roughness: .4, metalness: .25 }));
         const waterNormal = texture(128, 128, (g, w, h) => {
             const pixels = g.createImageData(w, h);
             for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

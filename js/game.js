@@ -2,6 +2,7 @@
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
 import { STORY_HERO_LINES, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { CURVE, curveUniform } from "./curve.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
 import { StoryStage, preloadStoryStage } from "./story-stage.js";
@@ -1168,6 +1169,8 @@ class Game {
             if (this.fight?.phase === "fight") this.measureFps(); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
             return;
         }
+        // мир-шар только в забеге; в заставках и меню плавно выпрямляется
+        curveUniform.value += ((this.state === "playing" || this.state === "paused" || this.state === "over" ? CURVE.strength : 0) - curveUniform.value) * Math.min(1, dt * 2.5);
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);

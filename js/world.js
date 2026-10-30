@@ -82,6 +82,7 @@ function lampGlowMaterial(kind, color, strength, far) {
                     vN = normalize(normalMatrix * normal);
                 #endif
                 vDepth = -mv.z; vV = normalize(-mv.xyz);
+                mv.y -= curveDrop(mv.z);
                 gl_Position = projectionMatrix * mv;
             }`,
         fragmentShader: `
@@ -520,7 +521,7 @@ export class World {
             ...roadTex, roughnessMap: null, transparent: false, opacity: 1,
             color: 0x8c847a, roughness: 0.68, metalness: 0.18, normalScale: new THREE.Vector2(0.24, 0.24), envMapIntensity: 0.8,
         });
-        const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN), this.roadMat);
+        const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN, 1, 40), this.roadMat);
         roadMesh.rotation.x = -Math.PI / 2;
         roadMesh.position.set(0, 0.002, centerZ);
         roadMesh.receiveShadow = true;
@@ -534,7 +535,7 @@ export class World {
         this.dashMap.repeat.set(1, STREET_LEN / 8);
         const dashMat = new THREE.MeshStandardMaterial({ map: this.dashMap, transparent: true, roughness: 0.4, depthWrite: false });
         for (const x of [-0.85, 0.85]) {
-            const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.12, STREET_LEN), dashMat);
+            const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.12, STREET_LEN, 1, 40), dashMat);
             dash.rotation.x = -Math.PI / 2;
             dash.position.set(x, 0.006, centerZ);
             dash.renderOrder = 2;
@@ -547,10 +548,10 @@ export class World {
         this.walkRepeat = STREET_LEN / 3;
         const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, color: 0x9a9084, roughness: 0.9, envMapIntensity: 0.6 });
         for (const side of [-1, 1]) {
-            const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, STREET_LEN), walkMat);
+            const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, STREET_LEN, 1, 1, 40), walkMat);
             w.position.set(side * 5, 0.09, centerZ);
             w.receiveShadow = true;
-            const curb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, STREET_LEN), this.mat.trim);
+            const curb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, STREET_LEN, 1, 1, 40), this.mat.trim);
             curb.position.set(side * 3.05, 0.12, centerZ);
             curb.receiveShadow = true;
             s.add(w, curb);
@@ -636,12 +637,13 @@ export class World {
     // зеркало под дорогой: в нём дома, окна, фонари и фары — эффект мокрого асфальта
     enableReflections(width, height) {
         if (this.reflector) return;
-        this.reflector = new Reflector(new THREE.PlaneGeometry(6, STREET_LEN), {
+        this.reflector = new Reflector(new THREE.PlaneGeometry(6, STREET_LEN, 1, 40), {
             textureWidth: width, textureHeight: height, color: new THREE.Color(0.42, 0.4, 0.4),
         });
         // мокрый асфальт отражает не зеркалом: размыто, вытянуто по вертикали (полосы от фонарей и окон) и с рябью.
         // Было texture2DProj — чёткое отражение, как пластик
         const sh = this.reflector.material;
+        sh.vertexShader = sh.vertexShader.replace("gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );", "vec4 mv = modelViewMatrix * vec4(position, 1.0); mv.y -= curveDrop(mv.z); gl_Position = projectionMatrix * mv;");
         sh.fragmentShader = sh.fragmentShader
             .replace("void main() {", "float rh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n\t\tvoid main() {")
             .replace("vec4 base = texture2DProj( tDiffuse, vUv );", `vec2 p = vUv.xy / vUv.w;
