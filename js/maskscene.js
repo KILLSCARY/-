@@ -105,8 +105,7 @@ export class MaskScene {
             ];
             this.mask = mask;
         }
-        $("f-skip").hidden = false;
-        $("f-skip").onclick = (e) => { e.preventDefault(); e.stopPropagation(); this.skip(); };
+        // сюжетную сцену не пропустить
         this.next();
     }
     next() {

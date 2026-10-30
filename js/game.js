@@ -216,7 +216,6 @@ class Game {
         }
         // режим: ?startapp=q / noq задаёт его и снимает выбор при первом входе
         const sp = (tg.startParam || "").toLowerCase();
-        if (sp === "q" || sp === "noq") { this.settings.questions = sp === "q"; this.settings.modeChosen = true; try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {} }
         if (this.settings.quality && this.settings.quality !== "auto" && QUALITY_TIERS[this.settings.quality]) this.quality = this.settings.quality; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
         this.tier = { ...QUALITY_TIERS[this.quality], ...(this.mobile && QUALITY_TIERS[this.quality].phone) }; // с первого кадра — облегчения/резкость телефона
 
@@ -612,6 +611,12 @@ class Game {
         $("daily").hidden = true; // ежедневная награда не висит поверх забега (заберётся в меню)
         $("mode").hidden = true;
         this.show("hud");
+        if (st0 && this.profile.data.storyBoss === st0.id) { // вышел из игры у босса: сразу к нему, глава уже пройдена
+            this.storyOn = true;
+            this.state = "bossintro";
+            this.audio.music("run");
+            return void this.startStoryFight(true);
+        }
         this.state = "countdown";
         this.audio.music("run"); // трек забега — сразу со старта, а не после отсчёта
         const cd = $("countdown");
@@ -1391,7 +1396,7 @@ class Game {
 
     // режим «с вопросами» (по умолчанию) или «просто бежать». Новый игрок идёт только по сюжету:
     // свободные забеги открываются, когда весь сюжет пройден (экзамен Инакова сдан) — до этого настройка не действует
-    get questions() { return !this.heroCfg?.free && (!this.storyDone || this.settings.questions !== false); } // free-герои — только свободный бег
+    get questions() { return !this.storyDone; } // сюжет обязателен и проходится один раз, дальше только забеги на рекорд
     get storyDone() { return !!this.profile?.data.exam; }
 
     applySettings() {
@@ -1614,6 +1619,7 @@ class Game {
     }
 
     selectHero(id) {
+        if (!this.storyDone && CHARACTERS.find((c) => c.id === id)?.free) id = CHARACTERS[0].id; // герои свободного бега — после сюжета
         this.heroId = id;
         this.setLocation(this.heroLocation(id));
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
@@ -2484,7 +2490,6 @@ class Game {
         d.story = i;
         d.beaten = Math.max(0, (st.chapter || 1) - 1);
         d.anketa ||= { test: "тест" };
-        this.settings.questions = true;
         this.profile.save();
         this.renderMenu();
         await this.start();
@@ -2507,7 +2512,7 @@ class Game {
     // Следующий босс, пока его глава не открыта: кто, в какой главе и сколько ещё заработать (USDT за все забеги, не очки)
     nextBoss() {
         const s = STORIES[this.profile.data.story || 0];
-        if (!s || this.story || this.heroCfg?.free) return null; // free-герои (Дима, Товарус) — без сюжета и боссов
+        if (!s || this.story) return null;
         const need = Math.max(0, CHAPTERS[(s.chapter || 1) - 2]?.goal - this.profile.data.earned) || 0;
         const name = FIGHTERS[s.opponent].name;
         return { s, name, need, text: `Следующий босс — ${name}, глава ${s.chapter}. Заработай ещё ${fmt(need)} USDT за забеги — очки не в счёт.` };
@@ -2697,6 +2702,8 @@ class Game {
     // Перед боссом герой сбегает на нет прямо к декорациям главы (они едут вместе с улицей и встают чуть впереди),
     // камера плавно отъезжает на общий план, потом Мизулина ловит или затемнение к заставке босса
     async showStoryStage(s) {
+        this.profile.data.storyBoss = s.id; // дошёл до босса: вышел из игры — продолжит с него, а не с начала главы
+        this.profile.save();
         const run = this.runId;
         this.storyOn = true;
         this.state = "bossintro";
@@ -2903,6 +2910,8 @@ class Game {
         this.credited = { usdt: this.usdt };
         if (du) this.profile.earn(du);
         tg.guardClose(false);
+        this.profile.data.storyBoss = null; // бой окончен: дальше либо глава заново, либо следующая
+        this.profile.save();
         if (!win) { // проиграл — сюжет с начала: снова забег и возражения
             this.state = "menu";
             this.audio.music("menu");
@@ -3024,8 +3033,8 @@ class Game {
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);
-        // сюжет пройден — сразу предложить свободные забеги (окно выбора режима)
-        $("btn-fn-menu").onclick = () => { $("final").hidden = true; if (!this.settings.modeChosen) this.hub.showMode(); };
+        // сюжет пройден навсегда: дальше в меню только забег на рекорд
+        $("btn-fn-menu").onclick = () => { $("final").hidden = true; this.renderMenu(); };
         $("final").hidden = false;
     }
 

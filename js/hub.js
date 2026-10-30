@@ -130,7 +130,7 @@ export class Hub {
             this.welcomeTimer = setTimeout(() => this.showWelcome(), 250);
             return;
         }
-        const after = () => this.game.storyDone && !this.game.settings.modeChosen ? this.showMode() : this.showDaily();
+        const after = () => this.showDaily();
         if (this.guide.done) { after(); return; }
         if (!this.guide.start({ onFinish: after })) this.welcomeTimer = setTimeout(() => this.showWelcome(), 300);
     }
@@ -142,8 +142,6 @@ export class Hub {
             { id: "music", name: "Музыка", text: "Треки в меню и в забеге", on: g.audio.musicOn },
             { id: "sfx", name: "Звуки", text: "Монеты, удары, свистки, шум улицы", on: g.audio.sfxOn },
             { id: "vibro", name: "Вибрация", text: "Отклик телефона на действия", on: tg.vibro },
-            // до конца сюжета режим не выбирается: новый игрок идёт только по сюжету (Game.storyDone)
-            { id: "questions", name: "Вопросы-возражения", text: g.storyDone ? "Стены с вопросами. Выкл — свободный забег на результат: без вопросов и боссов" : "Сейчас — сюжет. Свободные забеги откроются, когда пройдёшь его до конца", on: g.questions, locked: !g.storyDone },
         ];
         const q = g.settings.quality || "auto";
         box.innerHTML = toggles.map((t) => `<div class="card set-row"><div class="card-main"><h3>${t.name}</h3><p>${t.text}</p></div>
@@ -168,19 +166,21 @@ export class Hub {
         $("btn-replay-guide").onclick = () => this.guide.start({ replay: true });
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
+        // боссы и сброс сюжета — только в тестовом запуске (?test=1 или startapp=test): игроку сюжет не пропустить и не повторить
+        const testing = /[?&]test=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "test";
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
-        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
+        box.insertAdjacentHTML("beforeend", `${testing ? `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];
                 return `<button class="test-boss" data-fight="${i}"><i style="background-image:url(${f.portrait})"></i><b>${f.short || f.name}</b><span>${st.exam ? "Экзамен" : `Глава ${st.chapter}`}</span></button>`; }).join("")}</div>
-            <button class="btn-small btn-ghost" id="btn-all-heroes"${allOwned ? " disabled" : ""}>${allOwned ? "Все герои открыты" : "Открыть всех героев"}</button></div></div>
+            <button class="btn-small btn-ghost" id="btn-all-heroes"${allOwned ? " disabled" : ""}>${allOwned ? "Все герои открыты" : "Открыть всех героев"}</button></div></div>` : ""}
             <div class="card set-row set-test"><div class="card-main"><h3>Диагностика FPS</h3><p>Панель с кадрами, временем кадра и нагрузкой. Тап по панели — скопировать отчёт.</p></div>
             <button class="switch${g.settings.perf ? " on" : ""}" data-set="perf" role="switch" aria-checked="${!!g.settings.perf}" aria-label="Диагностика FPS"><i></i></button></div>
             <div class="card set-row set-test"><div class="card-main"><h3>Ночь+ (проба графики)</h3><p>Ярче и сочнее, контур героя, сжатие в прыжках, наклон на полосах. Включится после перезапуска игры.</p></div>
             <button class="switch${g.settings.look2 ? " on" : ""}" data-set="look2" role="switch" aria-checked="${!!g.settings.look2}" aria-label="Ночь+"><i></i></button></div>
-            <div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
-            <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>`);
+            ${testing ? `<div class="card set-row set-q"><div class="card-main"><h3>Пройти всё заново</h3><p>Сюжет и главы с начала: Мизулина, таблички, анкета Гориллы, боссы и их награды. Кошелёк, герои и бусты остаются.</p>
+            <button class="btn-small btn-danger" id="btn-reset-story">Начать заново</button></div></div>` : ""}`);
         for (const b of box.querySelectorAll("[data-fight]")) b.onclick = () => { this.tab("run"); g.testFight(+b.dataset.fight); };
-        $("btn-all-heroes").onclick = () => {
+        if (testing) $("btn-all-heroes").onclick = () => {
             const d = this.p.data;
             d.heroes = [...new Set([...(d.heroes || []), ...CHARACTERS.map((c) => c.id)])];
             this.p.save();
@@ -188,7 +188,7 @@ export class Hub {
             Object.assign($("btn-all-heroes"), { disabled: true, textContent: "Все герои открыты" });
         };
         const reset = $("btn-reset-story");
-        reset.onclick = () => {
+        if (reset) reset.onclick = () => {
             if (!reset.dataset.sure) { reset.dataset.sure = "1"; reset.textContent = "Точно? Нажми ещё раз"; return; }
             g.resetStory();
             this.toast("Начинаем заново: глава 1, Мизулина");
@@ -228,22 +228,6 @@ export class Hub {
         };
     }
 
-    // первый вход: выбрать режим (по умолчанию — с вопросами)
-    showMode() {
-        if (this.guide.active) return;
-        if (!this.guide.done) return this.showWelcome();
-        if (this.game.state !== "menu") return;
-        $("mode").hidden = false;
-        const pickMode = (q) => {
-            this.game.setSetting("questions", q);
-            this.game.setSetting("modeChosen", true);
-            $("mode").hidden = true;
-            this.toast(q ? "Режим: с вопросами" : "Режим: свободный забег. Сменить — в настройках");
-            setTimeout(() => this.showDaily(), 500);
-        };
-        $("btn-mode-q").onclick = () => pickMode(true);
-        $("btn-mode-noq").onclick = () => pickMode(false);
-    }
 
     // разовое задание для рейтинга: очки даёт сервер (один раз), отметку «сделано» помним сами
     task(id) {
@@ -628,8 +612,9 @@ export class Hub {
         const b = document.createElement("button");
         b.className = "btn btn-main";
         if (st === "play") {
-            b.textContent = on ? "Выбран" : "Выбрать";
-            b.disabled = on;
+            const later = c.free && !this.game.storyDone; // герои свободного бега — после сюжета
+            b.textContent = on ? "Выбран" : later ? "После сюжета" : "Выбрать";
+            b.disabled = on || later;
             b.onclick = () => { this.game.selectHero(c.id); this.render(); if (!this.guide?.active) this.back(); }; // выбрал — сразу в меню, без кнопки «назад»
         } else if (st === "buy" && u?.act === "cards") { // эксклюзив за Карты (Дима Мент, Саша Товарус): цену и баланс решает сервер
             b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> Купить за ${fmt(u.cards)} Карт`;
@@ -687,7 +672,8 @@ export class Hub {
         const btn = $("btn-play");
         if (!btn) return;
         btn.disabled = !!this.game.heroLoading;
-        $("play-label").textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
+        const st = this.game.story;
+        $("play-label").textContent = this.game.heroLoading ? "Загрузка…" : !st ? "Забег на рекорд" : this.p.data.storyBoss === st.id ? `Глава ${st.id} · босс` : `Глава ${st.id}`;
         $("play-hero").textContent = (CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "") + (this.game.location === "winter" ? " · Зимний район" : this.game.location === "vietnam" ? " · Дубай на закате" : "");
     }
 
