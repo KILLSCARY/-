@@ -6,7 +6,8 @@ import { PhoneScene } from '../js/phone-scene.js';
 test('телефон следует за кистью, падает и удаляется после сцены', () => {
     const els = Object.fromEntries(['phone-cutscene', 'phone-cutscene-text', 'phone-cutscene-skip'].map(id => [id, {}]));
     const previous = globalThis.document;
-    globalThis.document = { getElementById: id => els[id] };
+    const screenText = [];
+    globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ fillRect() {}, fillText(text) { screenText.push(text); } }) }) };
     try {
         const scene = new THREE.Scene(), rat = new THREE.Group();
         const arm = new THREE.Bone(), forearm = new THREE.Bone(), hand = new THREE.Bone();
@@ -15,9 +16,12 @@ test('телефон следует за кистью, падает и удал�
         rat.add(arm); arm.add(forearm); forearm.add(hand); scene.add(rat);
         let done = 0;
         const cut = new PhoneScene({ scene, rat, camera: new THREE.PerspectiveCamera() }, () => done++);
+        assert.ok(screenText.includes('ГОРИЛЛА'));
+        assert.ok(screenText.includes('Ты можешь бежать'));
         cut.update(.1);
         assert.ok(cut.phone.position.distanceTo(hand.getWorldPosition(new THREE.Vector3())) < 1e-6);
-        cut.update(2.3);
+        assert.ok(cut.game.camera.position.distanceTo(cut.phone.position) < .35, 'первый кадр — крупный план телефона');
+        cut.update(3.2);
         const height = cut.phone.position.y;
         cut.update(.4);
         assert.ok(cut.phone.position.y < height);
