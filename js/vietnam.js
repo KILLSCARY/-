@@ -36,17 +36,24 @@ function windowsTex(warm) {
     });
 }
 
-// листья пальмы: вытянутое перо с прожилками, прозрачный фон (alphaTest)
+// листья пальмы: перо из залитых листочков (не тонких линий) и светлая прожилка, прозрачный фон (alphaTest).
+// Было: линии в 3 px — в мелких мип-уровнях текстуры они растворялись, и alphaTest оставлял от листвы чёрную
+// пиксельную крошку. Залитая форма держит покрытие и издалека — крона читается силуэтом
 function frondTex() {
     return canvasTex(64, 256, (g, w, h) => {
         g.clearRect(0, 0, w, h);
-        g.strokeStyle = "#3d5a2a"; g.lineWidth = 3;
-        g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.stroke();
-        for (let y = 6; y < h - 4; y += 5) {
-            const k = Math.sin((y / h) * Math.PI) * 0.95 + 0.05;
-            g.strokeStyle = pick(["#2f6b2a", "#3d7d30", "#28592a"]); g.lineWidth = 3;
-            for (const s of [-1, 1]) { g.beginPath(); g.moveTo(w / 2, y); g.lineTo(w / 2 + s * (w / 2 - 2) * k, y + 10 * k); g.stroke(); }
+        const cx = w / 2;
+        for (let y = 4; y < h - 6; y += 7) {
+            const k = Math.sin((y / h) * Math.PI) * 0.92 + 0.08, len = (w / 2 - 1) * k, drop = 16 * k;
+            for (const s of [-1, 1]) {
+                g.fillStyle = pick(["#4f9a3c", "#5aa846", "#438a34", "#62b04c"]);
+                g.beginPath(); g.moveTo(cx, y);
+                g.quadraticCurveTo(cx + s * len * 0.6, y - 2, cx + s * len, y + drop); // верхний край листочка
+                g.quadraticCurveTo(cx + s * len * 0.5, y + drop * 0.55 + 5, cx, y + 7); // нижний — обратно к прожилке
+                g.closePath(); g.fill();
+            }
         }
+        g.fillStyle = "#8fbf5a"; g.fillRect(cx - 2, 0, 4, h); // прожилка
     });
 }
 
@@ -168,7 +175,7 @@ export class Vietnam {
 
         // пальмы вдоль набережной и у башен
         const trunkMat = std({ color: 0x6b5236, roughness: 0.95 });
-        const frondMat = std({ map: frondTex(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.8, color: 0xc8d8b0 });
+        const frondMat = std({ map: frondTex(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8, color: 0xe4f0d0 });
         for (let i = 0; i < 12; i++) {
             const p = this.makePalm(trunkMat, frondMat);
             p.position.set(-6.2 + rnd(-0.15, 0.15), 0.18, this.behind - 6 - i * (L / 12));
@@ -188,7 +195,7 @@ export class Vietnam {
         });
         this.redLamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.3, 0.2) });
         this.towerMaterials = this.towerMats.map(map => std({ map, emissiveMap: map, emissive: 0xffffff,
-            emissiveIntensity: 1.6, roughness: 0.4, metalness: 0.5, envMapIntensity: 1.2, color: 0x9aa0b8 }));
+            emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.5, envMapIntensity: 1.2, color: 0xc4ccdc })); // день: окна не горят ярко, стекло светлее
         this.podiumMaterial = std({ color: 0x2a2430, roughness: .7 });
         this.signMaterial = new THREE.MeshBasicMaterial({ map: signAtlas(), color: new THREE.Color(1.8, 1.8, 1.8) });
         this.shopMaterials = SIGN_COLORS.map(c => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(.25).add(new THREE.Color(.9, .7, .45)) }));

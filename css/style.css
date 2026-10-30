@@ -246,11 +246,12 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 }
 .hero-detail .btn-main:disabled { background: none; border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: default; opacity: 1; }
 
-/* плитки как пронумерованные блоки лендинга; 01 — красная кнопка «Забег» на всю ширину */
-.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* плитки как пронумерованные блоки лендинга; 01 — красная кнопка «Забег» на всю ширину.
+   Компактные (30.10): меню ниже на ~100 px — не закрывает героя в меню; номер — в строку с названием */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .tile {
-    position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; min-height: 92px;
-    padding: 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: #fff;
+    position: relative; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 64px;
+    padding: 10px 12px; border-radius: 18px; border: 1px solid var(--line); background: var(--card); color: #fff;
     text-align: left; font-family: var(--font-body); cursor: pointer; overflow: hidden;
     animation: tile-in .6s cubic-bezier(.2,.8,.2,1) both;
 }
@@ -258,27 +259,30 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .tile:nth-child(4) { animation-delay: .21s; } .tile:nth-child(5) { animation-delay: .28s; }
 @keyframes tile-in { from { opacity: 0; transform: translateY(16px); } }
 .tile:active { transform: scale(.97); }
-.tile .n { font: 700 12px var(--font-display); color: var(--red); }
+.tile .n { font: 700 11px var(--font-display); color: var(--red); }
+.tile:not(.tile-run):not(.tile-rate) .n { position: absolute; top: 10px; right: 12px; opacity: .8; } /* номер — в угол, не отдельной строкой */
+.tile[data-go="cases"] .n { display: none; } /* в углу у кейсов — значок «готов конверт» */
 .tile-name { display: block; font: 700 15px/1.05 var(--font-display); text-transform: uppercase; }
-.tile-sub { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.3; }
-.tile .badge { position: absolute; top: 12px; right: 12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--red); font-size: 11px; display: grid; place-items: center; }
-.tile-heroes { padding-right: 64px; }
-.tile-heroes .thumb { position: absolute; right: -10px; bottom: -10px; width: 74px; height: 74px; border-radius: 50%; background: #222 center 18% / cover; border: 1px solid var(--line); }
+.tile-sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .badge { position: absolute; top: 9px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--red); font-size: 11px; display: grid; place-items: center; }
+.tile-heroes { padding-right: 56px; }
+.tile-heroes .n { display: none; } /* в углу — портрет героя */
+.tile-heroes .thumb { position: absolute; right: -8px; bottom: -8px; width: 60px; height: 60px; border-radius: 50%; background: #222 center 18% / cover; border: 1px solid var(--line); }
 .tile-chap .bar { margin-top: 2px; }
 .tiles-note {
-    grid-column: 1 / -1; margin: 2px 0 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--red);
+    grid-column: 1 / -1; margin: 0; padding: 3px 0 3px 12px; border-left: 3px solid var(--red);
     display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
 }
 .tiles-note b { color: #fff; font-family: var(--font-display); font-size: 13px; }
 .tile-run {
-    grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 76px;
+    grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 60px; padding: 8px 10px 8px 14px;
     background: var(--red); border-color: var(--red); box-shadow: 0 10px 30px rgba(227, 52, 58, .4);
 }
 .tile-run .n { color: rgba(255,255,255,.7); }
 .tile-run .run-text { flex: 1; }
-.tile-run .tile-name { font-size: 24px; }
+.tile-run .tile-name { font-size: 21px; }
 .tile-run .tile-sub { color: rgba(255,255,255,.75); }
-.tile-run .arr { width: 46px; height: 46px; border-radius: 50%; background: #000; display: grid; place-items: center; font-size: 20px; animation: nudge 1.6s ease-in-out infinite; }
+.tile-run .arr { width: 42px; height: 42px; border-radius: 50%; background: #000; display: grid; place-items: center; font-size: 20px; animation: nudge 1.6s ease-in-out infinite; }
 .tile-run::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: 0; background: linear-gradient(100deg, transparent, rgba(255,255,255,.3), transparent); transform: translateX(-140%); animation: shine 3.4s ease-in-out infinite; will-change: transform; }
 .tile-run:disabled { opacity: .7; cursor: progress; }
 .tile-run:disabled .arr, .tile-run:disabled::after { animation: none; }
@@ -286,8 +290,9 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 @keyframes shine { 0%, 55% { transform: translateX(-140%); } 85%, 100% { transform: translateX(400%); } }
 @media (max-height: 700px) {
     #view-run .brand { --wsz: 28px; }
-    .tile { min-height: 70px; padding: 11px; } .tile:not(.tile-run) .tile-sub { display: none; }
-    .tile-run { min-height: 62px; } .tiles-note { display: none; }
+    .tile { min-height: 52px; padding: 9px 11px; } .tile:not(.tile-run) .tile-sub { display: none; }
+    .tile-run { min-height: 54px; } .tiles-note { display: none; }
+    .tile-heroes .thumb { width: 50px; height: 50px; }
 }
 
 .sheet { overflow-y: auto; gap: 10px; padding: 8px 0 14px; scrollbar-width: none; }
@@ -1280,7 +1285,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .card-note h3 .ico-card { width: 29px; height: 18px; }
 
 /* ---- рейтинг игроков ---- */
-.tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 64px; animation-delay: .35s; }
+.tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 48px; animation-delay: .35s; }
 .tile-rate .arr { margin-left: auto; color: var(--muted); }
 .rate-cap { margin: 16px 0 8px; }
 .rate-left { color: #ffd65a; letter-spacing: .06em; }
@@ -1540,6 +1545,29 @@ body.direct #vig { display: block; }
     background: #fff; color: #151116; font: 700 14px var(--font-body); cursor: pointer; }
 .guide-footer #guide-next { background: #ffda57; box-shadow: 2px 2px 0 #151116; }
 .gorilla-guide button:focus-visible { outline: 3px solid #d5273a; outline-offset: 3px; }
+/* Анимации комикса (по кадру, без постоянных — кроме мягкого пульса рамки): карточка выскакивает с наклоном и
+   переезжает, Горилла кивает, облачко раздувается, плашка «КАДР» шлёпается штампом, рамка подсветки едет к новой кнопке */
+.guide-focus { transition: left .38s cubic-bezier(.3, 1.25, .5, 1), top .38s cubic-bezier(.3, 1.25, .5, 1), width .38s ease, height .38s ease; }
+.guide-focus::after { content: ""; position: absolute; inset: -7px; border: 2px solid rgba(255, 218, 87, .7); border-radius: 18px; animation: guide-ring 1.5s ease-out infinite; }
+.guide-card { transition: top .38s cubic-bezier(.3, 1.2, .5, 1); }
+.guide-card.pop { animation: guide-pop .45s cubic-bezier(.2, 1.35, .4, 1) both; }
+.guide-card.pop .guide-gorilla { animation: guide-nod .55s .08s ease-out both; }
+.guide-card.pop .guide-bubble { transform-origin: 0 40%; animation: guide-bubble .4s .12s cubic-bezier(.2, 1.4, .4, 1) both; }
+.guide-card.pop .guide-masthead > span { animation: guide-stamp .32s .05s cubic-bezier(.3, 1.6, .5, 1) both; }
+.guide-card.pop .guide-controls span { animation: guide-bubble .35s both; }
+.guide-card.pop .guide-controls span:nth-child(2) { animation-delay: .08s; }
+.guide-card.pop .guide-controls span:nth-child(3) { animation-delay: .16s; }
+.guide-controls b { font-weight: 800; }
+.guide-progress i { transition: background .25s, transform .25s; }
+@keyframes guide-pop { 0% { opacity: 0; transform: translateY(16px) rotate(var(--tilt, -2.5deg)) scale(.88); } 55% { opacity: 1; } 100% { transform: none; } }
+@keyframes guide-nod { 0% { transform: rotate(-5deg) translateY(8px) scale(.85); } 45% { transform: rotate(5deg) translateY(-4px) scale(1.06); } 100% { transform: rotate(-5deg); } }
+@keyframes guide-bubble { from { opacity: 0; transform: scale(.8); } }
+@keyframes guide-stamp { from { opacity: 0; transform: rotate(-12deg) scale(1.6); } to { transform: rotate(-2deg); } }
+@keyframes guide-ring { from { opacity: .9; transform: scale(.97); } to { opacity: 0; transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) {
+    .guide-focus, .guide-card { transition: none; }
+    .guide-focus::after, .guide-card.pop, .guide-card.pop * { animation: none !important; }
+}
 body.guide-running .view, body.guide-running .view .cards > *, body.guide-running .tile { animation: none !important; }
 /* Прокрутка нужна только комиксу: даже нижнюю плитку можно поднять над облачком. */
 body.guide-running .hub { scroll-padding-top: calc(12px + var(--tg-safe-top)); overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }

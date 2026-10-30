@@ -11,6 +11,87 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const pickW = (list) => { let r = Math.random() * list.reduce((s, i) => s + i.w, 0); return list.find((i) => (r -= i.w) < 0) || list[0]; };
 
+// Клякса на экране рисуется на холсте — раз на вид и вариант (3 на предмет), дальше из кэша. Неровное пятно с лучами
+// брызг, капли вокруг, подтёки вниз, объём (свет сверху-слева) и блик; у помидора семечки, у банана тёмные крапинки,
+// у банки пена с пузырями, у кокоса стружка, тапок оставляет отпечаток подошвы.
+// Было: одна SVG-капля пяти цветов — все попадания выглядели одинаковыми «медузами»
+const SPLAT_LOOK = {
+    tomato: { base: "#d42a1e", dark: "#7e0e10", light: "#ff8a66", bits: "#f6d77a", bitR: [3, 5] },
+    banana: { base: "#f2cf3a", dark: "#a8801a", light: "#fff3a8", bits: "#5c3d14", bitR: [1.5, 3] },
+    can: { base: "#efe7d6", dark: "#b9ab8c", light: "#ffffff", foam: true },
+    coconut: { base: "#f3eee2", dark: "#cbbd9e", light: "#ffffff", bits: "#7a5636", bitR: [2, 4] },
+    slipper: { print: true, base: "#e2d3b4" }, // пыльный след подошвы — светлый: тёмный терялся на ночной дороге
+};
+const splatCache = new Map();
+function splatImage(id, variant) {
+    const key = `${id}${variant}`;
+    if (splatCache.has(key)) return splatCache.get(key);
+    const look = SPLAT_LOOK[id] || SPLAT_LOOK.tomato, S = 320, c = document.createElement("canvas");
+    c.width = c.height = S;
+    const g = c.getContext("2d");
+    let seed = 7 + variant * 131 + id.length * 977;
+    const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const cx = S / 2, cy = S * 0.42;
+    if (look.print) { // отпечаток подошвы: след с протектором и брызги грязи
+        g.save(); g.translate(cx, cy + 10); g.rotate((r() - 0.5) * 0.5);
+        g.fillStyle = look.base; g.globalAlpha = 0.82;
+        g.beginPath(); g.ellipse(0, -38, 46, 62, 0, 0, Math.PI * 2); g.fill(); // носок
+        g.beginPath(); g.ellipse(0, 62, 34, 42, 0, 0, Math.PI * 2); g.fill(); // пятка
+        g.fillRect(-32, -10, 64, 70);
+        g.globalCompositeOperation = "destination-out"; g.globalAlpha = 0.7; g.lineWidth = 5;
+        for (let y = -88; y < 100; y += 16) { g.beginPath(); for (let x = -50; x <= 50; x += 12) g.lineTo(x, y + (x / 12 % 2 ? 6 : 0)); g.stroke(); } // протектор
+        g.restore();
+        g.fillStyle = look.base;
+        for (let i = 0; i < 14; i++) { const a = r() * 7, d = 95 + r() * 55; g.globalAlpha = 0.5 + r() * 0.4; g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.9, 2 + r() * 6, 0, 7); g.fill(); }
+    } else {
+        const R = S * (0.19 + r() * 0.03);
+        const body = (pad = 0) => { // неровный край: точки по кругу со случайным радиусом, сглаженные кривыми
+            const n = 22, pts = [];
+            for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, k = 0.78 + r() * 0.42; pts.push([cx + Math.cos(a) * (R * k + pad), cy + Math.sin(a) * (R * k * 0.92 + pad)]); }
+            g.beginPath(); g.moveTo((pts[0][0] + pts[n - 1][0]) / 2, (pts[0][1] + pts[n - 1][1]) / 2);
+            for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; g.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2); }
+            g.closePath();
+        };
+        g.fillStyle = look.base;
+        for (let i = 0; i < 4 + Math.floor(r() * 3); i++) { // подтёки вниз с каплей на конце
+            const x = cx + (r() - 0.5) * R * 1.4, w = 6 + r() * 10, len = R * (0.6 + r() * 1.1);
+            g.beginPath(); g.moveTo(x - w / 2, cy); g.lineTo(x - w * 0.35, cy + len); g.lineTo(x + w * 0.35, cy + len); g.lineTo(x + w / 2, cy); g.fill();
+            g.beginPath(); g.arc(x, cy + len, w * 0.62, 0, 7); g.fill();
+        }
+        for (let i = 0; i < 9 + Math.floor(r() * 5); i++) { // лучи брызг: клин от пятна наружу и капля на конце
+            const a = r() * Math.PI * 2, d0 = R * 0.7, d1 = R * (1.25 + r() * 0.75), w = 0.06 + r() * 0.08;
+            g.beginPath();
+            g.moveTo(cx + Math.cos(a - w * 3) * d0, cy + Math.sin(a - w * 3) * d0);
+            g.lineTo(cx + Math.cos(a) * d1, cy + Math.sin(a) * d1);
+            g.lineTo(cx + Math.cos(a + w * 3) * d0, cy + Math.sin(a + w * 3) * d0);
+            g.fill();
+            g.beginPath(); g.arc(cx + Math.cos(a) * d1, cy + Math.sin(a) * d1, 3 + r() * 5, 0, 7); g.fill();
+        }
+        for (let i = 0; i < 16; i++) { const a = r() * Math.PI * 2, d = R * (1.5 + r() * 0.9); g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1.5 + r() * 4.5, 0, 7); g.fill(); } // капли вокруг
+        const vol = g.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R * 1.25);
+        vol.addColorStop(0, look.light); vol.addColorStop(0.45, look.base); vol.addColorStop(1, look.dark);
+        g.fillStyle = vol; body(); g.fill();
+        g.save(); body(); g.clip();
+        if (look.foam) for (let i = 0; i < 26; i++) { // пена: пузыри разного размера
+            const x = cx + (r() - 0.5) * R * 1.7, y = cy + (r() - 0.5) * R * 1.6, br = 3 + r() * 9;
+            g.fillStyle = "rgba(255,255,255,.55)"; g.strokeStyle = "rgba(150,130,100,.45)"; g.lineWidth = 1.5;
+            g.beginPath(); g.arc(x, y, br, 0, 7); g.fill(); g.stroke();
+        }
+        if (look.bits) for (let i = 0; i < 22; i++) { // семечки, крапинки, стружка
+            const x = cx + (r() - 0.5) * R * 1.6, y = cy + (r() - 0.5) * R * 1.5, [b0, b1] = look.bitR;
+            g.fillStyle = look.bits; g.globalAlpha = 0.85;
+            g.beginPath(); g.ellipse(x, y, b0 + r() * (b1 - b0), (b0 + r() * (b1 - b0)) * 0.55, r() * 3, 0, 7); g.fill();
+        }
+        g.globalAlpha = 1;
+        g.fillStyle = "rgba(255,255,255,.42)"; // блик
+        g.beginPath(); g.ellipse(cx - R * 0.38, cy - R * 0.42, R * 0.32, R * 0.14, -0.5, 0, 7); g.fill();
+        g.restore();
+    }
+    const url = c.toDataURL();
+    splatCache.set(key, url);
+    return url;
+}
+
 // предметы — из простых фигур, геометрии общие на все броски
 function makeItems() {
     const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...o });
@@ -267,10 +348,9 @@ export class Hecklers {
             const old = this.splatEl.firstElementChild;
             clearTimeout(this.splatTimers.get(old)); this.splatTimers.delete(old); old.remove();
         }
-        const colors = { tomato: "red", banana: "gold", can: "foam", slipper: "blue", coconut: "cream" };
         const el = document.createElement("img");
         el.className = "splat"; el.alt = ""; el.draggable = false;
-        el.src = `img/fx/splat-${colors[item.id] || "red"}.svg`;
+        el.src = splatImage(item.id, Math.floor(Math.random() * 3));
         el.style.left = `${rnd(25, 75)}%`; el.style.top = `${rnd(22, 43)}%`;
         el.style.setProperty("--tilt", `${rnd(-28, 28)}deg`);
         this.splatEl.appendChild(el);

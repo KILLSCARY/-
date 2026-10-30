@@ -1,13 +1,13 @@
 // Короткий комикс поверх настоящего меню. Без отдельной сцены, библиотек и цикла анимации.
 export const GUIDE_VERSION = 1;
 export const GUIDE_STEPS = [
-    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла. Покажу район! Сверху — твои игровые USDT и Карты. Сейчас расскажу, что с ними делать.' },
+    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла, покажу район! Сверху — твои игровые USDT и Карты. USDT идут на бусты и кейсы, Карты — на усиления забега и эксклюзивных героев.' },
     { target: '#tiles [data-go="heroes"]', title: 'Собери свою команду', text: 'Здесь выбираешь героя. У каждого свой навык, а условия открытия написаны на его карточке.' },
     { target: '#tiles [data-go="cases"]', title: 'Забирай лут', text: 'В кейсах — награды. Бесплатный конверт тоже здесь: таймер подскажет, когда можно открыть следующий.' },
     { target: '#tiles [data-go="shop"]', title: 'Прокачай забег', text: 'Бери бусты на следующий забег или прокачивай способности. Описание поможет выбрать под свой стиль.' },
-    { target: '#tiles [data-go="chapters"]', title: 'Двигай сюжет', text: 'Здесь главы, прогресс и боссы. Зарабатывай USDT и проходи сюжет. Покупки накопленный прогресс не отнимают.' },
+    { target: '#tiles [data-go="chapters"]', title: 'Двигай сюжет', text: 'Главы, прогресс и боссы. Прогресс — это USDT за все забеги: покупки его не отнимают. С боссом дерёшься кнопками «Удар», «Блок» и «Уклон».' },
     { target: '#tiles [data-go="rating"]', title: 'Покажи свой результат', text: 'Тут рейтинг и задания. В забеге собирай USDT и беги дальше: очки = USDT × 10 + метры.' },
-    { target: '#btn-play', title: 'Погнали!', text: 'В бою появятся кнопки удара и защиты. А пока — свайпай и собирай USDT!', controls: true },
+    { target: '#btn-play', title: 'Погнали!', text: 'Жми «Забег». Свайпай по экрану, собирай USDT и беги в табличку с верным ответом.', controls: true },
 ];
 
 // Координаты в пределах доступной области, включая узкие телефоны и системные отступы Telegram.
@@ -84,15 +84,25 @@ export class GorillaGuide {
         this.prev.hidden = this.index === 0;
         this.next.textContent = this.index === GUIDE_STEPS.length - 1 ? 'Всё понятно!' : 'Дальше →';
         this.target = document.querySelector(step.target);
-        this.target?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' });
+        // меню не дёргаем: прокручиваем, только если кнопка не видна целиком (на маленьких экранах), и плавно;
+        // облачко само встаёт над кнопкой или под ней (guidePlacement)
+        const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        this.target?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: still ? 'instant' : 'smooth' });
         this.place();
+        // новый кадр комикса: карточка выскакивает с наклоном (через кадр — в другую сторону), Горилла кивает,
+        // облачко раздувается, подсветка переезжает к новой кнопке (CSS: .guide-card.pop, .guide-focus)
+        this.card.style.setProperty('--tilt', this.index % 2 ? '2.5deg' : '-2.5deg');
+        this.card.classList.remove('pop'); void this.card.offsetWidth; this.card.classList.add('pop');
         this.next.focus({ preventScroll: true });
     }
 
     place() {
         if (!this.active || !this.target) return;
         const style = getComputedStyle(this.root);
-        const p = guidePlacement(this.target.getBoundingClientRect(), this.card.getBoundingClientRect(), {
+        // размер карточки — без трансформации: во время «выскакивания» (scale .88) getBoundingClientRect меньше настоящего,
+        // и облачко вставало ниже, наезжая на кнопку
+        const panel = { width: this.card.offsetWidth, height: this.card.offsetHeight };
+        const p = guidePlacement(this.target.getBoundingClientRect(), panel, {
             width: window.innerWidth, height: window.innerHeight,
             top: parseFloat(style.paddingTop) || 12, bottom: parseFloat(style.paddingBottom) || 12,
         });

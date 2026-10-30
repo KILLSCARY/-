@@ -267,7 +267,8 @@ class Game {
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
-        this.scene.add(new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], this.look2 ? LOOK2.hemi : SKY.light));
+        this.hemi = new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], this.look2 ? LOOK2.hemi : SKY.light);
+        this.scene.add(this.hemi);
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1133,11 +1134,20 @@ class Game {
         else this.composer.render();
     }
 
+    // Яркость кадра под локацию. С постобработкой экспозиция идёт прямо в ACES (×1,45), без неё — через тонмаппинг
+    // Three.js (≈×0,92): ночью разница не видна, а солнечный Нячанг на хорошей графике пересвечивало и заливало жёлтым
+    // свечением. Днём (VIETNAM.post) свечение слабее и экспозиция постобработки ниже; прямая отрисовка не меняется
+    applyLook() {
+        const vn = this.location === "vietnam" && VIETNAM.post;
+        if (this.bloom) this.bloom.strength = this.tier?.bloom ? (vn ? vn.bloom : 0.8) : 0;
+        if (this.output) this.output.uniforms.exposure.value = (this.look2 ? LOOK2.exposure : SKY.exposure) * (vn ? vn.exposure : 1);
+    }
+
     setDirect(on) {
         this.direct = on;
         const R = this.renderer;
         R.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-        R.toneMappingExposure = (this.output?.uniforms.exposure.value ?? SKY.exposure) * 0.55; // ACES в Three.js делит на 0,6; чуть ниже — нет прохода контраста/сочности
+        R.toneMappingExposure = (this.look2 ? LOOK2.exposure : SKY.exposure) * 0.55; // ACES в Three.js делит на 0,6; чуть ниже — нет прохода контраста/сочности
         document.body.classList.toggle("direct", on);
         this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
     }
@@ -1159,7 +1169,7 @@ class Game {
         if (prevShadows !== this.tier.shadows) { // шейдеры с тенями и без — разные, пересобрать
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
-        this.bloom.strength = this.tier.bloom ? 0.8 : 0;
+        this.applyLook(); // сила свечения и экспозиция — под уровень графики и локацию
         // сглаживание: msaa — 4 выборки в буферах постобработки (WebGL2, сильные устройства), fxaa — дешёвый проход в конце
         const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2 ? 4 : 0;
         for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
@@ -1340,6 +1350,19 @@ class Game {
         if (!this.world) return;
         this.world.setLocation(name);
         this.scene.fog.color.set(name === "vietnam" ? VIETNAM.fog : SKY.color);
+        // свет и отражения локации: Нячанг — солнечный вечер (VIETNAM.light/env), район — фиолетовая ночь
+        const vn = name === "vietnam" && VIETNAM.light;
+        if (this.hemi) {
+            this.hemi.color.set(vn ? vn.hemi[0] : SKY.hemi[0]); this.hemi.groundColor.set(vn ? vn.hemi[1] : SKY.hemi[1]);
+            this.hemi.intensity = vn ? vn.hemiI : this.look2 ? LOOK2.hemi : SKY.light;
+            this.moon.color.set(vn ? vn.sun : SKY.moon); this.moon.intensity = vn ? vn.sunI : 0.9;
+        }
+        this.envs ||= { street: this.scene.environment };
+        if (vn && !this.envs.vietnam) this.envs.vietnam = buildEnvironment(this.renderer, VIETNAM.env);
+        this.scene.environment = this.envs[vn ? "vietnam" : "street"] || this.scene.environment;
+        this.world.dayGlow(vn ? VIETNAM.glow : 1); // днём фонари и окна не горят по-ночному
+        this.scene.fog.near = vn ? VIETNAM.fogNear : this.look2 ? LOOK2.fog[0] : 12; // днём воздух прозрачнее — дымка дальше
+        this.applyLook();
         this.skyKey = null;
         this.paintSky();
     }
@@ -2785,8 +2808,11 @@ class Game {
         // рядом стена-возражение, вентилятор Ислама или модель ещё не загрузилась — позже
         const nearVent = !!this.vent; // вентилятор сам отодвигает следующий порыв, пока его ветер не кончится
         if (!npc || nearWall || nearVent) { this.nextWindAt += 60; npc && this.world.dropObstacle(npc); return; }
+        // сторона — где на тротуаре свободно (урна, банкомат, столик кафе загородили бы Ислама); обе заняты — позже
+        const free = [-1, 1].filter((s) => this.world.sidewalkFree(s * 3.7, z, 0.5, 0.8));
+        if (!free.length) { this.nextWindAt += 60; this.world.dropObstacle(npc); return; }
         this.nextWindAt += a + Math.random() * (b - a);
-        const side = Math.random() < 0.5 ? -1 : 1;
+        const side = free[Math.floor(Math.random() * free.length)];
         npc.position.set(side * 3.7, 0.18, z);
         npc.rotation.y = (side < 0 ? Math.PI / 2 : -Math.PI / 2) - side * (WIND.npc.yaw || 0); // лицом к дороге — дует поперёк
         npc.userData.type = "decor";
@@ -2805,8 +2831,9 @@ class Game {
         if (!w) { this.camFocus = Math.max(0, (this.camFocus || 0) - dt * 2); return; }
         const z = w.npc.position.z;
         if (!w.bones) this.windRig(w);
-        if (w.state === "near" && z > -15) { // вдох дольше и раньше — видно, что это Ислам набирает воздух
-            if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
+        if (w.state === "near" && z > WIND.startZ) { // вдох дольше и раньше — видно, что это Ислам набирает воздух
+            if (!w.npc.visible || !w.npc.parent) w.state = "done"; // Ислама не видно (спрятан, убран) — порыва без него нет
+            else if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
             else if (this.fx.windproof) { w.state = "done"; this.hub.toast("Ислам: «Даже я не сдую»"); }
             else {
                 w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane;

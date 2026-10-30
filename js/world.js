@@ -249,7 +249,7 @@ function neonTexture(text) {
 
 // Окружение для отражений: тёмное небо, красное зарево у горизонта, россыпь окон.
 // Мокрый асфальт, лужи, машины и металл отражают именно его.
-export function buildEnvironment(renderer) {
+export function buildEnvironment(renderer, colors = SKY.env) {
     const env = new THREE.Scene();
     const sky = new THREE.Mesh(
         new THREE.SphereGeometry(50, 32, 16),
@@ -257,7 +257,7 @@ export function buildEnvironment(renderer) {
             side: THREE.BackSide,
             map: canvasTex(16, 256, (g, w, h) => {
                 const grad = g.createLinearGradient(0, 0, 0, h);
-                const [z, a, hz, b, n] = SKY.env; // отражения — в цветах неба (сиреневая ночь)
+                const [z, a, hz, b, n] = colors; // отражения — в цветах неба (сиреневая ночь; у Нячанга — день, VIETNAM.env)
                 grad.addColorStop(0, z);
                 grad.addColorStop(0.42, a);
                 grad.addColorStop(0.5, hz);
@@ -323,7 +323,8 @@ export class World {
         if ((this.location || "street") === name) return;
         this.location = name;
         if (name === "vietnam" && !this.vietnam) this.vietnam = new Vietnam(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
-        this.vietnam?.set(name === "vietnam"); // асфальт и отражения те же: после тропического ливня он тоже мокрый
+        this.vietnam?.set(name === "vietnam"); // асфальт и лужи те же: после тропического ливня он тоже мокрый
+        if (this.roadMat) this.wetSheen(); // но днём асфальт матовее (wetSheen)
     }
 
     // Тротуар без наложений: у кого есть userData.foot (полуразмеры hx/hz), те не стоят друг в друге —
@@ -648,10 +649,14 @@ export class World {
 
     // без зеркала (средняя и слабая графика) асфальт был матовой массой: глаже и сильнее отражает окружение —
     // мокрый блеск от неба и неона (scene.environment) почти даром
-    wetSheen(on) {
-        this.roadMat.roughness = on ? 0.42 : 0.75;
-        this.roadMat.metalness = on ? 0.35 : 0.2;
-        this.roadMat.envMapIntensity = on ? 1.6 : 0.8;
+    wetSheen(on = this.sheenOn) {
+        this.sheenOn = on;
+        const day = (this.location || "street") === "vietnam"; // днём (Нячанг) яркое небо в отражении — асфальт блестел фольгой
+        this.roadMat.roughness = on && !day ? 0.42 : day ? 0.82 : 0.75;
+        this.roadMat.metalness = on && !day ? 0.35 : day ? 0.08 : 0.2;
+        this.roadMat.envMapIntensity = on && !day ? 1.6 : day ? 0.45 : 0.8;
+        // зеркало луж (хорошая графика) затемнено под ночь — днём лужи выходили чёрными «нефтяными» пятнами
+        this.reflector?.material.uniforms.color.value.setRGB(...(day ? [0.85, 0.85, 0.88] : [0.42, 0.4, 0.4]));
     }
 
     disableReflections() {
@@ -738,6 +743,7 @@ export class World {
             this.lampCones = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 1.7, CONE_H, 20, 1, true), cone, lamps.length);
             this.lampPools.renderOrder = 2; // поверх асфальта и луж
             for (const m of [this.lampPools, this.lampCones]) { m.frustumCulled = false; this.scene.add(m); }
+            this.dayGlow(this.glowK ?? 1);
         }
         const mx = this.lampMatrix ||= new THREE.Matrix4();
         let n = 0;
@@ -751,6 +757,17 @@ export class World {
         this.lampPools.count = n;
         this.lampCones.count = this.tier.lights > 1 ? n : 0;
         this.lampPools.instanceMatrix.needsUpdate = this.lampCones.instanceMatrix.needsUpdate = true;
+    }
+
+    // днём (Нячанг) свет фонарей тусклее: k — доля ночной яркости (1 — ночь). Пятна и конуса создаются при первом
+    // кадре (updateLampGlow) — тогда k применится там
+    dayGlow(k) {
+        this.glowK = k;
+        for (const m of [this.lampPools?.material, this.lampCones?.material]) {
+            if (!m) continue;
+            m.userData.base ||= m.uniforms.color.value.clone();
+            m.uniforms.color.value.copy(m.userData.base).multiplyScalar(k);
+        }
     }
 
     // Материал фасада: картинка дома натянута на всю высоту, по ширине виден кусок len метров
@@ -1200,7 +1217,10 @@ export class World {
         const f = this.flashes[this.nextFlash];
         this.nextFlash = (this.nextFlash + 1) % this.flashes.length;
         f.position.copy(pos);
-        f.material.color.setRGB(...(gold ? [2.4, 1.8, 0.6] : [0.9, 1.8, 1.3]));
+        // цвет ниже порога bloom: было 0,9/1,8/1,3 — свечение раздувало вспышку, монеты подряд сливались в зелёный шар
+        // поверх героя (на телефоне при сниженном разрешении — на полэкрана). Золотая (×2, арка, верный ответ) — ярче
+        f.material.color.setRGB(...(gold ? [1.5, 1.15, 0.45] : [0.35, 0.7, 0.5]));
+        f.userData.gold = gold;
         f.userData.t = 0;
         f.visible = true;
     }
@@ -2228,7 +2248,9 @@ export class World {
     clearZone(z0, z1) {
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const o = this.obstacles[i], t = o.userData.type;
-            if (t === "decor" || t === "answer" || o.userData.islam) continue;
+            // патрульная машина поста ДПС — тоже «декор», но её убираем вместе с инспектором: она стоит на обочине (x 4,4)
+            // ровно там, где встаёт Ислам (3,7), — он оказывался внутри машины, и «Ислам дует» шёл без Ислама
+            if ((t === "decor" && !o.userData.police) || t === "answer" || o.userData.islam) continue;
             if ((o.position.z > z0 && o.position.z < z1) || (o.userData.oncoming && o.position.z < z1)) {
                 this.dropObstacle(o);
                 this.obstacles.splice(i, 1);
@@ -2361,9 +2383,9 @@ export class World {
         for (const f of this.flashes) {
             if (!f.visible) continue;
             f.userData.t += dt;
-            const k = Math.min(1, f.userData.t / 0.18);
-            f.scale.setScalar(0.35 + 0.65 * k); // небольшая короткая вспышка: в полёте монеты идут подряд и сливались в шар
-            f.material.opacity = (1 - k) * 0.8;
+            const k = Math.min(1, f.userData.t / 0.16);
+            f.scale.setScalar((0.25 + 0.4 * k) * (f.userData.gold ? 1.5 : 1)); // искра, а не шар: монеты подряд не сливаются
+            f.material.opacity = (1 - k) * 0.7;
             f.position.z += move;
             if (k >= 1) f.visible = false;
         }
