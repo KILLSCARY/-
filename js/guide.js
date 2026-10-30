@@ -43,6 +43,27 @@ export class GorillaGuide {
         this.layout = () => this.place();
         this.keys = (e) => this.keydown(e);
         this.keepFocus = (e) => { if (this.active && !this.root.contains(e.target)) this.next.focus({ preventScroll: true }); };
+        // В Telegram на iPhone click по кнопке мог не дойти, и обучение застревало. Поэтому тап ловим сами, на всём документе:
+        // по координатам кнопок, а мимо кнопок — следующий кадр. Обычный click от пальца гасим (иначе шаг сработает дважды,
+        // а после закрытия нажмётся плитка под обучением); click без указателя (Enter, пробел) идёт как обычно
+        this.down = null;
+        document.addEventListener('pointerdown', (e) => { this.down = this.active ? { x: e.clientX, y: e.clientY } : null; }, true);
+        document.addEventListener('pointercancel', () => { this.down = null; }, true);
+        document.addEventListener('pointerup', (e) => this.tap(e), true);
+        document.addEventListener('click', (e) => {
+            if (e.detail > 0 && (this.active || performance.now() - (this.tapAt || 0) < 600)) { e.preventDefault(); e.stopPropagation(); }
+        }, true);
+    }
+
+    tap(e) {
+        const d = this.down;
+        this.down = null;
+        if (!this.active || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12) return; // прокрутка текста карточки — не тап
+        const on = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6; };
+        this.tapAt = performance.now();
+        if (on(this.skip)) this.finish();
+        else if (on(this.prev)) this.prev.onclick();
+        else this.next.onclick();
     }
 
     get done() { return (this.hub.p.data.guideVersion || 0) >= GUIDE_VERSION; }
@@ -87,7 +108,11 @@ export class GorillaGuide {
         // меню не дёргаем: прокручиваем, только если кнопка не видна целиком (на маленьких экранах), и плавно;
         // облачко само встаёт над кнопкой или под ней (guidePlacement)
         const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        this.target?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: still ? 'instant' : 'smooth' });
+        // только само меню: scrollIntoView на iPhone двигает и страницу, и зоны нажатия расходятся с картинкой
+        const box = this.target?.getBoundingClientRect(), area = this.menu.getBoundingClientRect();
+        const by = !box ? 0 : box.top < area.top + 8 ? box.top - area.top - 8 : box.bottom > area.bottom - 8 ? box.bottom - area.bottom + 8 : 0;
+        if (by) this.menu.scrollBy({ top: by, behavior: still ? 'auto' : 'smooth' });
+        if (window.scrollY) window.scrollTo(0, 0);
         this.place();
         // новый кадр комикса: карточка выскакивает с наклоном (через кадр — в другую сторону), Горилла кивает,
         // облачко раздувается, подсветка переезжает к новой кнопке (CSS: .guide-card.pop, .guide-focus)

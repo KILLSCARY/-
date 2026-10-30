@@ -401,20 +401,20 @@ function measureLift(model, rig, clip) {
     mx.stopAllAction(); mx.uncacheRoot(model);
     return lift;
 }
-const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12, stumble: 0.08, cheer: 0.25 };
+const FADE = { dance: 0.3, jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12, stumble: 0.08, cheer: 0.25 };
 function animateModel(rat, pose, t, phase, dt, speed) {
     const u = rat.userData;
     const { rig, actions, mixer } = u;
     rig.rotation.set(0, 0, 0);
     rig.position.set(0, 0, 0);
     rig.scale.set(1, 1, 1);
-    if (!Object.keys(actions).length) return animateStatic(rig, ALIAS[pose] || pose, t, phase);
+    if (!Object.keys(actions).length) return animateStatic(rig, pose === "dance" ? "idle" : ALIAS[pose] || pose, t, phase);
 
     // нет своего клипа для позы — играем бег и доворачиваем модель целиком
-    const want = actions[pose] ? pose : pose === "fall" && actions.dead ? "dead" : "run";
+    const want = actions[pose] ? pose : pose === "fall" && actions.dead ? "dead" : pose === "dance" && actions.idle ? "idle" : "run"; // без своего танца (Денчик) — стойка
     if (want !== u.current) {
         const next = actions[want];
-        const once = want !== "run" && want !== "idle" && want !== "cheer" && !(want === "fly" && u.flyLoop); // плавание в полёте и радость — по кругу
+        const once = want !== "run" && want !== "idle" && want !== "cheer" && want !== "dance" && !(want === "fly" && u.flyLoop); // плавание в полёте и радость — по кругу
         if (u.current === "run") { u.runTime = actions.run.time; u.runAway = 0; } // ушли из бега — запомнить фазу шага
         next.reset();
         // обратно в бег — с того шага, где ноги были бы без прыжка/подката (раньше — с первого кадра: нога «перескакивала»)

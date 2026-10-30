@@ -1122,12 +1122,12 @@ class Game {
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
-        else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
+        else if (this.state === "menu") this.world.update(dt, 0, this.t); // в меню улица стоит: герой танцует на месте
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps();
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
-            : this.state === "menu" ? "run"
+            : this.state === "menu" ? "dance"
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
