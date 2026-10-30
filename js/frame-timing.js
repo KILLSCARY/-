@@ -40,3 +40,10 @@ export function updateAmbientAnimation(object, dt, tier) {
     u.mixer.update(u.animationTime);
     u.animationTime = 0;
 }
+
+// DPR — линейная величина: ×3 означает в девять раз больше пикселей.
+// Лимит площади защищает также большие телефоны и планшеты, в обеих ориентациях.
+export function renderPixelRatio(width, height, dpr, tier, mobile, resolution = 1, heat = 1) {
+    const areaLimit = mobile ? Math.sqrt(1500000 / Math.max(1, width * height)) : Infinity;
+    return Math.min(dpr || 1, tier.ratio, areaLimit) * resolution * heat;
+}
