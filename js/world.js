@@ -21,7 +21,7 @@ const BEHIND_Z = 45;   // улица тянется и за спину крыс�
 const FLOOR_H = 2.9;
 const CAR_FRONT = { x: 0.5, y: 0.58, z: 2.12 }; // фары машины, собранной в коде (makeCar)
 const RIPPLES = 72; // кругов от капель дождя на асфальте — пул (сколько видно — по графике: tier.rain / 10)
-const _blobBox = new THREE.Box3();
+const _blobBox = new THREE.Box3(), _blobPart = new THREE.Box3();
 const BLOBS = 64; // пятен-теней на кадр не больше (один InstancedMesh на все)
 const BLOB_KINDS = new Set(["bin", "police"]); // на тротуаре пятно-тень у урн и патрульных машин (прохожие ходят — без)
 // размеры для столкновений процедурных препятствий: halfZ — полудлина, top — что перепрыгнуть, oncoming — едет навстречу (м/с)
@@ -1119,7 +1119,15 @@ export class World {
         const rot = g.rotation.y;
         g.rotation.y = 0;
         g.updateMatrixWorld(true);
-        _blobBox.setFromObject(g);
+        // мерка — по самому предмету: без пятна света фар (userData.fx, 7 м вперёд) и светящихся спрайтов — иначе тень
+        // машины тянулась вперёд и чёрным овалом закрывала свет фар на дороге
+        _blobBox.makeEmpty();
+        g.traverse((m) => {
+            if (!m.isMesh || m.isSprite || m.userData.fx || !m.geometry) return;
+            if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+            _blobPart.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+            _blobBox.union(_blobPart);
+        });
         g.rotation.y = rot;
         const sx = _blobBox.max.x - _blobBox.min.x, sz = _blobBox.max.z - _blobBox.min.z;
         if (!Number.isFinite(sx) || sx <= 0 || sx > 8) return;
