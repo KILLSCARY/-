@@ -1599,7 +1599,7 @@ export class World {
                     loadModel(this.lite(cfg.bin), (bin) => { // сцены ставим, когда загрузились и бак, и Никита
                         const b = bin.scene;
                         b.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.3; o.material.needsUpdate = true; } });
-                        const spawn = () => { for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b); };
+                        const spawn = () => { for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b); this.placeNikitas(); };
                         loadModel(cfg.panties, (gltf) => {
                             const s = gltf.scene, k = 0.52 / new THREE.Box3().setFromObject(s).getSize(new THREE.Vector3()).x;
                             s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.side = THREE.DoubleSide; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.35; o.material.needsUpdate = true; } });
@@ -1711,7 +1711,7 @@ export class World {
     }
 
     makeNikita(model, cfg, i, binModel) {
-        const mode = cfg.spots[i], side = i % 2 ? -1 : 1, d = this.makeNikitaBin(binModel, cfg, side), root = d.g;
+        const mode = cfg.spots[i], side = i % 2 ? 1 : -1, d = this.makeNikitaBin(binModel, cfg, side), root = d.g;
         root.position.set(side * NIKITA_X.street, 0, BEHIND_Z - 40 - i * (STREET_LEN / cfg.spots.length));
         const rig = this.rig(model, "look");
         rig.userData.mixer.stopAllAction();
@@ -1762,9 +1762,10 @@ export class World {
         this.warmQueue.push(this.rig(model, null));
     }
 
-    // в начале забега и в меню баки снова на своих местах: первый рядом с героем. Иначе после забега их уносило за камеру
+    // в начале забега и в меню баки снова на своих местах. Первый — в кадре меню справа от героя: камера меню повёрнута,
+    // дальше по улице бак уходит за спину героя, а на другой стороне — за край узкого экрана телефона
     placeNikitas() {
-        (this.nikitas || []).forEach((o, i, all) => { o.position.z = BEHIND_Z - 40 - i * (STREET_LEN / all.length); });
+        (this.nikitas || []).forEach((o, i, all) => { o.position.z = 6 - i * (STREET_LEN / all.length); });
     }
 
     // женские трусы: сетка с вырезанным по текстуре силуэтом, чтобы ткань мялась (Nikita rubPants двигает вершины)
@@ -1840,8 +1841,9 @@ export class World {
             o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
             const u = o.userData;
             updateAmbientAnimation(o, dt, this.tier);
-            if (u.rub && o.position.z > -45 && o.position.z < 10) this.rubPants(o, this.rubT = (this.rubT || 0) + dt);
-            if (o.position.z < -75 || o.position.z > 10) continue;
+            if (o.position.z > 8 && o.position.z < 16) u.mixer.update(dt); // в кадре меню: общая анимация дальше 8 м за героем стоит
+            if (u.rub && o.position.z > -45 && o.position.z < 16) this.rubPants(o, this.rubT = (this.rubT || 0) + dt);
+            if (o.position.z < -75 || o.position.z > 16) continue;
             u.t -= dt;
             if (u.t <= 0) { // следующий шаг сценки
                 u.step = (u.step + 1) % u.script.length;

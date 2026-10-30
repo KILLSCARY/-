@@ -895,6 +895,7 @@ class Game {
         }
         const showOver = () => {
             if (this.state !== "over") return;
+            $("gorilla").hidden = true; // та же фраза уже в шторке
             this.show("over");
             $("arrest").hidden = true;
             for (const [id, to, delay] of counters) countUp($(id), to, delay);

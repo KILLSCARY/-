@@ -456,6 +456,37 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     .over-card { padding-top: 16px; } .over-score { margin-top: 8px; } .score-big { font-size: 54px; }
     .st { padding: 9px; } .over-card .btn-ghost { display: none; }
 }
+/* редизайн: нижняя шторка вместо карточки на весь экран. Сцена поимки сверху видна, внутри одна иерархия: счёт, цифры забега, действия */
+#over { justify-content: flex-end; align-items: stretch; padding: 0; background: linear-gradient(180deg, transparent 28%, rgba(8, 4, 6, .55) 55%, rgba(8, 4, 6, .92)); }
+.over-card { width: 100%; max-width: 460px; margin: auto auto 0; padding: 20px 20px calc(16px + env(safe-area-inset-bottom)); text-align: left; border: 0; border-radius: 26px 26px 0 0; background: rgba(17, 14, 16, .94); box-shadow: 0 -14px 50px rgba(0, 0, 0, .55); animation: sheet-in .45s cubic-bezier(.2, .9, .25, 1) both; }
+.over-card::before { left: 50%; right: auto; top: 8px; width: 40px; margin-left: -20px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .22); box-shadow: none; animation: none; }
+@keyframes sheet-in { from { transform: translateY(70%); } }
+.over-head { align-items: flex-start; gap: 5px; }
+.over-head .label { color: var(--red); font-size: 11px; letter-spacing: .14em; }
+.cause { display: block; padding: 0; border: 0; background: none; color: rgba(255, 255, 255, .72); font-size: 14px; font-weight: 500; letter-spacing: 0; line-height: 1.32; text-transform: none; }
+.cause::before { content: none; }
+.over-score { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 10px 0 0; }
+.over-score .new-rec { flex: 0 0 100%; width: max-content; max-width: max-content; }
+.score-big { font-size: clamp(50px, 16vw, 68px); line-height: 1; }
+.over-score .best { margin: 0; font-size: 12px; color: var(--muted); text-align: right; }
+.over-stats { gap: 0; margin-top: 12px; border-block: 1px solid rgba(255, 255, 255, .1); }
+.st { gap: 4px; padding: 10px 0 10px 12px; border: 0; border-left: 1px solid rgba(255, 255, 255, .1); border-radius: 0; background: none; }
+.st:first-child { padding-left: 0; border-left: 0; }
+.st .n { display: none; }
+.st b { font-size: 20px; }
+.st-cap { font-size: 10px; }
+.st-cap .ico-card { height: 11px; width: auto; }
+.wallet-line { margin: 9px 0 0; padding: 0; font-size: 12px; }
+.wallet-line::before { content: none; }
+.appeal { margin-top: 10px; padding: 8px 8px 8px 11px; gap: 10px; border-radius: 14px; border-color: rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .05); }
+.appeal > .ico-usdt { width: 24px; height: 24px; }
+.appeal-text b { font-size: 12px; }
+.appeal-text span { margin-top: 1px; font-size: 11px; }
+.appeal .price { padding: 8px 11px; border-radius: 10px; background: rgba(227, 52, 58, .92); font-size: 12px; }
+.over-card .btn-main { margin-top: 10px; }
+.over-row { margin-top: 6px; }
+.over-row .btn { padding: 11px 8px; border: 0; background: none; color: rgba(255, 255, 255, .78); font-size: 14px; }
+@media (max-height: 700px) { .over-card { padding-top: 18px; } .score-big { font-size: 46px; } .st { padding-block: 7px; } }
 
 /* ---- HUD: «котировка» USDT | очки, круглые кнопки как «назад» в разделах, под ними — действующие добавки ---- */
 #hud { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }

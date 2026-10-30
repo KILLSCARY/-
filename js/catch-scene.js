@@ -299,6 +299,7 @@ export class CatchScene {
         const push = Math.min(0.45, Math.max(0, (t - GRAB) * 0.14));
         cam.position.lerp(new THREE.Vector3(this.x0 + this.side * (3.45 - push), 1.3, mid - 0.7), o);
         target.lerp(new THREE.Vector3(this.x0, lerp(0.55, 1.02, lifted), mid), ss(t / 0.45));
+        target.y -= ss((t - CATCH_END + 0.2) / 0.5) * 1.15; // открылась шторка итога: герои поднимаются в свободную часть экрана
         const shake = Math.max(0, 1 - Math.abs(t - GRAB - 0.25) / 0.12) * 0.04 + Math.abs(this.whip(t)[1]) * 0.09;
         cam.position.x += Math.sin(t * 43) * shake;
         cam.position.y += Math.cos(t * 37) * shake;
