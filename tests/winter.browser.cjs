@@ -20,6 +20,7 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
         await page.goto(new URL('?location=winter', base).href);
         await page.waitForFunction(() => window.game?.hub && !game.heroLoading && !document.querySelector('#boot'), { timeout: 90000 });
         await page.waitForFunction(() => game.world.winter?.assetsReady, { timeout: 20000 });
+        await page.waitForFunction(() => game.winterSky?.naturalWidth > 0, { timeout: 20000 });
         assert.equal(await page.evaluate(() => game.location), 'winter');
         assert.equal(await page.evaluate(() => game.renderer.getContext().getContextAttributes().antialias), true);
 
@@ -53,7 +54,7 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
             let triangles = 0;
             for (const g of winter.chunks) g.traverse(m => { if (m.isMesh) triangles += (m.geometry.index?.count || m.geometry.attributes.position.count) / 3; });
             check(triangles < 200000, 'winter geometry stays under 200k triangles for the entire loop');
-            check(winter.chunks.every(g => g.children.filter(o => o.isMesh).length <= 8), 'at most eight shared material batches per chunk');
+            check(winter.chunks.every(g => g.children.filter(o => o.isMesh).length <= 9), 'at most nine shared material batches per chunk');
             check(winter.chunks.every(g => g.children.some(o => o.userData.parkedCar)), 'textured GLB cars mounted in every block');
             check(winter.materials.facade.map.image.width === 1024 && winter.materials.snow.map.image.width === 512,
                 'detailed facade and snow assets loaded');
@@ -66,6 +67,19 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
             check(positions.slice(1).every((z, i) => Math.abs(z - positions[i] - 32) < .001), 'no gaps after recycling');
 
             w.clear();
+            const random = Math.random;
+            let seed = 17, bins = 0;
+            Math.random = () => ((seed = Math.imul(seed, 1664525) + 1013904223 >>> 0) / 4294967296);
+            try {
+                for (let row = 0; row < 40; row++) {
+                    w.spawnRow(-40, row / 40, 13 + row / 40 * 17);
+                    const lanes = new Set(w.obstacles.filter(o => o.userData.type !== 'decor').map(o => o.userData.lane));
+                    if (lanes.size > 2) throw new Error('winter row blocks all three lanes');
+                    bins += w.obstacles.filter(o => o.userData.type === 'dumpster').length;
+                    w.clear();
+                }
+            } finally { Math.random = random; }
+            check(bins > 0, 'winter rows include bins and preserve an open lane at all tested speeds');
             const coins = game.coinCount;
             w.addCoin(1, 0, .7);
             game.x = 0; game.y = 0; game.slideLeft = 0;

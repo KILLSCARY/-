@@ -10,7 +10,7 @@ import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
 import { Vietnam } from "./vietnam.js";
-import { Winter } from "./winter.js";
+import { Winter, WINTER_OBSTACLES } from "./winter.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -2156,7 +2156,7 @@ export class World {
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
         for (const lane of blocked) {
-            let kind = this.pickKind();
+            let kind = this.location === 'winter' ? pick(WINTER_OBSTACLES) : this.pickKind();
             if (this.noCars && kind === "car") kind = "block"; // встречная тачка проехала бы сквозь стену-возражение
             const o = this.addObstacle(kind, lane, z);
             if (o.userData.oncoming) o.position.z = z * (1 + o.userData.oncoming / Math.max(1, speed));

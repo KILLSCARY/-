@@ -9,10 +9,12 @@ import { loadModel } from './models.js';
 const PARKED_CAR = 'models/obj/lite/car1.glb';
 
 export const WINTER = {
-    fog: 0x9faed0, near: 34, far: 122,
+    fog: 0x777fae, near: 38, far: 122,
     sky: { zenith: '#334e87', mid: '#8c9dcb', horizon: '#efc1c9' },
-    hemi: [0xb9ceff, 0x526487], light: .95, moon: 0xffdcba,
+    hemi: [0x9bb6fa, 0x303c64], light: .66, moon: 0xb6c8ff,
+    rowGap: [16, 11],
 };
+export const WINTER_OBSTACLES = ['dumpster', 'dumpster', 'dumpster', 'roadblock', 'roadblock', 'barrier', 'cart', 'block', 'car'];
 
 function texture(width, height, draw) {
     const canvas = document.createElement('canvas');
@@ -112,7 +114,7 @@ export class Winter {
             facade: new THREE.MeshStandardMaterial({ vertexColors: true, map: facadeTexture(), emissiveMap: facadeTexture(true),
                 emissive: 0xffffff, emissiveIntensity: .63, roughness: 1 }),
             shop: new THREE.MeshBasicMaterial({ map: shopTexture(), color: 0xffe5c8 }),
-            glow: new THREE.MeshBasicMaterial({ vertexColors: true }),
+            glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
             soft: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide,
                 map: texture(64, 64, (g, w, h) => {
                     const fade = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
@@ -120,9 +122,13 @@ export class Winter {
                     g.fillStyle = fade; g.fillRect(0, 0, w, h);
                 }) }),
         };
+        this.materials.halo = new THREE.MeshBasicMaterial({ map: this.materials.soft.map, vertexColors: true,
+            transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false });
         this.geometry = {
             box: new THREE.BoxGeometry(1, 1, 1),
             ball: new THREE.SphereGeometry(1, 10, 7),
+            ornament: new THREE.SphereGeometry(1, 6, 4),
+            bulb: new THREE.OctahedronGeometry(1),
             cylinder: new THREE.CylinderGeometry(1, 1, 1, 8),
             cone: new THREE.ConeGeometry(1, 1, 10),
             branch: new THREE.CylinderGeometry(.35, 1, 1, 7),
@@ -171,6 +177,7 @@ export class Winter {
                 this.birch(side * 7.3, side < 0 ? 14 : -15, 7.1);
                 this.pine(side * 8, side < 0 ? -12 : 5, 5.8 + index % 2);
                 this.bench(side * 5.5, side < 0 ? 2 : 14);
+                this.bin(side * 5, side < 0 ? -14 : 8);
             }
             if (index % 2 === 0) this.kiosk(-6.3, -8);
             if (index % 2 === 0) { this.playground(7, -15); this.car(6.5, -6); }
@@ -317,15 +324,16 @@ export class Winter {
         this.part('cylinder', c.iron, x, 2, z, .065, 3.9, .065);
         this.part('cylinder', c.iron, x, .4, z, .14, .7, .14);
         this.box(c.iron, x, 4.02, z, .5, .12, .5);
-        this.part('box', 0xffcd79, x, 4.34, z, .38, .53, .38, null, 'glow');
+        this.part('box', new THREE.Color(2.5, 1.4, .45), x, 4.34, z, .38, .53, .38, null, 'glow');
         for (const dx of [-.21, .21]) for (const dz of [-.21, .21]) this.box(c.iron, x + dx, 4.32, z + dz, .045, .62, .045);
         this.part('cone', c.iron, x, 4.73, z, .43, .35, .43, [0, Math.PI / 4, 0]);
         this.part('cone', c.snow, x, 4.79, z, .4, .31, .4, [0, Math.PI / 4, 0]);
         this.part('ball', c.iron, x, 5, z, .07, .12, .07);
         // Warm light painted on snow, as opaque geometry, no extra light/shader pass.
-        this.part('plane', 0xffbe68, x, .278, z, 4.2, 5.5, 1, [-Math.PI / 2, 0, 0], 'soft');
-        this.part('plane', 0xffbe68, x, 4.35, z + .24, 1.2, 1.5, 1, null, 'soft');
-        this.part('plane', 0xc69d75, Math.sign(x) * 2.5, .027, z + 1, 2.2, 4, 1, [-Math.PI / 2, 0, 0], 'soft');
+        this.part('plane', 0xffa84e, x, .3, z, 5.4, 7, 1, [-Math.PI / 2, 0, 0], 'halo');
+        this.part('plane', 0xffb75e, x, 4.35, z + .25, 2.5, 2.9, 1, null, 'halo');
+        this.part('plane', 0xffbb6a, x, 4.35, z, 2.5, 2.9, 1, [0, Math.PI / 2, 0], 'halo');
+        this.part('plane', 0xffa64e, Math.sign(x) * 2.5, .027, z + 1, 3.8, 6, 1, [-Math.PI / 2, 0, 0], 'halo');
     }
 
     birch(x, z, height) {
@@ -360,6 +368,29 @@ export class Winter {
                     reach, reach * .55, 1, [0, -angle, 0], 'foliage');
             }
         }
+        for (let i = 0; i < 18; i++) {
+            const y = 1.1 + i / 18 * height * .77, a = i * 1.13;
+            const radius = height * .31 * (1 - i / 23);
+            this.part('bulb', [0xffb343, 0xffd887, 0xff704b][i % 3], x + Math.cos(a) * radius, y, z + Math.sin(a) * radius,
+                .065, .065, .065, null, 'glow');
+            if (i % 3 === 0) {
+                this.part('ornament', [0xd32b42, 0xe9b745, 0x319a9c][i / 3 % 3], x + Math.cos(a) * radius,
+                    y - .17, z + Math.sin(a) * radius, .16, .2, .16);
+            }
+        }
+        this.part('bulb', 0xffd377, x, height + .05, z, .19, .34, .19, null, 'glow');
+    }
+
+    bin(x, z) {
+        const c = this.colours;
+        this.box(0x35565b, x, .7, z, .85, .95, .7);
+        this.box(c.dark, x, 1.2, z, .94, .13, .79);
+        this.box(c.snow, x, 1.29, z, .94, .08, .79);
+        for (const dx of [-.31, .31]) {
+            this.part('bulb', c.dark, x + dx, .26, z + .22, .11, .11, .11);
+            this.box(0x718989, x + dx, .7, z + .36, .045, .74, .04);
+        }
+        this.box(c.dark, x, 1.05, z + .42, .28, .06, .08);
     }
 
     bench(x, z) {

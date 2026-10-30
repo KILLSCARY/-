@@ -351,6 +351,18 @@ class Game {
         grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : .5, sky.mid); grad.addColorStop(winter ? .65 : 1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
         if (winter) {
+            if (!this.winterSky) {
+                this.winterSky = new Image();
+                this.winterSky.onload = () => { if (this.location === 'winter') { this.skyKey = null; this.paintSky(); this.stillDrawn = false; } };
+                this.winterSky.src = 'textures/winter/sky-v1.webp';
+            }
+            if (this.winterSky.complete && this.winterSky.naturalWidth) {
+                // Crop to the visible upper half of the viewport so the rosy horizon remains above the road.
+                const img = this.winterSky, visibleH = H * .6, sourceW = Math.min(img.width, img.height * W / visibleH);
+                g.drawImage(img, (img.width - sourceW) / 2, 0, sourceW, img.height, 0, 0, W, visibleH);
+                g.fillStyle = WINTER.sky.horizon; g.fillRect(0, visibleH, W, H - visibleH);
+                this.setSkyCanvas(c); return;
+            }
             // Soft cloud ribbons baked once into the background, no transparent cloud meshes.
             for (let i = 0; i < 14; i++) {
                 const x = ((i * 317) % W), y = H * (.12 + (i % 5) * .065);
@@ -460,7 +472,7 @@ class Game {
         this.flight = null;
         if (this.rat.userData) this.rat.userData.clipT = null;
         this.phase = 0;
-        this.nextRowZ = -40;
+        this.nextRowZ = this.location === 'winter' ? -28 : -40;
         // стены-возражения: где следующая, серия правильных, ошибки по типам клиентов за забег
         this.nextWallAt = this.wallGap(this.questions ? WALLS.firstAt : ARCHES.firstAt);
         this.endBossFight(true); // экзамен Инакова (this.boss) — часть финального боя
@@ -1379,17 +1391,17 @@ class Game {
         const winter = this.location === "winter", sky = winter ? WINTER : SKY;
         this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
         this.hemi.intensity = winter ? WINTER.light : this.look2 ? LOOK2.hemi : SKY.light;
-        this.moon.color.set(sky.moon); this.moon.intensity = winter ? 1.15 : .9;
+        this.moon.color.set(sky.moon); this.moon.intensity = winter ? .8 : .9;
         this.scene.fog.color.set(winter ? WINTER.fog : this.location === "vietnam" ? VIETNAM.fog : SKY.color);
         this.scene.fog.near = winter ? WINTER.near : this.look2 ? LOOK2.fog[0] : 12;
         this.scene.fog.far = winter ? Math.min(WINTER.far, this.tier.far + 30) : this.tier.far - 12;
         this.camera.far = winter ? this.scene.fog.far + 12 : this.tier.far;
         this.camera.updateProjectionMatrix();
         const u = this.output.uniforms;
-        u.exposure.value = winter ? 1.65 : this.look2 ? LOOK2.exposure : SKY.exposure;
+        u.exposure.value = winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure;
         u.sat.value = winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
-        u.contrast.value = winter ? 1.03 : this.look2 ? LOOK2.contrast : CINE.contrast;
-        u.vig.value = winter ? .92 : this.look2 ? LOOK2.vignette : SKY.vignette;
+        u.contrast.value = winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.vig.value = winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
         this.renderer.toneMappingExposure = u.exposure.value * .55;
         document.body.classList.toggle("winter", winter);
         this.world.winter?.sync();
@@ -1499,7 +1511,8 @@ class Game {
             // и ряд, который доедет до героя, пока на экране реплика (talkCalm)
             const talking = this.talkCalm > 0 && -this.nextRowZ < this.talkCalm * this.speed;
             if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
-            const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
+            const [gapStart, gapMin] = this.location === 'winter' ? WINTER.rowGap : [BALANCE.rowGapStart, BALANCE.rowGapMin];
+            const gap = gapStart - (gapStart - gapMin) * difficulty;
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
