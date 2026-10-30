@@ -97,7 +97,7 @@ export const VIETNAM = {
     // постобработка на хорошей графике (Game.applyLook / applyLocationLook): на закате свечение слабое, экспозиция ниже —
     // иначе солнце, небо и стекло сливались в жёлто-белое «мега-свечение»
     post: { bloom: 0.12, exposure: 0.6, grade: 0.35 },
-    rowGap: 0.8, // расстояние между рядами преград ×0,8 — преград примерно на четверть больше, чем в районе
+    rowGap: 0.62, // расстояние между рядами преград ×0,62 — преград в полтора раза больше, чем в районе (30.10: «добавь препятствий»)
 };
 
 // Активистки на обочине Дубая (js/hecklers.js): кричат лозунги и кидают в Диму и Сашу всё, что под рукой.
@@ -111,8 +111,8 @@ export const VIETNAM = {
 export const HECKLERS = {
     models: [1.68, 1.65, 1.66, 1.6, 1.7, 1.66, 1.68, 1.66, 1.64, 1.62].map((height, i) => ({ url: `models/hecklers/girl${i + 1}.glb?v=2`, height })),
     clips: { idle: "shout", throw: "throw", release: 0.85, throwEnd: 1.25 },
-    firstAt: 45, gap: [26, 44], group: [2, 4], spawnZ: -78, throwAt: [-44, -28], flight: 0.9, arc: 2.4, aimY: 1.05,
-    aimOwn: 0.7, dodgeY: 0.9,
+    firstAt: 35, gap: [16, 30], group: [3, 5], spawnZ: -78, throwAt: [-44, -28], flight: 0.9, arc: 2.4, aimY: 1.05,
+    aimOwn: 0.7, dodgeY: 0.9, mark: false, // mark — розовое пятно на дороге, куда прилетит: по просьбе убрано (30.10)
     items: [
         { id: "tomato", w: 5, color: "#d42a1e" },
         { id: "banana", w: 4, color: "#f2d03a" },

@@ -311,7 +311,7 @@ export class Hecklers {
         w.scene.add(f);
         const mark = this.marks.find((m) => !m.visible) || this.makeMark();
         mark.position.set(w.lanes[lane], 0.04, -0.6);
-        mark.visible = true;
+        mark.visible = HECKLERS.mark !== false;
         f.userData = { t: 0, from, to: new THREE.Vector3(w.lanes[lane], HECKLERS.aimY, 0), item, mark, spin: rnd(6, 14), done: false };
         this.flying.push(f);
         if (u.shout && Math.random() < 0.5) u.bubble.textContent = this.shout(); // на броске — новый лозунг

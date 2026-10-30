@@ -151,18 +151,19 @@ export class Vietnam {
             g.fillStyle = '#ebdcb7'; for (const x of [w * .358, w * .642]) for (let y = 0; y < h; y += 256) g.fillRect(x, y, 5, 110);
             g.fillStyle = '#e6c073'; for (const x of [6, w - 12]) g.fillRect(x, 0, 5, h);
         });
-        this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping; this.roadMap.repeat.set(1, 320 / 12);
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 360), new THREE.MeshStandardMaterial({ color: 0xd8b585, roughness: 1 }));
-        ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.08, -130); this.add(ground);
-        const road = this.road = new THREE.Mesh(new THREE.PlaneGeometry(7, 320), new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .92 }));
-        road.rotation.x = -Math.PI / 2; road.position.set(0, .015, -115); this.add(road);
+        this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping; this.roadMap.repeat.set(1, 480 / 12);
+        // 30.10: земля, дорога и вода идут и на 160 м за спину героя — в меню камера смотрит назад, там было пусто
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 520), new THREE.MeshStandardMaterial({ color: 0xd8b585, roughness: 1 }));
+        ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.08, -50); this.add(ground);
+        const road = this.road = new THREE.Mesh(new THREE.PlaneGeometry(7, 480), new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .92 }));
+        road.rotation.x = -Math.PI / 2; road.position.set(0, .015, -35); this.add(road);
         // Gulf water is a single opaque surface, without a reflection render pass.
         const waterMap = texture(256, 256, (g, w, h) => {
             g.fillStyle = '#476e79'; g.fillRect(0, 0, w, h);
             for (let i = 0; i < 500; i++) { g.fillStyle = '#f6c68b40'; g.fillRect(rand() * w, rand() * h, 4 + rand() * 25, 1); }
         });
-        waterMap.wrapS = waterMap.wrapT = THREE.RepeatWrapping; waterMap.repeat.set(10, 24);
-        const sea = new THREE.Mesh(new THREE.PlaneGeometry(150, 340), new THREE.MeshStandardMaterial({ map: waterMap, roughness: .4, metalness: .25 }));
+        waterMap.wrapS = waterMap.wrapT = THREE.RepeatWrapping; waterMap.repeat.set(10, 35);
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(150, 500), new THREE.MeshStandardMaterial({ map: waterMap, roughness: .4, metalness: .25 }));
         const waterNormal = texture(128, 128, (g, w, h) => {
             const pixels = g.createImageData(w, h);
             for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -174,9 +175,9 @@ export class Vietnam {
             g.putImageData(pixels, 0, 0);
         });
         waterNormal.encoding = THREE.LinearEncoding; waterNormal.wrapS = waterNormal.wrapT = THREE.RepeatWrapping;
-        waterNormal.repeat.set(20, 40); sea.material.normalMap = waterNormal; sea.material.normalScale.set(.3, .2);
+        waterNormal.repeat.set(20, 59); sea.material.normalMap = waterNormal; sea.material.normalScale.set(.3, .2);
         sea.material.emissive.set(0x245d67); sea.material.emissiveIntensity = .28;
-        sea.rotation.x = -Math.PI / 2; sea.position.set(-85, -.04, -125); this.sea = sea; this.waterMap = waterMap; this.add(sea);
+        sea.rotation.x = -Math.PI / 2; sea.position.set(-85, -.04, -45); this.sea = sea; this.waterMap = waterMap; this.add(sea);
         for (let i = 0; i < 5; i++) {
             this.parts = {};
             for (const side of [-1, 1]) {
@@ -310,6 +311,14 @@ export class Vietnam {
         for (let i = 0; i < 8; i++) {
             const side = i % 2 ? -1 : 1, x = side * (15 + (i % 3) * 11), z = -145 - Math.floor(i / 2) * 25;
             this.tower(x, z, 26 + i * 4, 7 + i % 4, 12, i);
+        }
+        // за спиной героя (вид в меню): ряд башен вдоль бульвара, через марину — ещё башни, у причала — яхты и пальмы
+        for (let i = 0; i < 6; i++) {
+            const z = 66 + i * 26;
+            this.tower(16.5 + (i % 2) * 3, z, 24 + (i * 13 % 30), 11, 20, i + 1);
+            this.tower(-34 - (i % 3) * 9, z + 8, 30 + (i * 17 % 34), 9, 14, i + 2);
+            this.palm(6, z - 6, 6.4); this.palm(-6, z + 4, 6.8);
+            if (i < 4) this.yacht(-13.4, z + 2, i % 2);
         }
         this.skyline = this.merge(); this.add(this.skyline);
         this.parts = {};
@@ -467,7 +476,13 @@ export class Vietnam {
     sync() {
         if (!this.on) return;
         const w = this.world;
-        for (const list of [w.streetRoots, w.scenery, w.critters, w.officers, w.flocks, w.lights, w.policeLights]) for (const o of list || []) this.hide(o);
+        for (const list of [w.streetRoots, w.scenery, w.officers, w.lights, w.policeLights]) for (const o of list || []) if (!o.userData.npc) this.hide(o);
+        // прохожие (девушки, кошки) и голуби остаются — бульвар не пустой (30.10); спрятать только тех, кто попал в марину
+        // (картинка девушки, спрятанная до загрузки модели, стала живой — вернуть)
+        for (const o of [...(w.critters || []), ...(w.flocks || [])]) {
+            if (o.position.x < -9.5) this.hide(o);
+            else if (this.hidden.has(o)) { o.visible = this.hidden.get(o); this.hidden.delete(o); }
+        }
         for (const o of [w.rain, w.ripples, w.reflector, w.lampPools, w.lampCones]) this.hide(o);
     }
     set(on) {
