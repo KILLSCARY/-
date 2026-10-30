@@ -1022,6 +1022,7 @@ export class World {
         for (let i = 0; i < 2; i++) {
             const side = i % 2 ? 1 : -1;
             const car = this.makePoliceCar();
+            car.children[0].visible = false; // картинку не показываем: пост появится, когда загрузится 3D-модель (swapIn)
             car.position.set(side * 4.6, 0.2, BEHIND_Z - 40 - i * 80); // на 2 см над тротуаром: шины не сливаются с его текстурой
             car.userData.faceY = -side * 0.35; // пост у обочины: машина вдоль дороги, инспектор лицом к бегущему
             car.userData.foot = { hx: 1.2, hz: 2.6, prio: 1 };
@@ -1903,9 +1904,11 @@ export class World {
     }
 
     // патрульная машина: 3D-модель, если загрузилась, иначе спрайт с мигалкой
+    // Патрульная машина у обочины — только 3D-модель: плоская вырезанная картинка смотрелась картонкой (30.10).
+    // Модель ещё не загрузилась — машины нет, инспектор на полосе стоит один
     makePatrol() {
         const t = this.modelFor("police");
-        if (!t) return this.makePoliceCar();
+        if (!t) return null;
         const g = new THREE.Group();
         g.add(t.clone());
         g.userData = { police: true };
@@ -2200,11 +2203,12 @@ export class World {
             // пост ДПС: инспектор на полосе, патрульная машина у обочины — там, где на тротуаре свободно
             // (иначе она встаёт внутрь банкомата, урны или прохожей); места нет — инспектор без машины
             const side = lane === 0 ? -1 : lane === 2 ? 1 : pick([-1, 1]);
-            const dz = kind === "cop" && [-2, -5, 1, -8, 4].find((d) => this.sidewalkFree(side * 4.4, z + d, 1.2, 2.6));
-            if (dz !== undefined && dz !== false) {
-                const car = this.makePatrol();
+            // в зимнем районе по обочине идёт ограда — машина встала бы в неё; там посты ДПС свои, в проёмах ограды
+            const dz = kind === "cop" && this.location !== "winter" && [-2, -5, 1, -8, 4].find((d) => this.sidewalkFree(side * 4.4, z + d, 1.2, 2.6));
+            const car = dz !== undefined && dz !== false && this.makePatrol();
+            if (car) {
                 car.position.set(side * 4.4, 0.2, z + dz);
-                car.rotation.y = car.userData.billboard ? 0 : -side * 0.35;
+                car.rotation.y = -side * 0.35;
                 car.userData.type = "decor";
                 this.scene.add(car);
                 this.obstacles.push(car);
@@ -2306,7 +2310,7 @@ export class World {
                 const lane = Math.max(0, 1 - Math.abs(o.position.x - this.playerX) / 2.2);
                 u.glare.scale.setScalar(0.4 + 3.4 * near * near * (0.35 + 0.65 * lane));
             }
-            if (u.flashers || u.police) {
+            if ((u.flashers || u.police) && o.visible && o.children[0]?.visible !== false) { // спрятанная картинка поста — без мигалок
                 const dz = -o.position.z;
                 if (dz > -4 && dz < best) { best = dz; nearest = o; }
             }
