@@ -1492,3 +1492,4 @@ body.in-fight #menu { display: none !important; }
 /* виньетка лёгкой графики: кадр рисуется прямо на экран (Game.render), затемнение краёв — этим слоем, без прохода шейдера */
 #vig { display: none; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .3) 100%); }
 body.direct #vig { display: block; }
+body.direct.winter #vig { opacity: .16; }

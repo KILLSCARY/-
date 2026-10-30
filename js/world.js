@@ -10,6 +10,7 @@ import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
 import { Vietnam } from "./vietnam.js";
+import { Winter } from "./winter.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -302,7 +303,9 @@ export class World {
         this.flocks = [];       // стайки голубей у бордюра
         this.npcModels = {};
         this.buildMaterials();
+        const beforeStreet = new Set(scene.children);
         this.buildStreet();
+        this.streetRoots = scene.children.filter(o => !beforeStreet.has(o));
         this.buildRain();
         this.buildRipples();
         this.buildSplash();
@@ -316,12 +319,16 @@ export class World {
         this.loadNpcs();
     }
 
-    // Локация: "street" — ночной район (по умолчанию), "vietnam" — Нячанг у Димы и Саши (js/vietnam.js, строится при первом включении)
+    // Локации строятся при первом выборе; перед переключением восстанавливаем скрытые объекты предыдущей.
     setLocation(name) {
         if ((this.location || "street") === name) return;
+        this.winter?.set(false);
+        this.vietnam?.set(false);
         this.location = name;
         if (name === "vietnam" && !this.vietnam) this.vietnam = new Vietnam(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
-        this.vietnam?.set(name === "vietnam"); // асфальт и отражения те же: после тропического ливня он тоже мокрый
+        if (name === "winter" && !this.winter) this.winter = new Winter(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
+        if (name === "vietnam") this.vietnam.set(true);
+        if (name === "winter") this.winter.set(true);
     }
 
     // Тротуар без наложений: у кого есть userData.foot (полуразмеры hx/hz), те не стоят друг в друге —
@@ -972,6 +979,7 @@ export class World {
         o.userData.loop = loop;
         this.scene.add(o);
         this.scenery.push(o);
+        if (this.winter?.on) this.winter.hide(o);
         return o;
     }
 
@@ -1061,7 +1069,7 @@ export class World {
 
     updateRipples(dt, move) {
         const r = this.ripples, n = r.count;
-        if (!n) return;
+        if (!n || !r.visible) return;
         const m = this.rippleMatrix ||= new THREE.Matrix4(), c = this.rippleColor ||= new THREE.Color();
         for (let i = 0; i < n; i++) {
             const s = this.rippleState[i];
@@ -2273,6 +2281,7 @@ export class World {
     }
 
     update(dt, move, t) {
+        this.winter?.update(dt, move);
         // дорога, разметка и плитка «едут» через сдвиг текстуры
         this.roadMap.offset.y += move * this.roadRepeat / STREET_LEN;
         this.dashMap.offset.y += move * (STREET_LEN / 8) / STREET_LEN;
@@ -2288,9 +2297,10 @@ export class World {
         }
 
         // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
-        for (const o of this.officers) if (o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
+        for (const o of this.officers) if (o.visible && o.position.z > -70 && o.position.z < 8) o.userData.mixer.update(dt);
         this.walkCheck = (this.walkCheck || 0) + 1;
         for (const o of this.critters) {
+            if (!o.visible) continue;
             if (o.userData.walk) {
                 // впереди ступени, выступ или урна — разворачивается (проверка раз в 8 кадров), а не идёт сквозь
                 if (this.walkCheck % 8 === 0 && o.position.z > -80 && o.position.z < 10 && this.walkBlocked(o)) {
@@ -2361,6 +2371,7 @@ export class World {
         this.vietnam?.update(dt, move, t);
 
         // дождь
+        if (!this.rain.visible) return;
         const pos = this.rain.geometry.attributes.position.array;
         for (let i = 0, n = this.rainCount ?? this.rainSpeed.length; i < n; i++) {
             const k = i * 6;

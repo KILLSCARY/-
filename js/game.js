@@ -11,6 +11,7 @@ import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
 import { World, SPAWN_Z, buildEnvironment } from "./world.js";
+import { WINTER } from "./winter.js";
 import * as THREE from "./vendor/three.module.js";
 import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
@@ -192,6 +193,11 @@ class Game {
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
+        const requestedLocation = new URLSearchParams(location.search).get("location");
+        if (["winter", "auto"].includes(requestedLocation)) {
+            this.settings.location = requestedLocation;
+            try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
+        }
         // режим: ?startapp=q / noq задаёт его и снимает выбор при первом входе
         const sp = (tg.startParam || "").toLowerCase();
         if (sp === "q" || sp === "noq") { this.settings.questions = sp === "q"; this.settings.modeChosen = true; try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {} }
@@ -265,7 +271,8 @@ class Game {
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
-        this.scene.add(new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], this.look2 ? LOOK2.hemi : SKY.light));
+        this.hemi = new THREE.HemisphereLight(SKY.hemi[0], SKY.hemi[1], this.look2 ? LOOK2.hemi : SKY.light);
+        this.scene.add(this.hemi);
         // «луна» спереди-сверху: от неё тени крыса и препятствий падают к камере
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -338,10 +345,22 @@ class Game {
         c.width = W; c.height = H;
         const g = c.getContext("2d");
         const vn = this.location === "vietnam" && VIETNAM.sky;
-        const sky = vn || SKY;
+        const winter = this.location === "winter";
+        const sky = winter ? WINTER.sky : vn || SKY;
         const grad = g.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, sky.zenith); grad.addColorStop(0.5, sky.mid); grad.addColorStop(1, sky.horizon);
+        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : .5, sky.mid); grad.addColorStop(winter ? .65 : 1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
+        if (winter) {
+            // Soft cloud ribbons baked once into the background, no transparent cloud meshes.
+            for (let i = 0; i < 14; i++) {
+                const x = ((i * 317) % W), y = H * (.12 + (i % 5) * .065);
+                const cloud = g.createRadialGradient(x, y, 0, x, y, W * .2);
+                cloud.addColorStop(0, "rgba(245,207,226,.13)"); cloud.addColorStop(1, "rgba(245,207,226,0)");
+                g.save(); g.translate(x, y); g.scale(1, .18); g.translate(-x, -y);
+                g.fillStyle = cloud; g.fillRect(x - W * .2, y - W * .2, W * .4, W * .4); g.restore();
+            }
+            this.setSkyCanvas(c); return;
+        }
         if (vn) return this.paintSunset(g, W, H, vn, c);
         let seed = 11;
         const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -1063,10 +1082,10 @@ class Game {
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
 
-        // в меню камера спереди (видно морду и цепь), в игре — сзади-сверху
+        // В меню камера спереди; зимний район показываем со стороны забега, как на концепте.
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
-        const behind = this.state === "menu" ? 0 : 1;
+        const behind = this.state === "menu" && this.location !== "winter" ? 0 : 1;
         const arr = this.state === "over" && this.arrest;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
@@ -1149,7 +1168,7 @@ class Game {
         const prevShadows = this.tier.shadows;
         this.quality = level;
         this.tier = QUALITY_TIERS[level];
-        if (this.tier.reflections) {
+        if (this.tier.reflections && this.location !== "winter") {
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
             const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
@@ -1177,6 +1196,7 @@ class Game {
         this.camera.far = this.tier.far;
         this.scene.fog.far = this.tier.far - 12;
         this.camera.updateProjectionMatrix();
+        this.applyLocationLook();
         this.onResize();
     }
 
@@ -1186,6 +1206,13 @@ class Game {
         try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         this.applySettings();
         if (key === "perf") this.perf.toggle(!!value);
+        if (key === "location") {
+            const url = new URL(location.href);
+            url.searchParams.delete("location");
+            history.replaceState(null, "", url);
+            this.setLocation(this.heroLocation(this.heroId));
+            this.hub?.updatePlay();
+        }
         if (key === "quality") {
             this.resScale = 1;
             const level = value === "auto" ? this.autoQuality : value;
@@ -1341,11 +1368,37 @@ class Game {
         this.scene.fog.color.set(name === "vietnam" ? VIETNAM.fog : SKY.color);
         this.skyKey = null;
         this.paintSky();
+        this.setQuality(this.quality);
+    }
+
+    heroLocation(id) {
+        return this.settings.location === "winter" ? "winter" : VIETNAM.heroes.includes(id) ? "vietnam" : "street";
+    }
+
+    applyLocationLook() {
+        const winter = this.location === "winter", sky = winter ? WINTER : SKY;
+        this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
+        this.hemi.intensity = winter ? WINTER.light : this.look2 ? LOOK2.hemi : SKY.light;
+        this.moon.color.set(sky.moon); this.moon.intensity = winter ? 1.15 : .9;
+        this.scene.fog.color.set(winter ? WINTER.fog : this.location === "vietnam" ? VIETNAM.fog : SKY.color);
+        this.scene.fog.near = winter ? WINTER.near : this.look2 ? LOOK2.fog[0] : 12;
+        this.scene.fog.far = winter ? Math.min(WINTER.far, this.tier.far + 30) : this.tier.far - 12;
+        this.camera.far = winter ? this.scene.fog.far + 12 : this.tier.far;
+        this.camera.updateProjectionMatrix();
+        const u = this.output.uniforms;
+        u.exposure.value = winter ? 1.65 : this.look2 ? LOOK2.exposure : SKY.exposure;
+        u.sat.value = winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
+        u.contrast.value = winter ? 1.03 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.vig.value = winter ? .92 : this.look2 ? LOOK2.vignette : SKY.vignette;
+        this.renderer.toneMappingExposure = u.exposure.value * .55;
+        document.body.classList.toggle("winter", winter);
+        this.world.winter?.sync();
+        if (this.world.vietnam?.on) this.world.vietnam.sync();
     }
 
     selectHero(id) {
         this.heroId = id;
-        this.setLocation(VIETNAM.heroes.includes(id) ? "vietnam" : "street");
+        this.setLocation(this.heroLocation(id));
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
         this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
         try { localStorage.setItem("p2p_hero", id); } catch {}
