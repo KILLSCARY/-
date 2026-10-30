@@ -21,6 +21,18 @@ const EMPTY = () => ({
     trial: null,                                  // герой на пробу: { id, until }
 });
 
+// В прежней версии было шесть глав; сюжетные победы уже хранились отдельно от их числа.
+function migrateStory(d) {
+    if (d.storyVersion === 2) return;
+    const oldPhrases = ["ПЕРВЫЙ ШАГ", "ИНВЕСТИЦИЯ", "Я СМОГУ", "СЕЙЧАС", "СИСТЕМА", "ВОРОНКА ПРОЙДЕНА"];
+    const count = Math.max(0, Math.min(6, Number(d.beaten) || 0));
+    d.legacyPhrases = [...new Set([...(d.legacyPhrases || []), ...oldPhrases.slice(0, count)])];
+    const won = Math.min(3, Math.max(0, Number(d.story) || 0, d.mizBeaten ? 1 : 0, d.exam ? 3 : 0));
+    d.story = won;
+    d.beaten = won;
+    d.storyVersion = 2;
+}
+
 export class Profile {
     constructor() {
         this.data = EMPTY();
@@ -64,17 +76,14 @@ export class Profile {
             this.data.usdt += Math.max(0, this.data.trx - gifted) * 300;
             this.data.trx = 0;
         }
-        // старый профиль (главы шли по заработку): пройденные главы считаем побеждёнными, кроме финала
-        if (this.data.beaten == null) {
-            const e = this.data.earned || 0;
-            this.data.beaten = CHAPTERS.filter((c) => !c.final && e >= c.goal).length;
-        }
+        migrateStory(this.data);
     }
 
     // Переносим локальные изменения поверх более свежего облачного профиля.
     // Не теряем сюжет, анкету, ежедневную награду и проверки действий при слиянии.
     carry(was, now) {
         if (now.t === was.t) return;
+        migrateStory(now);
         const d = this.data;
         d.beaten = Math.max(d.beaten || 0, now.beaten || 0);
         d.story = Math.max(d.story || 0, now.story || 0);
@@ -82,6 +91,7 @@ export class Profile {
         d.guideVersion = Math.max(d.guideVersion || 0, now.guideVersion || 0);
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
         d.grants = [...new Set([...(d.grants || []), ...(now.grants || [])])];
+        d.legacyPhrases = [...new Set([...(d.legacyPhrases || []), ...(now.legacyPhrases || [])])];
         for (const k of ["usdt", "earned", "chests", "cards", "x2runs"]) {
             d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         }
@@ -217,7 +227,7 @@ export class Profile {
 
     // кодовые фразы пройденных глав
     phrases() {
-        const list = CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean);
+        const list = [...new Set([...(this.data.legacyPhrases || []), ...CHAPTERS.slice(0, this.chapter().index).map((c) => c.phrase).filter(Boolean)])];
         // старый экзамен (до боссов глав) сдан — его кодовое слово то же, что у финала
         const exam = CHAPTERS.find((c) => c.final)?.phrase;
         if (this.data.exam && exam && !list.includes(exam)) list.push(exam);

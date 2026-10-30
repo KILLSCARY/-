@@ -2732,7 +2732,6 @@ class Game {
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
         if (s.chase) d.mizBeaten = true;
         this.profile.save();
-        if (s.after) return this.resumeAfterFight(s, paid);
         tg.haptic("success");
         this.audio.play("boost");
         this.state = "menu";
@@ -2745,10 +2744,10 @@ class Game {
         $("sw-label").textContent = `${s.name} пройдена`;
         // род по бойцу: «Полиция повержена», «Мизулина повержена», «Павел Инаков повержен» (FIGHTERS[].she)
         $("sw-title").textContent = `${FIGHTERS[s.opponent].name} ${FIGHTERS[s.opponent].she ? "повержена" : "повержен"}!`;
-        $("sw-text").textContent = `Страх ${s.fear} побеждён.${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} USDT.`} Забери бесплатный разбор у менеджера.`;
+        $("sw-text").textContent = `${s.id === 1 ? "Станция «Обмен» открыта. Горилла: «Первую преграду прошёл. Держи голову холодной»." : "Кордон позади. Горилла: «Проверка — часть пути. Впереди штаб»."}${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} игровых USDT.`}`;
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
-        $("sw-next-text").textContent = next ? `Страх ${next.fear}. Таблички главы — заряды против босса.` : "";
+        $("sw-next-text").textContent = next ? `${next.fear}. Верные ответы дадут преимущество в бою.` : "";
         $("btn-razbor").onclick = () => this.hub.razbor();
         $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
         $("story-win").hidden = false;
@@ -2814,11 +2813,11 @@ class Game {
         const full = soldOut || (d.place && d.place > GORILLA.top);
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
         $("fn-ph").querySelector("b").hidden = full || !d.place; // плашка «10 USDT» — только с подтверждённым местом
-        $("fn-title").textContent = "Ты прошёл Воронку до конца";
+        $("fn-title").textContent = "Последний экзамен пройден";
         // «ты в первой сотне, тебе положены 10 USDT» — только с местом от сервера. Сервер не ответил (5 с), недоступен
         // или игра не из Telegram — места нет, и обещать приз нельзя: раньше его так получал каждый, кто дошёл до финала
-        $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
-            : !d.place ? "Созвонись с менеджером: он проверит, попал ли ты в первую сотню (10 USDT), и разберёт твой старт."
+        $("fn-text").textContent = full ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Сотня призов разобрана, но бесплатный разбор с менеджером остаётся за тобой."
+            : !d.place ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Менеджер проверит место в первой сотне и разберёт твой старт."
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);
