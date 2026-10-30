@@ -1057,7 +1057,7 @@ class Game {
         // «кино»: зерно живёт (время), края смазываются на скорости забега (CINE.speedFrom…speedTo)
         const ou = this.output.uniforms, cine = this.tier.cine || 0;
         ou.time.value = this.fxaa.uniforms.time.value = this.t % 60;
-        ou.speed.value = this.state === "playing" && cine ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
+        ou.speed.value = this.state === "playing" && cine && this.tier.fx !== false ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
         // меню: фон мягко размыт (CINE.menu), в фокусе — герой (грудь и голова на экране); к забегу плавно становится резким
         const softTo = this.state === "menu" && cine ? CINE.menu : 0;
         ou.soft.value += (softTo - ou.soft.value) * Math.min(1, dt * 4);
@@ -1233,8 +1233,9 @@ class Game {
         this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
         // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
         const k = this.tier.cine || 0, u = this.output.uniforms;
-        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post.grade : 1) : 0; u.ca.value = CINE.ca * k;
-        u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * k; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * k : 0;
+        const fx = this.tier.fx === false ? 0 : k; // телефон: без зерна и хроматики — на маленьком экране это шум и мыло
+        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post.grade : 1) : 0; u.ca.value = CINE.ca * fx;
+        u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * fx; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * fx : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         const direct = !!this.tier.direct && !this.look2;
         if (direct !== !!this.direct) this.setDirect(direct);
@@ -1315,9 +1316,12 @@ class Game {
         const target = Math.min(60, 1000 / this.frameBudget());
         // Повышенная частота требует запаса. При нехватке сначала возвращаем 60,
         // сохраняя разрешение; настройка «До 120» может быть выбрана повторно.
+        // 30.10: раньше при fps < 55 тут же снижались разрешение и эффекты — «120» на телефоне превращало картинку в мыло.
+        // Теперь только возврат к 60 и новый замер: качество трогаем, лишь если не тянет и 60
         if (this.frameBudget() < 1000 / 60 && fps < 85) {
             this.performanceFpsCap = 60;
-            if (fps >= 55) return;
+            this.frameMeter.reset();
+            return;
         }
         if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
