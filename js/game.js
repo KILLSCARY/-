@@ -188,7 +188,8 @@ class Game {
         // мощный CPU/класс HIGH от Telegram не гарантирует запас GPU и охлаждения.
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
         this.mobile = mobile; // телефон: 60 FPS по умолчанию, облегчённая хорошая графика (QUALITY_TIERS.high.phone)
-        this.quality = QUALITY === "auto" ? (mobile || tgPerfClass() === "LOW" || weakDevice() ? "low" : "medium") : QUALITY;
+        // телефон — средняя (была слабая: на плотном экране выходило мыло); слабая — только слабым устройствам
+        this.quality = QUALITY === "auto" ? (tgPerfClass() === "LOW" || weakDevice() ? "low" : "medium") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
