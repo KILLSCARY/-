@@ -760,7 +760,22 @@ class Game {
     }
 
     // В меню с паузы или с экрана проигрыша. Ушёл с паузы — собранное в забеге всё равно в кошелёк.
-    toMenu() {
+    // камера не летит через дома от спины к лицу героя: затемнение, под ним всё переставляем, и меню проявляется
+    async toMenu() {
+        if (this.menuFade) return;
+        this.menuFade = true;
+        $("fade").classList.add("on");
+        await wait(650); // затемнение .5 с стартует с задержкой кадра: перестановка только на полностью чёрном
+        this.toMenuNow();
+        this.camMix = 0;
+        this.curveMix = 0;
+        curveUniform.value = curveSide.value = 0;
+        await wait(100); // кадр уже в меню, только потом проявляем
+        $("fade").classList.remove("on");
+        this.menuFade = false;
+    }
+
+    toMenuNow() {
         this.world.placeNikitas();
         this.dropIntroStage();
         this.endArrest();
