@@ -10,7 +10,7 @@ test('вступления глав идут в игровой сцене и п�
         createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         for (const id of [2, 3]) {
-            const game = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera() };
+            const game = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), storyModelLoader: () => {} };
             let count = 0;
             const cut = new ChapterScene(game, { id }, () => count++);
             assert.equal(cut.stage.root.parent, game.scene);

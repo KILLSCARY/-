@@ -4,7 +4,7 @@
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
-import { StoryStage } from "./story-stage.js";
+import { StoryStage, preloadStoryStage } from "./story-stage.js";
 import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
@@ -585,7 +585,7 @@ class Game {
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
         // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
         const st0 = this.story;
-        if (st0) setTimeout(() => { for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
+        if (st0) setTimeout(() => { preloadStoryStage(st0.id); for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;

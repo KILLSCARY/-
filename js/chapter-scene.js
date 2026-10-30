@@ -5,7 +5,7 @@ import { StoryStage } from './story-stage.js';
 export class ChapterScene {
     constructor(game, story, onDone) {
         this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
-        this.stage = new StoryStage(game.scene, story.id, 0);
+        this.stage = new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
         this.ui = document.getElementById('phone-cutscene');
         this.label = this.ui.querySelector('.phone-cutscene-top');
         this.caption = document.getElementById('phone-cutscene-text');
