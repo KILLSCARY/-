@@ -186,6 +186,7 @@ class Game {
         // Авто начинает с одного прохода рендера. Высокая графика с отражениями — вручную:
         // мощный CPU/класс HIGH от Telegram не гарантирует запас GPU и охлаждения.
         const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
+        this.mobile = mobile; // телефон: 60 FPS по умолчанию, облегчённая хорошая графика (QUALITY_TIERS.high.phone)
         this.quality = QUALITY === "auto" ? (mobile || tgPerfClass() === "LOW" || weakDevice() ? "low" : "medium") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
@@ -384,7 +385,7 @@ class Game {
     paintSunset(g, W, H, sky, c) {
         const s = sky.sun, sx = s.x * W, sy = s.y * H, r = s.r * W;
         const halo = g.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 7);
-        halo.addColorStop(0, "rgba(255,200,140,.55)"); halo.addColorStop(1, "rgba(255,140,90,0)");
+        halo.addColorStop(0, "rgba(255,206,150,.32)"); halo.addColorStop(1, "rgba(255,150,100,0)"); // ореол солнца — мягкий, не белое пятно на полнеба
         g.fillStyle = halo; g.fillRect(0, 0, W, H);
         g.fillStyle = s.color; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill();
         let seed = 5;
@@ -409,6 +410,7 @@ class Game {
         this.storyQ = 0; // сколько табличек главы уже выставлено в этом забеге
         this.pendingInput = null; // табличка с вводом числа: откроется, когда герой до неё добежит
         this.starsT = 0;
+        this.fitLevel = 0; document.querySelector(".ticker")?.classList.remove("fit1", "fit2", "fit3"); // кегль капсулы — заново (fitTicker)
         this.storyCatch = false; // глава 1: Мизулина догоняет по сценарию (ролик перед боем)
         this.hintSaid = false; this.storyWaitT = 0; this.afterSpawned = false;
         this.grudgeTold = false;
@@ -928,15 +930,32 @@ class Game {
         for (const el of document.querySelectorAll(".screen")) el.hidden = el.id !== screen;
     }
 
+    // Длинные числа в капсуле HUD не обрезаются: ячейка не вмещает число — кегль на ступень меньше (CSS .ticker.fit1–3).
+    // Было: ячейки сжимались вместе с капсулой, и «1 085» очков или «× 531» карт обрезались на узком телефоне.
+    // Числа за забег только растут — ступень только увеличиваем (сброс — resetRun); проверка — когда число поменялось
+    fitTicker() {
+        const t = (this.tickerEl ||= document.querySelector(".ticker"));
+        // меряем саму строку с числом: ячейка с полями не переполняется, а число уже вылезает за строку — и «металл»
+        // очков (заливка по тексту — только в пределах строки) срезал последнюю цифру: «1 08»
+        const over = () => [...t.querySelectorAll(".tk b")].some((el) => el.scrollWidth > el.clientWidth + 1);
+        while ((this.fitLevel || 0) < 3 && over()) {
+            t.classList.remove(`fit${this.fitLevel}`);
+            this.fitLevel = (this.fitLevel || 0) + 1;
+            t.classList.add(`fit${this.fitLevel}`);
+        }
+    }
+
     // HUD обновляется каждый кадр, а в DOM пишем, только когда значение поменялось: на телефоне каждая запись
     // в textContent — пересчёт вёрстки
     updateHud() {
         const c = (this.hudCache ||= {});
-        const text = (id, value) => { if (c[id] !== value) $(id).textContent = c[id] = value; };
+        let changed = false;
+        const text = (id, value) => { if (c[id] !== value) { $(id).textContent = c[id] = value; changed = true; } };
         text("hud-usdt", fmt(this.usdt));
-        text("hud-cards", `× ${this.profile.cards}`);
+        text("hud-cards", fmt(this.profile.cards));
         this.hudScore = Math.max(this.hudScore || 0, this.score()); // счёт на экране только растёт
         text("hud-score", fmt(this.hudScore));
+        if (changed) this.fitTicker();
         const hurt = this.stumble > 0 && this.state === "playing";
         if (this.hudHurt !== hurt) document.body.classList.toggle("hurt", (this.hudHurt = hurt));
         // действующие добавки: плашка цвета добавки и полоска, сколько осталось (полное время — с момента, когда
@@ -1140,7 +1159,9 @@ class Game {
     applyLook() {
         const vn = this.location === "vietnam" && VIETNAM.post;
         if (this.bloom) this.bloom.strength = this.tier?.bloom ? (vn ? vn.bloom : 0.8) : 0;
-        if (this.output) this.output.uniforms.exposure.value = (this.look2 ? LOOK2.exposure : SKY.exposure) * (vn ? vn.exposure : 1);
+        if (!this.output) return;
+        this.output.uniforms.exposure.value = (this.look2 ? LOOK2.exposure : SKY.exposure) * (vn ? vn.exposure : 1);
+        this.output.uniforms.grade.value = (this.tier?.cine ? CINE.grade : 0) * (vn ? vn.grade : 1); // днём тёплый тон слабее
     }
 
     setDirect(on) {
@@ -1156,7 +1177,12 @@ class Game {
     setQuality(level) {
         const prevShadows = this.tier.shadows;
         this.quality = level;
-        this.tier = QUALITY_TIERS[level];
+        // на телефоне у уровня свои облегчения (phone), а при нехватке кадров — снятые эффекты (perfStep, measureFps):
+        // 1 — без зеркала луж, 2 — без теней, 3 — без свечения и «кино»
+        const base = QUALITY_TIERS[level], s = this.perfStep || 0;
+        this.tier = { ...base, ...(this.mobile && base.phone), ...(s >= 1 && { reflections: false }), ...(s >= 2 && { shadows: false }), ...(s >= 3 && { bloom: 0, cine: 0 }) };
+        const shadowSize = this.tier.shadowSize || 1024;
+        if (this.moon.shadow.mapSize.x !== shadowSize) { this.moon.shadow.mapSize.set(shadowSize, shadowSize); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
         if (this.tier.reflections) {
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
             const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
@@ -1176,7 +1202,7 @@ class Game {
         this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
         // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
         const k = this.tier.cine || 0, u = this.output.uniforms;
-        u.grade.value = k ? CINE.grade : 0; u.ca.value = CINE.ca * k;
+        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post.grade : 1) : 0; u.ca.value = CINE.ca * k;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * k; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * k : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         const direct = !!this.tier.direct && !this.look2;
@@ -1200,6 +1226,7 @@ class Game {
         }
         if (key === "quality") {
             this.resScale = 1;
+            this.perfStep = 0;
             const level = value === "auto" ? this.autoQuality : value;
             if (level !== this.quality) this.setQuality(level); else this.onResize();
         }
@@ -1256,12 +1283,19 @@ class Game {
         if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
         const floor = this.resScale <= RES_MIN + 0.01;
-        if (!floor) {
-            this.resScale = Math.max(RES_MIN, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
+        // Не хватает кадров: разрешение — только до 0,85, дальше сначала снимаем дорогие эффекты (зеркало луж, тени,
+        // свечение), и лишь потом снова разрешение. Было: сразу до 0,6 — на хорошей графике картинка мыльная и пиксельная
+        const effects = this.quality !== "low" && (this.perfStep || 0) < 3;
+        if (this.resScale <= 0.86 && effects && this.state !== "fight") {
+            this.perfStep = (this.perfStep || 0) + 1;
+            this.setQuality(this.quality);
+        } else if (!floor) {
+            this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : RES_MIN, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
         } else if (!tierLocked && this.quality !== "low") {
             if (this.state === "fight") return; // не пересобираем шейдеры посреди раунда
             this.resScale = 0.85;
+            this.perfStep = 0;
             this.setQuality(this.quality === "high" ? "medium" : "low");
         } else if (tierLocked && !this.qualityHinted) {
             this.qualityHinted = true;
@@ -1269,9 +1303,13 @@ class Game {
         }
     }
 
+    // частота забега: выбранная в настройках, по умолчанию на телефоне 60 (120 — вдвое больше работы видеокарте:
+    // телефон грелся и через пару минут сбрасывал частоту сам), на компьютере — до 120
+    frameRate() { return this.settings.frameRate === 120 ? 120 : this.settings.frameRate === 60 || this.mobile ? 60 : 120; }
+
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
     frameBudget() {
-        const requested = this.settings.frameRate === 60 ? 60 : 120;
+        const requested = this.frameRate();
         const active = Math.min(requested, this.performanceFpsCap || requested);
         if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
@@ -1470,7 +1508,8 @@ class Game {
             // и ряд, который доедет до героя, пока на экране реплика (talkCalm)
             const talking = this.talkCalm > 0 && -this.nextRowZ < this.talkCalm * this.speed;
             if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
-            const gap = BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty;
+            // в Нячанге (свободный бег Димы и Саши, без стен) ряды чаще — VIETNAM.rowGap
+            const gap = (BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty) * (this.location === "vietnam" ? VIETNAM.rowGap : 1);
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
@@ -2332,13 +2371,13 @@ class Game {
         }
         this.speechNow = { args: [who, text, ms, good, face] };
         ms = ms * 1.35 + 600; // висит подольше: успеть прочитать на бегу (плюс время на появление)
-        // По плейтесту: «когда концентрируешься, не до текста». Пока реплика на экране (первые TALK_CALM с), дорога
-        // впереди пустая — читать можно, не уворачиваясь. Ближние 6 м не трогаем (на них игрок уже реагирует).
+        // По плейтесту: «когда концентрируешься, не до текста». Пока реплика на экране (первые TALK_CALM с), новые ряды
+        // не ставятся — читать можно, не уворачиваясь. Уже стоящие на дороге не убираем: раньше реплика удаляла всё на
+        // 60 м вперёд, и после удара (Мизулина/Малахов сразу говорят) преграды впереди пропадали на глазах.
         // В бою с боссом не трогаем: там препятствия бросает босс
         if ((this.state === "playing" || this.state === "countdown") && !this.bossFight) {
             const calm = Math.min(TALK_CALM, ms / 1000);
             this.talkCalm = Math.max(this.talkCalm || 0, calm);
-            this.world.clearZone(-(Math.max(this.speed, BALANCE.speedStart) * calm + 8), -6);
         }
         el.classList.remove("out");
         $("g-text").textContent = text;

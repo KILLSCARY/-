@@ -8,7 +8,13 @@ import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CAS
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
 // в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
-const short = (n) => n < 1e5 ? fmt(n) : n < 1e6 ? `${Math.floor(n / 1000)} тыс` : `${(Math.floor(n / 1e5) / 10).toLocaleString("ru-RU")} млн`;
+// коротко для шапки меню: до 10 000 — целиком, дальше «98,7к», «123к», «1,2 млн» (было «123 тыс» — не влезало
+// в плашку и резалось многоточием вместе с картами и рекордом)
+const short = (n) => {
+    n = Math.floor(n || 0);
+    const d1 = (v) => (Math.floor(v * 10) / 10).toLocaleString("ru-RU");
+    return n < 1e4 ? fmt(n) : n < 1e5 ? `${d1(n / 1e3)}к` : n < 1e6 ? `${Math.floor(n / 1e3)}к` : `${d1(n / 1e6)} млн`;
+};
 // фото профиля Telegram — только https с доменов Telegram (как проверяет сервер, api/_lib/rating.mjs photoOf)
 const TG_PHOTO = /^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.org|telesco\.pe)\/[^\s"'<>]{1,400}$/i;
 const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
@@ -83,7 +89,7 @@ export class Hub {
         // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
         if (p.bonusCheck() && !BETA_ALL_HEROES) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
-        $("w-cards").textContent = fmt(p.cards || 0); // карты от девушек на обочине (в Telegram баланс — с сервера)
+        $("w-cards").textContent = short(p.cards || 0); // карты от девушек на обочине (в Telegram баланс — с сервера)
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
@@ -140,7 +146,7 @@ export class Hub {
             <button class="switch${t.on ? " on" : ""}" data-set="${t.id}" role="switch" aria-checked="${t.on}" aria-label="${t.name}"${t.locked ? " disabled" : ""}><i></i></button></div>`).join("")
             + `<div class="card set-row set-q"><div class="card-main"><h3>Графика</h3><p>«Авто» сама снижает качество, если телефон не успевает. Низкая — меньше нагрев и расход батареи.</p>
             <div class="seg seg4">${[["auto", "Авто"], ["high", "Высокая"], ["medium", "Средняя"], ["low", "Низкая"]].map(([v, n]) => `<button data-q="${v}" class="${q === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`;
-        const rate = g.settings.frameRate === 60 ? 60 : 120;
+        const rate = g.frameRate();
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Частота кадров</h3><p>До 120 FPS в забеге и бою, если экран и Telegram поддерживают. При нехватке мощности — 60. Режим 60 FPS экономит заряд.</p>
             <div class="seg">${[[60, "60 FPS"], [120, "До 120 FPS"]].map(([v, n]) => `<button data-rate="${v}" class="${rate === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Советы Гориллы</h3><p>Короткий комикс: где герои, награды и как играть.</p>

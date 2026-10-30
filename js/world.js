@@ -637,6 +637,10 @@ export class World {
 				+ (texture2D(tDiffuse, p + vec2(0.0, 0.008)) + texture2D(tDiffuse, p - vec2(0.0, 0.008))) * 0.22
 				+ (texture2D(tDiffuse, p + vec2(0.0, 0.018)) + texture2D(tDiffuse, p - vec2(0.0, 0.018))) * 0.12;`);
         sh.needsUpdate = true;
+        // зеркало луж рисует сцену второй раз — на телефоне через кадр (tier.mirrorEvery): лужи размыты, разница не видна
+        const mirror = this.reflector.onBeforeRender;
+        let frame = 0;
+        this.reflector.onBeforeRender = (...a) => { if ((this.tier.mirrorEvery || 1) > 1 && frame++ % this.tier.mirrorEvery) return; mirror.apply(this.reflector, a); };
         this.reflector.rotation.x = -Math.PI / 2;
         this.reflector.position.set(0, 0, this.roadCenterZ);
         this.reflector.renderOrder = 0;
@@ -654,9 +658,9 @@ export class World {
         const day = (this.location || "street") === "vietnam"; // днём (Нячанг) яркое небо в отражении — асфальт блестел фольгой
         this.roadMat.roughness = on && !day ? 0.42 : day ? 0.82 : 0.75;
         this.roadMat.metalness = on && !day ? 0.35 : day ? 0.08 : 0.2;
-        this.roadMat.envMapIntensity = on && !day ? 1.6 : day ? 0.45 : 0.8;
+        this.roadMat.envMapIntensity = on && !day ? 1.6 : day ? 0.35 : 0.8;
         // зеркало луж (хорошая графика) затемнено под ночь — днём лужи выходили чёрными «нефтяными» пятнами
-        this.reflector?.material.uniforms.color.value.setRGB(...(day ? [0.85, 0.85, 0.88] : [0.42, 0.4, 0.4]));
+        this.reflector?.material.uniforms.color.value.setRGB(...(day ? [0.55, 0.55, 0.58] : [0.42, 0.4, 0.4]));
     }
 
     disableReflections() {

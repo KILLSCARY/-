@@ -6,6 +6,7 @@
 import * as THREE from "./vendor/three.module.js";
 import { VIETNAM } from "./config.js";
 import { batchScenery } from "./scenery-batch.js";
+import { loadModel } from "./models.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -55,6 +56,22 @@ function frondTex() {
         }
         g.fillStyle = "#8fbf5a"; g.fillRect(cx - 2, 0, 4, h); // прожилка
     });
+}
+
+// фасад телецентра: светлый бетон и полоса окон на каждом этаже (один кусок — 4 м по ширине, этаж по высоте), стойки
+// рам; переходы между кусками незаметны — текстура повторяется по фасаду
+function ostankinoTex() {
+    const t = canvasTex(128, 128, (g, w, h) => {
+        g.fillStyle = "#dcd8cf"; g.fillRect(0, 0, w, h);
+        for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(90,80,70,${rnd(0.02, 0.07)})`; g.fillRect(rnd(0, w), rnd(0, h), 2, 2); } // бетон
+        const glass = g.createLinearGradient(0, h * 0.34, 0, h * 0.86);
+        glass.addColorStop(0, "#5d7690"); glass.addColorStop(0.5, "#33475c"); glass.addColorStop(1, "#3f566e");
+        g.fillStyle = glass; g.fillRect(0, h * 0.34, w, h * 0.52);
+        g.fillStyle = "#c9c5bc"; for (let x = 0; x < w; x += 32) g.fillRect(x, h * 0.34, 4, h * 0.52); // стойки рам
+        g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(0, h * 0.34, w, 3); // блик по верху окон
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
 }
 
 // балюстрада набережной: белые столбики и перила (одна плоскость с прозрачностью, «едет» сдвигом текстуры)
@@ -122,8 +139,8 @@ export class Vietnam {
         this.seaGlint = seaTex();
         this.seaGlint.repeat.set(30, 60);
         const sea = new THREE.Mesh(new THREE.PlaneGeometry(260, 420), std({
-            color: VIETNAM.sea, roughness: 0.18, metalness: 0.55, envMapIntensity: 1.6,
-            emissive: 0xffffff, emissiveMap: this.seaGlint, emissiveIntensity: 0.55,
+            color: VIETNAM.sea, roughness: 0.22, metalness: 0.45, envMapIntensity: 0.9, // днём море отражало небо добела
+            emissive: 0xffffff, emissiveMap: this.seaGlint, emissiveIntensity: 0.3,
         }));
         sea.rotation.x = -Math.PI / 2;
         sea.position.set(-16 - 130, -0.25, cz - 100);
@@ -195,12 +212,13 @@ export class Vietnam {
         });
         this.redLamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.3, 0.2) });
         this.towerMaterials = this.towerMats.map(map => std({ map, emissiveMap: map, emissive: 0xffffff,
-            emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.5, envMapIntensity: 1.2, color: 0xc4ccdc })); // день: окна не горят ярко, стекло светлее
+            emissiveIntensity: 0.18, roughness: 0.45, metalness: 0.45, envMapIntensity: 0.8, color: 0xaab4c4 })); // день: окна почти не горят — иначе фасады выбелены
         this.podiumMaterial = std({ color: 0x2a2430, roughness: .7 });
         this.signMaterial = new THREE.MeshBasicMaterial({ map: signAtlas(), color: new THREE.Color(1.8, 1.8, 1.8) });
         this.shopMaterials = SIGN_COLORS.map(c => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(.25).add(new THREE.Color(.9, .7, .45)) }));
         const slot = VIETNAM.slot;
-        for (let i = 0; i < L / slot; i++) add(this.makeTower(slot), L).position.z = this.behind - 6 - i * slot;
+        // первый ряд башен; слоты OSTANKINO.slots — проём под телецентр «Останкино» (buildOstankino)
+        for (let i = 0; i < L / slot; i++) if (!VIETNAM.ostankino.slots.includes(i)) add(this.makeTower(slot), L).position.z = this.behind - 6 - i * slot;
         // второй ряд — дальше от дороги, выше: силуэт города над первым рядом
         for (let i = 0; i < L / 32; i++) {
             const t = this.makeTower(30, 1.5);
@@ -209,12 +227,85 @@ export class Vietnam {
         }
 
         this.buildPromenade(add);
+        this.buildBillboards(add);
+        this.buildOstankino(slot);
         for (const group of batchScenery(moving, { behind: this.behind })) {
             group.userData.walkBoxes = []; // крупные графические пакеты не являются стенами для прохожих
             w.addScenery(group, L); this.items.push(group);
         }
         this.itemSet = new Set(this.items);
         this.hideAll(true);
+    }
+
+    // Билборды на пляже у набережной (VIETNAM.billboards): щит на двух опорах с мостиком, фото — подсвеченное
+    // (MeshBasicMaterial: не зависит от солнца, как настоящий щит с подсветкой), развёрнут к дороге
+    buildBillboards(add) {
+        const steel = new THREE.MeshStandardMaterial({ color: 0x3b414b, roughness: 0.55, metalness: 0.6 });
+        const box = new THREE.BoxGeometry(1, 1, 1);
+        const part = (g, material, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(box, material); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m; };
+        for (const b of VIETNAM.billboards) {
+            const tex = new THREE.TextureLoader().load(b.url);
+            tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+            const photo = new THREE.MeshBasicMaterial({ map: tex, color: 0xe6e6e6 });
+            const g = new THREE.Group(), w = b.w, h = w / b.aspect, y0 = 3.6, cy = y0 + h / 2;
+            for (const x of [-w * 0.3, w * 0.3]) part(g, steel, x, cy / 2, -0.3, 0.24, cy, 0.24); // опоры
+            part(g, steel, 0, cy, -0.22, w + 0.5, h + 0.5, 0.3); // рама и задник
+            part(g, steel, 0, y0 - 0.3, 0.2, w + 0.7, 0.08, 0.8); // мостик под щитом
+            const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), photo);
+            panel.position.set(0, cy, -0.05);
+            g.add(panel);
+            g.position.set(b.x, 0, this.behind - b.z * this.len);
+            g.rotation.y = b.turn;
+            add(g, this.len);
+        }
+    }
+
+    // Телецентр «Останкино» (Meshy, models/obj/ostankino.glb — 30 тыс. треугольников, на слабой графике lite — 12 тыс.;
+    // исходник был 2,2 млн и 79 МБ) — в первом ряду справа вместо двух башен, фасадом к дороге. Грузится в фоне:
+    // пока его нет — проём между башнями. Свой объект улицы (не в пакетах batchScenery — их собирают сразу при постройке)
+    buildOstankino(slot) {
+        const o = VIETNAM.ostankino, g = new THREE.Group();
+        const mid = o.slots.reduce((s, i) => s + i, 0) / o.slots.length;
+        g.position.z = this.behind - 6 - mid * slot;
+        g.userData.walkBoxes = []; // для прохожих не стена: стоит за тротуаром
+        this.world.addScenery(g, this.len);
+        this.items.push(g);
+        g.visible = this.on;
+        loadModel(this.world.lite(o.url), (gltf) => {
+            const m = gltf.scene;
+            m.rotation.y = -Math.PI / 2; // модель смотрит в +Z — фасадом к дороге (−X), длинной стороной вдоль улицы
+            m.updateMatrixWorld(true);
+            let b = new THREE.Box3().setFromObject(m);
+            const k = o.length / (b.max.z - b.min.z);
+            m.scale.setScalar(k);
+            // текстура из Meshy после упрощения сетки рассыпалась («битое стекло»: склеенные вершины на швах развёртки
+            // взяли чужие UV) — свой фасад с окнами, развёртка по граням: стены — длина × высота, крыша — x × z (в метрах)
+            const mat = new THREE.MeshStandardMaterial({ map: ostankinoTex(), roughness: 0.65, metalness: 0.1 });
+            m.traverse((c) => {
+                if (!c.isMesh) return;
+                const p = c.geometry.attributes.position, n = c.geometry.attributes.normal, uv = new Float32Array(p.count * 2);
+                for (let i = 0; i < p.count; i++) {
+                    const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+                    const [u, v] = ay > ax && ay > az ? [p.getX(i), p.getZ(i)] : ax > az ? [p.getZ(i), p.getY(i)] : [p.getX(i), p.getY(i)];
+                    uv[i * 2] = (u * k) / 4; uv[i * 2 + 1] = (v * k) / 3.4;
+                }
+                c.geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+                c.material = mat;
+            });
+            m.updateMatrixWorld(true);
+            b = new THREE.Box3().setFromObject(m);
+            m.position.set(o.x - b.min.x, -b.min.y, -(b.min.z + b.max.z) / 2);
+            g.add(m);
+            // вывеска над фасадом: красные буквы на белой плашке, лицом к дороге
+            const sign = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.2), new THREE.MeshBasicMaterial({ map: canvasTex(512, 80, (s, W, H) => {
+                s.fillStyle = "#f4f1ea"; s.fillRect(0, 0, W, H);
+                s.fillStyle = "#c8102e"; s.font = "900 58px Arial Black, Arial, sans-serif"; s.textAlign = "center"; s.textBaseline = "middle";
+                s.fillText("ОСТАНКИНО", W / 2, H / 2 + 3);
+            }) }));
+            sign.rotation.y = -Math.PI / 2;
+            sign.position.set(o.x - 0.3, b.max.y - b.min.y - 4, 0);
+            g.add(sign);
+        });
     }
 
     // Низкополигональные 3D-объекты набережной. Общие геометрии/материалы, без новых источников света;

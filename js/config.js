@@ -96,12 +96,22 @@ export const VIETNAM = {
     // солнечный вечер (30.10, по плейтесту — «солнечнее, меньше фиолетового и градиента»): голубое небо, к горизонту
     // тёплая дымка, крупное яркое солнце; свет — тёплый дневной (light: небо/земля полусферы, сила, солнце, сила),
     // env — цвета отражений (как SKY.env), glow — во сколько раз тусклее ночные окна и фонари
-    sky: { zenith: "#3f86c8", mid: "#8fc0e2", horizon: "#ffd6a0", sun: { x: 0.16, y: 0.42, r: 0.075, color: "#fff4cf" }, islands: "#6d8296" },
-    fog: 0xf0d2ac, fogNear: 30, sea: 0x2b93ad, sand: 0xe6cc9c,
-    light: { hemi: [0xfff2dc, 0x8a7258], hemiI: 2.4, sun: 0xffe2b0, sunI: 1.9 },
-    env: ["#3f86c8", "#9cc8e6", "#ffe2b4", "#c9a77c", "#5a4a3a"], glow: 0.35,
-    post: { bloom: 0.22, exposure: 0.66 }, // постобработка днём: свечение слабее, экспозиция ниже (Game.applyLook)
+    // 30.10 вечер, по плейтесту «очень сильно засвечено»: небо насыщеннее, горизонт и дымка не белые, свет мягче,
+    // дымка дальше; grade — сила «киношного» тёплого тона днём (иначе всё желтело)
+    sky: { zenith: "#2a6fba", mid: "#6fa8d8", horizon: "#e6bf94", sun: { x: 0.16, y: 0.42, r: 0.06, color: "#ffe6ad" }, islands: "#5c6f84" },
+    fog: 0xc9b49c, fogNear: 48, sea: 0x24829c, sand: 0xd6bb8c,
+    light: { hemi: [0xf4ead8, 0x6a5a48], hemiI: 1.5, sun: 0xffdca8, sunI: 1.3 },
+    env: ["#2a6fba", "#7fb2dc", "#e6c8a0", "#a88c66", "#4a3c30"], glow: 0.35,
+    post: { bloom: 0.1, exposure: 0.56, grade: 0.35 }, // постобработка днём: свечение слабее, экспозиция ниже (Game.applyLook)
     towers: [32, 78], slot: 20,
+    rowGap: 0.8, // расстояние между рядами преград ×0,8 — преград примерно на четверть больше, чем в районе
+    // билборды на пляже: фото, ширина щита (м), пропорции фото, где стоят (x, z — доля круга улицы от начала), поворот к дороге
+    billboards: [
+        { url: "img/billboards/tv_dima.jpg", w: 7.2, aspect: 16 / 9, x: -9.2, z: 0.14, turn: 0.55 },
+        { url: "img/billboards/dima_sasha.jpg", w: 5.8, aspect: 1043 / 819, x: -9.2, z: 0.64, turn: 0.55 },
+    ],
+    // телецентр «Останкино»: модель, вместо каких башен первого ряда (номера слотов), длина вдоль улицы (м), фасад — x (м)
+    ostankino: { url: "models/obj/ostankino.glb", slots: [3, 4], length: 36, x: 6.2 },
     signs: ["PHỞ 24H", "CÀ PHÊ", "BÁNH MÌ", "KARAOKE", "MASSAGE", "HOTEL", "BIA HƠI", "P2P USDT", "SIM 4G", "ĐỔI TIỀN"],
 };
 
@@ -161,7 +171,11 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1 },
+    high:   { aa: "msaa", cine: 1, blob: 0.4, aniso: 8, hd: "webp", ratio: 1.75, reflections: true,  shadows: true,  bloom: 2, lights: 4, police: true,  rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1,
+        // хорошая графика на телефоне (30.10, по диагностике iPhone: 38 FPS, разрешение падало до 0,6, грелся): то же, но
+        // FXAA вместо 4× MSAA на плотном экране, пикселей ×1,5, свечение в четверть экрана, тени 512, зеркало луж —
+        // через кадр (оно рисует всю сцену второй раз), тепловой ограничитель как у средней
+        phone: { aa: "fxaa", ratio: 1.5, bloom: 4, shadowSize: 512, mirrorEvery: 2, heat: true } },
     medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  npc: 0.6, heat: true },
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
     low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  npc: 0.4, heat: true },
