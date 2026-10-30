@@ -137,8 +137,9 @@ export class CityMap {
             : st === "hero" || st === "fixed" ? `<button class="btn btn-ghost" id="map-heroes">К героям</button>`
                 : st === "here" ? `<button class="btn btn-main" id="map-run">Забег</button>` : "";
         el.dataset.state = st;
+        const storyNote = this.game.story ? "В сюжетном забеге район задаётся главой; выбор карты действует в свободной игре." : "";
         el.innerHTML = `<div class="map-card-head"><h3>${esc(d.name)}</h3><span class="map-chip">${chip}</span></div>
-            <p>${esc(d.text || "")}</p><p class="map-note">${esc(note)}</p>${action}`;
+            <p>${esc(d.text || "")}</p><p class="map-note">${esc(note)}</p>${storyNote ? `<p class="map-note">${esc(storyNote)}</p>` : ""}${action}`;
         el.querySelector("#map-go")?.addEventListener("click", () => {
             this.game.setSetting("location", d.loc);
             this.selected = null;

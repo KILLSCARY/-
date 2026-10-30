@@ -92,6 +92,7 @@ export class Profile {
         d.sets = [...new Set([...(d.sets || []), ...(now.sets || [])])];
         d.grants = [...new Set([...(d.grants || []), ...(now.grants || [])])];
         d.legacyPhrases = [...new Set([...(d.legacyPhrases || []), ...(now.legacyPhrases || [])])];
+        d.storyIntros = { ...(d.storyIntros || {}), ...(now.storyIntros || {}) };
         for (const k of ["usdt", "earned", "chests", "cards", "x2runs"]) {
             d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         }

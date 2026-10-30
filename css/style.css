@@ -1185,6 +1185,21 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 
 .fade { position: fixed; inset: 0; z-index: 40; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; }
 .fade.on { opacity: 1; }
+.story-intro { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow-y: auto; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: linear-gradient(160deg, rgba(5, 12, 30, .97), rgba(19, 14, 27, .97)); color: white; }
+.story-intro[data-chapter="2"] { background: linear-gradient(160deg, #0a1930, #271029); }
+.story-intro[data-chapter="3"] { background: linear-gradient(160deg, #261915, #090e20); }
+.story-intro-inner { width: min(100%, 420px); text-align: center; }
+.story-intro-label { color: #edc15a; letter-spacing: .16em; font-size: 12px; font-weight: 800; }
+.story-intro h2 { margin: 14px 0; font-size: clamp(26px, 7vw, 40px); line-height: 1.1; }
+.story-intro-text { color: #e5e5eb; line-height: 1.5; font-size: 16px; margin: 0 auto 24px; max-width: 350px; }
+.story-intro .btn { width: 100%; }
+.story-phone { width: 155px; margin: 25px auto; padding: 8px; border: 3px solid #77849a; border-radius: 23px; background: #111622; box-shadow: 0 18px 30px #0008; transform: rotate(-5deg); animation: story-phone-drop .8s cubic-bezier(.2,.7,.2,1) both; }
+.story-phone-screen { border-radius: 14px; padding: 18px 10px; background: linear-gradient(150deg, #1f3f69, #101725); min-height: 150px; }
+.story-phone-screen span { font-size: 8px; color: #9cb6d9; letter-spacing: .1em; }
+.story-phone-screen b { display: block; margin-top: 12px; color: #f3c957; font-size: 13px; }
+.story-phone-screen p { font-size: 11px; line-height: 1.4; }
+@keyframes story-phone-drop { from { opacity: 0; transform: translateY(-55vh) rotate(35deg); } 75% { opacity: 1; transform: translateY(12px) rotate(-8deg); } to { transform: translateY(0) rotate(-5deg); } }
+@media (prefers-reduced-motion: reduce) { .story-phone { animation: none; } }
 
 /* ---- реплики: персонаж выглядывает из-за края экрана и говорит в облачке (Горилла — слева, остальные — справа) ----
    По плейтесту «мелко, не успеваю читать, сбоку не замечаю»: текст крупнее, облачко по центру экрана (на широком

@@ -94,8 +94,8 @@ export class Hub {
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
-        $("chap-num").textContent = ch.done ? fmt(ch.earned) : `${fmt(ch.earned)} / ${fmt(ch.goal)}`;
-        $("chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
+        $("chap-num").textContent = `${Math.min(ch.index, CHAPTERS.length)} / ${CHAPTERS.length} глав`;
+        $("chap-bar").style.width = `${Math.min(100, ch.index / CHAPTERS.length * 100)}%`;
         const free = this.freeReady();
         // плитки главной
         // плитка карты: в каком районе сейчас забег
@@ -110,9 +110,8 @@ export class Hub {
         $("tile-heroes-sub").textContent = hero?.name ?? "";
         $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
         $("tile-chap-name").textContent = ch.done ? "Сезон 1" : `Глава ${ch.index + 1}`;
-        const nb = this.game.nextBoss?.();
         $("tile-chap-sub").textContent = ch.done ? "пройден" : `${ch.name} · ${FIGHTERS[CHAPTERS[ch.index].boss].name}`;
-        $("tile-chap-bar").style.width = `${Math.min(100, (ch.earned / ch.goal) * 100)}%`;
+        $("tile-chap-bar").style.width = `${Math.min(100, ch.index / CHAPTERS.length * 100)}%`;
         $("tile-earned").textContent = `${fmt(p.data.earned || 0)} USDT`;
         document.querySelector(".hub").dataset.tab = this.current;
         this.updatePlay();

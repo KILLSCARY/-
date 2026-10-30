@@ -543,6 +543,19 @@ class Game {
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
         if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
+        const chapterStory = this.story;
+        if (chapterStory) {
+            // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
+            this.setLocation(["winter", "street", "street"][chapterStory.id - 1]);
+            if (!(this.profile.data.storyIntros || {})[chapterStory.id]) {
+                this.state = "storyintro";
+                await this.showStoryIntro(chapterStory);
+                if (this.state !== "storyintro") return;
+                (this.profile.data.storyIntros ||= {})[chapterStory.id] = true;
+                this.profile.save();
+                this.state = "menu";
+            }
+        } else this.setLocation(this.heroLocation(this.heroId));
         this.endArrest();
         const run = this.runId = (this.runId || 0) + 1;
         this.audio.unlock();
@@ -600,6 +613,24 @@ class Game {
         this.audio.music("run");
         tg.guardClose(true);
         if (document.hidden) this.pause(); // свернули приложение во время отсчёта
+    }
+
+    showStoryIntro(st) {
+        const scenes = {
+            1: { title: "Выход из системы", text: "Зимний район. На дорогу падает телефон: Горилла зовёт тебя к станции «Обмен». Пройди препятствия и найди путь через первый запрет.", button: "Принять вызов →" },
+            2: { title: "Город проверок", text: "Станция позади. Горилла передаёт тебе кейс с учебными материалами. Доставь его через ночной район: впереди полицейский кордон.", button: "Взять кейс →" },
+            3: { title: "Последний экзамен", text: "Ты добрался до делового района. За последними препятствиями тебя ждёт Павел Инаков. Соберись: впереди финальный бой.", button: "Идти на встречу →" },
+        };
+        const scene = scenes[st.id], box = $("story-intro");
+        box.dataset.chapter = st.id;
+        $("story-intro-label").textContent = `ГЛАВА ${st.id} / 3`;
+        $("story-intro-title").textContent = scene.title;
+        $("story-intro-text").textContent = scene.text;
+        $("story-phone").hidden = st.id !== 1;
+        const button = $("story-intro-go");
+        button.textContent = scene.button;
+        box.hidden = false;
+        return new Promise((resolve) => { button.onclick = () => { button.onclick = null; box.hidden = true; resolve(); }; });
     }
 
     // добавки из NS Store, купленные на этот забег: по одной каждой
@@ -2388,6 +2419,7 @@ class Game {
         const d = this.profile.data;
         Object.assign(d, { story: 0, beaten: 0, earned: 0, quiz: {}, mizBeaten: false, bossPaid: {}, badges: {}, exam: false });
         for (const k of ["anketa", "place", "left"]) delete d[k];
+        delete d.storyIntros;
         this.profile.save();
         this.renderMenu();
     }
@@ -2748,7 +2780,8 @@ class Game {
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
         $("sw-next-text").textContent = next ? `${next.fear}. Верные ответы дадут преимущество в бою.` : "";
-        $("btn-razbor").onclick = () => this.hub.razbor();
+        $("btn-razbor").textContent = "Следующая глава →";
+        $("btn-razbor").onclick = () => { $("story-win").hidden = true; this.start(); };
         $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
         $("story-win").hidden = false;
     }
