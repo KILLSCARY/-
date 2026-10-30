@@ -89,9 +89,9 @@ python3 tools/nightify.py снимок.png textures/house5 2048 0.35   # шир�
   Стены и арки у него в 4 раза ближе (`sick.walls`), на 40-й секунде его задерживает Мизулина.
 - **Мизулина** — `models/obj/inspector.glb` (`CHASER` в `js/config.js`): после первого удара 8 секунд бежит за героем; пока не загрузилась — бежит инспектор ДПС.
   Портрет — `img/heroes/mizulina.webp`.
-- **Бойцы** — отдельные модели с боевыми клипами (`FIGHTERS` в `js/config.js`): герои `models/mouse_fight.glb`,
-  `islam_hero_fight.glb`, `sasha_hero_fight.glb`, `pavel_hero_fight.glb`; боссы
-  `mizulina_fight.glb`, `cop_fight.glb`, `pavel_fight.glb`. Дерётся тот герой, за которого бежишь. Денчик дерётся
+- **Бойцы** (`FIGHTERS` в `js/config.js`): дерётся тот герой, за которого бежишь, той же моделью, что в забеге — в одной .glb
+  и забег, и бой (`mouse`, `pavel`, `islam`, `sasha`, `dima`, `tovarus`, `gorilla_hero`). Боссы — `mizulina.glb`, `pavel.glb`,
+  `cop_fight.glb`. В сцене «Маска» — прежняя `gorilla.glb` с отдельной головой костюма. Денчик дерётся
   своими клипами из `models/denchik.glb` (стойка, джеб, кросс, лоу-кик, блок, пропущенный удар; супер — джеб и кросс в замедлении).
 - **Живые NPC** — `NPCS` в `js/config.js`: девушки (`girl_npc.glb`, гуляют по тротуару или танцуют), кошки (`cat.glb`), стайки голубей (`pigeon.glb`, сидят у бордюра и взлетают, когда герой подбегает; взмахи крыльев — поворотом костей в коде). Неоновые вывески «ОБМЕН 24/7» над подъездами — `MODELS.sign`.
 - **Инспектор ДПС** — `models/obj/cop.glb` (Meshy biped, `POLICE_OFFICER` в `js/config.js`): на постах и на полосе кричит или объясняет руками, после первого удара бежит за героем. Каждый — свой клон скелета (`SkeletonUtils`) и свой микшер; анимируются только те, кто рядом.

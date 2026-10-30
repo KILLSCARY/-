@@ -178,7 +178,7 @@ export class Fight {
 
     makeFighter(cfg, dir) {
         const root = new THREE.Group();
-        const home = dir * FIGHT.gap / 2;
+        const home = dir * (cfg.gap ?? FIGHT.gap) / 2; // gap бойца: широкая стойка новых моделей требует больше места
         root.position.set(0, 0, home);
         root.rotation.y = dir > 0 ? Math.PI : 0; // модели Meshy смотрят в +Z
         this.group.add(root);
@@ -1086,15 +1086,19 @@ export class Fight {
         f.mixer.update(0);
         if (key === "idle" && !f.hip0) f.hip0 = f.b.Hips?.position.clone();
         this.pinHips(f);
-        this.faceOpponent(f, key === "idle");
+        this.faceOpponent(f, key === "idle", mv.face);
         const b = f.b, k = Math.min(1, f.t / (f.dur || 1)), fw = f.fwd, rt = f.right;
+        // aim — доворот к сопернику (рад) к моменту удара: нога в клипе front_kick летит вбок от стойки, модель поворачиваем под неё и обратно
+        const aimTo = mv.aim && key !== "idle" && key !== "win" ? mv.aim : 0;
+        f.aimNow = (f.aimNow || 0) + (aimTo - (f.aimNow || 0)) * Math.min(1, dt * (aimTo ? 14 : 9));
+        if (Math.abs(f.aimNow) > 0.001) { f.model.rotation.y += f.aimNow; f.model.updateMatrixWorld(true); }
         const V = (x, y, z) => new THREE.Vector3().addScaledVector(rt, x).addScaledVector(UP, y).addScaledVector(fw, z);
         let dz = 0, dip = 0, sideX = 0;
         const own = !!this.moveOf(f); // у действия свой клип — позы из костей не нужны, только шаг корня
         if (own) {
             if (f.act === "hit" || f.act === "recoil") dz -= (f.act === "hit" ? f.kb : 0.18) * (1 - smooth(k));
-            if (f.act === "punch" || f.act === "knee" || f.act === "low" || f.act === "super" || f.act === "superFin") dz += (f.cfg.lunge ?? 0.16) * bell(k, Math.min(0.8, Math.max(0.2, (f.hitAt ?? 0.5) - 0.05)), 1); // шаг в удар — кулак должен достать
-            if (f.act === "heavy" || f.act === "heavyWind") dz -= 0.28 * (f.act === "heavy" ? bell(k, 0.35, 1) : smooth(k)); // нога не проходит сквозь соперника
+            if (f.act === "punch" || f.act === "knee" || f.act === "low" || f.act === "super" || f.act === "superFin" || (f.act === "heavy" && mv.step)) dz += (f.cfg.lunge ?? 0.16) * bell(k, Math.min(0.8, Math.max(0.2, (f.hitAt ?? 0.5) - 0.05)), 1); // шаг в удар — кулак должен достать
+            if ((f.act === "heavy" || f.act === "heavyWind") && !mv.step) dz -= 0.28 * (f.act === "heavy" ? bell(k, 0.35, 1) : smooth(k)); // нога не проходит сквозь соперника
         }
         else if (f.act === "block") {
             const w = Math.min(smooth(f.t / 0.08), f.t > f.dur * 0.75 ? 1 - smooth((f.t - f.dur * 0.75) / (f.dur * 0.25)) : 1);
@@ -1140,7 +1144,8 @@ export class Fight {
 
     // бёдра — к сопернику: в клипах ударов корпус разворачивается, и боец оказывался то спиной, то лицом к камере.
     // Направление — линия тазобедренных суставов по земле; в стойке запоминаем, дальше доворачиваем всю модель
-    faceOpponent(f, ref) {
+    // face — предел доворота у приёма (рад): у новых клипов кулак и так летит вперёд (0), а удар ногой разворачивает тело (Math.PI — следуем за бёдрами)
+    faceOpponent(f, ref, face = 0.3) {
         const L = f.b.LeftUpLeg, R = f.b.RightUpLeg;
         if (!L || !R) return;
         f.model.rotation.y = 0;
@@ -1150,7 +1155,7 @@ export class Fight {
         if (ref || f.yaw0 === undefined) { if (ref) f.yaw0 = a; else return; }
         let d = f.yaw0 - a;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        d = Math.max(-0.3, Math.min(0.3, d)); // не больше ~17°: в ударах ногами линия бёдер крутится, корпус не заваливаем
+        d = Math.max(-face, Math.min(face, d)); // обычно не больше ~17°: в ударах ногами линия бёдер крутится, корпус не заваливаем
         f.faceD = f.faceD === undefined ? d : f.faceD + (d - f.faceD) * 0.25;
         f.model.rotation.y = f.faceD + (f.cfg.yaw || 0) * f.dir; // cfg.yaw — доворот корпуса к камере
         f.model.updateMatrixWorld(true);

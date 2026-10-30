@@ -342,7 +342,8 @@ export function attachModel(rat, gltf, cfg) {
     rig.updateMatrixWorld(true);
     const restHips = hips ? hips.getWorldPosition(new THREE.Vector3()).y - rig.getWorldPosition(new THREE.Vector3()).y : 0;
     const footSpeed = actions.run ? measureFootSpeed(model, actions.run.getClip()) * (timing.run ?? 1) : 0;
-    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, footSpeed, footMax: cfg.footMax ?? FOOT_MAX, footSync: cfg.footSync ?? FOOT_SYNC, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
+    const slideLift = actions.slide ? measureLift(model, rig, actions.slide.getClip()) : null;
+    rat.userData = { rig, blob, model, mixer, actions, timing, clipT: null, current: null, hips, restHips, footSpeed, slideLift, footMax: cfg.footMax ?? FOOT_MAX, footSync: cfg.footSync ?? FOOT_SYNC, pin: cfg.flyClip?.pin, pinUntil: cfg.flyClip?.touch,
         flyLoop: !!cfg.flyClip?.loop, flyPitch: cfg.flyClip?.pitch || 0, hipsRest: hips?.position.clone() };
     if (cfg.flyClip?.loop && actions.fly) timing.fly = cfg.flyClip.speed || 1;
 }
@@ -380,6 +381,25 @@ function measureFootSpeed(model, clip) {
     }
     sp.sort((a, b) => a - b);
     return sp[Math.floor(sp.length / 2)] || 0;
+}
+// подъём над асфальтом по ходу клипа (кувырок: бёдра почти на земле, тело вокруг них уходит под дорогу): самая низкая
+// точка сетки в каждом из N кадров, в единицах rig. Считается один раз при выборе героя, каждая 8-я вершина
+function measureLift(model, rig, clip) {
+    const mx = new THREE.AnimationMixer(model), N = 24, lift = [], p = new THREE.Vector3();
+    mx.clipAction(clip).play();
+    for (let i = 0; i <= N; i++) {
+        mx.setTime(clip.duration * 0.9999 * i / N);
+        rig.updateMatrixWorld(true);
+        let low = Infinity;
+        model.traverse((o) => {
+            if (!o.isSkinnedMesh) return;
+            o.skeleton.update();
+            for (let v = 0, n = o.geometry.attributes.position.count; v < n; v += 8) low = Math.min(low, rig.worldToLocal(o.getVertexPosition(v, p).applyMatrix4(o.matrixWorld)).y);
+        });
+        lift.push(Math.max(0, -low));
+    }
+    mx.stopAllAction(); mx.uncacheRoot(model);
+    return lift;
 }
 const FADE = { jump: 0.08, slide: 0.1, run: 0.16, fly: 0.2, idle: 0.3, fall: 0.15, dead: 0.12, stumble: 0.08, cheer: 0.25 };
 function animateModel(rat, pose, t, phase, dt, speed) {
@@ -434,6 +454,10 @@ function animateModel(rat, pose, t, phase, dt, speed) {
     if (want === "fly" && u.flyPitch) {
         rig.rotation.x = -u.flyPitch;
         rig.position.set(0, 0.9, 0.9 * Math.sin(u.flyPitch) * 0.55);
+    }
+    if (want === "slide" && u.slideLift) {
+        const a = actions.slide, s = Math.min(1, a.time / a.getClip().duration) * (u.slideLift.length - 1), i = Math.floor(s);
+        rig.position.y += u.slideLift[i] + ((u.slideLift[i + 1] ?? u.slideLift[i]) - u.slideLift[i]) * (s - i);
     }
     // клип падения у части героев уводит бёдра под асфальт — поднимаем тело, чтобы лежал на дороге
     if ((want === "fall" || want === "dead") && u.hips && u.restHips) {

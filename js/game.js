@@ -172,6 +172,8 @@ function parseAnswer(raw) {
     return Number.isFinite(v) ? Math.round(v) : NaN;
 }
 
+const RUNOUT_TIME = 1.2; // с: герой сбегает на нет перед заставкой босса
+
 class Game {
     constructor() {
         window.game = this; // удобно для отладки из консоли
@@ -491,6 +493,7 @@ class Game {
         this.appealUsed = false;
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
+        this.runout = null;
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
         this.trip = 0;     // клип «споткнулся» (TRIP)
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
@@ -1117,6 +1120,7 @@ class Game {
             return;
         }
         if (this.state === "playing") this.step(dt);
+        else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 3 * dt, this.t); // в меню улица медленно едет
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps();
@@ -1128,7 +1132,7 @@ class Game {
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
-            : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" ? "idle" : "run";
+            : this.state === "countdown" || this.state === "paused" || (this.state === "bossintro" && !this.runout) ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
         if (this.trip > 0) this.trip -= dt;
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
@@ -2608,7 +2612,23 @@ class Game {
         if (s.heroLine) setTimeout(() => this.state === "bossintro" && this.speech(FIGHTERS[heroFighter(this.heroId)].name, s.heroLine, 2400), 1900);
     }
 
-    async startStoryFight() {
+    // перед заставкой босса герой не встаёт как вкопанный: улица и шаг плавно гаснут, сверху — затемнение
+    runoutStep(dt) {
+        const r = this.runout;
+        r.t += dt;
+        const k = Math.min(1, r.t / RUNOUT_TIME);
+        this.speed = r.speed * (1 - k * k * (3 - 2 * k));
+        this.world.update(dt, this.speed * dt, this.t);
+        this.phase += dt * this.speed * 0.95;
+        if (this.slideLeft > 0) this.slideLeft -= dt;
+        if (this.jumping) { // прыгнул в последний момент — приземляем, иначе завис бы в воздухе
+            this.y = Math.max(0, this.y - dt * 5);
+            this.rat.position.y = this.y;
+            if (!this.y) this.jumping = false;
+        }
+    }
+
+    async startStoryFight(afterCatch) {
         const s = this.story, opp = FIGHTERS[s.opponent], run = this.runId;
         // ушли в меню (или начали новый забег), пока шла заставка, — бой не начинаем
         const gone = () => this.runId !== run || this.state !== "bossintro";
@@ -2626,7 +2646,16 @@ class Game {
         $("bs-hero-name").textContent = hero.name;
         $("bs-label").textContent = `${s.name} · ${s.fear}`;
         $("bs-quote").textContent = `«${s.before?.boss || opp.lines.intro}»`;
-        const splash = $("boss-splash");
+        if (!afterCatch) { // после захвата Мизулиной экран уже тёмный
+            this.runout = { t: 0, speed: this.speed };
+            await wait(RUNOUT_TIME * 500);
+            if (!gone()) $("fade").classList.add("on");
+            await wait(RUNOUT_TIME * 500);
+            this.runout = null;
+            if (gone()) { $("fade").classList.remove("on"); return; }
+            setTimeout(() => $("fade").classList.remove("on"), 120);
+        }
+        const splash = $("boss-splash");
         splash.classList.remove("out");
         $("toast").hidden = true; // уведомления забега («Серия 5!») — не поверх заставки
         splash.hidden = false;
