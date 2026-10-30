@@ -1225,6 +1225,13 @@ class Game {
         const curveOn = (this.state === "countdown" || this.state === "playing" || this.state === "paused" || this.state === "over") && !this.arrest?.scene;
         this.curveMix = Math.min(1, Math.max(0, (this.curveMix || 0) + (curveOn ? dt : -dt) / CURVE.fade));
         curveUniform.value = CURVE.strength * this.curveMix * this.curveMix * (3 - 2 * this.curveMix);
+        // скруглённый мир: дальше runFar даже верхушки домов уже за горизонтом, рисовать их незачем (без скругления, в меню — вся улица)
+        const far = Math.round(Math.min(this.baseFar, this.baseFar + ((this.tier.runFar || this.baseFar) - this.baseFar) * this.curveMix));
+        if (far !== this.camera.far) {
+            this.camera.far = far;
+            this.scene.fog.far = Math.min(this.baseFog, far - 4);
+            this.camera.updateProjectionMatrix();
+        }
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
@@ -1396,8 +1403,8 @@ class Game {
         const direct = !!this.tier.direct && !this.look2;
         if (direct !== !!this.direct) this.setDirect(direct);
         // дальше — туман: не рисуем то, чего всё равно не видно
-        this.camera.far = this.tier.far;
-        this.scene.fog.far = this.tier.far - 12;
+        this.camera.far = this.baseFar = this.tier.far;
+        this.scene.fog.far = this.baseFog = this.tier.far - 12;
         this.camera.updateProjectionMatrix();
         this.applyLocationLook();
         this.onResize();
@@ -1475,7 +1482,7 @@ class Game {
         const threshold = this.frameBudget() < 1000 / 60 ? 85 : target * .85;
         if (fps >= threshold) { this.slowFpsWindows = 0; return; }
         // Одиночная загрузка модели или короткая заминка не меняет графику.
-        if ((this.slowFpsWindows = (this.slowFpsWindows || 0) + 1) < 3) return;
+        if ((this.slowFpsWindows = (this.slowFpsWindows || 0) + 1) < (fps < 30 ? 2 : 3)) return; // сильная просадка — реагируем быстрее
         this.slowFpsWindows = 0;
         // Повышенная частота требует запаса. При нехватке сначала возвращаем 60,
         // сохраняя разрешение; настройка «До 120» может быть выбрана повторно.
@@ -1647,8 +1654,8 @@ class Game {
         this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.25 : .8;
         this.scene.fog.color.set(sky.fog);
         this.scene.fog.near = sky.near;
-        this.scene.fog.far = sky.far;
-        this.camera.far = sky.viewFar;
+        this.scene.fog.far = this.baseFog = sky.far;
+        this.camera.far = this.baseFar = sky.viewFar;
         this.camera.updateProjectionMatrix();
         u.exposure.value = winter ? 1.35 : (this.look2 ? LOOK2.exposure : SKY.exposure) * VIETNAM.post.exposure;
     }
@@ -1882,7 +1889,7 @@ class Game {
             const run = this.runId;
             setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) { const cc = this.chaserCfg(); this.hub.toast(`${cc.name}: «${cc.start}»`); } }, 1400);
         }
-        if (!this.catchCoin) { this.catchCoin = 1; loadModel("models/obj/coin_usdt.glb?v=2", (g) => { const coin = g.scene, size = new THREE.Box3().setFromObject(coin).getSize(new THREE.Vector3()).length(); coin.scale.multiplyScalar(0.2 / size); coin.traverse((o) => { if (o.isMesh) o.castShadow = true; }); this.catchCoin = coin; }, () => {}); } // монеты из карманов при поимке
+        if (!this.catchCoin) { this.catchCoin = 1; loadModel("models/obj/coin_usdt.glb?v=2", (g) => { const coin = g.scene, size = new THREE.Box3().setFromObject(coin).getSize(new THREE.Vector3()).length(); coin.scale.multiplyScalar(0.2 / size); coin.traverse((o) => { if (o.isMesh) o.castShadow = true; }); this.catchCoin = coin; this.world.warmQueue.push(coin.clone()); }, () => {}); } // монеты из карманов при поимке
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
     }

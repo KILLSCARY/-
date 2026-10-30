@@ -215,7 +215,9 @@ export class Hecklers {
         this.loading = true;
         const count = this.g.tier.npc < 0.5 ? 2 : this.g.tier.npc < 1 ? 3 : 4;
         const variants = [0, 3, 6, 9].slice(0, count).map(i => HECKLERS.models[i]).filter(Boolean);
-        for (const cfg of variants) loadModel(cfg.url, (gltf) => {
+        for (const item of HECKLERS.items) this.g.world.warmQueue.push(this.make(item.id)); // шейдеры предметов — заранее, а не на первом броске
+        // на слабых устройствах — облегчённые модели (половина треугольников, те же клипы)
+        for (const cfg of variants) loadModel(this.g.tier.lite ? cfg.url.replace("models/hecklers/", "models/hecklers/lite/") : cfg.url, (gltf) => {
             this.models.push({ cfg, m: this.g.world.fitRig(gltf, cfg.height) });
             for (const p of [...this.pool]) { // свои девушки пришли — запасные прохожие больше не нужны
                 if (p.userData.own || p.userData.active) continue;

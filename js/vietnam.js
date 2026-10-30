@@ -178,24 +178,25 @@ export class Vietnam {
         waterNormal.repeat.set(20, 59); sea.material.normalMap = waterNormal; sea.material.normalScale.set(.3, .2);
         sea.material.emissive.set(0x245d67); sea.material.emissiveIntensity = .28;
         sea.rotation.x = -Math.PI / 2; sea.position.set(-85, -.04, -45); this.sea = sea; this.waterMap = waterMap; this.add(sea);
+        const lite = !!this.world.tier.lite;
         for (let i = 0; i < 5; i++) {
             this.parts = {};
             for (const side of [-1, 1]) {
                 this.part('box', 'paving', 0xffffff, side * 6.8, .12, -16, 6.6, .24, 32);
                 this.part('box', 'deck', 0xdcc1a0, side * 8.6, .247, -16, .8, .025, 32);
                 for (let z = -30; z < 0; z += 2) this.part('box', 'metal', (z / 2) % 2 ? 0xd8c5a8 : 0x3a383d, side * 3.65, .15, z, .25, .3, 1.95);
-                for (const z of [-7, -23]) {
+                for (const z of lite ? [-7] : [-7, -23]) { // на слабых устройствах пальм и мелочи вдвое меньше
                     this.palm(side * 6, z, 6.2 + rand() * 1.4);
                     this.lamp(side * 4.2, z + 3);
                 }
                 this.garden(side * 6, -7, 2.5, 2.8);
                 this.garden(side * 8.3, -24, 1.7, 5);
-                this.bench(side * 5.8, -15, side);
+                if (!lite) this.bench(side * 5.8, -15, side);
                 this.part('cylinder', 'metal', 0x9c805b, side * 4.5, .65, -18, .35, 1.2, .35);
                 this.part('cylinder', 'metal', 0x403c39, side * 4.5, 1.25, -18, .37, .1, .37);
                 for (let z = -30; z < 0; z += 4) {
                     this.part('box', 'metal', 0x56595a, side * 3.4, .025, z, .15, .025, .7);
-                    for (let dz = -.26; dz < .3; dz += .1) this.part('box', 'metal', 0x252a2d, side * 3.4, .04, z + dz, .12, .01, .025);
+                    if (!lite) for (let dz = -.26; dz < .3; dz += .1) this.part('box', 'metal', 0x252a2d, side * 3.4, .04, z + dz, .12, .01, .025);
                     this.part('box', 'glow', 0xefcd8b, side * 3.2, .028, z, .05, .025, .1);
                 }
             }

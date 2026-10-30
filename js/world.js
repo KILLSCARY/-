@@ -1599,12 +1599,14 @@ export class World {
                     loadModel(this.lite(cfg.bin), (bin) => { // сцены ставим, когда загрузились и бак, и Никита
                         const b = bin.scene;
                         b.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.3; o.material.needsUpdate = true; } });
+                        this.warmQueue.push(b.clone());
                         const spawn = () => { for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b); this.placeNikitas(); };
-                        loadModel(cfg.panties, (gltf) => {
+                        loadModel(this.lite(cfg.panties), (gltf) => {
                             const s = gltf.scene, k = 0.52 / new THREE.Box3().setFromObject(s).getSize(new THREE.Vector3()).x;
                             s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.side = THREE.DoubleSide; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.35; o.material.needsUpdate = true; } });
                             s.scale.setScalar(k);
                             this.pantiesModel = new THREE.Group().add(s);
+                            this.warmQueue.push(this.pantiesModel.clone());
                             spawn();
                         }, spawn, { deferred: true });
                     }, () => {}, { deferred: true });
@@ -1743,6 +1745,7 @@ export class World {
         }
         if (this.pantiesModel) { // одни висят на краю бака, другие валяются на земле лицевой стороной вверх
             const hang = this.pantiesModel.clone();
+            u.panties = [hang];
             hang.position.set(-side * 0.65, 0.78, 0.4);
             hang.rotation.y = -side * Math.PI / 2;
             root.add(hang);
@@ -1751,6 +1754,7 @@ export class World {
             floor.position.set(-side * 0.95, 0.04, -0.85);
             floor.rotation.set(-1.42, -side * 1.1, 0);
             root.add(floor);
+            u.panties.push(floor);
         }
         rig.visible = true;
         for (let k = 0; k < 5; k++) { // что вылетает из бака
@@ -1805,7 +1809,7 @@ export class World {
     }
 
     // сидит на баке и трёт трусы: кисти ходят навстречу друг другу, поверх клипа sit
-    rubPants(o, t) {
+    rubPants(o, t, weak) {
         const u = o.userData, { pants, bones: b } = u.rub, A = this._rubA ||= { c: new THREE.Vector3(), f: new THREE.Vector3(), l: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), L: new THREE.Vector3(), R: new THREE.Vector3(), p: new THREE.Vector3() };
         u.rig.updateMatrixWorld(true);
         u.rig.getWorldDirection(A.f);
@@ -1828,21 +1832,27 @@ export class World {
         pants.position.copy(mid);
         pants.rotation.set(-0.5 + c * 0.06, u.rig.rotation.y * 0.45, s * 0.12); // развёрнуты к камере забега
         pants.scale.setScalar(1.2);
-        this.crumplePants(pants, t);
+        if (!weak) this.crumplePants(pants, t); // на самых слабых телефонах ткань без складок
     }
 
     updateNikitas(dt, move) {
         if (!this.nikitas) return;
         const y0 = (this.location || "street") === "street" ? 0.18 : 0.02;
-        for (const o of this.nikitas) {
+        const npc = this.tier.npc ?? 1, active = npc >= 1 ? 4 : npc >= 0.6 ? 3 : 2, weak = npc < 0.5; // сколько баков тянет уровень графики
+        for (let i = 0; i < this.nikitas.length; i++) {
+            const o = this.nikitas[i];
             o.position.z += move;
             if (o.position.z > BEHIND_Z) o.position.z -= STREET_LEN;
             o.position.y = y0;
             o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
-            const u = o.userData;
+            const u = o.userData, z = o.position.z;
+            o.visible = i < active && z > -85; // дальше всё равно дымка и горизонт
+            if (!o.visible) continue;
+            if (u.panties) for (let k = 0; k < u.panties.length; k++) u.panties[k].visible = z > -22 && !(weak && k); // мелочь видна только вблизи
+            if (u.rub) u.rub.pants.visible = z > -30;
             updateAmbientAnimation(o, dt, this.tier);
             if (o.position.z > 8 && o.position.z < 16) u.mixer.update(dt); // в кадре меню: общая анимация дальше 8 м за героем стоит
-            if (u.rub && o.position.z > -45 && o.position.z < 16) this.rubPants(o, this.rubT = (this.rubT || 0) + dt);
+            if (u.rub && z > -30 && z < 16) this.rubPants(o, this.rubT = (this.rubT || 0) + dt, weak);
             if (o.position.z < -75 || o.position.z > 16) continue;
             u.t -= dt;
             if (u.t <= 0) { // следующий шаг сценки
@@ -1854,7 +1864,7 @@ export class World {
             }
             u.y += (u.yTo - u.y) * Math.min(1, dt * 6);
             u.rig.position.y = u.y;
-            u.rig.visible = u.y > -0.62; // нырнул с головой: кисти иначе торчали бы под днищем
+            u.rig.visible = u.y > -0.62 && z > -50; // нырнул с головой: кисти иначе торчали бы под днищем
             if (u.throws && (u.nextThrow -= dt) <= 0) {
                 u.nextThrow = 1 + Math.random() * 0.8;
                 const p = u.thrown[u.nextItem = ((u.nextItem || 0) + 1) % u.thrown.length]; // старый мусор лежит, пока до него не дойдёт очередь

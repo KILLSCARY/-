@@ -2,3 +2,8 @@ tools/
 README.md
 models/_*
 *.md
+tests/
+--main/
+*.pdf
+*.ps1
+commit-message.txt

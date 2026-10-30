@@ -158,11 +158,11 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", samples: 4, cine: .5, fx: false, blob: 0.3, aniso: 16, hd: "webp", ratio: 2, reflections: false, shadows: true, shadowSize: 2048, bloom: 2, bloomStrength: .35, lights: 4, police: true, rain: 700, fps: [120, 40], lite: false, far: 100, npc: 1, animationHz: 30,
+    high:   { aa: "msaa", samples: 4, cine: .5, fx: false, blob: 0.3, aniso: 16, hd: "webp", ratio: 2, reflections: false, shadows: true, shadowSize: 2048, bloom: 2, bloomStrength: .35, lights: 4, police: true, rain: 700, fps: [120, 40], lite: false, far: 100, runFar: 170, npc: 1, animationHz: 30,
         // Чёткий кадр без зерна/размытия; 2× MSAA вместо полного прохода FXAA.
         // Разрешение не падает по таймеру: адаптация реагирует на устойчивые просадки FPS.
         phone: { samples: 2, ratio: 2, aniso: 8, bloom: 4, shadowSize: 1024 } },
-    medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.32, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  npc: 0.6, heat: true,
+    medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.32, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  runFar: 130, npc: 0.6, heat: true,
         // телефон по умолчанию (30.10): плотный экран ×2–3 — в 1,15 пикселя картинка была мылом. Пикселей ×1,75 (рисуем без
         // постобработки — это дёшево), герой и ближние NPC — 60 Гц, дальние NPC — 30 Гц. Не тянет — measureFps
         // сам снизит разрешение, потом графику
@@ -170,8 +170,8 @@ export const QUALITY_TIERS = {
         // модели и текстуры — полные, не облегчённые (lite: 512 точек — вблизи на плотном экране размыты)
         phone: { ratio: 1.6, animationHz: 30, aniso: 4, lite: true } },
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
-    low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  npc: 0.4, heat: true,
-        phone: { ratio: 1.6, animationHz: 30 } }, // слабый телефон: и тут не 1 пиксель на 3 точки экрана
+    low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  runFar: 100, npc: 0.4, heat: true,
+        phone: { ratio: 1.3, animationHz: 24, rain: 60 } }, // самый слабый телефон: важнее ровные кадры, чем чёткость
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

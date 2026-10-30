@@ -218,7 +218,7 @@ export class Winter {
             transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false });
         this.geometry = {
             box: new THREE.BoxGeometry(1, 1, 1),
-            ball: new THREE.SphereGeometry(1, 10, 7),
+            ball: this.world.tier.lite ? new THREE.SphereGeometry(1, 6, 4) : new THREE.SphereGeometry(1, 10, 7), // шапки снега на столбиках: их сотни
             ornament: new THREE.SphereGeometry(1, 6, 4),
             bulb: new THREE.OctahedronGeometry(1),
             cylinder: new THREE.CylinderGeometry(1, 1, 1, 8),
@@ -274,10 +274,10 @@ export class Winter {
                 }
                 this.lamp(side * 4.1, side < 0 ? -5 : 10);
                 this.birch(side * 5.65, side < 0 ? 8 : 0, 6.1 + index % 3);
-                this.birch(side * 7.3, side < 0 ? 14 : -15, 7.1);
-                this.pine(side * 8, side < 0 ? -12 : 5, 5.8 + index % 2);
-                this.bench(side * 5.5, side < 0 ? 2 : 14);
-                this.bin(side * 5, side < 0 ? -14 : 8);
+                // на слабых устройствах улица реже: мелочь у домов на бегу всё равно не разглядеть
+                if (!this.world.tier.lite) this.birch(side * 7.3, side < 0 ? 14 : -15, 7.1);
+                if (!this.world.tier.lite || index % 2) this.pine(side * 8, side < 0 ? -12 : 5, 5.8 + index % 2);
+                if (!this.world.tier.lite) { this.bench(side * 5.5, side < 0 ? 2 : 14); this.bin(side * 5, side < 0 ? -14 : 8); }
             }
             if (index % 2 === 0) this.kiosk(-6.3, -8);
             if (index % 2 === 0) { this.playground(7, -15); this.car(6.5, -6); }
@@ -291,6 +291,7 @@ export class Winter {
                 const mesh = new THREE.Mesh(geo, this.materials[kind]);
                 mesh.receiveShadow = kind === 'solid'; mesh.matrixAutoUpdate = false;
                 if (kind === 'soft') mesh.renderOrder = 1;
+                if (this.world.tier.lite && /^(store_|atm_|blade_|halo)/.test(kind)) (group.userData.signs ||= []).push(mesh); // на слабых устройствах вывески вдали не рисуем: у каждой свой материал, это лишний вызов отрисовки
                 group.add(mesh); for (const piece of list) piece.dispose();
             }
             group.position.z = this.behind - 16 - index * 32; // улица и за спиной героя: в меню камера смотрит назад
@@ -584,7 +585,7 @@ export class Winter {
         this.box(c.iron, x, .6, z, .055, .055, length);
         this.box(c.iron, x, 1.02, z, .075, .08, length);
         this.box(c.snow, x, 1.08, z, .11, .055, length);
-        for (let d = -length / 2; d <= length / 2; d += .75) {
+        for (let d = -length / 2; d <= length / 2; d += this.world.tier.lite ? 1.5 : .75) {
             this.box(c.iron, x, .64, z + d, .06, .88, .06);
             this.part('ball', c.snow, x, 1.1, z + d, .08, .055, .08);
         }
@@ -623,7 +624,7 @@ export class Winter {
             const mid = [(a[0] + b[0]) / 2, y + .18, (a[2] + b[2]) / 2];
             this.rod(c.bark, a, mid, .05); this.rod(c.dark, mid, b, .027);
             if (i % 2 === 0) this.rod(c.snow, [a[0], a[1] + .035, a[2]], [mid[0], mid[1] + .035, mid[2]], .047);
-            for (let j = 0; j < 3; j++) {
+            for (let j = this.world.tier.lite ? 1 : 0; j < (this.world.tier.lite ? 2 : 3); j++) { // на слабых устройствах по одной ветке
                 const turn = (j - 1) * .55;
                 const twig = [b[0] + Math.cos(angle + turn) * .65, b[1] + .4 + this.rand() * .3, b[2] + Math.sin(angle + turn) * .65];
                 this.rod(c.dark, b, twig, .014);
@@ -845,6 +846,8 @@ export class Winter {
         for (const o of this.chunks) {
             o.position.z += move;
             while (o.position.z > this.behind) o.position.z -= this.length;
+            const near = o.position.z > -70;
+            if (o.userData.signs && o.userData.signsOn !== near) { o.userData.signsOn = near; for (const m of o.userData.signs) m.visible = near; }
         }
         this.flash = (this.flash || 0) + dt; // мигалки постов ДПС: красный и синий по очереди
         const on = Math.floor(this.flash * 3) % 2 === 0;
