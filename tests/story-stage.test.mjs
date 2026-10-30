@@ -4,7 +4,7 @@ import * as THREE from '../js/vendor/three.module.js';
 import { StoryStage } from '../js/story-stage.js';
 
 test('главы загружают нужные модели и удаляют их после сцены', () => {
-    for (const [chapter, expected] of [[1, ['station']], [2, ['cordon', 'case']]]) {
+    for (const [chapter, expected] of [[1, ['station']]]) {
         const scene = new THREE.Scene(), calls = [];
         const stage = new StoryStage(scene, chapter, 1.7, (url, done) => calls.push({ url, done }));
         assert.deepEqual(calls.map(c => c.url.split('/').pop().replace('.glb', '')), expected);
@@ -20,6 +20,13 @@ test('главы загружают нужные модели и удаляют 
         assert.equal(disposed, 2);
         assert.equal(stage.root.children.length, 0);
     }
+});
+
+test('во второй главе на дороге нет случайного кордона и кейса', () => {
+    const scene = new THREE.Scene();
+    const stage = new StoryStage(scene, 2, 0, () => assert.fail('модели не должны загружаться'));
+    assert.equal(stage.root.children.length, 0);
+    stage.dispose();
 });
 
 test('вход штаба крепится к фасаду и удаляется после заставки', () => {

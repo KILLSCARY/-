@@ -6,12 +6,8 @@ export class ChapterScene {
     constructor(game, story, onDone) {
         this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
         this.stage = new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
-        this.hiddenScenery = [];
-        if (story.id === 3) game.scene.traverse(o => {
-            if (!o.userData?.house || o.userData.side !== -1 || !o.visible) return;
-            const pos = new THREE.Vector3(); o.getWorldPosition(pos);
-            if (Math.abs(pos.z + 14) < 11) { this.hiddenScenery.push(o); o.visible = false; }
-        });
+        this.hiddenScenery = new Map();
+        if (story.id === 3) this.clearEntrance();
         const road = game.world?.roadMat, reflector = game.world?.reflector;
         if (road) {
             this.roadState = { road, reflector, reflectorVisible: reflector?.visible,
@@ -40,8 +36,25 @@ export class ChapterScene {
         this.ui.hidden = false;
         document.getElementById('phone-cutscene-skip').onclick = () => this.finish();
     }
+    clearEntrance() {
+        for (const bank of this.game.world?.swaps?.bank || []) {
+            const { house, side } = bank.userData;
+            if (!house || side !== -1 || Math.abs(house.position.z + 14) >= 11) continue;
+            let previous = this.hiddenScenery.get(bank);
+            if (!previous) {
+                previous = { visible: bank.visible, x: house.position.x };
+                this.hiddenScenery.set(bank, previous);
+            } else if (house.position.x !== -11) {
+                // A deferred bank model may move the house after the scene starts.
+                previous.x = house.position.x;
+            }
+            bank.visible = false;
+            house.position.x = -11;
+        }
+    }
     update(dt) {
         this.time += dt;
+        if (this.story.id === 3) this.clearEntrance();
         const camera = this.game.camera, portrait = camera.aspect < .8;
         this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];
         const t = THREE.MathUtils.clamp(this.time / 10.5, 0, 1);
@@ -55,7 +68,10 @@ export class ChapterScene {
         if (this.done) return;
         this.done = true;
         this.stage.dispose(); this.ui.hidden = true;
-        for (const item of this.hiddenScenery) item.visible = true;
+        for (const [bank, previous] of this.hiddenScenery) {
+            bank.visible = previous.visible;
+            bank.userData.house.position.x = previous.x;
+        }
         if (this.roadState) {
             const { road, reflector, reflectorVisible, normalScale, ...original } = this.roadState;
             Object.assign(road, original); road.normalScale.copy(normalScale); road.needsUpdate = true;

@@ -1278,13 +1278,8 @@ class Game {
         this.tier = { ...base, ...(this.mobile && base.phone), ...(s >= 1 && { reflections: false }), ...(s >= 2 && { shadows: false }), ...(s >= 3 && { bloom: 0, cine: 0 }) };
         const shadowSize = this.tier.shadowSize || 1024;
         if (this.moon.shadow.mapSize.x !== shadowSize) { this.moon.shadow.mapSize.set(shadowSize, shadowSize); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
-        if (this.tier.reflections && this.location === "street") { // зеркало луж — только в мокром ночном районе (зима под снегом, Дубай сухой)
-            // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
-            const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
-            this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
-        } else {
-            this.world.disableReflections();
-        }
+        // Непрозрачный асфальт без зеркала: карта луж давала чёрные пятна на дороге.
+        this.world.disableReflections();
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.moon.castShadow = this.tier.shadows;
         if (prevShadows !== this.tier.shadows) { // шейдеры с тенями и без — разные, пересобрать

@@ -43,3 +43,21 @@ test('после заставки восстанавливаются матер�
         assert.equal(reflector.visible, true);
     } finally { globalThis.document = old; }
 });
+
+test('дом за скрытым павильоном возвращается к тротуару и затем восстанавливается', () => {
+    const old = globalThis.document;
+    const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
+    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id] };
+    try {
+        const house = new THREE.Group(); house.position.set(-17, 0, -14);
+        const bank = new THREE.Group(); bank.userData = { house, side: -1 }; house.add(bank);
+        const scene = new THREE.Scene(); scene.add(house);
+        const game = { scene, camera: new THREE.PerspectiveCamera(), world: { swaps: { bank: [bank] } } };
+        const cut = new ChapterScene(game, { id: 3 }, () => {});
+        assert.equal(bank.visible, false); assert.equal(house.position.x, -11);
+        house.position.x = -18; cut.update(.1);
+        assert.equal(house.position.x, -11);
+        cut.finish();
+        assert.equal(bank.visible, true); assert.equal(house.position.x, -18);
+    } finally { globalThis.document = old; }
+});

@@ -3,8 +3,7 @@ import { loadModel, preloadModel } from './models.js';
 
 const PROPS = {
     1: [{ url: 'models/story/station.glb', x: -3.6, z: 0, height: 3.1 }],
-    2: [{ url: 'models/story/cordon.glb', x: 2.5, z: 0, height: 1.6 },
-        { url: 'models/story/case.glb', x: 1.6, z: 1, height: .45 }],
+    2: [],
     3: [],
 };
 

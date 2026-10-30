@@ -517,8 +517,8 @@ export class World {
         this.roadMap = roadTex.map;
         this.roadRepeat = STREET_LEN / 6;
         this.roadMat = new THREE.MeshStandardMaterial({
-            ...roadTex, alphaMap: roadTex.roughnessMap, transparent: true, opacity: 0.92,
-            color: 0x8c847a, roughness: 0.75, metalness: 0.2, normalScale: new THREE.Vector2(0.5, 0.5), envMapIntensity: 0.8,
+            ...roadTex, roughnessMap: null, transparent: false, opacity: 1,
+            color: 0x8c847a, roughness: 0.68, metalness: 0.18, normalScale: new THREE.Vector2(0.24, 0.24), envMapIntensity: 0.8,
         });
         const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN), this.roadMat);
         roadMesh.rotation.x = -Math.PI / 2;
@@ -669,9 +669,9 @@ export class World {
     wetSheen(on = this.sheenOn) {
         this.sheenOn = on;
         const day = (this.location || "street") === "vietnam"; // днём (Нячанг) яркое небо в отражении — асфальт блестел фольгой
-        this.roadMat.roughness = on && !day ? 0.42 : day ? 0.82 : 0.75;
-        this.roadMat.metalness = on && !day ? 0.35 : day ? 0.08 : 0.2;
-        this.roadMat.envMapIntensity = on && !day ? 1.6 : day ? 0.35 : 0.8;
+        this.roadMat.roughness = day ? 0.82 : 0.68;
+        this.roadMat.metalness = day ? 0.08 : 0.18;
+        this.roadMat.envMapIntensity = day ? 0.35 : 0.8;
         // зеркало луж (хорошая графика) затемнено под ночь — днём лужи выходили чёрными «нефтяными» пятнами
         this.reflector?.material.uniforms.color.value.setRGB(...(day ? [0.55, 0.55, 0.58] : [0.42, 0.4, 0.4]));
     }
