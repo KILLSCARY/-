@@ -175,7 +175,6 @@ function parseAnswer(raw) {
 class Game {
     constructor() {
         window.game = this; // удобно для отладки из консоли
-        setTimeout(() => this.syncRewards?.(), 1500);
         this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
@@ -234,6 +233,7 @@ class Game {
         // невыкупленного героя (раньше все были бесплатными) меняем на стартового
         this.hub.render(); // кошелёк и плитки — сразу из локальной копии
         this.profile.ready.then(() => {
+            this.syncRewards().catch((error) => console.warn("Синхронизация наград недоступна", error));
             if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
             this.hub.render();
             for (const g of this.profile.granted || []) { // разовое начисление (GRANTS) — сказать, что пришло (валюта одна — USDT)
@@ -1289,7 +1289,7 @@ class Game {
             this.resScale = 1;
             this.perfStep = 0;
             const level = value === "auto" ? this.autoQuality : value;
-            if (level !== this.quality) this.setQuality(level); else this.onResize();
+            this.setQuality(level); // повторный выбор тоже восстанавливает снятые адаптацией эффекты
         }
     }
 
@@ -2334,7 +2334,10 @@ class Game {
     // Ошибка — реплика Гориллы с пояснением, без удара и без заряда; табличку можно пересдать в следующем забеге.
     // флаги наград с сервера: что уже выдано на этот Telegram ID; повтор неудавшихся по сети запросов
     async syncRewards() {
-        const d = this.profile.data, r = await prize.rewards();
+        if (!this.profile) return;
+        await this.profile.ready; // раньше шёл по таймеру через 1,5 с и мог записать награды в профиль до загрузки из облака
+        const r = await prize.rewards();
+        const d = this.profile.data; // облачная загрузка могла заменить объект профиля
         if (!r?.rewards) return;
         for (const k of Object.keys(r.rewards)) {
             const [kind, id] = k.split(":");

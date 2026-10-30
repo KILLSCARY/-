@@ -107,3 +107,47 @@ test('пакет монет сохраняет GLB-трансформации, �
     assert.equal(CoinBatch.fromTemplate(new THREE.Group()), null, 'неизвестная модель остаётся на обычном пути');
     batch.mesh.geometry.dispose(); source.geometry.dispose(); source.material.dispose();
 });
+
+// Проверяем настоящие методы Game без запуска WebGL/Telegram конструктора.
+const gameText = await (await import('node:fs/promises')).readFile(new URL('../js/game.js', import.meta.url), 'utf8');
+function gameMethod(name, prizeStub = {}) {
+    let start = gameText.indexOf(`    ${name}(`);
+    if (start < 0) start = gameText.indexOf(`    async ${name}(`);
+    const end = gameText.indexOf('\n    }', start) + 6;
+    return Function('QUALITY', 'RES_MIN', 'prize', `return ({${gameText.slice(start, end)}\n}).${name}`)('auto', 0.6, prizeStub);
+}
+
+test('повторный выбор того же качества восстанавливает эффекты, снятые адаптацией', () => {
+    const setSetting = gameMethod('setSetting');
+    const previous = globalThis.localStorage;
+    globalThis.localStorage = { setItem() {} };
+    try {
+        let applied = 0;
+        const g = { settings: {}, quality: 'medium', autoQuality: 'medium', perfStep: 3,
+            applySettings() {}, frameMeter: { reset() {} },
+            setQuality(level) { assert.equal(level, 'medium'); assert.equal(this.perfStep, 0); applied++; },
+        };
+        setSetting.call(g, 'quality', 'auto');
+        assert.equal(applied, 1);
+    } finally { globalThis.localStorage = previous; }
+});
+
+test('награды ждут облако и записываются в актуальный профиль после ответа сервера', async () => {
+    let ready, response, requested = false, saves = 0;
+    const profile = { data: {}, ready: new Promise(resolve => { ready = resolve; }), save() { saves++; } };
+    const syncRewards = gameMethod('syncRewards', { rewards() {
+        requested = true;
+        return new Promise(resolve => { response = resolve; });
+    } });
+    await syncRewards.call({}); // запуск до создания профиля — без ошибки
+    const pending = syncRewards.call({ profile });
+    assert.equal(requested, false);
+    ready();
+    await Promise.resolve();
+    assert.equal(requested, true);
+    const current = profile.data = {};
+    response({ rewards: { 'boss:one': true } });
+    await pending;
+    assert.equal(current.bossPaid.one, 1);
+    assert.equal(saves, 1);
+});
