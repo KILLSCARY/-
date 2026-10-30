@@ -93,8 +93,9 @@ export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon
 export const VIETNAM = {
     heroes: ["dima", "tovarus"],
     sky: { zenith: "#536e99", mid: "#d28c87", horizon: "#f4c38a", sun: { x: .43, y: .22, r: .036, color: "#ffe3a2" } },
-    fog: 0xd5aa91, near: 65, far: 275, viewFar: 320,
-    hemi: [0xffdcad, 0x695965], light: 1.25, moon: 0xffc086,
+    skyImage: "textures/vietnam/sky-v1.webp", skyFill: "#d8e6f4", // небо-картинка, ниже неё — цвет её нижнего края
+    fog: 0xcfe0f0, near: 65, far: 275, viewFar: 320,
+    hemi: [0xf4f7ff, 0x7d8088], light: 1.35, moon: 0xfff2dd,
     // постобработка на хорошей графике (Game.applyLook / applyLocationLook): на закате свечение слабое, экспозиция ниже —
     // иначе солнце, небо и стекло сливались в жёлто-белое «мега-свечение»
     post: { bloom: 0.12, exposure: 0.6, grade: 0.35 },
@@ -230,6 +231,7 @@ export const MODELS = {
     coin: [{ url: "models/obj/coin_usdt.glb?v=2", axis: "x", size: 0.62 }],
     testo: [{ url: "models/obj/testo.glb", axis: "y", size: 0.8 }],     // баночка тестобустера — полёт
     choline: [{ url: "models/obj/choline.glb", axis: "y", size: 0.8 }], // баночка холина — магнит
+    ezhovik: [{ url: "models/obj/ezhovik.glb?v=1", axis: "y", size: 0.85 }], // Ежовик — супербег, только Дубай
     // boost (×2): своей модели нет — золотая монета USDT «×2» строится в World (TRX-монета убрана)
     bin: [{ url: "models/obj/trash1.glb?v=2", axis: "y", size: 0.95 }],
     // неоновая вывеска «ОБМЕН 24/7» над подъездами (модель смотрит в +Z, разворот к дороге — в makeBuilding); glow — самосвечение
@@ -648,6 +650,7 @@ export const SETS = [
 export const POWERUPS = {
     testo: { name: "Тестобустер", text: "дикий памп, летишь!", hud: "ПАМП", time: 5, height: 4.2, color: 0x35e39b },
     choline: { name: "Холин", text: "мысли и USDT тянутся к тебе", hud: "ХОЛИН", time: 10, color: 0xf2c46b },
+    ezhovik: { name: "Ежовик", text: "супербег, тебя не остановить!", hud: "ЕЖОВИК", time: 3, speed: 1.5, color: 0xffb13b, location: "vietnam" }, // только в Дубае: там бегают Дима и Саша Товарус
 };
 // «Карта» — редкая вторая валюта (js/cards.js, economy_v7: банковская карта, решение Гриши). Девушка с картой у края
 // дороги; perRun — максимум за забег: первая гарантированно после firstAt м, следующая через nextGap м; в погоне и в бою

@@ -397,7 +397,20 @@ class Game {
             }
             this.setSkyCanvas(c); return;
         }
-        if (vn) return this.paintSunset(g, W, H, vn, c);
+        if (vn) {
+            if (!this.dubaiSky) {
+                this.dubaiSky = new Image();
+                this.dubaiSky.onload = () => { if (this.location === "vietnam") { this.skyKey = null; this.paintSky(); this.stillDrawn = false; } };
+                this.dubaiSky.src = VIETNAM.skyImage;
+            }
+            if (this.dubaiSky.complete && this.dubaiSky.naturalWidth) { // картинка — верх кадра, облака плывут (driftSky)
+                const img = this.dubaiSky, visibleH = H * .6, sourceW = Math.min(img.width, img.height * W / visibleH);
+                g.fillStyle = VIETNAM.skyFill; g.fillRect(0, 0, W, H);
+                g.drawImage(img, (img.width - sourceW) / 2, 0, sourceW, img.height, 0, 0, W, visibleH);
+                return this.setSkyCanvas(c);
+            }
+            return this.paintSunset(g, W, H, vn, c);
+        }
         let seed = 11;
         const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
         // звёзды: были одного размера — белые круглые точки, «снег» старой игры. Теперь почти все — пылинки
@@ -429,6 +442,10 @@ class Game {
     driftSky() {
         const tex = this.scene.background;
         if (!tex?.isTexture) return;
+        if (this.location === "vietnam") { // Дубай: облака идут в одну сторону; край картинки отражается, шва нет
+            tex.offset.set(this.t * 0.006, 0);
+            return;
+        }
         const a = (this.t / SKY_DRIFT.period) * Math.PI * 2, room = SKY_DRIFT.zoom;
         tex.offset.set(room * (0.5 + 0.5 * Math.sin(a)), room * (0.5 + 0.25 * Math.sin(a * 0.5 + 1)));
     }
@@ -436,6 +453,7 @@ class Game {
     setSkyCanvas(c) {
         const tex = new THREE.CanvasTexture(c);
         tex.encoding = THREE.sRGBEncoding;
+        if (this.location === "vietnam") tex.wrapS = THREE.MirroredRepeatWrapping;
         tex.repeat.set(1 - SKY_DRIFT.zoom, 1 - SKY_DRIFT.zoom); // чуть крупнее экрана — есть куда плыть без краёв и повторов (driftSky)
         this.scene.background?.dispose?.();
         this.scene.background = tex;
@@ -1084,6 +1102,7 @@ class Game {
             { id: "fly", name: POWERUPS.testo.hud, left: this.flight ? this.fx.fly : 0, color: hex(POWERUPS.testo.color) },
             { id: "x2", name: "×2", left: this.boostLeft, color: "#e9c25a" },
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
+            { id: "ezhovik", name: POWERUPS.ezhovik.hud, left: this.fx.ezhovik || 0, color: hex(POWERUPS.ezhovik.color) },
             { id: "honey", name: "Рывок", left: this.fx.honey, color: "#f0a33a" },
             { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
             { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#35e39b" },
@@ -1677,6 +1696,7 @@ class Game {
         }
         if (this.fx.turbo > 0) this.speed *= 1.3; // «Напор» / «Попутный ветер»
         if (this.fx.honey > 0) this.speed *= 1.15; // «Рывок»
+        if (this.fx.ezhovik > 0) this.speed *= POWERUPS.ezhovik.speed;
         if (this.dashTo && this.distance < this.dashTo) { this.speed *= CARD_DASH.speed; this.fx.safe = Math.max(this.fx.safe, 0.5); } // «Рывок» за карты
         if (this.bossFight) this.speed = this.bossFight.cfg.speed; // в бою — ровная скорость босса
         // перед стеной-возражением — почти остановка, пока игрок не выберет ответ (нажал карточку или свайп вверх);
@@ -1811,7 +1831,7 @@ class Game {
         else if (this.stumble > 0) this.chase(dt);
         else if (this.storyChasing()) this.storyChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
-        for (const k of ["magnet", "honey", "safe", "turbo"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         if (this.windCalm > 0) this.windCalm -= dt;
         this.collide(dt, move);
         this.updateHud();
@@ -2050,6 +2070,7 @@ class Game {
         this.hub.toast(`${p.name}: ${p.text}`);
         if (kind === "choline") this.fx.magnet = Math.max(this.fx.magnet, p.time);
         if (kind === "testo") this.fly(p.time);
+        if (kind === "ezhovik") { this.fx.ezhovik = p.time; this.fx.safe = Math.max(this.fx.safe, p.time + 0.5); this.kick(0.2, 5); } // с запасом: не влететь в препятствие на выходе из супербега
     }
 
     // Тестобустер: присед и толчок (TAKEOFF с), полёт в верхней точке клипа, спуск (LAND_AIR) и приземление

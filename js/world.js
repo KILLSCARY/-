@@ -18,6 +18,21 @@ import { Winter, WINTER_OBSTACLES } from "./winter.js";
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
 const STREET_LEN = 160;
+// Ночью препятствия, полиция и прохожие сливались с асфальтом: подсвечиваем их собственной текстурой.
+// Без новых источников света: другое число источников — пересборка всех шейдеров и рывок в забеге
+const LIFT = { object: 0.34, character: 0.3 };
+function liftDark(root, k) {
+    root.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+            if (!m.emissive) continue;
+            m.emissive.copy(m.map ? new THREE.Color(0xffffff) : m.color);
+            m.emissiveMap = m.map || null;
+            m.emissiveIntensity = k;
+            m.needsUpdate = true;
+        }
+    });
+}
 const NIKITA_X = { street: 3.9, winter: 3.25, vietnam: 4.4 }; // где у района край дороги: в зимнем сразу за ней сугроб и ограда
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
@@ -1480,6 +1495,7 @@ export class World {
                     box.setFromObject(m);
                     const c = box.getCenter(new THREE.Vector3());
                     m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
+                    if (!cfg.glow && kind !== "coin") liftDark(m, LIFT.object);
                     m.traverse((o) => {
                         if (!o.isMesh) return;
                         o.castShadow = true;
@@ -1511,6 +1527,7 @@ export class World {
     // Инспектор ДПС со скелетом: каждый — свой клон и свой микшер анимаций
     // масштаб и сдвиг модели со скелетом: по росту height или (кошка) по длине length вдоль Z; ноги — на земле
     fitRig(gltf, height, length) {
+        liftDark(gltf.scene, LIFT.character);
         let box = new THREE.Box3().setFromObject(gltf.scene);
         let size = box.getSize(new THREE.Vector3());
         // сборки tools/meshy-convert (Малахов, Дима, Товарус): коробка скина в других единицах, чем кости (×100) —
@@ -2475,7 +2492,8 @@ export class World {
         // иногда — баночка из NS Store на свободной полосе
         if (!this.noPickups && !taken(free, z + 1.5) && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
             this.sincePickup = 0;
-            this.addPickup(pick(Object.keys(POWERUPS)), free, z + 1.5);
+            const here = Object.keys(POWERUPS).filter((k) => !POWERUPS[k].location || POWERUPS[k].location === this.location);
+            this.addPickup(pick(here), free, z + 1.5);
         }
     }
 
