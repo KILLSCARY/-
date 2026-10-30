@@ -462,7 +462,7 @@ export class Vietnam {
         this.detailArtworkReady = true;
     }
     async loadCars() {
-        const gltf = await new Promise((resolve, reject) => loadModel('models/obj/lite/car1.glb', resolve, reject));
+        const gltf = await new Promise((resolve, reject) => loadModel('models/obj/lite/car1.glb?v=4', resolve, reject));
         const model = gltf.scene.clone(true), bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3());
         if (size.x > size.z) model.rotation.y = Math.PI / 2;
         model.updateMatrixWorld(true); bounds.setFromObject(model); bounds.getSize(size); model.scale.multiplyScalar(4.4 / size.z);
