@@ -265,7 +265,9 @@ class Game {
         const canvas = $("game");
         // лёгкая графика рисует прямо на экран (см. render()): сглаживание — аппаратное MSAA холста, на телефонных
         // видеокартах оно почти бесплатное. Остальные уровни сглаживают в постобработке (FXAA/MSAA буферов)
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !!this.tier.direct, powerPreference: "high-performance" });
+        // На телефонах MSAA холста вместе с плотным экраном перегружает GPU и память. Для высокой графики
+        // края сглаживает FXAA, а средняя остаётся лёгкой и стабильной.
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.mobile && !!this.tier.direct, powerPreference: this.mobile ? "default" : "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
         setKtx2Renderer(this.renderer); // какие сжатые форматы умеет видеокарта — для HD-текстур в KTX2
@@ -1101,7 +1103,11 @@ class Game {
         if (this.tier.heat) {
             if (this.state === "playing" || this.state === "fight") this.hot = (this.hot || 0) + dt;
             else if (this.state === "menu") this.hot = Math.max(0, (this.hot || 0) - dt * (HEAT_AFTER / 120));
-            const want = this.hot > HEAT_AFTER ? (this.mobile ? 0.9 : 0.85) : 1; // телефон: ниже — заметно мыльнее
+            // Мобильный запас быстро уходит в Telegram: после 45 с понижаем площадь кадра, после 90 с — ещё раз.
+            // Это снижает нагрев до того, как iOS сам урежет частоту и вызовет рывки.
+            const want = this.mobile && this.hot > HEAT_AFTER * 2 ? 0.68
+                : this.mobile && this.hot > HEAT_AFTER ? 0.8
+                    : this.hot > HEAT_AFTER ? 0.85 : 1;
             if ((this.heatScale || 1) !== want && (want < 1 || this.state === "menu")) { this.heatScale = want; this.onResize(); }
         }
 
@@ -1378,7 +1384,10 @@ class Game {
 
     // частота забега: выбранная в настройках, по умолчанию на телефоне 60 (120 — вдвое больше работы видеокарте:
     // телефон грелся и через пару минут сбрасывал частоту сам), на компьютере — до 120
-    frameRate() { return this.settings.frameRate === 120 ? 120 : 60; } // по умолчанию 60 везде (и на компьютере); 120 — только выбором в настройках
+    frameRate() {
+        if (this.mobile && this.quality === "high") return 45; // постобработка, тени и отражения не должны перегревать телефон
+        return this.settings.frameRate === 120 ? 120 : 60;
+    }
 
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
     frameBudget() {

@@ -144,7 +144,7 @@ export const QUALITY = "auto"; // "auto" | "high" | "medium" | "low"
 // hd — HD-текстуры героев (CHARACTERS[…].hd, 2048): "webp" — цвет и нормали; "ktx2" — только цвет, сжатый Basis
 // (в памяти видеокарты легче обычной 1024); нет — обычные 1024.
 // heat — «тепловой ограничитель» на телефоне: после HEAT_AFTER секунд игры подряд разрешение на ступень ниже (меньше нагрев)
-export const HEAT_AFTER = 150;
+export const HEAT_AFTER = 45;
 // «Кино»-обработка кадра (финальный проход, js/game.js OutputShader): тени в холодный сине-бирюзовый, свет в тёплый
 // янтарный (shadow/light — множители RGB, grade — сила), зерно плёнки, хроматика к краям объектива, размытие краёв
 // на скорости (speedFrom…speedTo м/с → 0…1), menu — мягкое размытие фона в меню (0…1; герой в фокусе).
@@ -163,14 +163,14 @@ export const QUALITY_TIERS = {
         // 30.10 (жалоба «мыло и шум» с iPhone): FXAA, зерно, хроматика и размытие на скорости на маленьком плотном экране
         // и были «мылом» — на телефоне их нет (fx: false), цветокоррекция и свечение остаются. FXAA сглаживает
         // именно контуры героя, проводов и декора; оно доступно только при добровольно выбранной высокой графике.
-        phone: { aa: "fxaa", fx: false, ratio: 2.4, aniso: 8, bloom: 4, shadowSize: 512, mirrorEvery: 2, heat: true } },
+        phone: { aa: "fxaa", fx: false, ratio: 1.6, aniso: 4, bloom: 4, shadowSize: 512, mirrorEvery: 2, heat: true } },
     medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.55, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  npc: 0.6, heat: true,
         // телефон по умолчанию (30.10): плотный экран ×2–3 — в 1,15 пикселя картинка была мылом. Пикселей ×1,75 (рисуем без
         // постобработки — это дёшево), герой и ближние NPC — 60 Гц, дальние NPC — 30 Гц. Не тянет — measureFps
         // сам снизит разрешение, потом графику
         // 30.10: ×2,2 на iPhone (экран ×3) — всё ещё мыло. Рисуем в полную плотность экрана (без постобработки это по силам),
         // модели и текстуры — полные, не облегчённые (lite: 512 точек — вблизи на плотном экране размыты)
-        phone: { ratio: 3, animationHz: 30, aniso: 8, lite: false } },
+        phone: { ratio: 1.6, animationHz: 30, aniso: 4, lite: true } },
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
     low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  npc: 0.4, heat: true,
         phone: { ratio: 1.6, animationHz: 30 } }, // слабый телефон: и тут не 1 пиксель на 3 точки экрана

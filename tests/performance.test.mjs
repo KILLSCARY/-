@@ -167,6 +167,13 @@ test('повторный выбор того же качества восста�
     } finally { globalThis.localStorage = previous; }
 });
 
+test('высокая графика на телефоне ограничена 45 FPS, остальная игра сохраняет выбранный лимит', () => {
+    const frameRate = gameMethod('frameRate');
+    assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 120 } }), 45);
+    assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: { frameRate: 120 } }), 120);
+    assert.equal(frameRate.call({ mobile: false, quality: 'high', settings: {} }), 60);
+});
+
 
 test('награды ждут облако и записываются в актуальный профиль после ответа сервера', async () => {
     let ready, response, requested = false, saves = 0;
