@@ -194,6 +194,12 @@ class Game {
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
+        // 30.10: всем один раз — графика «Авто» и 60 FPS (на «Высокой» и «120» телефоны давали мыло, пока это чиним).
+        // Дальше выбор игрока снова сохраняется
+        if (this.settings.v !== 2) {
+            delete this.settings.quality; delete this.settings.frameRate; this.settings.v = 2;
+            try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
+        }
         const requestedLocation = new URLSearchParams(location.search).get("location");
         if (["winter", "street", "auto"].includes(requestedLocation)) {
             this.settings.location = requestedLocation;
@@ -1351,7 +1357,7 @@ class Game {
 
     // частота забега: выбранная в настройках, по умолчанию на телефоне 60 (120 — вдвое больше работы видеокарте:
     // телефон грелся и через пару минут сбрасывал частоту сам), на компьютере — до 120
-    frameRate() { return this.settings.frameRate === 120 ? 120 : this.settings.frameRate === 60 || this.mobile ? 60 : 120; }
+    frameRate() { return this.settings.frameRate === 120 ? 120 : 60; } // по умолчанию 60 везде (и на компьютере); 120 — только выбором в настройках
 
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
     frameBudget() {
