@@ -4,6 +4,7 @@
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { loadModel } from './models.js';
+import { BANKS } from './config.js';
 
 // Existing lightweight Corvette is used until the newly supplied high-resolution model is available.
 const PARKED_CAR = 'models/obj/lite/car1.glb';
@@ -93,6 +94,94 @@ function shopTexture() {
     });
 }
 
+// Витрины на первых этажах (между подъездами): Сбер и Альфа — те же фото-вывески, что в районе (BANKS), обменники
+// рисуются здесь. Всё «по-зимнему»: холоднее тон, иней по углам, шапка снега на вывеске (winterize), сосульки и полка
+// снега сверху, цветной отсвет на сугробе. Порядок по домам (10 мест на улице), null — дом без витрины
+const STORE_ORDER = ['sber', 'obmen', 'alfa', null, 'p2p', 'sber', 'alfa', 'obmen', null, 'alfa'];
+const STORE_LIGHT = { sber: 0x5fe39a, alfa: 0xff4a5a, obmen: 0x48e0ff, p2p: 0xffb347 };
+
+// Иней и снег поверх вывески: углы в изморози, по краю — крупинки, сверху — неровная шапка с подтёками.
+// emissive — та же форма для карты свечения: снег и иней гасят свет
+function winterize(g, W, H, seed, emissive) {
+    const rand = random(seed);
+    if (!emissive) { // холодный вечер: тени уходят в синеву
+        g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(196,208,240,.35)'; g.fillRect(0, 0, W, H);
+        g.globalCompositeOperation = 'source-over';
+    }
+    for (const [cx, cy] of [[0, 0], [W, 0], [0, H], [W, H]]) {
+        const r = Math.min(W, H) * (.45 + rand() * .2), fade = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+        fade.addColorStop(0, emissive ? 'rgba(0,0,0,.85)' : 'rgba(236,244,255,.75)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = fade; g.fillRect(0, 0, W, H);
+    }
+    g.fillStyle = emissive ? '#000' : 'rgba(240,247,255,.8)';
+    for (let i = 0; i < 1400; i++) { // крупинки инея — гуще у краёв
+        const edge = Math.pow(rand(), 3) * Math.min(W, H) * .22, side = Math.floor(rand() * 4);
+        const x = side === 0 ? edge : side === 1 ? W - edge : rand() * W;
+        const y = side === 2 ? edge : side === 3 ? H - edge : rand() * H;
+        g.fillRect(x, y, 1 + rand() * 2.5, 1 + rand() * 2.5);
+    }
+    const cap = H * .1; // шапка снега: неровный край и подтёки
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(W, 0);
+    for (let x = W; x >= 0; x -= W / 40) g.lineTo(x, cap * (.55 + rand() * .45) + (rand() < .12 ? cap * (.6 + rand()) : 0));
+    g.closePath();
+    if (!emissive) { g.shadowColor = 'rgba(20,32,70,.55)'; g.shadowBlur = H * .03; g.shadowOffsetY = H * .012; }
+    const snow = g.createLinearGradient(0, 0, 0, cap * 1.6);
+    snow.addColorStop(0, emissive ? '#000' : '#ffffff'); snow.addColorStop(1, emissive ? '#000' : '#d6e3f8');
+    g.fillStyle = snow; g.fill();
+    g.shadowColor = 'transparent'; g.shadowBlur = 0; g.shadowOffsetY = 0;
+}
+
+// Обменник: тёмная вывеска с неоновой надписью, за стеклом тёплый зал и табло курса; emissive — только то, что светится
+function exchangeTexture(kind, emissive) {
+    return texture(1024, 640, (g, W, H) => {
+        const neon = kind === 'p2p' ? '#ffb347' : '#48e0ff', title = kind === 'p2p' ? 'P2P ОБМЕН' : 'ОБМЕН ВАЛЮТ';
+        g.fillStyle = emissive ? '#000' : '#1b2436'; g.fillRect(0, 0, W, H);
+        const top = H * .3;
+        const hall = g.createLinearGradient(0, top, 0, H); // зал за стеклом: тёплый свет и стойка
+        hall.addColorStop(0, emissive ? '#7a4a1c' : '#ffd29a'); hall.addColorStop(1, emissive ? '#2a1606' : '#a8642e');
+        g.fillStyle = hall; g.fillRect(40, top + 30, W - 80, H - top - 70);
+        g.fillStyle = emissive ? '#000' : '#5a3a26'; g.fillRect(40, H - 150, W - 80, 60);
+        g.fillStyle = '#05070c'; g.fillRect(W * .58, top + 60, W * .34, H * .3); // табло курса
+        g.font = '700 46px Arial, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.shadowColor = '#ffcf3a'; g.shadowBlur = 12; g.fillStyle = '#ffd84a';
+        g.fillText('USDT  94.20', W * .6, top + 105); g.fillText('RUB  ⇄  USDT', W * .6, top + 165);
+        g.shadowBlur = 0;
+        if (!emissive) { // рамы витрины и плакат
+            g.fillStyle = '#121a28';
+            for (const x of [40, W * .36, W * .54, W - 52]) g.fillRect(x, top + 30, 12, H - top - 70);
+            g.fillRect(40, top + 24, W - 80, 12);
+            g.fillStyle = '#f4efe6'; g.fillRect(W * .1, top + 70, W * .2, H * .32);
+            g.fillStyle = '#1b2436'; g.font = '800 34px Arial Black, Arial, sans-serif'; g.textAlign = 'center';
+            g.fillText(kind === 'p2p' ? 'БЕЗ' : 'ВЫГОДНЫЙ', W * .2, top + 130); g.fillText(kind === 'p2p' ? 'КОМИССИИ' : 'КУРС', W * .2, top + 175);
+        }
+        g.fillStyle = emissive ? '#000' : '#0d1422'; g.fillRect(0, 0, W, top); // вывеска: неон на тёмной плашке
+        g.font = '900 110px Arial Black, Arial, sans-serif'; g.textAlign = 'center';
+        g.shadowColor = neon; g.shadowBlur = 28; g.fillStyle = neon; g.fillText(title, W / 2, top * .55);
+        g.shadowBlur = 8; g.fillStyle = '#ffffff'; g.globalAlpha = .55; g.fillText(title, W / 2, top * .55); g.globalAlpha = 1;
+        g.shadowBlur = 0;
+        g.font = '700 30px Arial, sans-serif'; g.fillStyle = emissive ? '#555' : '#c6d4ea';
+        g.fillText('USDT · RUB · 24/7', W / 2, top * .9);
+        winterize(g, W, H, kind === 'p2p' ? 41 : 17, emissive);
+    });
+}
+
+// Консоль — светящаяся вывеска поперёк тротуара: её видно по ходу бега, а витрину на стене — только сбоку
+function bladeTexture(kind) {
+    return texture(256, 320, (g, W, H) => {
+        const look = {
+            sber: ['#1a9f45', '#ffffff', 'СБЕР', 'БАНК'], alfa: ['#e8262f', '#ffffff', 'А', 'АЛЬФА'],
+            obmen: ['#0d1422', '#48e0ff', 'ОБМЕН', '₮ ⇄ ₽'], p2p: ['#0d1422', '#ffb347', 'P2P', 'ОБМЕН'],
+        }[kind];
+        g.fillStyle = '#1c2738'; g.fillRect(0, 0, W, H);
+        g.fillStyle = look[0]; g.fillRect(14, 14, W - 28, H - 28);
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.shadowColor = look[1]; g.shadowBlur = 16; g.fillStyle = look[1];
+        g.font = `900 ${look[2].length > 3 ? 48 : 120}px Arial Black, Arial, sans-serif`; g.fillText(look[2], W / 2, H * .44);
+        g.font = '800 40px Arial Black, Arial, sans-serif'; g.fillText(look[3], W / 2, H * .76);
+        g.shadowBlur = 0;
+        winterize(g, W, H, kind.length * 7, false);
+    });
+}
+
 export class Winter {
     constructor(world, { streetLen, behindZ }) {
         this.world = world; this.length = streetLen; this.behind = behindZ;
@@ -135,6 +224,7 @@ export class Winter {
             plane: new THREE.PlaneGeometry(1, 1),
         };
         this.temp = new THREE.Object3D();
+        this.stores = {}; // витрины: вид → { mat, aspect } (материал заводится, когда витрина встречается впервые)
         const add = o => { this.world.scene.add(o); this.items.push(o); return o; };
         // A matte, opaque road: lane paint and wheel tracks are baked into one repeating map.
         this.roadMap = texture(512, 1024, (g, W, H) => {
@@ -357,6 +447,61 @@ export class Winter {
             for (const d of [-1.03, 1.03]) this.box(0x6c7f97, side * 8, y + .57, dz + d, .85, .77, .065);
         }
         this.part('plane', 0x233958, side * 7.4, .273, z, 3, 28, 1, [-Math.PI / 2, 0, 0], 'soft');
+        const kind = STORE_ORDER[(index * 2 + (side > 0 ? 1 : 0)) % STORE_ORDER.length];
+        if (kind) this.storefront(side, z - .5, kind, index);
+    }
+
+    // Витрина между подъездами (они на dz −8 и 7): вывеска с рамой, полка снега и сосульки сверху, отсвет на снегу
+    storefront(side, z, kind, index) {
+        const bank = kind === 'sber' || kind === 'alfa';
+        const id = bank ? `bank_${kind}${(index % 4) + 1}` : kind, store = this.store(id, kind);
+        const h = 2.45, w = Math.min(5.6, h * store.aspect), c = this.colours;
+        this.part('plane', 0xffffff, side * 8.2, .3 + h / 2, z, w, h, 1, [0, -side * Math.PI / 2, 0], `store_${id}`);
+        this.box(0x1c2738, side * 8.3, .3 + h / 2, z, .16, h + .24, w + .24); // рама
+        this.box(0x8fa1ba, side * 8.05, .3 + h + .16, z, .45, .1, w + .5); // козырёк
+        this.box(c.snow, side * 8.03, .3 + h + .27, z, .5, .14, w + .55); // снег на козырьке
+        const rand = random(900 + index * 31 + (side > 0 ? 7 : 0));
+        for (let i = 0; i < 9; i++) { // сосульки с края козырька
+            const len = .15 + rand() * .35;
+            this.part('cone', 0xd8e9ff, side * 7.84, .3 + h + .11 - len / 2, z - w / 2 + .2 + rand() * (w - .4), .035, len, .035, [Math.PI, 0, 0]);
+        }
+        this.part('plane', STORE_LIGHT[kind], side * 7.1, .31, z, 3.4, w + 2, 1, [-Math.PI / 2, 0, 0], 'halo'); // отсвет на снегу
+        // консоль у ближнего к бегущему края витрины: кронштейн, двусторонняя вывеска, снег сверху
+        const bz = z + w / 2 + .35;
+        this.box(c.iron, side * 7.75, 3.62, bz, .9, .06, .06);
+        this.part('plane', 0xffffff, side * 7.55, 3.2, bz, .8, 1, 1, null, `blade_${kind}`);
+        this.box(c.snow, side * 7.55, 3.73, bz, .84, .08, .1);
+    }
+
+    // Материал витрины (один на вид, общий для всех кусков улицы): банк — фото-вывеска BANKS по-зимнему, обменник — рисованный
+    store(id, kind) {
+        if (this.stores[id]) return this.stores[id];
+        const cfg = BANKS.list.find((b) => b.name === id);
+        const mat = new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: 1.5, roughness: .55, metalness: .1, envMapIntensity: .3 });
+        if (cfg) {
+            const W = 1024, H = Math.round(W / cfg.aspect), seed = id.length * 13 + Number(id.slice(-1));
+            mat.map = texture(W, H, (g) => { g.fillStyle = '#1b2436'; g.fillRect(0, 0, W, H); });
+            mat.emissiveMap = texture(W, H, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); });
+            const loader = new THREE.ImageLoader();
+            loader.load(`textures/${id}_diff.jpg`, (img) => {
+                const g = mat.map.image.getContext('2d'); g.drawImage(img, 0, 0, W, H); winterize(g, W, H, seed, false); mat.map.needsUpdate = true;
+                mat.map.userData.drawn = true; mat.map.userData.after?.();
+            });
+            loader.load(`textures/${id}_glow.jpg`, (img) => {
+                // свет из окон отделения: вся витрина чуть светится (без этого в зимних сумерках — тёмное пятно), вывеска — ярко
+                const g = mat.emissiveMap.image.getContext('2d');
+                const draw = () => { g.globalAlpha = .45; g.drawImage(mat.map.image, 0, 0, W, H); g.globalAlpha = 1; g.globalCompositeOperation = 'lighter'; g.drawImage(img, 0, 0, W, H); g.globalCompositeOperation = 'source-over'; winterize(g, W, H, seed, true); mat.emissiveMap.needsUpdate = true; };
+                mat.map.userData.drawn ? draw() : (mat.map.userData.after = draw);
+            });
+        } else {
+            mat.map = exchangeTexture(kind, false); mat.emissiveMap = exchangeTexture(kind, true);
+        }
+        this.materials[`store_${id}`] = mat;
+        if (!this.materials[`blade_${kind}`]) {
+            const map = bladeTexture(kind);
+            this.materials[`blade_${kind}`] = new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 1.1, roughness: .6, side: THREE.DoubleSide });
+        }
+        return (this.stores[id] = { mat, aspect: cfg ? cfg.aspect : 1.6 });
     }
 
     fence(x, z, length) {
