@@ -11,6 +11,7 @@ function phoneScreen() {
     ['Ты можешь бежать', 'от жизни. А можешь', 'научиться видеть', 'возможности.', '', 'Встретимся на', 'станции «Обмен».'].forEach((line, i) => ctx.fillText(line, 36, 245 + i * 65));
     ctx.fillStyle = '#92a9c7'; ctx.font = '28px sans-serif'; ctx.fillText('НОВОЕ СООБЩЕНИЕ', 36, 885);
     const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding;
+    tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
     return tex;
 }
 
@@ -37,7 +38,8 @@ export class PhoneScene {
         this.screenMat = new THREE.MeshBasicMaterial({ map: this.screenTexture, toneMapped: false });
         this.phone.add(new THREE.Mesh(this.bodyGeo, this.bodyMat));
         const screen = new THREE.Mesh(this.screenGeo, this.screenMat);
-        screen.position.z = .012; this.phone.add(screen);
+        // Экран отдельно от корпуса: нет мерцания из-за совпадающих поверхностей.
+        screen.position.z = .017; this.phone.add(screen);
         game.scene.add(this.phone);
         this.start = new THREE.Vector3(); this.pos = new THREE.Vector3();
         this.ui = document.getElementById('phone-cutscene');
@@ -71,9 +73,10 @@ export class PhoneScene {
         if (!this.released) {
             if (this.hand) this.hand.getWorldPosition(this.pos);
             else this.pos.copy(rat.position).add(new THREE.Vector3(.3, .9, -.2));
-            this.phone.position.copy(this.pos);
+            // Кисть держит нижний край телефона, а не закрывает центр экрана.
+            this.phone.position.copy(this.pos).add(new THREE.Vector3(-.045, .095, -.025));
             this.phone.rotation.set(0, Math.PI, -.18);
-            if (this.time >= 3.2) { this.released = true; this.start.copy(this.pos); this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». '; }
+            if (this.time >= 3.2) { this.released = true; this.start.copy(this.phone.position); this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». '; }
         } else {
             const t = Math.min(1, (this.time - 3.2) / .75);
             this.phone.position.set(this.start.x + .22 * t, Math.max(.025, this.start.y - 1.9 * t * t), this.start.z - .25 * t);

@@ -19,7 +19,9 @@ test('телефон следует за кистью, падает и удал�
         assert.ok(screenText.includes('ГОРИЛЛА'));
         assert.ok(screenText.includes('Ты можешь бежать'));
         cut.update(.1);
-        assert.ok(cut.phone.position.distanceTo(hand.getWorldPosition(new THREE.Vector3())) < 1e-6);
+        assert.ok(cut.phone.position.distanceTo(hand.getWorldPosition(new THREE.Vector3())) < .13);
+        assert.ok(cut.phone.position.y > hand.getWorldPosition(new THREE.Vector3()).y);
+        assert.equal(cut.screenTexture.generateMipmaps, false);
         assert.ok(cut.game.camera.position.distanceTo(cut.phone.position) < .35, 'первый кадр — крупный план телефона');
         cut.update(3.2);
         const height = cut.phone.position.y;

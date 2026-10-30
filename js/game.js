@@ -4,6 +4,7 @@
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
+import { StoryStage } from "./story-stage.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
@@ -2601,7 +2602,25 @@ class Game {
         const ready = this.questions ? this.storyQ >= this.storyList(s).length && !this.walls.length && !this.pendingInput : this.distance >= (s.noqDistance || 450);
         if (ready && s.hint && !this.hintSaid) { this.hintSaid = true; this.gorilla(s.hint, false, 2600); this.storyWaitT = performance.now() + 2600; return; } // намёк «Горилла = Павел»
         if (ready && this.storyWaitT && performance.now() < this.storyWaitT) return;
-        if (ready) s.chase && this.questions && !this.profile.data.mizBeaten ? this.catchScene() : this.startStoryFight();
+        if (ready) this.showStoryStage(s);
+    }
+
+    async showStoryStage(s) {
+        const run = this.runId;
+        this.storyOn = true;
+        this.state = "bossintro";
+        const stage = new StoryStage(this.scene, s.id, this.x);
+        const lines = {
+            1: "Станция «Обмен». Мизулина преграждает путь.",
+            2: "Кордон впереди. Кейс доставлен — время пройти проверку.",
+            3: "Штаб впереди. Павел ждёт тебя на последнем испытании.",
+        };
+        this.gorilla(lines[s.id], true, 2500);
+        await wait(3000);
+        stage.dispose();
+        if (this.runId !== run || this.state !== "bossintro") return;
+        if (s.chase && this.questions && !this.profile.data.mizBeaten) this.catchScene();
+        else this.startStoryFight();
     }
 
     // Глава 1: догнала по сценарию — хватает за шиворот, затемнение, арена
