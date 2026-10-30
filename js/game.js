@@ -172,6 +172,7 @@ function parseAnswer(raw) {
     return Number.isFinite(v) ? Math.round(v) : NaN;
 }
 
+const FLY_TAKEOFF = 0.75; // с: набор высоты в полёте
 const RUNOUT_TIME = 1.2; // с: герой сбегает на нет перед заставкой босса
 
 class Game {
@@ -861,7 +862,8 @@ class Game {
     }
 
     slide() {
-        if (this.state !== "playing" || this.flight) return;
+        if (this.state !== "playing") return;
+        if (this.flight) return this.dropFlight();
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
@@ -1995,10 +1997,21 @@ class Game {
         }
     }
 
+    // свайп вниз в полёте — быстрый спуск, как в сабвее. Высокие монеты дорожки опускаем: иначе висели бы над бегущим героем
+    dropFlight() {
+        const f = this.flight;
+        if (f.drop || f.e >= f.dur) return;
+        f.drop = true;
+        f.dur = Math.max(f.e, FLY_TAKEOFF);
+        for (const m of this.world.coins) if (m.position.z < 0 && m.userData.baseY > POWERUPS.testo.height) m.userData.baseY = 0.7;
+        this.audio.play("swipe");
+        tg.haptic("light");
+    }
+
     flyStep(dt) {
         const c = CHARACTERS.find((h) => h.id === this.heroId)?.flyClip || { start: 1.05, launch: 1.33, peak: 1.83, touch: 2.33, end: 2.85 };
-        const TAKEOFF = 0.75, LAND_AIR = 0.6, LAND_GROUND = c.ground ?? 0.4;
         const f = this.flight, H = POWERUPS.testo.height;
+        const TAKEOFF = FLY_TAKEOFF, LAND_AIR = f.drop ? 0.3 : 0.6, LAND_GROUND = c.ground ?? 0.4;
         const lerp = (a, b, k) => a + (b - a) * Math.min(1, Math.max(0, k));
         const ease = (k) => k * k * (3 - 2 * k);
         f.e += dt;
@@ -2007,7 +2020,7 @@ class Game {
         if (c.loop) { // клип крутится сам (плавание): только высота — взлёт, полёт, спуск
             if (f.e < TAKEOFF) this.y = H * ease(f.e / TAKEOFF);
             else if (f.e < f.dur) this.y = H + Math.sin((f.e - TAKEOFF) * 3) * 0.12;
-            else if (f.e < f.dur + LAND_AIR) { const k = (f.e - f.dur) / LAND_AIR; this.y = H * (1 - k * k); }
+            else if (f.e < f.dur + LAND_AIR) { const k = (f.e - f.dur) / LAND_AIR; this.y = (f.y0 ??= this.y) * (1 - k * k); }
             else {
                 this.y = 0;
                 this.world.splash(this.x, 0, 24, 1.3);
@@ -2032,7 +2045,7 @@ class Game {
         } else if (f.e < f.dur + LAND_AIR) { // спуск: всё быстрее к земле
             const k = (f.e - f.dur) / LAND_AIR;
             clipT = lerp(c.peak, c.touch, k);
-            this.y = H * (1 - k * k);
+            this.y = (f.y0 ??= this.y) * (1 - k * k);
         } else if (f.e < f.dur + LAND_AIR + LAND_GROUND) { // приземлился в присед и встаёт
             if (this.y > 0) {
                 this.world.splash(this.x, 0, 24, 1.3);
