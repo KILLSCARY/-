@@ -28,7 +28,8 @@ function disposeModel(model) {
 function headquartersEntrance() {
     const group = new THREE.Group();
     const frame = new THREE.MeshStandardMaterial({ color: 0x302c2d, roughness: .85 });
-    const door = new THREE.MeshStandardMaterial({ color: 0x544638, emissive: 0x35200c, emissiveIntensity: .65, roughness: .78, metalness: .2 });
+    const door = new THREE.MeshStandardMaterial({ color: 0x343e48, roughness: .65, metalness: .45 });
+    const inset = new THREE.MeshStandardMaterial({ color: 0x202933, roughness: .72, metalness: .35 });
     const trim = new THREE.MeshStandardMaterial({ color: 0x756450, roughness: .7, metalness: .25 });
     const lamp = new THREE.MeshBasicMaterial({ color: 0xffbd62 });
     const add = (material, w, h, d, x, y, z) => {
@@ -36,13 +37,30 @@ function headquartersEntrance() {
         mesh.position.set(x, y, z); group.add(mesh);
     };
     add(frame, 3.7, 3.9, .22, 0, 1.95, 0);
+    for (const x of [-1.78, 1.78]) add(frame, .14, 3.9, 1.05, x, 1.95, -.48);
+    add(frame, 3.7, .16, 1.05, 0, 3.82, -.48);
     add(door, 3, 2.75, .14, 0, 1.4, .17);
+    for (const x of [-.76, .76]) {
+        add(inset, 1.25, 1.55, .035, x, 1.83, .26);
+        add(inset, 1.25, .65, .035, x, .61, .26);
+    }
     add(trim, .07, 2.75, .06, 0, 1.4, .27);
     for (const x of [-1.65, 1.65]) add(trim, .16, 3.1, .2, x, 1.55, .2);
     for (const x of [-.22, .22]) add(trim, .04, .38, .08, x, 1.12, .28);
     add(frame, 3.9, .22, .55, 0, 3.15, .27);
     for (const x of [-1.15, 1.15]) add(lamp, .48, .055, .17, x, 3.02, .48);
-    add(lamp, 1.25, .055, .12, 0, 3.68, .15);
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 192;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#18212b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#bda471'; ctx.lineWidth = 4; ctx.strokeRect(8, 8, 1008, 176);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe0a1'; ctx.font = 'bold 84px sans-serif'; ctx.fillText('ШТАБ', 512, 72);
+    ctx.fillStyle = '#d2d8df'; ctx.font = '25px sans-serif'; ctx.fillText('ПОСЛЕДНИЙ ЭКЗАМЕН', 512, 143);
+    const signTexture = new THREE.CanvasTexture(canvas);
+    signTexture.encoding = THREE.sRGBEncoding;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.45, .65), new THREE.MeshBasicMaterial({ map: signTexture }));
+    sign.position.set(0, 3.55, .14); group.add(sign);
     add(trim, 3.8, .12, .7, 0, .06, .29);
     const light = new THREE.PointLight(0xffaa54, 1.3, 5, 2);
     light.position.set(0, 2.9, 1.15);
@@ -83,7 +101,7 @@ export class StoryStage {
         }
         if (chapter === 3) {
             const entrance = headquartersEntrance();
-            entrance.position.set(-6.95 - x, .18, -7);
+            entrance.position.set(-6.1 - x, .18, -7);
             this.root.add(entrance);
         }
         for (const prop of PROPS[chapter] || []) loader(prop.url, gltf => {

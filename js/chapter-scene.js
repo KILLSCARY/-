@@ -58,16 +58,16 @@ export class ChapterScene {
         if (this.story.id === 3) this.clearEntrance();
         const camera = this.game.camera, portrait = camera.aspect < .8;
         this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];
-        const t = THREE.MathUtils.clamp(this.time / 10.5, 0, 1);
-        const k = t * t * (3 - 2 * t);
-        const focus = this.story.id === 3 ? (portrait ? -2.1 : -.65) : 0;
-        camera.position.set(1.5 * (1 - k) + (portrait ? focus * .4 : 0), (portrait ? 3.3 : 2.5) - .4 * (1 - k), (portrait ? 5 : 4.4) - 1.2 * (1 - k));
-        camera.lookAt(focus, .9, -5 - 3 * k);
+        const pull = THREE.MathUtils.smoothstep(this.time, 5, 10.5);
         if (this.story.id === 2) {
-            const pull = THREE.MathUtils.smoothstep(this.time, 5, 10.5);
             camera.position.set(-.4 * (1 - pull), THREE.MathUtils.lerp(2.1, portrait ? 3.3 : 2.5, pull),
                 THREE.MathUtils.lerp(-1.5, portrait ? 5 : 4.4, pull));
             camera.lookAt(1.5 * (1 - pull), 1, THREE.MathUtils.lerp(-10, -8, pull));
+        }
+        if (this.story.id === 3) {
+            camera.position.set(-.8 * (1 - pull), THREE.MathUtils.lerp(2.25, portrait ? 3.3 : 2.5, pull),
+                THREE.MathUtils.lerp(-10.5, portrait ? 5 : 4.4, pull));
+            camera.lookAt(-6.1 * (1 - pull), THREE.MathUtils.lerp(1.9, 1, pull), THREE.MathUtils.lerp(-14, -8, pull));
         }
         if (this.time >= 10.5) this.finish();
     }

@@ -33,10 +33,18 @@ test('станция привязана к существующей витрин
 });
 
 test('вход штаба крепится к фасаду и удаляется после заставки', () => {
-    const scene = new THREE.Scene();
-    const stage = new StoryStage(scene, 3, 1.5, () => assert.fail('вход не требует загрузки'));
-    assert.equal(stage.root.children.length, 1);
-    assert.ok(Math.abs(stage.root.children[0].position.x + stage.root.position.x + 6.95) < 1e-6);
-    stage.dispose();
-    assert.equal(scene.children.length, 0);
+    const old = globalThis.document;
+    globalThis.document = { createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
+    try {
+        const scene = new THREE.Scene();
+        const stage = new StoryStage(scene, 3, 1.5, () => assert.fail('вход не требует загрузки'));
+        assert.equal(stage.root.children.length, 1);
+        assert.ok(Math.abs(stage.root.children[0].position.x + stage.root.position.x + 6.1) < 1e-6);
+        const sign = stage.root.children[0].children.find(child => child.material?.map?.isCanvasTexture);
+        let textureDisposed = false;
+        sign.material.map.addEventListener('dispose', () => { textureDisposed = true; });
+        stage.dispose();
+        assert.equal(textureDisposed, true);
+        assert.equal(scene.children.length, 0);
+    } finally { globalThis.document = old; }
 });

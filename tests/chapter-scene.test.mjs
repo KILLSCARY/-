@@ -26,7 +26,8 @@ test('вступления глав идут в игровой сцене и п�
 test('после заставки восстанавливаются материалы дороги и отражение', () => {
     const old = globalThis.document;
     const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
-    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id] };
+    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id],
+        createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         const map = new THREE.Texture();
         const road = new THREE.MeshStandardMaterial({ transparent: true, alphaMap: map, roughnessMap: map, roughness: .4 });
@@ -47,7 +48,8 @@ test('после заставки восстанавливаются матер�
 test('дом за скрытым павильоном возвращается к тротуару и затем восстанавливается', () => {
     const old = globalThis.document;
     const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
-    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id] };
+    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id],
+        createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         const house = new THREE.Group(); house.position.set(-17, 0, -14);
         const bank = new THREE.Group(); bank.userData = { house, side: -1 }; house.add(bank);
