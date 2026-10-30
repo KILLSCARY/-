@@ -1597,3 +1597,47 @@ body.guide-running .hub::after { content: ''; display: block; flex: none; height
     .guide-controls span { font-size: 11px; padding: 3px 5px; }
 }
 body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80% at 50% 45%, transparent 35%, rgba(9, 13, 40, .55) 100%); }
+
+/* ---- Карта города (js/map.js): остров в неоне — синий ореол моря, фиолетовая земля, светящиеся дороги ---- */
+.tile-map { background: radial-gradient(120% 140% at 85% 0%, rgba(155, 70, 255, .35), transparent 60%), radial-gradient(90% 120% at 10% 100%, rgba(40, 120, 255, .28), transparent 60%), var(--card, #161619); border-color: rgba(170, 100, 255, .35); }
+.tile-map .tile-name { color: #f0dcff; }
+.map-root { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.map-svg { width: 100%; height: auto; max-height: 62vh; display: block; border-radius: 18px;
+    background: radial-gradient(80% 70% at 55% 50%, #0d1a4d 0%, #070520 60%, #04030f 100%); }
+.map-svg .sea-glow { fill: #2a6bff; opacity: .55; }
+.map-svg .land { stroke: #6fb4ff; stroke-width: 3; stroke-opacity: .55; }
+.map-svg .lights circle { fill: #ff6ad5; opacity: .35; }
+.map-svg .road { fill: none; stroke-linecap: round; }
+.map-svg .road.main { stroke: #b768ff; stroke-width: 5; opacity: .9; }
+.map-svg .road.street { stroke: #8a4dff; stroke-width: 2; opacity: .55; }
+.map-svg .district { cursor: pointer; outline: none; }
+.map-svg .district .area { fill: rgba(150, 80, 255, .22); stroke: #d08bff; stroke-width: 3; transition: fill .2s, stroke .2s; }
+.map-svg .district .name { fill: #fff; font: 800 23px "Unbounded", "Arial Black", sans-serif; text-anchor: middle; paint-order: stroke; stroke: #12062e; stroke-width: 6px; letter-spacing: .5px; }
+.map-svg .district .tag rect { fill: #2ad49a; }
+.map-svg .district .tag text { fill: #06231a; font: 800 14px "Inter Tight", Arial, sans-serif; text-anchor: middle; letter-spacing: 1px; }
+.map-svg .district[data-state="here"] .area { fill: rgba(60, 220, 160, .28); stroke: #5dffc1; }
+.map-svg .district[data-state="soon"] .area { fill: url(#map-hatch); stroke: #7a6c99; stroke-dasharray: 10 8; }
+.map-svg .district[data-state="soon"] .name { fill: #b9add6; }
+.map-svg .district[data-state="soon"] .tag rect { fill: #ff3d8a; }
+.map-svg .district[data-state="soon"] .tag text { fill: #fff; }
+.map-svg .district[data-state="hero"] .area, .map-svg .district[data-state="fixed"] .area { fill: rgba(255, 180, 60, .12); stroke: #ffb347; stroke-dasharray: 4 6; }
+.map-svg .district[data-state="hero"] .tag rect, .map-svg .district[data-state="fixed"] .tag rect { fill: #ffb347; }
+.map-svg .district[data-state="hero"] .tag text, .map-svg .district[data-state="fixed"] .tag text { fill: #2a1600; }
+.map-svg .district.sel .area, .map-svg .district:focus-visible .area { stroke-width: 6; stroke: #fff; }
+.map-svg .map-pin .dot { fill: #fff; }
+.map-svg .map-pin .pulse { fill: none; stroke: #5dffc1; stroke-width: 4; animation: map-pin 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.map-svg .map-pin text { fill: #5dffc1; font: 800 16px "Inter Tight", Arial, sans-serif; text-anchor: middle; letter-spacing: 1px; paint-order: stroke; stroke: #04030f; stroke-width: 5px; }
+@keyframes map-pin { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .map-svg .map-pin .pulse { animation: none; } }
+.map-card { padding: 14px; border-radius: 16px; background: #151318; border: 1px solid rgba(208, 139, 255, .35); display: flex; flex-direction: column; gap: 6px; }
+.map-card[data-state="here"] { border-color: rgba(93, 255, 193, .45); }
+.map-card[data-state="soon"] { border-color: rgba(255, 61, 138, .45); }
+.map-card[data-state="hero"], .map-card[data-state="fixed"] { border-color: rgba(255, 179, 71, .45); }
+.map-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.map-card h3 { margin: 0; font-size: 19px; }
+.map-card p { margin: 0; font-size: 14px; line-height: 1.4; color: #d8d2e6; }
+.map-card .map-note { color: var(--muted); font-size: 13px; }
+.map-chip { flex: none; padding: 4px 10px; border-radius: 999px; font: 800 11px "Inter Tight", Arial, sans-serif; letter-spacing: 1px; background: #2ad49a; color: #06231a; }
+.map-card[data-state="soon"] .map-chip { background: #ff3d8a; color: #fff; }
+.map-card[data-state="hero"] .map-chip, .map-card[data-state="fixed"] .map-chip { background: #ffb347; color: #2a1600; }
+.map-card .btn { margin-top: 4px; }
