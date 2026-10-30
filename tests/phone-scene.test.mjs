@@ -5,6 +5,7 @@ import { PhoneScene } from '../js/phone-scene.js';
 
 test('телефон следует за кистью, падает и удаляется после сцены', () => {
     const els = Object.fromEntries(['phone-cutscene', 'phone-cutscene-text', 'phone-cutscene-skip'].map(id => [id, {}]));
+    els['phone-cutscene'].querySelector = () => ({});
     const previous = globalThis.document;
     const screenText = [];
     globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ fillRect() {}, fillText(text) { screenText.push(text); } }) }) };

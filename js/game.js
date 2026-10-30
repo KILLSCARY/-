@@ -5,6 +5,7 @@ import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALIT
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
 import { StoryStage } from "./story-stage.js";
+import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
@@ -562,11 +563,16 @@ class Game {
                 (this.profile.data.storyIntros ||= {})[1] = true;
                 this.profile.save();
                 this.state = "menu";
-            } else if (!(this.profile.data.storyIntros || {})[chapterStory.id]) {
+            } else if (chapterStory.id > 1 && !(this.profile.data.chapterScenes || {})[chapterStory.id]) {
                 this.state = "storyintro";
-                await this.showStoryIntro(chapterStory);
+                this.rat.position.set(0, 0, 0);
+                this.rat.rotation.set(0, 0, 0);
+                this.show("hud"); $("hud").hidden = true;
+                await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve); });
+                this.chapterScene = null;
                 if (this.state !== "storyintro") return;
                 (this.profile.data.storyIntros ||= {})[chapterStory.id] = true;
+                (this.profile.data.chapterScenes ||= {})[chapterStory.id] = true;
                 this.profile.save();
                 this.state = "menu";
             }
@@ -628,24 +634,6 @@ class Game {
         this.audio.music("run");
         tg.guardClose(true);
         if (document.hidden) this.pause(); // свернули приложение во время отсчёта
-    }
-
-    showStoryIntro(st) {
-        const scenes = {
-            1: { title: "Выход из системы", text: "Зимний район. На дорогу падает телефон: Горилла зовёт тебя к станции «Обмен». Пройди препятствия и найди путь через первый запрет.", button: "Принять вызов →" },
-            2: { title: "Город проверок", text: "Станция позади. Горилла передаёт тебе кейс с учебными материалами. Доставь его через ночной район: впереди полицейский кордон.", button: "Взять кейс →" },
-            3: { title: "Последний экзамен", text: "Ты добрался до делового района. За последними препятствиями тебя ждёт Павел Инаков. Соберись: впереди финальный бой.", button: "Идти на встречу →" },
-        };
-        const scene = scenes[st.id], box = $("story-intro");
-        box.dataset.chapter = st.id;
-        $("story-intro-label").textContent = `ГЛАВА ${st.id} / 3`;
-        $("story-intro-title").textContent = scene.title;
-        $("story-intro-text").textContent = scene.text;
-        $("story-phone").hidden = st.id !== 1;
-        const button = $("story-intro-go");
-        button.textContent = scene.button;
-        box.hidden = false;
-        return new Promise((resolve) => { button.onclick = () => { button.onclick = null; box.hidden = true; resolve(); }; });
     }
 
     // добавки из NS Store, купленные на этот забег: по одной каждой
@@ -1244,6 +1232,7 @@ class Game {
         }
         cam.lookAt(target);
         this.phoneScene?.update(dt);
+        this.chapterScene?.update(dt);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
@@ -1441,7 +1430,7 @@ class Game {
     frameBudget() {
         const requested = this.frameRate();
         const active = Math.min(requested, this.performanceFpsCap || requested);
-        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && this.phoneScene)) return 1000 / active;
+        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && (this.phoneScene || this.chapterScene))) return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
         if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / 60;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
@@ -2438,6 +2427,7 @@ class Game {
         for (const k of ["anketa", "place", "left"]) delete d[k];
         delete d.storyIntros;
         delete d.phoneSceneSeen;
+        delete d.chapterScenes;
         this.profile.save();
         this.renderMenu();
     }

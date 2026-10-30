@@ -43,6 +43,7 @@ export class PhoneScene {
         game.scene.add(this.phone);
         this.start = new THREE.Vector3(); this.pos = new THREE.Vector3();
         this.ui = document.getElementById('phone-cutscene');
+        this.ui.querySelector('.phone-cutscene-top').textContent = 'ГЛАВА 1 · ВЫХОД ИЗ СИСТЕМЫ';
         this.caption = document.getElementById('phone-cutscene-text');
         this.ui.hidden = false;
         this.caption.textContent = '';

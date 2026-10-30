@@ -94,6 +94,7 @@ export class Profile {
         d.legacyPhrases = [...new Set([...(d.legacyPhrases || []), ...(now.legacyPhrases || [])])];
         d.storyIntros = { ...(d.storyIntros || {}), ...(now.storyIntros || {}) };
         d.phoneSceneSeen = !!(d.phoneSceneSeen || now.phoneSceneSeen);
+        d.chapterScenes = { ...(d.chapterScenes || {}), ...(now.chapterScenes || {}) };
         for (const k of ["usdt", "earned", "chests", "cards", "x2runs"]) {
             d[k] = Math.max(0, (d[k] || 0) + (now[k] || 0) - (was[k] || 0));
         }
