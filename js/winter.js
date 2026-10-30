@@ -4,7 +4,7 @@
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { loadModel } from './models.js';
-import { BANKS } from './config.js';
+import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
 // Existing lightweight Corvette is used until the newly supplied high-resolution model is available.
 const PARKED_CAR = 'models/obj/lite/car1.glb';
@@ -15,7 +15,7 @@ export const WINTER = {
     hemi: [0x9bb6fa, 0x303c64], light: .66, moon: 0xb6c8ff,
     rowGap: [16, 11],
 };
-export const WINTER_OBSTACLES = ['dumpster', 'dumpster', 'dumpster', 'roadblock', 'roadblock', 'barrier', 'cart', 'block', 'car'];
+export const WINTER_OBSTACLES = ['dumpster', 'dumpster', 'dumpster', 'roadblock', 'roadblock', 'barrier', 'cart', 'block', 'car', 'cop'];
 
 function texture(width, height, draw) {
     const canvas = document.createElement('canvas');
@@ -288,6 +288,7 @@ export class Winter {
             group.position.z = -index * 32;
             this.chunks.push(group); add(group);
         }
+        this.policePosts();
         this.buildDistant(add);
         for (const geometry of Object.values(this.geometry)) geometry.dispose();
         this.parts = this.geometry = this.temp = null;
@@ -449,6 +450,17 @@ export class Winter {
         this.part('plane', 0x233958, side * 7.4, .273, z, 3, 28, 1, [-Math.PI / 2, 0, 0], 'soft');
         const kind = STORE_ORDER[(index * 2 + (side > 0 ? 1 : 0)) % STORE_ORDER.length];
         if (kind) this.storefront(side, z - .5, kind, index);
+        this.atm(side, z + (side < 0 ? 4.3 : -5.2), /* справа на +4 стоит ель */(index * 2 + (side > 0 ? 1 : 0)) % ATMS.length);
+    }
+
+    // Банкомат у стены между витриной и подъездом: корпус, лицевая панель (фото ATMS по-зимнему), снег на крыше, отсвет
+    atm(side, z, n) {
+        const cfg = ATMS[n], id = `atm_${cfg.name}`, h = 1.95, w = h * cfg.aspect, c = this.colours;
+        if (!this.materials[id]) this.materials[id] = this.photoSign(cfg.name, Math.round(512 * cfg.aspect), 512, 1.3);
+        this.box(0x2b3445, side * 7.75, h / 2, z, .7, h, w + .12);
+        this.part('plane', 0xffffff, side * 7.39, h / 2, z, w, h, 1, [0, -side * Math.PI / 2, 0], id);
+        this.box(c.snow, side * 7.73, h + .07, z, .8, .14, w + .22);
+        this.part('plane', cfg.light, side * 6.9, .31, z, 1.6, w + .9, 1, [-Math.PI / 2, 0, 0], 'halo');
     }
 
     // Витрина между подъездами (они на dz −8 и 7): вывеска с рамой, полка снега и сосульки сверху, отсвет на снегу
@@ -477,9 +489,24 @@ export class Winter {
     store(id, kind) {
         if (this.stores[id]) return this.stores[id];
         const cfg = BANKS.list.find((b) => b.name === id);
-        const mat = new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: 1.5, roughness: .55, metalness: .1, envMapIntensity: .3 });
-        if (cfg) {
-            const W = 1024, H = Math.round(W / cfg.aspect), seed = id.length * 13 + Number(id.slice(-1));
+        const mat = cfg ? this.photoSign(id, 1024, Math.round(1024 / cfg.aspect), 1.5)
+            : new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: 1.5, roughness: .55, metalness: .1, envMapIntensity: .3 });
+        if (!cfg) {
+            mat.map = exchangeTexture(kind, false); mat.emissiveMap = exchangeTexture(kind, true);
+        }
+        this.materials[`store_${id}`] = mat;
+        if (!this.materials[`blade_${kind}`]) {
+            const map = bladeTexture(kind);
+            this.materials[`blade_${kind}`] = new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 1.1, roughness: .6, side: THREE.DoubleSide });
+        }
+        return (this.stores[id] = { mat, aspect: cfg ? cfg.aspect : 1.6 });
+    }
+
+    // Фото-вывеска из textures/<name>_diff/_glow по-зимнему: иней, шапка снега; зал за стеклом чуть светится
+    photoSign(name, W, H, glow) {
+        const mat = new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: glow, roughness: .55, metalness: .1, envMapIntensity: .3 });
+        const id = name, seed = id.length * 13 + Number(id.replace(/\D/g, '').slice(-1) || 0);
+        {
             mat.map = texture(W, H, (g) => { g.fillStyle = '#1b2436'; g.fillRect(0, 0, W, H); });
             mat.emissiveMap = texture(W, H, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); });
             const loader = new THREE.ImageLoader();
@@ -493,15 +520,39 @@ export class Winter {
                 const draw = () => { g.globalAlpha = .45; g.drawImage(mat.map.image, 0, 0, W, H); g.globalAlpha = 1; g.globalCompositeOperation = 'lighter'; g.drawImage(img, 0, 0, W, H); g.globalCompositeOperation = 'source-over'; winterize(g, W, H, seed, true); mat.emissiveMap.needsUpdate = true; };
                 mat.map.userData.drawn ? draw() : (mat.map.userData.after = draw);
             });
-        } else {
-            mat.map = exchangeTexture(kind, false); mat.emissiveMap = exchangeTexture(kind, true);
         }
-        this.materials[`store_${id}`] = mat;
-        if (!this.materials[`blade_${kind}`]) {
-            const map = bladeTexture(kind);
-            this.materials[`blade_${kind}`] = new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 1.1, roughness: .6, side: THREE.DoubleSide });
+        return mat;
+    }
+
+    // Пост ДПС во дворе за оградой (участки 1 и 3, слева): патрульная машина с мигалкой лицом к бегущему,
+    // инспектор у ограды. Едут вместе с участком улицы; инспектор — когда загрузится его модель (world.officer)
+    policePosts() {
+        const w = this.world;
+        this.posts = [];
+        for (const i of [1, 3]) {
+            const chunk = this.chunks[i];
+            if (!chunk) continue;
+            const car = w.makePoliceCar();
+            car.position.set(-6.4, .27, -10);
+            car.userData.billboard = false;
+            chunk.add(car);
+            this.posts.push({ chunk, car, officer: null });
         }
-        return (this.stores[id] = { mat, aspect: cfg ? cfg.aspect : 1.6 });
+        this.placeOfficers();
+    }
+
+    placeOfficers() {
+        const w = this.world;
+        if (!w.officer) return;
+        for (const p of this.posts || []) {
+            if (p.officer) continue;
+            const o = w.makeOfficer(POLICE_OFFICER.idle[0]);
+            if (!o) return;
+            o.position.set(-4.75, .3, -7.4); // перед капотом, у ограды
+            o.rotation.y = .55; // к бегущему, вполоборота к дороге
+            p.chunk.add(o);
+            p.officer = o;
+        }
     }
 
     fence(x, z, length) {
@@ -767,6 +818,15 @@ export class Winter {
             o.position.z += move;
             while (o.position.z > this.behind) o.position.z -= this.length;
         }
+        this.flash = (this.flash || 0) + dt; // мигалки постов ДПС: красный и синий по очереди
+        const on = Math.floor(this.flash * 3) % 2 === 0;
+        for (const p of this.posts || []) {
+            const f = p.car.userData.flashers;
+            if (f) { f[0].visible = on; f[1].visible = !on; }
+            const z = p.chunk.position.z + p.car.position.z;
+            if (p.officer && z > -70 && z < 8) p.officer.userData.mixer?.update(dt);
+        }
+        if (this.posts?.some((p) => !p.officer)) this.placeOfficers();
         this.sync(); // includes asynchronously loaded NPCs and quality-dependent light batches
     }
 }
