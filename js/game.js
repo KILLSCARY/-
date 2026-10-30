@@ -3,6 +3,7 @@
 
 import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
+import { PhoneScene } from "./phone-scene.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
@@ -547,7 +548,20 @@ class Game {
         if (chapterStory) {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
             this.setLocation(["winter", "street", "street"][chapterStory.id - 1]);
-            if (!(this.profile.data.storyIntros || {})[chapterStory.id]) {
+            if (chapterStory.id === 1 && !this.profile.data.phoneSceneSeen) {
+                this.state = "storyintro";
+                this.rat.position.set(0, 0, 0);
+                this.rat.rotation.set(0, 0, 0);
+                this.show("hud");
+                $("hud").hidden = true;
+                await new Promise(resolve => { this.phoneScene = new PhoneScene(this, resolve); });
+                this.phoneScene = null;
+                if (this.state !== "storyintro") return;
+                this.profile.data.phoneSceneSeen = true;
+                (this.profile.data.storyIntros ||= {})[1] = true;
+                this.profile.save();
+                this.state = "menu";
+            } else if (!(this.profile.data.storyIntros || {})[chapterStory.id]) {
                 this.state = "storyintro";
                 await this.showStoryIntro(chapterStory);
                 if (this.state !== "storyintro") return;
@@ -1161,9 +1175,10 @@ class Game {
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
-            : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" ? "idle" : "run";
+            : this.state === "countdown" || this.state === "paused" || this.state === "bossintro" || this.state === "storyintro" ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
         if (this.trip > 0) this.trip -= dt;
+        this.phoneScene?.restorePose();
         animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.updateStars(dt);
         this.moon.position.set(this.x - 4, 12, -14);
@@ -1227,6 +1242,7 @@ class Game {
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
         }
         cam.lookAt(target);
+        this.phoneScene?.update(dt);
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
@@ -1424,7 +1440,7 @@ class Game {
     frameBudget() {
         const requested = this.frameRate();
         const active = Math.min(requested, this.performanceFpsCap || requested);
-        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro") return 1000 / active;
+        if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && this.phoneScene)) return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
         if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / 60;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
@@ -2420,6 +2436,7 @@ class Game {
         Object.assign(d, { story: 0, beaten: 0, earned: 0, quiz: {}, mizBeaten: false, bossPaid: {}, badges: {}, exam: false });
         for (const k of ["anketa", "place", "left"]) delete d[k];
         delete d.storyIntros;
+        delete d.phoneSceneSeen;
         this.profile.save();
         this.renderMenu();
     }

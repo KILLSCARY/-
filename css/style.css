@@ -1185,6 +1185,10 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 
 .fade { position: fixed; inset: 0; z-index: 40; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; }
 .fade.on { opacity: 1; }
+.phone-cutscene { position: fixed; inset: 0; z-index: 50; pointer-events: none; background: linear-gradient(to bottom, #0009, transparent 22%, transparent 68%, #000c); }
+.phone-cutscene-top { position: absolute; top: max(22px, env(safe-area-inset-top)); left: 20px; right: 120px; color: #f4cb60; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.phone-cutscene-skip { position: absolute; top: max(18px, env(safe-area-inset-top)); right: 18px; pointer-events: auto; border: 1px solid #ffffff66; border-radius: 20px; padding: 8px 12px; color: white; background: #111b; }
+.phone-cutscene-text { position: absolute; bottom: max(40px, env(safe-area-inset-bottom)); left: 8%; width: 84%; text-align: center; color: white; text-shadow: 0 2px 5px #000; font-size: clamp(15px, 4vw, 20px); font-weight: 700; line-height: 1.4; }
 .story-intro { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow-y: auto; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: linear-gradient(160deg, rgba(5, 12, 30, .97), rgba(19, 14, 27, .97)); color: white; }
 .story-intro[data-chapter="2"] { background: linear-gradient(160deg, #0a1930, #271029); }
 .story-intro[data-chapter="3"] { background: linear-gradient(160deg, #261915, #090e20); }
