@@ -1,6 +1,7 @@
 // Бой 1 на 1 в духе Tekken — прямо на ночной улице забега (тот же дождь, неон, свечение): камера по диагонали,
 // герой ближе к нам, соперник лицом к камере. Раунды по FIGHT.roundTime, до FIGHT.winRounds побед.
-// Управление: кнопки УДАР / БЛОК (держать) / УКЛОН / СУПЕР, на ПК — J (удар), S/↓ (блок), A D/← → (уклон), W/↑ (супер).
+// Управление: удар — тап по экрану (по сопернику: голова — сильнее, ноги — ногой); слева кнопки БЛОК (держать) / УКЛОН /
+// СУПЕР; на ПК — J или пробел (удар), S/↓ (блок), A D/← → (уклон), W/↑ (супер).
 // Анимации: если в glb есть клипы с именами из FIGHT_CLIPS (punch, block, hit, ko, idle_fight…) — играют они.
 // Пока их нет — позы собираются из костей Mixamo: каждую кость руки, ноги и корпуса поворачиваем так, чтобы она
 // смотрела в нужную сторону мира (стойка, джеб, кросс, хук, блок, уклон, отдача). Нокаут — клип «dead» модели.
@@ -334,7 +335,7 @@ export class Fight {
         if (this.round === 1 && this.hpBonus > 0) setTimeout(() => this.phase !== "end" && this.g.gorilla?.(`+${this.hpBonus} HP от ответов на табличках`, true, 2600), 600);
         // подсказка про тап по зонам — в первых боях игрока
         const pd = this.g.profile?.data;
-        if (this.round === 1 && !this.exam && pd && (pd.tapHints || 0) < 3) { pd.tapHints = (pd.tapHints || 0) + 1; setTimeout(() => this.phase !== "end" && this.g.gorilla?.("Тапай по боссу: в голову — сильнее, по ногам — ногой. Блок в момент удара — парирование", false, 3200), this.hpBonus > 0 ? 3600 : 900); }
+        if (this.round === 1 && !this.exam && pd && (pd.tapHints || 0) < 3) { pd.tapHints = (pd.tapHints || 0) + 1; setTimeout(() => this.phase !== "end" && this.g.gorilla?.("Бей — тапай по экрану: по голове босса — сильнее, по ногам — ногой. Слева — блок, уклон и супер. Блок в момент удара — парирование", false, 3200), this.hpBonus > 0 ? 3600 : 900); }
         this.bigShown = 0;
         this.hud();
     }
@@ -363,7 +364,6 @@ export class Fight {
     bindInput() {
         const on = (id, ev, fn) => { const el = $(id); el.addEventListener(ev, fn); (this.unbind ||= []).push(() => el.removeEventListener(ev, fn)); };
         const tap = (cmd) => (e) => { e.preventDefault(); e.stopPropagation(); this.input(cmd); };
-        on("fb-punch", "pointerdown", tap("punch"));
         on("fb-dodge", "pointerdown", tap("dodge"));
         on("fb-super", "pointerdown", tap("super"));
         on("fb-block", "pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); this.holdBlock = true; this.input("block"); });
@@ -371,7 +371,8 @@ export class Fight {
         on("fb-block", "pointerup", release);
         on("fb-block", "pointercancel", release);
         on("fb-block", "pointerleave", release);
-        // по пустому месту: тап — удар, свайп вниз — блок, в сторону — уклон, вверх — супер
+        // удар — тап по экрану (кнопки «Удар» нет, 30.10): по пустому месту — в корпус, по сопернику — по зоне;
+        // свайп вниз — блок, в сторону — уклон, вверх — супер
         let s = null;
         on("fight", "pointerdown", (e) => { s = { x: e.clientX, y: e.clientY }; });
         on("fight", "pointerup", (e) => {

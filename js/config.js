@@ -934,7 +934,14 @@ export const FIGHTERS = {
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", rage: "Блокирую! Всё блокирую!", ko: "Это ещё не конец…" } },
     cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=71", hd: "models/hd/cop", height: 1.85, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
-        moves: null, dmg: { jab: 3, cross: 4, hook: 5, heavy: 9, super: 24 }, punchTime: 0.5, // ослаблен по плейтесту
+        // клипы — тот же набор Meshy, что у Павла (jab, combo5, kick, hkick, knee, g_block/g_dodge/g_hit…, victory). Было null —
+        // с моделью 28.10 клипов не было, позы собирались поворотами костей, и на новой модели (29.10) руки выкручивало
+        moves: { idle: { clip: "jab", from: 0.02, to: 0.3, period: 2.8 }, jab: { clip: "combo5", from: 0.55, to: 1.05, hit: 0.8, speed: 0.95 },
+            cross: { clip: "combo5", from: 1.12, to: 1.62, hit: 1.4, speed: 0.95 }, hook: { clip: "kick", from: 0.25, to: 1.1, hit: 0.67, speed: 1 },
+            heavyWind: { clip: "hkick", from: 0.3, to: 0.88, fit: true, hold: true }, heavy: { clip: "hkick", from: 0.88, to: 1.75, hit: 1.0, speed: 1 },
+            knee: { clip: "knee", from: 0.4, to: 0.95, hit: 0.53, speed: 1.1 },
+            win: { clip: "victory", from: 0, to: 3, speed: 1 }, ...GUARD_MOVES },
+        dmg: { jab: 3, cross: 4, hook: 5, heavy: 9, super: 24 }, punchTime: 0.5, // ослаблен по плейтесту
         ai: { every: [[1.5, 2.5], [1.3, 2.2], [1.1, 1.9]], block: [0.1, 0.14, 0.18], heavy: [0.14, 0.16, 0.2], combo: [0.12, 0.16, 0.2], third: [0.05, 0.09, 0.13] },
         telegraph: [0.85, 0.75, 0.65],
         lines: { intro: "Документики! Чем занимаемся?", final: "Последний раунд. Пройдёмте.",

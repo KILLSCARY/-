@@ -1129,13 +1129,14 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .fb-btn svg .cut { stroke: rgba(0, 0, 0, .35); stroke-width: 1.6; }
 .fb-btn b { font: 900 12px/1 var(--font-display); letter-spacing: .06em; text-shadow: 0 1px 0 #000; }
 .fb-btn span { font: 600 8px/1 var(--font-body); opacity: .65; margin-top: 2px; }
-.fb-punch { right: 16px; bottom: 6px; width: 108px; height: 108px; --ac: #ff4a50; --glow: rgba(255, 60, 70, .45); }
-.fb-punch b { font-size: 16px; }
+/* кнопки — только слева, дугой под большой палец (удар — тап по экрану, 30.10): блок внизу, уклон справа от него, супер над ним;
+   полоса кнопок не шире левой части экрана — тапы справа и по центру идут в бой */
+.fb { right: auto; width: 210px; }
 .fb-block { left: 16px; bottom: 6px; width: 96px; height: 96px; --ac: #e8ecef; --glow: rgba(232, 236, 239, .4); }
-.fb-dodge { left: 120px; bottom: 74px; width: 66px; height: 66px; --ac: #b8c2cc; --glow: rgba(200, 210, 220, .2); }
+.fb-dodge { left: 122px; bottom: 14px; width: 70px; height: 70px; --ac: #b8c2cc; --glow: rgba(200, 210, 220, .2); }
 .fb-dodge b, .fb-super b { font-size: 9.5px; }
 /* супер: шкала заряда — дуга по ободу (--k от 0 до 1), полная — золото */
-.fb-super { right: 134px; bottom: 80px; width: 70px; height: 70px; --k: 0; --ac: rgba(255, 214, 90, .35); --glow: transparent; }
+.fb-super { left: 28px; bottom: 114px; width: 72px; height: 72px; --k: 0; --ac: rgba(255, 214, 90, .35); --glow: transparent; }
 .fb-super::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
     background: conic-gradient(#ffd65a calc(var(--k) * 360deg), rgba(255, 255, 255, .1) 0);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
@@ -1145,7 +1146,7 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .fb-super.full svg { fill: #2a1600; opacity: 1; filter: none; }
 .fb-super.full b { color: #2a1600; opacity: 1; text-shadow: none; }
 @keyframes f-ready { to { transform: scale(1.1); } }
-@media (max-width: 350px) { .fb-punch { width: 94px; height: 94px; } .fb-super { right: 118px; } .fb-dodge { left: 106px; } .fb-block { width: 84px; height: 84px; } }
+@media (max-width: 350px) { .fb-super { left: 22px; bottom: 102px; } .fb-dodge { left: 106px; } .fb-block { width: 84px; height: 84px; } }
 #story-win .btn, #story-lose .btn { width: 100%; margin-top: 8px; }
 .sl-ph { width: 96px; height: 96px; margin: 0 auto 10px; border-radius: 50%; background: #2a0a0c center 20%/cover; border: 3px solid #ff4a50; box-shadow: 0 0 24px rgba(255, 74, 80, .5); }
 .sl-card { text-align: center; }
@@ -1271,10 +1272,10 @@ body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: 
 .cell span small, .prize b small { font-size: .8em; color: #35e39b; }
 .prize .item-ico { width: 96px; height: 96px; }
 
-/* аудит №13: на узких телефонах «Уклон» и «Супер» перекрывались ~15 px */
+/* узкие телефоны: кнопки слева плотнее */
 @media (max-width: 400px) {
-    .fb-dodge { left: 108px; width: 60px; height: 60px; }
-    .fb-super { right: 118px; width: 64px; height: 64px; }
+    .fb-dodge { left: 112px; width: 64px; height: 64px; }
+    .fb-super { width: 66px; height: 66px; }
 }
 .ico-fallback { display: inline-grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #4be0a6, #138a5f); color: #fff; font: 900 28px/1 var(--font-display); }
 .f-result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(5, 4, 10, .72); z-index: 30; text-align: center; padding: 24px; animation: fres .35s ease-out; }
