@@ -218,6 +218,8 @@ export const MODELS = {
         { url: "models/obj/atm_kiosk.glb", axis: "y", size: 2.4 },
         { url: "models/obj/atm_pair0.glb", axis: "y", size: 2.1 },
         { url: "models/obj/atm_pair1.glb", axis: "y", size: 2.1 }],
+    // мусорный бак (Meshy, 30.10) вместо собранного из коробок: размер и высота прыжка — как у прежнего (1,3 × 1 м, крышка 0,75)
+    dumpster: [{ url: "models/obj/dumpster.glb?v=1", axis: "x", size: 1.35, top: 0.8, halfZ: 0.55 }],
     cart: [{ url: "models/obj/cart.glb", axis: "y", size: 1.1 }], // выше — не перепрыгнуть (прыжок ~1,6 м, бак — 1,15)
     starbox: [{ url: "models/obj/starbox.glb", axis: "y", size: 1.45 }],
     hood: [{ url: "models/obj/hood.glb", axis: "x", size: 1.6 }],
