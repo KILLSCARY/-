@@ -49,7 +49,8 @@ class Puppet {
         this.model = model;
         this.bones = [];
         this.named = {};
-        model.traverse((b) => { if (!b.isBone) return; this.bones.push({ b, q: b.quaternion.clone(), p: b.position.clone() }); this.named[b.name.replace(/^mixamorig:?/, "")] = b; });
+        const short = isShort(model);
+        model.traverse((b) => { if (!b.isBone) return; this.bones.push({ b, q: b.quaternion.clone(), p: b.position.clone() }); this.named[boneName(b, short)] = b; });
         // поза покоя из скелета: на момент сцены кости стоят в кадре клипа
         let skel = null;
         model.traverse((o) => { if (!skel && o.isSkinnedMesh) skel = o.skeleton; });
@@ -90,10 +91,15 @@ class Puppet {
 }
 
 const NEEDED = ["Hips", "Spine", "Spine1", "Spine2", "Neck", "Head", "LeftFoot", "RightFoot", "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "LeftArm", "LeftForeArm", "LeftHand"];
+// у Малахова другой скелет: 24 кости, позвоночник назван иначе, пальцев нет
+const ALIAS = { Spine02: "Spine", Spine01: "Spine1", Spine: "Spine2", neck: "Neck" };
+const boneName = (b, model24) => { const n = b.name.replace(/^mixamorig:?/, ""); return model24 ? ALIAS[n] || n : n; };
+const isShort = (model) => { let short = false; model.traverse((b) => { if (b.isBone && /^Spine02$/.test(b.name)) short = true; }); return short; };
 const hasRig = (model) => {
     if (!model) return false;
     const seen = new Set();
-    model.traverse((b) => { if (b.isBone) seen.add(b.name.replace(/^mixamorig:?/, "")); });
+    const short = isShort(model);
+    model.traverse((b) => { if (b.isBone) seen.add(boneName(b, short)); });
     return NEEDED.every((n) => seen.has(n));
 };
 

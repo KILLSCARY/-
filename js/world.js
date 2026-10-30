@@ -1694,31 +1694,38 @@ export class World {
         const u = root.userData = { mode, rig, side, t: 0, step: -1, y: 0, yTo: 0, mixer: rig.userData.mixer, acts: {}, thrown: [], nextThrow: 0, rim: d.H };
         for (const c of model.gltf.animations) { const a = u.mixer.clipAction(c); a.setLoop(THREE.LoopPingPong, Infinity); u.acts[c.name] = a; }
         root.add(rig);
-        if (mode === "dig") { // снаружи роется в куче у бака, а не сквозь стенку; в сам бак лезет только сценка inside
+        // Размеры сняты с модели бака и с костей клипов. Наклон shovel и смех внутри бака выводили руки и голову за стенку — там их нет
+        if (mode === "dig") { // снаружи роется в куче у бака и швыряет мусор
             rig.position.set(-side * 0.15, 0, 1.4); rig.rotation.y = -side * Math.PI / 2;
             d.bag(-side * 0.72, 0.2, 1.72, 0.28); d.bag(-side * 0.82, 0.17, 1.2, 0.24);
             d.box(0.42, 0.3, 0.42, d.m.box, -side * 0.98, 0.15, 1.5).rotation.y = 0.5;
             d.bag(side * 0.05, d.H - 0.08, 0.1, 0.32);
-            u.script = [["dig", 5, 0], ["look", 2.6, 0], ["dig", 4, 0], ["laugh", 3, 0], ["frustrated", 2.4, 0]];
-        } else if (mode === "sit") { // сидит на краю бака, потом встаёт на него и ржёт сверху
-            rig.position.x = -side * 0.62;
+            u.script = [["dig", 5, 0, true], ["look", 2.6, 0], ["dig", 4, 0, true], ["laugh", 3, 0], ["frustrated", 2.4, 0]];
+        } else if (mode === "sit") { // сидит на переднем крае бака, таз ровно над кромкой, ноги свисают к дороге; швыряет мусор
+            rig.position.x = -side * 0.59;
+            rig.rotation.y = -side * (Math.PI / 2 - 0.35);
             d.bag(side * 0.1, d.H - 0.08, 0.1, 0.32);
             d.bag(side * -0.3, 0.2, 1.1, 0.26); d.bag(side * 0.25, 0.17, 1.15, 0.2);
-            rig.rotation.y = face;
-            u.script = [["sit", 6, cfg.sitY], ["laugh", 3.2, d.H + 0.02], ["sit", 5, cfg.sitY], ["frustrated", 2.6, d.H + 0.02]];
-        } else { // сидит в баке: выглядывает, ныряет с головой, выбрасывает мусор и снова прячется
+            u.script = [["sit", 8, cfg.sitY, true]];
+        } else { // в баке: выглядывает, ныряет с головой, вылетает мусор, снова выглядывает
             d.bag(side * 0.2, 0.2, 1.12, 0.24);
+            d.box(0.95, 0.2, 1.05, d.m.bag, 0, 0.1, 0); // под днищем: ноги ныряющего не видны между колёсами
             rig.rotation.y = face;
-            u.script = [["look", 3.2, cfg.insideY], ["shovel", 4, cfg.insideY, true], ["look", 2.6, cfg.insideY], ["look", 1.6, cfg.hiddenY]];
+            u.script = [["look", 3, cfg.insideY], ["look", 2.6, cfg.diveY, true], ["look", 1.8, cfg.insideY], ["look", 2.2, cfg.diveY, true]];
         }
         rig.visible = true;
-        for (let k = 0; k < 3; k++) { // что вылетает из бака
-            const t = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), k === 1 ? d.m.box : d.m.trash);
+        for (let k = 0; k < 5; k++) { // что вылетает из бака
+            const t = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), k % 2 ? d.m.box : d.m.trash);
             t.visible = false; t.castShadow = true; root.add(t); u.thrown.push({ t, v: new THREE.Vector3(), on: false });
         }
         this.scene.add(root);
         (this.nikitas ||= []).push(root);
         this.warmQueue.push(this.rig(model, null));
+    }
+
+    // в начале забега и в меню баки снова на своих местах: первый рядом с героем. Иначе после забега их уносило за камеру
+    placeNikitas() {
+        (this.nikitas || []).forEach((o, i, all) => { o.position.z = BEHIND_Z - 40 - i * (STREET_LEN / all.length); });
     }
 
     updateNikitas(dt, move) {
@@ -1742,17 +1749,18 @@ export class World {
             }
             u.y += (u.yTo - u.y) * Math.min(1, dt * 6);
             u.rig.position.y = u.y;
+            u.rig.visible = u.y > -0.62; // нырнул с головой: кисти иначе торчали бы под днищем
             if (u.throws && (u.nextThrow -= dt) <= 0) {
                 u.nextThrow = 1 + Math.random() * 0.8;
-                const p = u.thrown.find((x) => !x.on);
-                if (p) { p.on = true; p.t.visible = true; p.t.position.set(0, u.rim + 0.1, Math.random() * 0.5 - 0.25); p.v.set(-u.side * (1 + Math.random() * 0.8), 2.4 + Math.random(), Math.random() * 1.6 - 0.8); }
+                const p = u.thrown[u.nextItem = ((u.nextItem || 0) + 1) % u.thrown.length]; // старый мусор лежит, пока до него не дойдёт очередь
+                { p.on = true; p.t.visible = true; p.t.position.set(0, u.rim + 0.1, Math.random() * 0.5 - 0.25); p.v.set(-u.side * (1 + Math.random() * 0.8), 2.4 + Math.random(), Math.random() * 1.6 - 0.8); }
             }
             for (const p of u.thrown) {
                 if (!p.on) continue;
                 p.v.y -= 9.8 * dt;
                 p.t.position.addScaledVector(p.v, dt);
                 p.t.rotation.x += dt * 9; p.t.rotation.z += dt * 6;
-                if (p.t.position.y < 0.05) { p.t.position.y = 0.05; p.on = false; p.t.rotation.set(0, Math.random() * 3, 0); setTimeout(() => { if (!p.on) p.t.visible = false; }, 2500); }
+                if (p.t.position.y < 0.05) { p.t.position.y = 0.05; p.on = false; p.t.rotation.set(0, Math.random() * 3, 0); }
             }
         }
     }

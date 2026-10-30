@@ -558,6 +558,7 @@ class Game {
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
         if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
         this.dropIntroStage();
+        this.world.placeNikitas();
         const chapterStory = this.story;
         if (chapterStory) {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
@@ -737,6 +738,7 @@ class Game {
 
     // В меню с паузы или с экрана проигрыша. Ушёл с паузы — собранное в забеге всё равно в кошелёк.
     toMenu() {
+        this.world.placeNikitas();
         this.dropIntroStage();
         this.endArrest();
         if (this.state === "paused") {
@@ -1179,7 +1181,10 @@ class Game {
         // мир-шар только в забеге; в заставках и меню плавно выпрямляется
         if (this.recordScreen) return this.recordScreen.update(dt); // экран рекорда: улица стоит и не рисуется
         curveSide.value = Math.sin((this.distance || 0) / CURVE.sideLen) * CURVE.side * (curveUniform.value / CURVE.strength);
-        curveUniform.value += (((this.state === "playing" || this.state === "paused" || this.state === "over") && !this.arrest?.scene ? CURVE.strength : 0) - curveUniform.value) * Math.min(1, dt * 2.5);
+        // набирается за время отсчёта, линейно и со сглаживанием: без скачка на старте
+        const curveOn = (this.state === "countdown" || this.state === "playing" || this.state === "paused" || this.state === "over") && !this.arrest?.scene;
+        this.curveMix = Math.min(1, Math.max(0, (this.curveMix || 0) + (curveOn ? dt : -dt) / CURVE.fade));
+        curveUniform.value = CURVE.strength * this.curveMix * this.curveMix * (3 - 2 * this.curveMix);
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);

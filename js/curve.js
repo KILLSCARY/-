@@ -3,7 +3,7 @@ import * as THREE from "./vendor/three.module.js";
 // Мир-шар, как в Subway Surfers: при отрисовке всё дальше CURVE.near опускается по квадрату расстояния.
 // Координаты игры те же: столкновения, полосы и тени считаются по плоской улице. Длинные плоскости (дорога, тротуары)
 // должны быть разбиты на сегменты: гнутся только вершины.
-export const CURVE = { strength: 0.0024, side: 0.0011, sideLen: 150, near: 6 };
+export const CURVE = { strength: 0.0024, side: 0.0011, sideLen: 150, near: 6, fade: 2.2 }; // fade — за сколько секунд мир скругляется и выпрямляется
 export const curveUniform = { value: 0 };
 export const curveSide = { value: 0 }; // поворот улицы влево-вправо, как в Subway Surfers: меняется по ходу забега
 
