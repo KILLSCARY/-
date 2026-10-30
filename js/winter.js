@@ -285,7 +285,7 @@ export class Winter {
                 if (kind === 'soft') mesh.renderOrder = 1;
                 group.add(mesh); for (const piece of list) piece.dispose();
             }
-            group.position.z = -index * 32;
+            group.position.z = this.behind - 16 - index * 32; // улица и за спиной героя: в меню камера смотрит назад
             this.chunks.push(group); add(group);
         }
         this.policePosts();

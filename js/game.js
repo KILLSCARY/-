@@ -1111,10 +1111,10 @@ class Game {
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
 
-        // В меню камера спереди; зимний район показываем со стороны забега, как на концепте.
+        // В меню камера спереди — герой лицом к игроку во всех локациях (и в зимней: со спины его закрывало меню)
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
-        const behind = this.state === "menu" && this.location !== "winter" ? 0 : 1;
+        const behind = this.state === "menu" ? 0 : 1;
         const arr = this.state === "over" && this.arrest;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
