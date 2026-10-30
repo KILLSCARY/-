@@ -1080,7 +1080,7 @@ class Game {
         if (this.tier.heat) {
             if (this.state === "playing" || this.state === "fight") this.hot = (this.hot || 0) + dt;
             else if (this.state === "menu") this.hot = Math.max(0, (this.hot || 0) - dt * (HEAT_AFTER / 120));
-            const want = this.hot > HEAT_AFTER ? 0.85 : 1;
+            const want = this.hot > HEAT_AFTER ? (this.mobile ? 0.9 : 0.85) : 1; // телефон: ниже — заметно мыльнее
             if ((this.heatScale || 1) !== want && (want < 1 || this.state === "menu")) { this.heatScale = want; this.onResize(); }
         }
 
@@ -1323,7 +1323,7 @@ class Game {
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
         // телефон: разрешение — не ниже 0,75 (ниже — мыло на маленьком экране), графику ниже средней сам не снижаем:
         // в Telegram кадры то и дело проседают на долю секунды, и игра уезжала в слабую графику — размытую и рывками
-        const resMin = this.mobile ? 0.75 : RES_MIN;
+        const resMin = this.mobile ? 0.85 : RES_MIN;
         const floor = this.resScale <= resMin + 0.01;
         // Не хватает кадров: разрешение — только до 0,85, дальше сначала снимаем дорогие эффекты (зеркало луж, тени,
         // свечение), и лишь потом снова разрешение. Было: сразу до 0,6 — на хорошей графике картинка мыльная и пиксельная
