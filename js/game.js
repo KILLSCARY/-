@@ -267,6 +267,11 @@ class Game {
         // видеокартах оно почти бесплатное. Остальные уровни сглаживают в постобработке (FXAA/MSAA буферов)
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !!this.tier.direct, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
+        // плоскость отсечения для боя: камера боя стоит сбоку за бордюром, и тротуар, сугробы, ограда на её стороне
+        // закрывали бойцов (Fight.camera ставит плоскость по краю дороги). Включена всегда, в забеге отнесена далеко —
+        // шейдеры собираются один раз, без рывка в начале боя
+        this.clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e6);
+        this.renderer.clippingPlanes = [this.clipPlane];
         setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy())); // до загрузки моделей
         setKtx2Renderer(this.renderer); // какие сжатые форматы умеет видеокарта — для HD-текстур в KTX2
 

@@ -909,6 +909,7 @@ export class Fight {
 
     dispose() {
         this.disposed = true;
+        if (this.g.clipPlane) this.g.clipPlane.constant = 1e6; // забег — снова всё видно
         document.body.classList.remove("in-fight");
         clearTimeout(this.loadFailT);
         $("f-load-sub").textContent = "Бойцы выходят на ринг";
@@ -1240,6 +1241,9 @@ export class Fight {
         }
         const fov = portrait ? FIGHT.fov : this.g.baseFov;
         if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+        // всё, что за бордюром со стороны камеры (тротуар, сугробы, ограда), не рисуем — бойцы видны целиком;
+        // пока камера ещё подлетает сзади или смотрит на маску — ничего не отсекаем
+        if (this.g.clipPlane) this.g.clipPlane.constant = k > 0.8 && this.maskK < 0.01 ? FIGHT.clipX : 1e6;
     }
 
     // ---- экзамен Инакова: вопрос → 4 с на ответ → верно: удар Спиди (3 подряд или верное число — супер), ошибка: удар Павла ----

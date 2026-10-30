@@ -999,7 +999,9 @@ export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mou
 // thick — толщина провода (м), color — провода (светлее неба, иначе ночью не видно), pole — бетонные столбы
 export const WIRES = { on: true, step: 40, offset: 20, x: 3.45, height: 8.6, sag: 0.55, thick: 0.03, color: 0x1c1826, pole: 0x524c5a };
 
-export const FIGHT = { rounds: 3, winRounds: 2, roundTime: 60, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, buffer: 0.25, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
+export const FIGHT = {
+    clipX: 3.18, // в бою не рисуется всё левее x = −3,18 (за бордюром со стороны камеры: тротуар, сугробы, ограда)
+    rounds: 3, winRounds: 2, roundTime: 60, fov: 58, gap: 1.0, punchTime: 0.34, punchCd: 0.1, buffer: 0.25, blockTime: 0.6, dodgeTime: 0.6, dodgeCd: 0.35,
     stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65, low: 0.3 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3,
     // парирование: блок, поднятый за window с до удара, отражает его; бьющий открыт stun с; между подъёмами блока — rearm с
     parry: { window: 0.3, rearm: 0.6, stun: 0.8, super: 12 },
@@ -1027,7 +1029,7 @@ export const FIGHT_CLIPS = {
 // harbor, runway), pois — подписи мест внутри района [x, y, «текст»]
 export const MAP_DISTRICTS = [
     { id: "winter", name: "Зимняя сказка", loc: "winter", theme: "ice", at: [480, 255], r: [185, 135],
-        pois: [[372, 178, "Продукты"], [612, 345, "Пост ДПС"]],
+        pois: [[372, 178, "Продукты"], [588, 352, "Пост ДПС"]], // левее: подписи мест крупнее — не наезжает на «Дубайский отдых»
         text: "Снежные дворы, гирлянды на ёлках, Сбер и обменники в инее, посты ДПС в проёмах ограды." },
     { id: "dubai", name: "Дубайский отдых", loc: "vietnam", heroes: ["dima", "tovarus"], theme: "sand", at: [800, 330], r: [135, 185],
         pois: [[850, 225, "Марина"], [760, 430, "Башня"]],

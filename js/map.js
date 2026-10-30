@@ -79,7 +79,7 @@ export class CityMap {
             g.classList.toggle("sel", this.selected === d.id);
             const l = this.svg.querySelector(`[data-label="${d.id}"]`); // подписи — отдельным слоем поверх районов
             l.dataset.state = st;
-            const w = label.length * 11.5 + 22, rect = l.querySelector(".status rect");
+            const w = label.length * 13.5 + 24, rect = l.querySelector(".status rect"); // статус крупнее (18 px в CSS)
             l.querySelector(".status text").textContent = label;
             rect.setAttribute("x", (-w / 2).toFixed(0));
             rect.setAttribute("width", w.toFixed(0));
@@ -115,9 +115,9 @@ export class CityMap {
                     <path class="edge" d="${shape}" filter="url(#map-rough)"/>
                 </g>`);
             // подписи — поверх всего: места (белые), название района (красное), статус
-            for (const [x, y, t] of d.pois || []) labels.push(this.plate(x, y, t.toUpperCase(), "poi", 17));
+            for (const [x, y, t] of d.pois || []) labels.push(this.plate(x, y, t.toUpperCase(), "poi", 20));
             labels.push(`<g class="label" data-label="${d.id}">${this.plate(cx, cy, d.name.toUpperCase(), "name", 30)}
-                <g class="status" transform="translate(${cx},${cy + 38})"><rect y="-15" height="26" rx="3"/><text y="4"></text></g></g>`);
+                <g class="status" transform="translate(${cx},${cy + 40})"><rect y="-17" height="30" rx="3"/><text y="5"></text></g></g>`);
         }
         // трасса: петля через все районы и поперечина через центр
         const loop = ["port", "winter", "dubai", "street", "airport", "rublevka", "mountains"].map((id) => MAP_DISTRICTS.find((d) => d.id === id).at);
