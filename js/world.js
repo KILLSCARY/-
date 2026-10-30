@@ -1462,6 +1462,7 @@ export class World {
         this.templates = {};
         for (const [kind, list] of Object.entries(MODELS)) {
             for (const cfg of list) {
+                if (this.tier.lite && cfg.noLite) continue;
                 const url = this.tier.lite ? cfg.url.replace("models/obj/", "models/obj/lite/") : cfg.url;
                 loadModel(url, (gltf) => {
                     const m = gltf.scene;

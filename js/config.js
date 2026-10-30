@@ -206,10 +206,10 @@ const R = Math.PI / 2;
 export const MODELS = {
     car: [
         { url: "models/obj/car1.glb?v=4", axis: "z", size: 4.4 }, // новая модель 30.10: нос уже к +Z
-        { url: "models/obj/car2.glb", axis: "z", size: 4.4, rotateY: R }],
+        { url: "models/obj/car2.glb?v=2", axis: "z", size: 4.4, rotateY: R, noLite: true }], // noLite: упростить без каши на текстуре не вышло (29 тыс.), на лёгкой графике только car1
     police: [ // патрульные машины постов ДПС (инспектор рядом — живой, POLICE_OFFICER)
         { url: "models/obj/patrol1.glb", axis: "z", size: 4.6, rotateY: R },
-        { url: "models/obj/patrol2.glb", axis: "z", size: 4.6, rotateY: R },
+        { url: "models/obj/patrol2.glb?v=2", axis: "z", size: 4.6, rotateY: R },
         { url: "models/obj/patrol3.glb", axis: "z", size: 4.6, rotateY: R }],
     atm: [
         { url: "models/obj/atm_kiosk.glb", axis: "y", size: 2.4 },
@@ -221,17 +221,17 @@ export const MODELS = {
     starbox: [{ url: "models/obj/starbox.glb", axis: "y", size: 1.45 }],
     hood: [{ url: "models/obj/hood.glb", axis: "x", size: 1.6 }],
     block: [
-        { url: "models/obj/blockset_a1.glb", axis: "x", size: 1.4 },
-        { url: "models/obj/blockset_b1.glb", axis: "x", size: 1.6 },
-        { url: "models/obj/barricade.glb", axis: "x", size: 1.6, rotateY: R }],
+        { url: "models/obj/blockset_a1.glb?v=2", axis: "x", size: 1.4 },
+        { url: "models/obj/blockset_b1.glb?v=2", axis: "x", size: 1.6 },
+        { url: "models/obj/barricade.glb?v=2", axis: "x", size: 1.6, rotateY: R }],
     roadblock: [
-        { url: "models/obj/blockset_a0.glb", axis: "x", size: 1.6, rotateY: R },
-        { url: "models/obj/blockset_b0.glb", axis: "x", size: 1.6, rotateY: R }],
-    coin: [{ url: "models/obj/coin_usdt.glb", axis: "x", size: 0.62 }],
+        { url: "models/obj/blockset_a0.glb?v=2", axis: "x", size: 1.6, rotateY: R },
+        { url: "models/obj/blockset_b0.glb?v=2", axis: "x", size: 1.6, rotateY: R }],
+    coin: [{ url: "models/obj/coin_usdt.glb?v=2", axis: "x", size: 0.62 }],
     testo: [{ url: "models/obj/testo.glb", axis: "y", size: 0.8 }],     // баночка тестобустера — полёт
     choline: [{ url: "models/obj/choline.glb", axis: "y", size: 0.8 }], // баночка холина — магнит
     // boost (×2): своей модели нет — золотая монета USDT «×2» строится в World (TRX-монета убрана)
-    bin: [{ url: "models/obj/trash1.glb", axis: "y", size: 0.95 }],
+    bin: [{ url: "models/obj/trash1.glb?v=2", axis: "y", size: 0.95 }],
     // неоновая вывеска «ОБМЕН 24/7» над подъездами (модель смотрит в +Z, разворот к дороге — в makeBuilding); glow — самосвечение
     sign: [
         { url: "models/obj/sign_obmen1.glb", axis: "x", size: 2.6, glow: 1.6 },
@@ -447,7 +447,7 @@ export const ARCHES = { firstAt: 160, every: [200, 280], reward: [3, 8, 20] };
 // дует клипом blow — до кадра hold (сек):
 // присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
 export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, minGust: 0.9, push: 2.4, taps: 5, reward: 3, startZ: -34,
-    npc: { url: "models/obj/islam_wind.glb?v=2", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
+    npc: { url: "models/obj/islam_wind.glb?v=3", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»). startZ — за сколько метров до Ислама начинается вдох:
 // было 15 — за вдох и порыв (~27 м) он уезжал за камеру, и на телефоне «Ислам дует!» шло без Ислама в кадре;
