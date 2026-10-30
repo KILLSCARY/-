@@ -677,7 +677,7 @@ export class Hub {
         if (!btn) return;
         btn.disabled = !!this.game.heroLoading;
         $("play-label").textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
-        $("play-hero").textContent = (CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "") + (this.game.location === "winter" ? " · Зимний район" : "");
+        $("play-hero").textContent = (CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "") + (this.game.location === "winter" ? " · Зимний район" : this.game.location === "vietnam" ? " · Дубай на закате" : "");
     }
 
     toast(text) {

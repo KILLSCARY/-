@@ -220,7 +220,7 @@ class Game {
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
         if (this.location) this.setLocation(this.location, true); // герой выбран раньше, чем построилась улица
         this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
-        this.hecklers = new Hecklers(this); // активистки на обочине Нячанга — кидаются в Диму и Сашу
+        this.hecklers = new Hecklers(this); // активистки на обочине Дубая — кидаются в Диму и Сашу
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
@@ -359,7 +359,7 @@ class Game {
         const winter = this.location === "winter";
         const sky = winter ? WINTER.sky : vn || SKY;
         const grad = g.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : .5, sky.mid); grad.addColorStop(winter ? .65 : 1, sky.horizon);
+        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : vn ? .24 : .5, sky.mid); grad.addColorStop(winter ? .65 : vn ? .55 : 1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
         if (winter) {
             if (!this.winterSky) {
@@ -428,24 +428,28 @@ class Game {
         this.scene.background = tex;
     }
 
-    // Закат над морем (Нячанг): солнце низко слева над водой, ореол, редкие первые звёзды, силуэты островов у горизонта
+    // Sunset sky baked once at viewport size. Clouds add no meshes or per-frame work.
     paintSunset(g, W, H, sky, c) {
+        let seed = 952;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
         const s = sky.sun, sx = s.x * W, sy = s.y * H, r = s.r * W;
-        const halo = g.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 7);
-        halo.addColorStop(0, "rgba(255,206,150,.32)"); halo.addColorStop(1, "rgba(255,150,100,0)"); // ореол солнца — мягкий, не белое пятно на полнеба
+        const halo = g.createRadialGradient(sx, sy, r * .4, sx, sy, r * 6);
+        halo.addColorStop(0, "rgba(255,220,157,.38)"); halo.addColorStop(.4, "rgba(255,183,115,.1)"); halo.addColorStop(1, "rgba(255,160,100,0)");
         g.fillStyle = halo; g.fillRect(0, 0, W, H);
         g.fillStyle = s.color; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill();
-        let seed = 5;
-        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,240,255,${0.15 + rnd() * 0.5})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.25, 0.4 + rnd() * 0.7, 0, 7); g.fill(); }
-        // острова: пологие холмы у горизонта над морем (левая половина), солнце садится за них наполовину
-        g.fillStyle = sky.islands;
-        const base = sy + r * 0.4;
-        g.beginPath(); g.moveTo(0, H);
-        g.lineTo(0, base);
-        for (let x = 0; x <= W * 0.62; x += 8) g.lineTo(x, base - Math.max(0, Math.sin(x / W * 9) * 18 + Math.sin(x / W * 23) * 7 + 10) * (1 - x / (W * 0.62)) * (W / 1024));
-        g.lineTo(W * 0.62, base); g.lineTo(W * 0.62, H);
-        g.closePath(); g.fill();
+        for (let band = 0; band < 12; band++) {
+            const y = (.06 + rnd() * .29) * H, x = rnd() * W;
+            g.save(); g.translate(x, y); g.scale(1, .045 + rnd() * .03);
+            const radius = W * (.2 + rnd() * .3), cloud = g.createRadialGradient(0, 0, 0, 0, 0, radius);
+            cloud.addColorStop(0, band % 2 ? "rgba(255,200,161,.32)" : "rgba(116,93,126,.2)"); cloud.addColorStop(1, "rgba(200,144,146,0)");
+            g.fillStyle = cloud; g.fillRect(-radius, -radius, radius * 2, radius * 2); g.restore();
+        }
+        // A faint distant urban silhouette underneath the actual 3D skyline, with no island hills.
+        g.fillStyle = "rgba(147,111,123,.2)";
+        for (let x = 0; x < W; x += 12 + rnd() * 18) {
+            const h = (8 + rnd() * 32) * W / 1024;
+            g.fillRect(x, H * .49 - h, 8 + rnd() * 15, h);
+        }
         this.setSkyCanvas(c);
     }
 
@@ -1231,7 +1235,7 @@ class Game {
         this.tier = { ...base, ...(this.mobile && base.phone), ...(s >= 1 && { reflections: false }), ...(s >= 2 && { shadows: false }), ...(s >= 3 && { bloom: 0, cine: 0 }) };
         const shadowSize = this.tier.shadowSize || 1024;
         if (this.moon.shadow.mapSize.x !== shadowSize) { this.moon.shadow.mapSize.set(shadowSize, shadowSize); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
-        if (this.tier.reflections && this.location !== "winter") { // зимой асфальт под снегом — зеркала луж нет
+        if (this.tier.reflections && this.location === "street") { // зеркало луж — только в мокром ночном районе (зима под снегом, Дубай сухой)
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
             const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
@@ -1251,7 +1255,7 @@ class Game {
         // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
         const k = this.tier.cine || 0, u = this.output.uniforms;
         const fx = this.tier.fx === false ? 0 : k; // телефон: без зерна и хроматики — на маленьком экране это шум и мыло
-        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post.grade : 1) : 0; u.ca.value = CINE.ca * fx;
+        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post?.grade ?? 1 : 1) : 0; u.ca.value = CINE.ca * fx;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * fx; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * fx : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         const direct = !!this.tier.direct && !this.look2;
@@ -1444,15 +1448,16 @@ class Game {
     // и стены по времени встречаются так же часто, как у остальных
     wallGap(m) { return m * (this.heroCfg?.sick?.walls ?? 1); }
 
-    // Локация забега по герою: у Димы и Саши — Нячанг (VIETNAM), у остальных — ночной район. Небо и дымка — тоже свои
+    // Локация забега по герою: у Димы и Саши — Дубай (внутренний ID vietnam), у остальных — ночной район. Небо и дымка — тоже свои
     setLocation(name, force = false) {
         if (this.location === name && !force) return;
         this.location = name;
         if (!this.world) return;
         this.world.setLocation(name);
         this.scene.fog.color.set(name === "vietnam" ? VIETNAM.fog : SKY.color);
-        // свет и отражения локации: Нячанг — солнечный вечер (VIETNAM.light/env), район — фиолетовая ночь
-        const vn = name === "vietnam" && VIETNAM.light;
+        // свет и отражения локации: здесь — общая ночь района; свет зимы и Дубая (закат) ставит applyLocationLook
+        // (раньше здесь был дневной свет Нячанга: VIETNAM.light — объект; у Дубая это число — силa света)
+        const vn = name === "vietnam" && typeof VIETNAM.light === "object" && VIETNAM.light;
         if (this.hemi) {
             this.hemi.color.set(vn ? vn.hemi[0] : SKY.hemi[0]); this.hemi.groundColor.set(vn ? vn.hemi[1] : SKY.hemi[1]);
             this.hemi.intensity = vn ? vn.hemiI : this.look2 ? LOOK2.hemi : SKY.light;
@@ -1478,24 +1483,26 @@ class Game {
     // Вид зимнего района (WINTER): свет, дымка, дальность и цвет кадра. Район и Нячанг свет ставят в setLocation и
     // applyLook — здесь им возвращаем только то, что зима меняет сверх них (сочность, контраст, виньетка, тонмаппинг)
     applyLocationLook() {
-        const winter = this.location === "winter", u = this.output.uniforms;
-        u.sat.value = winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
-        u.contrast.value = winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
-        u.vig.value = winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
-        this.renderer.toneMappingExposure = (winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure) * .55;
+        const winter = this.location === "winter", dubai = this.location === "vietnam", u = this.output.uniforms;
+        u.sat.value = dubai ? 1.08 : winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
+        u.contrast.value = dubai ? 1.05 : winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.vig.value = dubai ? .3 : winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
+        // Дубай: экспозиция 1,35 (в тесте 1,6 — пересвет и «мега-свечение»)
+        this.renderer.toneMappingExposure = (dubai ? 1.35 : winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure) * .55;
         document.body.classList.toggle("winter", winter);
         this.world.winter?.sync();
         if (this.world.vietnam?.on) this.world.vietnam.sync();
-        if (!winter) return;
-        this.hemi.color.set(WINTER.hemi[0]); this.hemi.groundColor.set(WINTER.hemi[1]);
-        this.hemi.intensity = WINTER.light;
-        this.moon.color.set(WINTER.moon); this.moon.intensity = .8;
-        this.scene.fog.color.set(WINTER.fog);
-        this.scene.fog.near = WINTER.near;
-        this.scene.fog.far = WINTER.far;
-        this.camera.far = WINTER.viewFar;
+        if (!winter && !dubai) return;
+        const sky = winter ? WINTER : VIETNAM; // свет, дымка и дальность зимы и Дубая (у Дубая — VIETNAM в config.js)
+        this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
+        this.hemi.intensity = sky.light;
+        this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.25 : .8;
+        this.scene.fog.color.set(sky.fog);
+        this.scene.fog.near = sky.near;
+        this.scene.fog.far = sky.far;
+        this.camera.far = sky.viewFar;
         this.camera.updateProjectionMatrix();
-        u.exposure.value = 1.35;
+        u.exposure.value = winter ? 1.35 : (this.look2 ? LOOK2.exposure : SKY.exposure) * VIETNAM.post.exposure;
     }
 
     selectHero(id) {

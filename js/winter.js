@@ -604,10 +604,12 @@ export class Winter {
         this.part('cone', c.snow, x, 4.79, z, .4, .31, .4, [0, Math.PI / 4, 0]);
         this.part('ball', c.iron, x, 5, z, .07, .12, .07);
         // Warm light painted on snow, as opaque geometry, no extra light/shader pass.
-        this.part('plane', 0xffa84e, x, .3, z, 5.4, 7, 1, [-Math.PI / 2, 0, 0], 'halo');
+        // 30.10: пятна света на снегу и на дороге в 2–2,5 раза тусклее: на хорошей графике свечение (bloom) раздувало их
+        // в жёлтые кляксы с цветными крапинами асфальта посреди полосы
+        this.part('plane', 0x8a5a2a, x, .3, z, 5.4, 7, 1, [-Math.PI / 2, 0, 0], 'halo');
         this.part('plane', 0xffb75e, x, 4.35, z + .25, 2.5, 2.9, 1, null, 'halo');
         this.part('plane', 0xffbb6a, x, 4.35, z, 2.5, 2.9, 1, [0, Math.PI / 2, 0], 'halo');
-        this.part('plane', 0xffa64e, Math.sign(x) * 2.5, .027, z + 1, 3.8, 6, 1, [-Math.PI / 2, 0, 0], 'halo');
+        this.part('plane', 0x5a3a1c, Math.sign(x) * 2.5, .027, z + 1, 3.8, 6, 1, [-Math.PI / 2, 0, 0], 'halo');
     }
 
     birch(x, z, height) {
