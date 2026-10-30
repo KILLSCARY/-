@@ -931,7 +931,7 @@ body.slowmo #hud::before { content: ""; position: fixed; inset: 0; pointer-event
 }
 @keyframes stamp-in { from { opacity: 0; transform: rotate(-12deg) scale(2.4); } to { opacity: .95; transform: rotate(-12deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .arrest-fx::before, .arrest-fx::after, .stamp { animation: none; opacity: 1; } }
-body.arresting #hud-fx, body.arresting #boost-bar { opacity: 0; pointer-events: none; transition: opacity .2s; }
+body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s; }
 
 /* NS Store: карточки бустов и наборов с иконкой Жупела и кнопкой «Заказать настоящие» */
 .card-store { align-items: center; }

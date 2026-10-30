@@ -3,6 +3,7 @@
 
 import { STORY_HERO_LINES, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { CURVE, curveUniform } from "./curve.js";
+import { CatchScene, CATCH_END } from "./catch-scene.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
 import { StoryStage, preloadStoryStage } from "./story-stage.js";
@@ -778,7 +779,7 @@ class Game {
         this.audio.play("hit");
         if (cause === "cop" || cause === "caught") this.audio.play("busted");
         // поймала погоня — сцена задержания (герой лежит, Мизулина над ним, мигалки), потом экран проигрыша
-        const arrest = cause === "caught" && this.chaser?.visible && this.chaser.userData.mixer;
+        const arrest = (cause === "caught" || cause === "wall") && this.chaser?.visible && this.chaser.userData.mixer;
         if (arrest) this.startArrest();
         else if (this.chaser) this.chaser.visible = false;
         this.stumble = 0;
@@ -856,7 +857,7 @@ class Game {
             this.show("over");
             $("arrest").hidden = true;
             for (const [id, to, delay] of counters) countUp($(id), to, delay);
-        }, arrest ? 2700 : 700);
+        }, this.arrest?.scene ? CATCH_END * 1000 : arrest ? 2700 : 700);
     }
 
     // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
@@ -1170,7 +1171,7 @@ class Game {
             return;
         }
         // мир-шар только в забеге; в заставках и меню плавно выпрямляется
-        curveUniform.value += ((this.state === "playing" || this.state === "paused" || this.state === "over" ? CURVE.strength : 0) - curveUniform.value) * Math.min(1, dt * 2.5);
+        curveUniform.value += (((this.state === "playing" || this.state === "paused" || this.state === "over") && !this.arrest?.scene ? CURVE.strength : 0) - curveUniform.value) * Math.min(1, dt * 2.5);
         if (this.state === "playing") this.step(dt);
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
@@ -1188,7 +1189,7 @@ class Game {
         if (this.state === "menu") this.phase += dt * 6;
         if (this.trip > 0) this.trip -= dt;
         this.phoneScene?.restorePose();
-        animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
+        if (!this.arrest?.scene) animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.updateStars(dt);
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
@@ -1243,7 +1244,8 @@ class Game {
             cam.updateProjectionMatrix();
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
-        if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
+        if (arr && this.arrest.scene) this.arrest.scene.aim(cam, target);
+        else if (arr) { // задержание: камера медленно облетает героя и Мизулину сбоку, низко
             // плавно: въезд за 0.8 с, облёт ~2.5 с с замедлением и остановка (дальше кадров мало — камера уже стоит)
             const a = this.arrest, sm = (x) => x * x * (3 - 2 * x);
             const k = sm(Math.min(1, a.t / 0.8)), ang = 0.5 + 0.8 * sm(Math.min(1, a.t / 2.6));
@@ -1473,7 +1475,7 @@ class Game {
         const active = Math.min(requested, this.performanceFpsCap || requested);
         if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && (this.phoneScene || this.chapterScene))) return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
-        if (this.state === "over" && this.arrest && this.arrest.t < 2.8) return 1000 / 60;
+        if (this.state === "over" && this.arrest && this.arrest.t < (this.arrest.scene ? CATCH_END + 1 : 2.8)) return 1000 / 60;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
     }
@@ -1825,6 +1827,7 @@ class Game {
             const run = this.runId;
             setTimeout(() => { if (this.runId === run && this.state === "playing" && this.stumble > 0) { const cc = this.chaserCfg(); this.hub.toast(`${cc.name}: «${cc.start}»`); } }, 1400);
         }
+        if (!this.catchCoin) { this.catchCoin = 1; loadModel("models/obj/coin_usdt.glb?v=2", (g) => { const coin = g.scene, size = new THREE.Box3().setFromObject(coin).getSize(new THREE.Vector3()).length(); coin.scale.multiplyScalar(0.2 / size); coin.traverse((o) => { if (o.isMesh) o.castShadow = true; }); this.catchCoin = coin; }, () => {}); } // монеты из карманов при поимке
         this.chaser.position.set(this.x, 0, 7); // выбегает из-за камеры
         this.chaser.userData.side = this.lane === 2 ? -1 : 1; // сбоку-сзади, чтобы не закрывать героя
     }
@@ -3051,6 +3054,14 @@ class Game {
     // ---- задержание (поймала погоня) ----------------------------------------------------------
     startArrest() {
         const c = this.chaser;
+        if (CatchScene.can(this.rat, c)) { // схватила за ногу и трясёт; есть скелет у обоих — иначе сцена задержания
+            const ck = c.userData.chaserKey, gltf = (ck ? this.world.chaserModels?.[ck] : this.world.chaserModel)?.gltf;
+            const find = (n) => gltf?.animations.find((x) => x.name === n);
+            this.arrest = { t: 0, c, scene: new CatchScene(this, c, { run: find(this.chaserCfg(ck).run), stand: find(this.chaserCfg(ck).arrest) || find("idle") }, this.catchCoin?.isObject3D ? this.catchCoin : null) };
+            document.body.classList.add("arresting");
+            tg.haptic("heavy");
+            return;
+        }
         this.arrest = { t: 0, c, side: c.userData.side || 1, from: c.position.clone(), arrived: false };
         $("arrest").hidden = false;
         document.body.classList.add("arresting");
@@ -3060,6 +3071,7 @@ class Game {
     arrestStep(dt) {
         const a = this.arrest, c = a.c, mixer = c.userData.mixer;
         a.t += dt;
+        if (a.scene) return a.scene.update(dt);
         // подбегает и встаёт сбоку у пояса героя, лицом к нему
         const k = Math.min(1, a.t / 0.7), e = k * (2 - k);
         c.position.x = a.from.x + (this.x + a.side * 0.75 - a.from.x) * e;
@@ -3087,6 +3099,7 @@ class Game {
     endArrest() {
         this.audio.stop("busted"); // новый забег, меню, апелляция — сирена прошлого не доигрывает поверх
         if (!this.arrest) return;
+        this.arrest.scene?.dispose();
         const { c, act } = this.arrest, m = c.userData.mixer;
         if (m) {
             m.timeScale = 1;
