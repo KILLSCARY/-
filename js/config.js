@@ -88,18 +88,15 @@ export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon
     hemi: [0x8a7ac8, 0x0a0618], moon: 0xb0a0ff, stars: 320, /* мелких звёзд больше: небо в 2 раза чётче */ moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
     env: ["#07051a", "#2a1a50", "#6a3aa0", "#120a24", "#030208"] };
 
-// Нячанг — локация Димы и Саши Товаруса (js/vietnam.js): вечер у моря. Море и пляж слева, небоскрёбы справа, пальмы.
-// heroes — у кого эта локация; sky — градиент неба сверху вниз и солнце над морем (x, y — доли экрана, r — радиус);
-// fog — цвет дымки (подходит к горизонту); towers — высота башен (м), signs — неон на первых этажах
+// Dubai replaces the old coastal district. Keep VIETNAM and the hero IDs for compatibility.
 export const VIETNAM = {
     heroes: ["dima", "tovarus"],
-    sky: { zenith: "#1c1640", mid: "#6a3a78", horizon: "#f08a5a", sun: { x: 0.16, y: 0.47, r: 0.06, color: "#ffd9a0" }, islands: "#3a2448" },
-    fog: 0x8a5070, sea: 0x1b5a72, sand: 0xc9a77c,
-    towers: [32, 78], slot: 20,
-    signs: ["PHỞ 24H", "CÀ PHÊ", "BÁNH MÌ", "KARAOKE", "MASSAGE", "HOTEL", "BIA HƠI", "P2P USDT", "SIM 4G", "ĐỔI TIỀN"],
+    sky: { zenith: "#536e99", mid: "#d28c87", horizon: "#f4c38a", sun: { x: .43, y: .22, r: .036, color: "#ffe3a2" } },
+    fog: 0xd5aa91, near: 65, far: 275, viewFar: 320,
+    hemi: [0xffdcad, 0x695965], light: 1.25, moon: 0xffc086,
 };
 
-// Активистки на обочине Нячанга (js/hecklers.js): кричат лозунги и кидают в Диму и Сашу всё, что под рукой.
+// Активистки на обочине Дубая (js/hecklers.js): кричат лозунги и кидают в Диму и Сашу всё, что под рукой.
 // models — свои девушки (Meshy, models/hecklers/girlN.glb), пока не загрузились — прохожая NPCS.girl. clips — общие
 // клипы: idle — злой крик на месте («Stand Talking Angry»), throw — «Over Shoulder Throw», из него только начало: release —
 // секунда, когда предмет уходит из руки (рука идёт вперёд-вверх), throwEnd — когда вернуться к крику (дальше клип кидает за спину).

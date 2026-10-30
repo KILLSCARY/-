@@ -825,7 +825,7 @@ export class World {
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;
-        g.userData.city = true; // в Нячанге (js/vietnam.js) вместо хрущёвок — небоскрёбы
+        g.userData.city = true; // в Дубае (js/vietnam.js) вместо хрущёвок — небоскрёбы
         this.scene.add(g);
         // отделение банка: павильон Сбера/Альфы перед домом (дом отодвигается назад)
         if (Math.random() < BANKS.chance) {
@@ -980,6 +980,7 @@ export class World {
         this.scene.add(o);
         this.scenery.push(o);
         if (this.winter?.on) this.winter.hide(o);
+        if (this.vietnam?.on) this.vietnam.hide(o);
         return o;
     }
 

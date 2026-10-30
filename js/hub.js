@@ -128,8 +128,8 @@ export class Hub {
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
-        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Локация</h3><p>Зимний район: снежные дворы, тёплые окна и вечерняя улица.</p>
-            <div class="seg">${[["auto", "По герою"], ["winter", "Зимний район"]].map(([v, n]) => `<button data-location="${v}" class="${(g.settings.location || "auto") === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
+        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Локация</h3><p>Выберите снежный район, Дубай на закате или локацию своего героя.</p>
+            <div class="seg seg3">${[["auto", "По герою"], ["winter", "Зимний район"], ["dubai", "Дубай · закат"]].map(([v, n]) => `<button data-location="${v}" class="${(g.settings.location || "auto") === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
         for (const b of box.querySelectorAll("[data-location]")) b.onclick = () => { g.setSetting("location", b.dataset.location); this.renderSettings(); };
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];
@@ -645,7 +645,7 @@ export class Hub {
         if (!btn) return;
         btn.disabled = !!this.game.heroLoading;
         $("play-label").textContent = this.game.heroLoading ? "Загрузка…" : "Забег";
-        $("play-hero").textContent = (CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "") + (this.game.location === "winter" ? " · Зимний район" : "");
+        $("play-hero").textContent = (CHARACTERS.find((c) => c.id === this.game.heroId)?.name ?? "") + (this.game.location === "winter" ? " · Зимний район" : this.game.location === "vietnam" ? " · Дубай на закате" : "");
     }
 
     toast(text) {

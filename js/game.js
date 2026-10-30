@@ -194,7 +194,7 @@ class Game {
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
         const requestedLocation = new URLSearchParams(location.search).get("location");
-        if (["winter", "auto"].includes(requestedLocation)) {
+        if (["winter", "dubai", "auto"].includes(requestedLocation)) {
             this.settings.location = requestedLocation;
             try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         }
@@ -212,7 +212,7 @@ class Game {
         this.world = new World(this.scene, BALANCE.laneWidth, this.tier);
         if (this.location) this.setLocation(this.location, true); // герой выбран раньше, чем построилась улица
         this.cards = new CardGirls(this); // девушки с банковской картой у края дороги
-        this.hecklers = new Hecklers(this); // активистки на обочине Нячанга — кидаются в Диму и Сашу
+        this.hecklers = new Hecklers(this); // активистки на обочине Дубая — кидаются в Диму и Сашу
         this.world.camera = this.camera;
         this.rat = createRat();
         this.scene.add(this.rat, this.rat.userData.blob);
@@ -348,7 +348,7 @@ class Game {
         const winter = this.location === "winter";
         const sky = winter ? WINTER.sky : vn || SKY;
         const grad = g.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : .5, sky.mid); grad.addColorStop(winter ? .65 : 1, sky.horizon);
+        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : vn ? .24 : .5, sky.mid); grad.addColorStop(winter ? .65 : vn ? .55 : 1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
         if (winter) {
             if (!this.winterSky) {
@@ -408,24 +408,28 @@ class Game {
         this.scene.background = tex;
     }
 
-    // Закат над морем (Нячанг): солнце низко слева над водой, ореол, редкие первые звёзды, силуэты островов у горизонта
+    // Sunset sky baked once at viewport size. Clouds add no meshes or per-frame work.
     paintSunset(g, W, H, sky, c) {
+        let seed = 952;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
         const s = sky.sun, sx = s.x * W, sy = s.y * H, r = s.r * W;
-        const halo = g.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 7);
-        halo.addColorStop(0, "rgba(255,200,140,.55)"); halo.addColorStop(1, "rgba(255,140,90,0)");
+        const halo = g.createRadialGradient(sx, sy, r * .4, sx, sy, r * 6);
+        halo.addColorStop(0, "rgba(255,220,157,.7)"); halo.addColorStop(.4, "rgba(255,183,115,.2)"); halo.addColorStop(1, "rgba(255,160,100,0)");
         g.fillStyle = halo; g.fillRect(0, 0, W, H);
         g.fillStyle = s.color; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill();
-        let seed = 5;
-        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,240,255,${0.15 + rnd() * 0.5})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.25, 0.4 + rnd() * 0.7, 0, 7); g.fill(); }
-        // острова: пологие холмы у горизонта над морем (левая половина), солнце садится за них наполовину
-        g.fillStyle = sky.islands;
-        const base = sy + r * 0.4;
-        g.beginPath(); g.moveTo(0, H);
-        g.lineTo(0, base);
-        for (let x = 0; x <= W * 0.62; x += 8) g.lineTo(x, base - Math.max(0, Math.sin(x / W * 9) * 18 + Math.sin(x / W * 23) * 7 + 10) * (1 - x / (W * 0.62)) * (W / 1024));
-        g.lineTo(W * 0.62, base); g.lineTo(W * 0.62, H);
-        g.closePath(); g.fill();
+        for (let band = 0; band < 12; band++) {
+            const y = (.06 + rnd() * .29) * H, x = rnd() * W;
+            g.save(); g.translate(x, y); g.scale(1, .045 + rnd() * .03);
+            const radius = W * (.2 + rnd() * .3), cloud = g.createRadialGradient(0, 0, 0, 0, 0, radius);
+            cloud.addColorStop(0, band % 2 ? "rgba(255,200,161,.32)" : "rgba(116,93,126,.2)"); cloud.addColorStop(1, "rgba(200,144,146,0)");
+            g.fillStyle = cloud; g.fillRect(-radius, -radius, radius * 2, radius * 2); g.restore();
+        }
+        // A faint distant urban silhouette underneath the actual 3D skyline, with no island hills.
+        g.fillStyle = "rgba(147,111,123,.2)";
+        for (let x = 0; x < W; x += 12 + rnd() * 18) {
+            const h = (8 + rnd() * 32) * W / 1024;
+            g.fillRect(x, H * .49 - h, 8 + rnd() * 15, h);
+        }
         this.setSkyCanvas(c);
     }
 
@@ -1097,7 +1101,7 @@ class Game {
         // В меню камера спереди; зимний район показываем со стороны забега, как на концепте.
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
-        const behind = this.state === "menu" && this.location !== "winter" ? 0 : 1;
+        const behind = this.state === "menu" && this.location === "street" ? 0 : 1;
         const arr = this.state === "over" && this.arrest;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
@@ -1180,7 +1184,7 @@ class Game {
         const prevShadows = this.tier.shadows;
         this.quality = level;
         this.tier = QUALITY_TIERS[level];
-        if (this.tier.reflections && this.location !== "winter") {
+        if (this.tier.reflections && this.location === "street") {
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
             const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
@@ -1371,7 +1375,7 @@ class Game {
     // и стены по времени встречаются так же часто, как у остальных
     wallGap(m) { return m * (this.heroCfg?.sick?.walls ?? 1); }
 
-    // Локация забега по герою: у Димы и Саши — Нячанг (VIETNAM), у остальных — ночной район. Небо и дымка — тоже свои
+    // Локация забега по герою: у Димы и Саши — Дубай (внутренний ID vietnam), у остальных — ночной район. Небо и дымка — тоже свои
     setLocation(name, force = false) {
         if (this.location === name && !force) return;
         this.location = name;
@@ -1384,24 +1388,24 @@ class Game {
     }
 
     heroLocation(id) {
-        return this.settings.location === "winter" ? "winter" : VIETNAM.heroes.includes(id) ? "vietnam" : "street";
+        return this.settings.location === "winter" ? "winter" : this.settings.location === "dubai" || VIETNAM.heroes.includes(id) ? "vietnam" : "street";
     }
 
     applyLocationLook() {
-        const winter = this.location === "winter", sky = winter ? WINTER : SKY;
+        const winter = this.location === "winter", dubai = this.location === "vietnam", sky = winter ? WINTER : dubai ? VIETNAM : SKY;
         this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
-        this.hemi.intensity = winter ? WINTER.light : this.look2 ? LOOK2.hemi : SKY.light;
-        this.moon.color.set(sky.moon); this.moon.intensity = winter ? .8 : .9;
+        this.hemi.intensity = winter || dubai ? sky.light : this.look2 ? LOOK2.hemi : SKY.light;
+        this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.4 : winter ? .8 : .9;
         this.scene.fog.color.set(winter ? WINTER.fog : this.location === "vietnam" ? VIETNAM.fog : SKY.color);
-        this.scene.fog.near = winter ? WINTER.near : this.look2 ? LOOK2.fog[0] : 12;
-        this.scene.fog.far = winter ? WINTER.far : this.tier.far - 12;
-        this.camera.far = winter ? WINTER.viewFar : this.tier.far;
+        this.scene.fog.near = winter || dubai ? sky.near : this.look2 ? LOOK2.fog[0] : 12;
+        this.scene.fog.far = winter || dubai ? sky.far : this.tier.far - 12;
+        this.camera.far = winter || dubai ? sky.viewFar : this.tier.far;
         this.camera.updateProjectionMatrix();
         const u = this.output.uniforms;
-        u.exposure.value = winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure;
-        u.sat.value = winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
-        u.contrast.value = winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
-        u.vig.value = winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
+        u.exposure.value = dubai ? 1.6 : winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure;
+        u.sat.value = dubai ? 1.08 : winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
+        u.contrast.value = dubai ? 1.05 : winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.vig.value = dubai ? .3 : winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
         this.renderer.toneMappingExposure = u.exposure.value * .55;
         document.body.classList.toggle("winter", winter);
         this.world.winter?.sync();
