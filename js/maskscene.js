@@ -1,13 +1,12 @@
 // Сцена «Маска» перед экзаменом Инакова (сценарий Жупелихи, docs/scenario/scene_mask_v1.md).
 // Горилла — models/gorilla.glb (человек в костюме, кости mixamorig, клипы idle/turn/grab_head/walk);
-// голова костюма — отдельная сетка gorilla_head на кости Head: после вспышки она снимается, падает на асфальт и тает —
-// в бою её в кадре нет; в финальной сцене Павел поднимает её и протягивает Спиди. Пиджак не бросает.
+// Горилла хватается за голову, вспышка — и на его месте стоит Павел. Отдельной маски на земле нет.
 // Если модель не загрузилась — запасная фигура из примитивов.
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { MASK_SCENE } from "./config.js";
 
-const SPEEDY = "Спиди", GOR = "Горилла", PAV = "Инаков";
+const GOR = "Горилла", PAV = "Инаков";
 
 function gloss(color, rough = 0.35) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0.15 }); }
 
@@ -76,6 +75,7 @@ const ease = (k) => k * k * (3 - 2 * k);
 export class MaskScene {
     constructor(fight, kind, done) {
         this.F = fight; this.kind = kind; this.done = done; this.t = 0; this.i = -1; this.over = false;
+        const SPEEDY = fight.heroCfg.short || fight.heroCfg.name; // говорит тот, за кого бежишь
         const o = fight.f[1];
         this.floor = new THREE.Vector3(-0.35, 0.17, o.home + 0.35); // перед Павлом, ближе к Спиди
         this.floor.x = -0.35;
@@ -89,8 +89,8 @@ export class MaskScene {
                 [3.4, () => fight.say(MASK_SCENE.lines.gorilla, GOR, 3300)],
                 [2.6, () => fight.say(MASK_SCENE.lines.speedy1, SPEEDY, 2500)],
                 [1.6, () => { this.turn = 1; }],                    // поворачивается (шаги на месте) и хватается за голову костюма
-                [1.2, () => { this.focus = 1; this.drop(); }],                            // в том же кадре: Горилла → Павел, маска падает (глухой звук)
-                [1.8, () => { fight.say(MASK_SCENE.lines.speedy2, SPEEDY, 1700); this.vanish(); }], // маска полежала — тает, в кадре её больше нет
+                [1.2, () => this.flash()],                            // вспышка: Горилла → Павел
+                [1.8, () => { fight.say(MASK_SCENE.lines.speedy2, SPEEDY, 1700); }],
                 [3.2, () => fight.say(MASK_SCENE.lines.pavel1, PAV, 3100)],
                 [3.4, () => fight.say(MASK_SCENE.lines.speedy3, SPEEDY, 3300)],
                 [3.4, () => fight.say(MASK_SCENE.lines.pavel2, PAV, 3300)],
@@ -127,18 +127,8 @@ export class MaskScene {
     swap() { // Гориллу убираем, Павел стоит с головой костюма в руке
         if (this.swapped) return; this.swapped = true;
         const F = this.F, o = F.f[1];
-        const head = this.gor.userData.head;
-        // голова остаётся там, где была на Горилле (в одном кадре: Гориллы уже нет, Павел есть)
-        this.gor.updateMatrixWorld(true); F.group.updateMatrixWorld(true);
-        const wp = head.getWorldPosition(new THREE.Vector3());
-        if (this.gor.userData.model) F.group.attach(head); // сетка с костей — сохраняем мировой масштаб
-        else { this.gor.remove(head); F.group.add(head); }
         F.group.remove(this.gor);
         if (o.model) o.model.visible = true;
-        head.position.copy(F.group.worldToLocal(wp));
-        head.position.x -= 0.25; // чуть перед Павлом, чтобы не висела в его голове
-        head.rotation.set(0, 0, 0);
-        F.mask = head;
     }
     drop() {
         this.swap();

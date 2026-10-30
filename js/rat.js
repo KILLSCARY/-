@@ -189,11 +189,11 @@ export function createRat() {
     const c = document.createElement("canvas");
     c.width = c.height = 64;
     const g = c.getContext("2d"), grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.45, "rgba(255,255,255,0.75)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+    grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.4, "rgba(255,255,255,0.5)"); grad.addColorStop(0.75, "rgba(255,255,255,0.12)"); grad.addColorStop(1, "rgba(255,255,255,0)"); // край растворяется: с плотной серединой пятно читалось как чёрный диск
     g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
     const blob = new THREE.Mesh( // текстура — только форма (альфа), цвет — у материала
-        new THREE.PlaneGeometry(1.1, 1.1),
-        new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: new THREE.CanvasTexture(c), transparent: true, opacity: 0.55, depthWrite: false })
+        new THREE.PlaneGeometry(0.95, 0.95),
+        new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: new THREE.CanvasTexture(c), transparent: true, opacity: 0.3, depthWrite: false })
     );
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.02;

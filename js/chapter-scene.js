@@ -9,7 +9,7 @@ export class ChapterScene {
         this.hiddenScenery = new Map();
         if (story.id === 3) this.clearEntrance();
         const road = game.world?.roadMat, reflector = game.world?.reflector;
-        if (road) {
+        if (road && reflector?.visible) { // без зеркала менять нечего: лишняя пересборка шейдера дороги — фриз на телефоне
             this.roadState = { road, reflector, reflectorVisible: reflector?.visible,
                 transparent: road.transparent, alphaMap: road.alphaMap, roughnessMap: road.roughnessMap, opacity: road.opacity,
                 roughness: road.roughness, metalness: road.metalness, envMapIntensity: road.envMapIntensity,
@@ -39,7 +39,7 @@ export class ChapterScene {
     clearEntrance() {
         for (const bank of this.game.world?.swaps?.bank || []) {
             const { house, side } = bank.userData;
-            if (!house || side !== -1 || Math.abs(house.position.z + 14) >= 11) continue;
+            if (!house || side !== -1 || Math.abs(house.position.z + 7) >= 11) continue;
             let previous = this.hiddenScenery.get(bank);
             if (!previous) {
                 previous = { visible: bank.visible, x: house.position.x };
@@ -60,25 +60,31 @@ export class ChapterScene {
         this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];
         const pull = THREE.MathUtils.smoothstep(this.time, 5, 10.5);
         if (this.story.id === 2) {
-            camera.position.set(-.4 * (1 - pull), THREE.MathUtils.lerp(2.1, portrait ? 3.3 : 2.5, pull),
-                THREE.MathUtils.lerp(-1.5, portrait ? 5 : 4.4, pull));
-            camera.lookAt(1.5 * (1 - pull), 1, THREE.MathUtils.lerp(-10, -8, pull));
+            camera.position.set(-.3 * (1 - pull), THREE.MathUtils.lerp(2.4, portrait ? 3.3 : 2.5, pull),
+                THREE.MathUtils.lerp(portrait ? 2.6 : .5, portrait ? 5 : 4.4, pull));
+            camera.lookAt(1.7 * (1 - pull), 1, THREE.MathUtils.lerp(-9, -8, pull));
         }
         if (this.story.id === 3) {
-            camera.position.set(-.8 * (1 - pull), THREE.MathUtils.lerp(2.25, portrait ? 3.3 : 2.5, pull),
-                THREE.MathUtils.lerp(-10.5, portrait ? 5 : 4.4, pull));
-            camera.lookAt(-6.1 * (1 - pull), THREE.MathUtils.lerp(1.9, 1, pull), THREE.MathUtils.lerp(-14, -8, pull));
+            camera.position.set(1.2 * (1 - pull), THREE.MathUtils.lerp(2.4, portrait ? 3.3 : 2.5, pull),
+                THREE.MathUtils.lerp(portrait ? 2.5 : .5, portrait ? 5 : 4.4, pull));
+            camera.lookAt(-5.2 * (1 - pull), THREE.MathUtils.lerp(2.4, 1, pull), THREE.MathUtils.lerp(-7, -8, pull));
         }
         if (this.time >= 10.5) this.finish();
     }
     finish() {
         if (this.done) return;
         this.done = true;
-        this.stage.dispose(); this.ui.hidden = true;
-        for (const [bank, previous] of this.hiddenScenery) {
-            bank.visible = previous.visible;
-            bank.userData.house.position.x = previous.x;
-        }
+        this.ui.hidden = true;
+        // декорации не исчезают с концом ролика: остаются на улице, и герой пробегает мимо них (Game.adoptIntroStage)
+        const release = () => {
+            this.stage.dispose();
+            for (const [bank, previous] of this.hiddenScenery) {
+                bank.visible = previous.visible;
+                bank.userData.house.position.x = previous.x;
+            }
+        };
+        if (this.game.adoptIntroStage) this.game.adoptIntroStage(this.stage, release);
+        else release();
         if (this.roadState) {
             const { road, reflector, reflectorVisible, normalScale, ...original } = this.roadState;
             Object.assign(road, original); road.normalScale.copy(normalScale); road.needsUpdate = true;

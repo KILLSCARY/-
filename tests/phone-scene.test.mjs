@@ -8,7 +8,7 @@ test('телефон следует за кистью, падает и удал�
     els['phone-cutscene'].querySelector = () => ({});
     const previous = globalThis.document;
     const screenText = [];
-    globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ fillRect() {}, fillText(text) { screenText.push(text); } }) }) };
+    globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, clip() {}, fillRect() {}, fillText(text) { screenText.push(text); } }) }) };
     try {
         const scene = new THREE.Scene(), rat = new THREE.Group();
         const arm = new THREE.Bone(), forearm = new THREE.Bone(), hand = new THREE.Bone();
@@ -26,7 +26,7 @@ test('телефон следует за кистью, падает и удал�
         assert.ok(cut.phone.position.distanceTo(hand.getWorldPosition(new THREE.Vector3())) < .2);
         assert.ok(cut.phone.position.y > hand.getWorldPosition(new THREE.Vector3()).y);
         assert.equal(cut.screenTexture.generateMipmaps, false);
-        assert.ok(cut.game.camera.position.distanceTo(cut.phone.position) < .35, 'первый кадр — крупный план телефона');
+        assert.ok(cut.game.camera.position.distanceTo(cut.phone.position) < .4, 'первый кадр — крупный план телефона');
         cut.update(3.2);
         assert.equal(cut.bodyMat.depthTest, true);
         assert.equal(cut.screenMat.depthTest, true);

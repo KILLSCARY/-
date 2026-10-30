@@ -1670,3 +1670,12 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
 .map-card[data-state="hero"] .map-chip, .map-card[data-state="fixed"] .map-chip { color: var(--gold); border-color: var(--gold); }
 .map-card .btn { margin-top: 4px; }
 .map-btn-line { border: 1px solid var(--line); color: #fff; }
+
+/* порыв Ислама: бледная подсказка на весь экран, сквозь неё видно игру; нажатиям не мешает */
+.wind-hint { position: fixed; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; overflow: hidden; pointer-events: none; }
+.wind-hint[hidden] { display: none; }
+.wind-hint b { font: 900 clamp(64px, 22vw, 150px)/1 var(--font-display); letter-spacing: .02em; color: rgba(255, 255, 255, .24); transform: rotate(-8deg); animation: wind-hint .42s ease-in-out infinite alternate; }
+.wind-hint b:nth-child(2) { animation-delay: .14s; }
+.wind-hint b:nth-child(3) { animation-delay: .28s; }
+@keyframes wind-hint { from { transform: rotate(-8deg) scale(.94); color: rgba(255, 255, 255, .17); } to { transform: rotate(-8deg) scale(1.05); color: rgba(255, 255, 255, .34); } }
+@media (prefers-reduced-motion: reduce) { .wind-hint b { animation: none; } }

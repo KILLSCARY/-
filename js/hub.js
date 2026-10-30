@@ -169,9 +169,6 @@ export class Hub {
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
-        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Локация</h3><p>Зимний район: снежные дворы, тёплые окна и вечерняя улица.</p>
-            <div class="seg">${[["winter", "Зимний район"], ["street", "Ночной район"]].map(([v, n]) => `<button data-location="${v}" class="${(g.settings.location === "street" ? "street" : "winter") === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
-        for (const b of box.querySelectorAll("[data-location]")) b.onclick = () => { g.setSetting("location", b.dataset.location); this.renderSettings(); };
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];
                 return `<button class="test-boss" data-fight="${i}"><i style="background-image:url(${f.portrait})"></i><b>${f.short || f.name}</b><span>${st.exam ? "Экзамен" : `Глава ${st.chapter}`}</span></button>`; }).join("")}</div>

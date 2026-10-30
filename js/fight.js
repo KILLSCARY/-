@@ -113,7 +113,8 @@ export class Fight {
         this.f[0].hpMax = this.heroCfg.hp + this.hpBonus;
         this.f[1].hpMax = this.oppCfg.hp;
         for (const f of this.f) { f.hp = f.hpMax; f.shown = f.hpMax; }
-        const gor = this.exam && MASK_SCENE.on; // сцена «Маска» (v6): модель Гориллы, голова костюма — отдельная сетка gorilla_head
+        this.maskOn = !!(this.exam || this.opts.mask) && MASK_SCENE.on;
+        const gor = this.maskOn; // сцена «Маска» (v6): модель Гориллы, голова костюма — отдельная сетка gorilla_head
         let left = gor ? 3 : 2;
         if (gor) loadModel(MASK_SCENE.model, (gltf) => { this.gorGltf = gltf; if (--left === 0) this.ready(); }, () => { if (--left === 0) this.ready(); });
         // экран загрузки уже показан игрой (Game.showFightLoad, сразу после заставки «БОСС»); снимает его ready()
@@ -290,7 +291,7 @@ export class Fight {
             if (this.disposed) return; // бой уже закрыли
             try { this.g.renderer.compile(this.g.scene, this.g.camera); } catch {}
             this.phase = "intro";
-            if (this.exam && MASK_SCENE.on && this.f[1].model) { // сцена «Маска» — до баннера «ЭКЗАМЕН»
+            if (this.maskOn && this.f[1].model) { // сцена «Маска» — до баннера «ЭКЗАМЕН»
                 this.phase = "cut"; this.masked = true;
                 $("fb").classList.add("off");
                 this.cut = new MaskScene(this, "pre", () => { this.cut = null; $("fb").classList.remove("off"); this.phase = "intro"; this.startRound(); });
@@ -326,7 +327,7 @@ export class Fight {
         this.phase = "intro";
         this.introT = 0;
         const L = this.oppCfg.lines;
-        if (this.exam && this.masked) { /* реплики уже прозвучали в сцене «Маска» */ }
+        if (this.masked && (this.exam || this.round === 1)) { /* реплики уже прозвучали в сцене «Маска» */ }
         else if (this.exam) { // Горилла молчит — говорит Павел
             this.say(L.examIntro?.[0] || L.intro);
             if (L.examIntro?.[1]) setTimeout(() => this.phase !== "end" && this.say(L.examIntro[1]), 2700);
@@ -808,9 +809,8 @@ export class Fight {
             // «K.O.» и реплика — когда падение уже началось
             if (this.koBig && (this.koBig.t -= dt) <= 0) { const k = this.koBig; this.koBig = null; this.big("K.O.", k.cls); this.shake = 0.25; if (k.line) this.say(k.line); }
             if (this.endT <= 0) {
-                if (this.exam && this.masked && this.f[1].hp <= 0 && this.mask && !this.outroCut) { // сдал: Павел протягивает маску
-                    this.outroCut = true; this.phase = "outro"; this.big(""); this.say(null); // сразу: иначе пока идёт затемнение, roundEnd вызывает finish() поверх сцены
-                    this.cut = new MaskScene(this, "post", () => { this.cut = null; this.finish(); });
+                if (this.masked && !this.outroCut && (this.exam ? this.f[1].hp <= 0 : this.wins[0] >= FIGHT.winRounds)) { // сдал: Павел говорит напутствие
+                    this.outroCut = true; this.big(""); this.say(MASK_SCENE.lines.outro); this.endT = 3.5;
                 } else if (this.exam || this.wins[0] >= FIGHT.winRounds || this.wins[1] >= FIGHT.winRounds || this.round >= FIGHT.rounds) this.finish();
                 else this.startRound();
             }
@@ -894,7 +894,7 @@ export class Fight {
             const el = document.createElement("div");
             el.className = `f-result ${win ? "win" : "lose"}`;
             el.innerHTML = `<b>${win ? "ПОБЕДА" : "ПОРАЖЕНИЕ"}</b><span>${this.wins[0]} : ${this.wins[1]}</span><p></p><button class="btn btn-main">Дальше</button>`;
-            el.querySelector("p").textContent = win ? "Права P2P отстояны." : `«${this.oppCfg.lines.lose}»`;
+            el.querySelector("p").textContent = win ? (this.maskOn ? "Горилла больше не прячется." : "Права P2P отстояны.") :`«${this.oppCfg.lines.lose}»`;
             $("fight").appendChild(el);
             this.g.audio?.play(win ? "record" : "crash");
             const go = () => { if (this.left) return; this.left = true; el.remove(); this.finish(); };

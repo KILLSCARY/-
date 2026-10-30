@@ -54,7 +54,7 @@ test('дом за скрытым павильоном возвращается �
         const house = new THREE.Group(); house.position.set(-17, 0, -14);
         const bank = new THREE.Group(); bank.userData = { house, side: -1 }; house.add(bank);
         const scene = new THREE.Scene(); scene.add(house);
-        const game = { scene, camera: new THREE.PerspectiveCamera(), world: { swaps: { bank: [bank] } } };
+        const game = { scene, camera: new THREE.PerspectiveCamera(), world: { swaps: { bank: [bank] } }, storyModelLoader: () => {} };
         const cut = new ChapterScene(game, { id: 3 }, () => {});
         assert.equal(bank.visible, false); assert.equal(house.position.x, -11);
         house.position.x = -18; cut.update(.1);

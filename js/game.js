@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { STORY_HERO_LINES, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
 import { StoryStage, preloadStoryStage } from "./story-stage.js";
@@ -198,6 +198,7 @@ class Game {
         this.quality = QUALITY === "auto" ? (tgPerfClass() === "LOW" || weakDevice() ? "low" : "medium") : QUALITY;
         this.resScale = 1;
         this.autoQuality = this.quality;
+        this.storyModelLoader = loadModel; // сюжетные сцены грузят модели через него
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
         // Сохраняем выбранные игроком графику и частоту, включая старые профили.
@@ -498,6 +499,7 @@ class Game {
         this.boostLeft = 0;
         this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
         this.runout = null;
+        this.dropStage?.();
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
         this.trip = 0;     // клип «споткнулся» (TRIP)
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
@@ -552,6 +554,7 @@ class Game {
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
         if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
+        this.dropIntroStage();
         const chapterStory = this.story;
         if (chapterStory) {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
@@ -591,7 +594,7 @@ class Game {
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
         // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
         const st0 = this.story;
-        if (st0) setTimeout(() => { preloadStoryStage(st0.id); for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if (st0.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
+        if (st0) setTimeout(() => { preloadStoryStage(st0.id); for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if ((st0.exam || this.storyMask(st0)) && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -731,6 +734,7 @@ class Game {
 
     // В меню с паузы или с экрана проигрыша. Ушёл с паузы — собранное в забеге всё равно в кошелёк.
     toMenu() {
+        this.dropIntroStage();
         this.endArrest();
         if (this.state === "paused") {
             this.submitRun(); // вышел с паузы — набранное тоже результат забега
@@ -828,6 +832,7 @@ class Game {
         this.slowK = 1;
         if (this.slowmo) { this.slowmo = false; document.body.classList.remove("slowmo"); }
         $("wind-q").hidden = true;
+        $("wind-hint").hidden = true;
         this.world.blowWind(null);
         this.windSlide = 0;
         $("vent-q").hidden = true; // вентилятор: забег кончился — ветер тоже (и после апелляции не дует дальше)
@@ -872,6 +877,8 @@ class Game {
         if (lane === this.lane) return;
         this.prevLane = this.lane;
         this.lane = lane;
+        // две таблички: свайп к ней — это и есть ответ (раньше герой ещё секунд 8 полз на малой скорости)
+        if (this.slowmo) { const w = this.walls.find((x) => !x.answered && !x.arch); if (w && !w.chosen && w.answers.length === 2 && lane !== 1) this.chooseAnswer(w, lane); }
         this.ventOff = 0; // против ветра вентилятора: свайп — снова точно на полосе
         this.audio.play("swipe");
         tg.haptic("light");
@@ -883,6 +890,8 @@ class Game {
         // ничего (раньше он выбирал ответ следующей стены — «двойной свайп»). После выбора 0,35 с без прыжка.
         if (this.slowmo || this.runTime < this.chooseLock) {
             const w = this.walls.find((x) => !x.answered && !x.arch);
+            // две таблички, а герой посередине: выбирать нечего. Раньше свайп вверх «выбирал» пустую полосу, блокировал кнопки, и вопрос пропадал
+            if (w && !w.chosen && w.answers.length === 2 && this.lane === 1) { this.hub.toast("Свайпни к табличке: влево или вправо"); return; }
             if (w && !w.chosen) this.chooseAnswer(w, this.lane);
             if (w || this.runTime < this.chooseLock) return;
         }
@@ -1239,13 +1248,17 @@ class Game {
             target.lerp((v.focus3 ||= new THREE.Vector3()).set(this.x + a.side * 0.35, 0.5, -0.35), k);
         }
         cam.lookAt(target);
-        if (this.storyStage?.chapter === 1 && this.state === 'bossintro') {
-            const z = this.storyStage.exchangeZ;
-            cam.position.set(3.2, 2.2, z + 8);
-            cam.lookAt(8.2, 1.5, z);
+        if (this.storyStage && this.state === "bossintro" && !this.storyCatch) { // общий план декораций главы, камера заходит плавно
+            this.storyStage.update(dt);
+            this.stageT = (this.stageT || 0) + dt;
+            const k = Math.min(1, this.stageT / 1.6), e = k * k * (3 - 2 * k), p = (v.stage1 ||= new THREE.Vector3()), l = (v.stage2 ||= new THREE.Vector3());
+            this.storyStage.shot(p, l);
+            cam.position.lerp(p, e);
+            cam.lookAt(target.lerp(l, e));
         }
         this.phoneScene?.update(dt);
         this.chapterScene?.update(dt);
+        this.introStage?.stage.update(dt); // полицейский продолжает жестикулировать, пока герой бежит мимо
         this.rim.position.set(this.x, 1.6 + this.y, behind ? 1.6 : -1.6);
         this.rim.intensity = behind ? 1.0 : 0.35; // спереди мягче, чтобы морду не пересвечивало
 
@@ -1552,7 +1565,7 @@ class Game {
     }
 
     heroLocation(id) {
-        // зимний район — начальный; ночной район — в настройках (location "street"); у Димы и Саши — свой Нячанг
+        // зимний район — начальный; ночной район — на карте (location "street"); у Димы и Саши — свой Нячанг
         if (VIETNAM.heroes.includes(id)) return "vietnam";
         return this.settings.location === "street" ? "street" : "winter";
     }
@@ -1649,7 +1662,7 @@ class Game {
         const slow = nz > -22 && nz < -1.5;
         if (slow) {
             near.waited = (near.waited || 0) + dt;
-            if (near.waited > 8) this.chooseAnswer(near, this.lane);
+            if (near.waited > 8 && !(near.answers.length === 2 && this.lane === 1)) this.chooseAnswer(near, this.lane); // посередине при двух табличках выбирать нечего
         }
         // Ислам вдыхает — почти стоим (камера на нём), дует — вполовину скорости
         const windSlow = this.wind?.state === "inhale" ? 0.25 : this.wind?.state === "gust" ? 0.45 : 1;
@@ -1658,7 +1671,7 @@ class Game {
         const slowTo = slow && !sick ? 0.08 : Math.min(windSlow, ventSlow);
         this.slowK = (this.slowK ?? 1) + (slowTo - (this.slowK ?? 1)) * Math.min(1, dt * (slowTo < 1 ? 5 : 3));
         this.speed *= this.slowK;
-        if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми ответ или свайпни вверх на его полосе" : "Беги в правильный ответ"; }
+        if (this.slowmo !== slow) { this.slowmo = slow; document.body.classList.toggle("slowmo", slow); $("wq-hint").textContent = slow ? "Нажми ответ или свайпни к нему" : "Беги в правильный ответ"; }
         const move = this.speed * dt;
         this.distance += move;
         const prevStep = Math.floor(this.phase / Math.PI);
@@ -1671,6 +1684,10 @@ class Game {
         // спавн рядов: чем дальше — тем плотнее и злее
         const difficulty = Math.min(1, this.runTime / 90);
         this.nextRowZ += move;
+        if (this.introStage) {
+            this.introStage.stage.moveBy(move);
+            if (this.introStage.stage.root.position.z > 14) this.dropIntroStage();
+        }
         const quiet = this.bossCalm || this.bossFight; // перед боссом и в бою: ни рядов, ни стен, ни Ислама (и его вентилятора)
         if (quiet) {
             this.nextRowZ = Math.min(this.nextRowZ, SPAWN_Z - 1);
@@ -1763,8 +1780,8 @@ class Game {
         const blob = this.rat.userData.blob;
         blob.position.x = this.x;
         blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
-        blob.material.opacity = 0.55 * (1 - Math.min(0.7, this.y * 0.35)); // в прыжке и полёте пятно бледнеет — видно высоту
-        blob.visible = this.rat.visible; // бой прячет героя — пятно не должно остаться на ринге
+        blob.material.opacity = 0.3 * (1 - Math.min(0.7, this.y * 0.35)); // в прыжке и полёте пятно бледнеет — видно высоту
+        blob.visible = this.rat.visible && !this.tier.shadows; // бой прячет героя — пятно не должно остаться на ринге; есть настоящая тень — пятно лишнее
 
         if (this.sickCatch) this.sickCatchStep(dt);
         else if (this.stumble > 0) this.chase(dt);
@@ -2631,24 +2648,67 @@ class Game {
         if (ready) this.showStoryStage(s);
     }
 
+    // сцена «Маска»: Горилла снимает голову и под ней Павел. Если бежишь за самого Гориллу или Павла, разоблачать некого
+    storyMask(s) { return !!s.mask && this.heroId !== "gorilla" && this.heroId !== "pavel"; }
+    heroShort() { const c = CHARACTERS.find((h) => h.id === this.heroId); return c?.name.split(" ")[0]; }
+
+    // декорации вступления главы едут вместе с улицей, пока не останутся за спиной
+    adoptIntroStage(stage, release) { this.dropIntroStage(); this.introStage = { stage, release }; }
+    dropIntroStage() { this.introStage?.release(); this.introStage = null; }
+
+    dropStage() {
+        this.storyStage?.dispose(); this.storyStage = null;
+        for (const o of this.stageHidden || []) o.visible = true;
+        this.stageHidden = null;
+    }
+
+    // тротуар у декорации свободен: банкомат или павильон перед входом закрывали сцену. Прячем на время сцены
+    clearStageSidewalk(stage) {
+        const side = stage.chapter === 1 ? 1 : stage.chapter === 3 ? -1 : 0, z = stage.root.position.z;
+        if (!side) return;
+        const list = [...(this.world.scenery || []), ...(this.world.swaps?.bank || [])], p = new THREE.Vector3();
+        this.stageHidden = list.filter((o) => {
+            if (!o?.visible || !o.getWorldPosition) return false;
+            o.getWorldPosition(p);
+            return p.x * side > 3.4 && p.x * side < 9 && Math.abs(p.z - z) < 6;
+        });
+        for (const o of this.stageHidden) o.visible = false;
+    }
+
+    // Перед боссом герой сбегает на нет прямо к декорациям главы (они едут вместе с улицей и встают чуть впереди),
+    // камера плавно отъезжает на общий план, потом Мизулина ловит или затемнение к заставке босса
     async showStoryStage(s) {
         const run = this.runId;
         this.storyOn = true;
         this.state = "bossintro";
-        const stage = new StoryStage(this.scene, s.id, this.x, undefined, this.world);
+        const z = -(this.speed * RUNOUT_TIME * 0.5 + 8);
+        this.world.clear(); // на дороге пусто: монеты сквозь героя и бак перед камерой портили кадр (бой всё равно чистит улицу)
+        const stage = new StoryStage(this.scene, s.id, this.x, undefined, z);
         this.storyStage = stage;
+        this.stageT = 0;
+        this.runout = { t: 0, speed: this.speed };
         const lines = {
             1: "Станция «Обмен». Мизулина уже рядом.",
             2: "Полиция на пути. Время пройти проверку.",
             3: "Последний отрезок позади. Павел ждёт тебя на испытании.",
         };
-        this.gorilla(lines[s.id], true, 2500);
-        await wait(3000);
-        stage.dispose();
-        if (this.storyStage === stage) this.storyStage = null;
-        if (this.runId !== run || this.state !== "bossintro") return;
-        if (s.chase && this.questions && !this.profile.data.mizBeaten) this.catchScene();
-        else this.startStoryFight();
+        this.gorilla(lines[s.id], true, 1500);
+        const heroLine = STORY_HERO_LINES[this.heroId]?.[s.id - 1];
+        const gone = () => this.runId !== run || this.state !== "bossintro";
+        await wait(RUNOUT_TIME * 800); // сцена почти приехала, а камера ещё за спиной: подмены не видно
+        if (!gone() && this.storyStage === stage) this.clearStageSidewalk(stage);
+        await wait(RUNOUT_TIME * 200);
+        this.runout = null;
+        if (!gone() && heroLine) this.speech(CHARACTERS.find((h) => h.id === this.heroId)?.name || "", heroLine, 1500);
+        await wait(2000);
+        if (gone()) { if (this.storyStage === stage) this.dropStage(); return; }
+        if (s.chase && this.questions && !this.profile.data.mizBeaten) return this.catchScene();
+        $("fade").classList.add("on");
+        await wait(550);
+        if (this.storyStage === stage) this.dropStage();
+        if (gone()) { $("fade").classList.remove("on"); return; }
+        this.startStoryFight(true);
+        setTimeout(() => $("fade").classList.remove("on"), 120);
     }
 
     // Глава 1: догнала по сценарию — хватает за шиворот, затемнение, арена
@@ -2685,6 +2745,7 @@ class Game {
         $("fade").classList.add("on");
         await wait(600);
         live = false;
+        this.dropStage();
         const runClip = anims.find((x) => x.name === CHASER.run);
         if (mixer && runClip) { mixer.stopAllAction(); mixer.clipAction(runClip).play(); }
         c.visible = false;
@@ -2701,6 +2762,7 @@ class Game {
         const k = Math.min(1, r.t / RUNOUT_TIME);
         this.speed = r.speed * (1 - k * k * (3 - 2 * k));
         this.world.update(dt, this.speed * dt, this.t);
+        this.storyStage?.moveBy(this.speed * dt);
         this.phase += dt * this.speed * 0.95;
         if (this.slideLeft > 0) this.slideLeft -= dt;
         if (this.jumping) { // прыгнул в последний момент — приземляем, иначе завис бы в воздухе
@@ -2715,7 +2777,7 @@ class Game {
         // ушли в меню (или начали новый забег), пока шла заставка, — бой не начинаем
         const gone = () => this.runId !== run || this.state !== "bossintro";
         for (const id of [heroFighter(this.heroId), s.opponent]) preloadModel(FIGHTERS[id]?.model); // если ещё не скачаны — пока идёт заставка
-        if (s.exam && MASK_SCENE.on) preloadModel(MASK_SCENE.model);
+        if ((s.exam || this.storyMask(s)) && MASK_SCENE.on) preloadModel(MASK_SCENE.model);
         this.storyOn = true;
         this.state = "bossintro";
         tg.haptic("heavy");
@@ -2743,7 +2805,7 @@ class Game {
         splash.hidden = false;
         $("hud").hidden = true;
         setTimeout(() => this.audio.play("crash"), 560); // удар «VS»
-        if (s.before?.gorilla && !(s.exam && MASK_SCENE.on)) setTimeout(() => this.state === "bossintro" && this.gorilla(s.before.gorilla, true, 3200), 1300);
+        if (s.before?.gorilla && !((s.exam || this.storyMask(s)) && MASK_SCENE.on)) setTimeout(() => this.state === "bossintro" && this.gorilla(s.before.gorilla, true, 3200), 1300);
         await wait(2400);
         if (gone()) { splash.hidden = true; return; }
         this.showFightLoad(hero, opp, s);
@@ -2759,7 +2821,7 @@ class Game {
         if (this.chaser) this.chaser.visible = false;
         this.stumble = 0;
         this.rat.visible = false;
-        for (const id of ["wall-q", "wind-q", "mode"]) if ($(id)) $(id).hidden = true; // и окно «Режим забега» — не поверх боя
+        for (const id of ["wall-q", "wind-q", "wind-hint", "mode"]) if ($(id)) $(id).hidden = true; // и окно «Режим забега» — не поверх боя
         const n = this.questions ? this.charges(s) : 0;
         this.state = "fight";
         this.frameMeter.reset(); // замер кадров боя — с нуля, без хвоста забега
@@ -2768,7 +2830,7 @@ class Game {
         const exam = s.exam ? { ...EXAM, list: [...EXAM.list].sort(() => Math.random() - 0.5), charges: n, i: 0, ok: 0, bad: 0, streak: 0, wait: 0, q: null } : null;
         // заряды главы: +5% HP за каждый, с трёх — супер на 30% со старта
         try {
-            this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam,
+            this.fight = new Fight(this, { hero: heroFighter(this.heroId), opponent: s.opponent, exam, mask: this.storyMask(s),
                 bonus: exam ? {} : { hp: Math.min(20, Math.round(FIGHTERS.mouse.hp * CHARGES.hp * n)), super: n >= CHARGES.fullAt ? FIGHT.superMax * CHARGES.super : 0 },
                 onEnd: (win) => this.endStoryFight(win) });
         } catch (e) { // бой не собрался (битая модель, нет WebGL-ресурсов) — не оставляем игрока на пустой улице без HUD
@@ -2935,11 +2997,11 @@ class Game {
         const full = soldOut || (d.place && d.place > GORILLA.top);
         $("fn-ph").style.backgroundImage = `url(${FIGHTERS.pavel.portrait})`;
         $("fn-ph").querySelector("b").hidden = full || !d.place; // плашка «10 USDT» — только с подтверждённым местом
-        $("fn-title").textContent = "Последний экзамен пройден";
+        $("fn-title").textContent = "Ты прошёл Воронку до конца";
         // «ты в первой сотне, тебе положены 10 USDT» — только с местом от сервера. Сервер не ответил (5 с), недоступен
         // или игра не из Telegram — места нет, и обещать приз нельзя: раньше его так получал каждый, кто дошёл до финала
-        $("fn-text").textContent = full ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Сотня призов разобрана, но бесплатный разбор с менеджером остаётся за тобой."
-            : !d.place ? "Павел: «Упорство есть. Теперь давай превратим его в знания». Менеджер проверит место в первой сотне и разберёт твой старт."
+        $("fn-text").textContent = full ? "Сотня призов разобрана, но созвон с менеджером остаётся за тобой: бесплатный разбор твоей ситуации."
+            : !d.place ? "Созвонись с менеджером: он проверит, попал ли ты в первую сотню (10 USDT), и разберёт твой старт."
             : GORILLA.final.replace(", место №{place}", d.place ? `, место №${d.place}` : "").replace(" Осталось мест: {left}/100", d.left != null ? ` Осталось мест: ${d.left}/${GORILLA.top}` : "");
         $("btn-fn").textContent = "Записаться на созвон";
         $("btn-fn").onclick = () => this.hub.razbor(`Прошёл Воронку до конца${d.place ? `, место №${d.place}` : ""}.`);
@@ -3107,6 +3169,7 @@ class Game {
     watchWind(dt) {
         const w = this.wind, box = $("wind-q");
         this.windSlide = 0;
+        $("wind-hint").hidden = !(w?.state === "gust" && !w.proof);
         if (!w) { this.camFocus = Math.max(0, (this.camFocus || 0) - dt * 2); return; }
         const z = w.npc.position.z;
         if (!w.bones) this.windRig(w);
@@ -3161,6 +3224,7 @@ class Game {
                 w.state = "done";
                 this.windCalm = 1.5; // пара секунд встать на полосу
                 box.hidden = true;
+                $("wind-hint").hidden = true;
                 this.world.blowWind(null);
                 if (grip >= 1 || flying) {
                     this.usdt += WIND.reward;
@@ -3265,6 +3329,7 @@ class Game {
             if (z > VENT.after) { // прошёл зону — устоял
                 v.state = "done";
                 box.hidden = true;
+                $("wind-hint").hidden = true;
                 this.world.blowWind(null);
                 this.usdt += VENT.reward;
                 this.hub.toast(`Устоял на ветру! +${VENT.reward} USDT`);
