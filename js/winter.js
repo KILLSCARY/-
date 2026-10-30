@@ -9,7 +9,7 @@ import { loadModel } from './models.js';
 const PARKED_CAR = 'models/obj/lite/car1.glb';
 
 export const WINTER = {
-    fog: 0x777fae, near: 38, far: 122,
+    fog: 0x777fae, near: 60, far: 245, viewFar: 285,
     sky: { zenith: '#334e87', mid: '#8c9dcb', horizon: '#efc1c9' },
     hemi: [0x9bb6fa, 0x303c64], light: .66, moon: 0xb6c8ff,
     rowGap: [16, 11],
@@ -156,11 +156,13 @@ export class Winter {
         });
         this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping;
         this.roadMap.repeat.set(1, this.length / 12);
-        const road = new THREE.Mesh(new THREE.PlaneGeometry(6, this.length),
+        const vistaLength = 320;
+        this.roadMap.repeat.y = vistaLength / 12;
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(6, vistaLength),
             new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: .96, metalness: 0, envMapIntensity: .05 }));
-        road.rotation.x = -Math.PI / 2; road.position.set(0, .014, this.behind - this.length / 2);
+        road.rotation.x = -Math.PI / 2; road.position.set(0, .014, this.behind - vistaLength / 2);
         road.receiveShadow = true; add(road);
-        const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, this.length),
+        const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, vistaLength),
             new THREE.MeshStandardMaterial({ color: colours.snowShade, roughness: 1 }));
         ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.04, road.position.z); add(ground);
 
@@ -196,8 +198,61 @@ export class Winter {
             group.position.z = -index * 32;
             this.chunks.push(group); add(group);
         }
+        this.buildDistant(add);
         for (const geometry of Object.values(this.geometry)) geometry.dispose();
         this.parts = this.geometry = this.temp = null;
+    }
+
+    buildDistant(add) {
+        // A persistent low-detail skyline behind the recycled street, sharing its texture atlases.
+        // Never clone the expensive foreground trees, cars or apartment interiors into this layer.
+        this.parts = {};
+        const c = this.colours;
+        for (let row = 0; row < 5; row++) for (const side of [-1, 1]) {
+            const z = -124 - row * 29, height = 12 + (row * 3 + (side > 0 ? 2 : 0)) % 9;
+            const x = side * (14 + row * .35), front = x - side * 4;
+            this.box(0x657392, x, height / 2, z, 8, height, 26);
+            this.part('plane', 0xc4cee1, front - side * .015, height / 2, z, 26, height, 1,
+                [0, -side * Math.PI / 2, 0], 'facade');
+            this.part('plane', 0xc4cee1, x, height / 2, z + 13.015, 8, height, 1, null, 'facade');
+            this.box(c.snow, x, height + .15, z, 8.4, .3, 26.4);
+            this.box(c.snowShade, side * 6.25, .1, z, 6.5, .2, 29);
+            this.lamp(side * 4.1, z + 4);
+            // Snowy tree crowns need only eighteen foliage cards at this distance.
+            for (let tier = 0; tier < 3; tier++) for (let spoke = 0; spoke < 6; spoke++) {
+                const angle = spoke * Math.PI / 3, reach = 2.4 - tier * .65;
+                this.part('plane', 0xffffff, side * 7 + Math.cos(angle) * reach * .45, 1.3 + tier * 1.3,
+                    z - 6 + Math.sin(angle) * reach * .45, reach, reach * .6, 1, [0, -angle, 0], 'foliage');
+            }
+        }
+        const group = this.distant = new THREE.Group(); group.userData.winter = true;
+        this.mergeDistantParts(group);
+        this.parts = {};
+        // The chapel is a visible landmark, with its own fog-free material variants.
+        // Texture maps remain shared; this adds no lights or full-screen render passes.
+        this.box(0x6b7698, 0, 8, -215, 18, 16, 10);
+        this.part('plane', 0xc4cee1, 0, 8, -209.98, 18, 16, 1, null, 'facade');
+        this.box(c.snow, 0, 16.2, -215, 18.5, .4, 10.5);
+        this.box(0x64708c, 0, 20, -215, 5, 12, 5);
+        this.part('cone', c.snow, 0, 28, -215, 4.1, 5.2, 4.1, [0, Math.PI / 4, 0]);
+        this.part('cylinder', 0xf7d69b, 0, 22.5, -212.45, 1.65, .1, 1.65, [Math.PI / 2, 0, 0], 'glow');
+        this.box(c.dark, 0, 23.1, -212.35, .12, 1.25, .08);
+        this.box(c.dark, .43, 22.5, -212.34, .95, .12, .08);
+        this.chapel = new THREE.Group();
+        this.mergeDistantParts(this.chapel, true);
+        group.add(this.chapel);
+        add(group);
+    }
+
+    mergeDistantParts(group, landmark = false) {
+        for (const [kind, pieces] of Object.entries(this.parts)) {
+            const geo = mergeBufferGeometries(pieces); geo.computeBoundingSphere();
+            const material = landmark ? this.materials[kind].clone() : this.materials[kind];
+            if (landmark) material.fog = false;
+            const mesh = new THREE.Mesh(geo, material); mesh.matrixAutoUpdate = false;
+            mesh.userData.winterMaterial = kind;
+            group.add(mesh); for (const piece of pieces) piece.dispose();
+        }
     }
 
     part(type, colour, x, y, z, sx, sy, sz, rotation = null, kind = 'solid') {
@@ -478,7 +533,11 @@ export class Winter {
         snow.wrapS = snow.wrapT = THREE.RepeatWrapping;
         this.materials.snow.map = snow; this.materials.snow.needsUpdate = true;
         this.materials.surface.map = surfaces; this.materials.surface.needsUpdate = true;
-        const groundMap = snow.clone(); groundMap.repeat.set(130 / 2, this.length / 2);
+        for (const mesh of this.chapel.children) {
+            mesh.material.copy(this.materials[mesh.userData.winterMaterial]);
+            mesh.material.fog = false; mesh.material.needsUpdate = true;
+        }
+        const groundMap = snow.clone(); groundMap.repeat.set(130 / 2, 320 / 2);
         this.ground.material.map = groundMap; this.ground.material.needsUpdate = true;
         const g = this.roadMap.image.getContext('2d'), W = this.roadMap.image.width, H = this.roadMap.image.height;
         // Asphalt sample is repeated at a plausible stone scale before adding lane paint and tyre wear.

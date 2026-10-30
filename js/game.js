@@ -1394,8 +1394,8 @@ class Game {
         this.moon.color.set(sky.moon); this.moon.intensity = winter ? .8 : .9;
         this.scene.fog.color.set(winter ? WINTER.fog : this.location === "vietnam" ? VIETNAM.fog : SKY.color);
         this.scene.fog.near = winter ? WINTER.near : this.look2 ? LOOK2.fog[0] : 12;
-        this.scene.fog.far = winter ? Math.min(WINTER.far, this.tier.far + 30) : this.tier.far - 12;
-        this.camera.far = winter ? this.scene.fog.far + 12 : this.tier.far;
+        this.scene.fog.far = winter ? WINTER.far : this.tier.far - 12;
+        this.camera.far = winter ? WINTER.viewFar : this.tier.far;
         this.camera.updateProjectionMatrix();
         const u = this.output.uniforms;
         u.exposure.value = winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure;

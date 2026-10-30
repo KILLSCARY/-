@@ -54,6 +54,9 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
             let triangles = 0;
             for (const g of winter.chunks) g.traverse(m => { if (m.isMesh) triangles += (m.geometry.index?.count || m.geometry.attributes.position.count) / 3; });
             check(triangles < 200000, 'winter geometry stays under 200k triangles for the entire loop');
+            let distantTriangles = 0;
+            winter.distant.traverse(m => { if (m.isMesh) distantTriangles += m.geometry.attributes.position.count / 3; });
+            check(distantTriangles < 12000, 'distant skyline uses fewer than 12k triangles');
             check(winter.chunks.every(g => g.children.filter(o => o.isMesh).length <= 9), 'at most nine shared material batches per chunk');
             check(winter.chunks.every(g => g.children.some(o => o.userData.parkedCar)), 'textured GLB cars mounted in every block');
             check(winter.materials.facade.map.image.width === 1024 && winter.materials.snow.map.image.width === 512,
@@ -101,6 +104,8 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
             check(game.profile.data.usdt === wallet, 'location choice leaves wallet unchanged');
             for (const level of ['high', 'medium', 'low']) {
                 game.setQuality(level);
+                check(game.camera.far >= 280 && game.scene.fog.near >= 60 && game.scene.fog.far >= 240,
+                    `${level}: winter skyline remains inside the view distance`);
                 game.render();
                 check(!w.reflector && !w.rain.visible, `${level}: no wet street reflection or rain in winter`);
                 check(game.renderer.getContext().getError() === 0, `${level}: WebGL renders without errors`);
