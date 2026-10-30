@@ -74,7 +74,7 @@ export class PhoneScene {
             if (this.hand) this.hand.getWorldPosition(this.pos);
             else this.pos.copy(rat.position).add(new THREE.Vector3(.3, .9, -.2));
             // Кисть держит нижний край телефона, а не закрывает центр экрана.
-            this.phone.position.copy(this.pos).add(new THREE.Vector3(-.045, .095, -.025));
+            this.phone.position.copy(this.pos).add(new THREE.Vector3(-.045, .12, -.13));
             this.phone.rotation.set(0, Math.PI, -.18);
             if (this.time >= 3.2) { this.released = true; this.start.copy(this.phone.position); this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». '; }
         } else {
