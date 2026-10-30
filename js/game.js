@@ -115,6 +115,7 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
 const RES_MIN = 0.6; // ниже этой доли разрешения автоподстройка не опускает (шаги по 0,1: 1 → 0,9 → … → 0,6)
 const TALK_CALM = 4.5; // сколько секунд после начала реплики дорога впереди пустая — её успевают прочитать
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -411,9 +412,18 @@ class Game {
         this.setSkyCanvas(c);
     }
 
+    // Небо не стоит на месте: картинка медленно плывёт туда-обратно (облака и звёзды «дрейфуют»), цикл — SKY_DRIFT.period с
+    driftSky() {
+        const tex = this.scene.background;
+        if (!tex?.isTexture) return;
+        const a = (this.t / SKY_DRIFT.period) * Math.PI * 2, room = SKY_DRIFT.zoom;
+        tex.offset.set(room * (0.5 + 0.5 * Math.sin(a)), room * (0.5 + 0.25 * Math.sin(a * 0.5 + 1)));
+    }
+
     setSkyCanvas(c) {
         const tex = new THREE.CanvasTexture(c);
         tex.encoding = THREE.sRGBEncoding;
+        tex.repeat.set(1 - SKY_DRIFT.zoom, 1 - SKY_DRIFT.zoom); // чуть крупнее экрана — есть куда плыть без краёв и повторов (driftSky)
         this.scene.background?.dispose?.();
         this.scene.background = tex;
     }
@@ -1063,6 +1073,7 @@ class Game {
         // «кино»: зерно живёт (время), края смазываются на скорости забега (CINE.speedFrom…speedTo)
         const ou = this.output.uniforms, cine = this.tier.cine || 0;
         ou.time.value = this.fxaa.uniforms.time.value = this.t % 60;
+        this.driftSky();
         ou.speed.value = this.state === "playing" && cine && this.tier.fx !== false ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
         // меню: фон мягко размыт (CINE.menu), в фокусе — герой (грудь и голова на экране); к забегу плавно становится резким
         const softTo = this.state === "menu" && cine ? CINE.menu : 0;
