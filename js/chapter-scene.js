@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { StoryStage } from './story-stage.js';
 
-// Переход между главами на существующей улице, без дополнительных декораций.
+// Сюжетные планы на существующей улице с возвратом камеры к герою.
 export class ChapterScene {
     constructor(game, story, onDone) {
         this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
@@ -63,6 +63,12 @@ export class ChapterScene {
         const focus = this.story.id === 3 ? (portrait ? -2.1 : -.65) : 0;
         camera.position.set(1.5 * (1 - k) + (portrait ? focus * .4 : 0), (portrait ? 3.3 : 2.5) - .4 * (1 - k), (portrait ? 5 : 4.4) - 1.2 * (1 - k));
         camera.lookAt(focus, .9, -5 - 3 * k);
+        if (this.story.id === 2) {
+            const pull = THREE.MathUtils.smoothstep(this.time, 5, 10.5);
+            camera.position.set(-.4 * (1 - pull), THREE.MathUtils.lerp(2.1, portrait ? 3.3 : 2.5, pull),
+                THREE.MathUtils.lerp(-1.5, portrait ? 5 : 4.4, pull));
+            camera.lookAt(1.5 * (1 - pull), 1, THREE.MathUtils.lerp(-10, -8, pull));
+        }
         if (this.time >= 10.5) this.finish();
     }
     finish() {
