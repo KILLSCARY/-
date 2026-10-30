@@ -58,20 +58,48 @@ function frondTex() {
     });
 }
 
-// фасад телецентра: светлый бетон и полоса окон на каждом этаже (один кусок — 4 м по ширине, этаж по высоте), стойки
-// рам; переходы между кусками незаметны — текстура повторяется по фасаду
+// фасад телецентра Первого канала: светлый бетон и полоса окон на каждом этаже; картинка — 8 окон × 6 этажей (окно 4 м,
+// этаж 3,4 м), на двух этажах окна цветные — полосы, как на настоящем фасаде (цвета настроечной таблицы)
 function ostankinoTex() {
-    const t = canvasTex(128, 128, (g, w, h) => {
+    const bars = ["#f2d23a", "#2fb6e8", "#5cc24a", "#e2479a", "#e8502f", "#3657c9"];
+    const t = canvasTex(512, 384, (g, w, h) => {
+        const cw = w / 8, ch = h / 6;
         g.fillStyle = "#dcd8cf"; g.fillRect(0, 0, w, h);
-        for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(90,80,70,${rnd(0.02, 0.07)})`; g.fillRect(rnd(0, w), rnd(0, h), 2, 2); } // бетон
-        const glass = g.createLinearGradient(0, h * 0.34, 0, h * 0.86);
-        glass.addColorStop(0, "#5d7690"); glass.addColorStop(0.5, "#33475c"); glass.addColorStop(1, "#3f566e");
-        g.fillStyle = glass; g.fillRect(0, h * 0.34, w, h * 0.52);
-        g.fillStyle = "#c9c5bc"; for (let x = 0; x < w; x += 32) g.fillRect(x, h * 0.34, 4, h * 0.52); // стойки рам
-        g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(0, h * 0.34, w, 3); // блик по верху окон
+        for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(90,80,70,${rnd(0.02, 0.07)})`; g.fillRect(rnd(0, w), rnd(0, h), 2, 2); } // бетон
+        for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) {
+            const x = c * cw, y = r * ch + ch * 0.34, wh = ch * 0.52;
+            const glass = g.createLinearGradient(0, y, 0, y + wh);
+            const color = r === 2 ? bars[Math.floor(c * bars.length / 8)] : r === 4 && c % 2 ? bars[(c * 2) % bars.length] : null;
+            glass.addColorStop(0, color || "#5d7690"); glass.addColorStop(1, color ? color + "cc" : "#33475c");
+            g.fillStyle = glass; g.fillRect(x, y, cw, wh);
+            g.fillStyle = "#c9c5bc"; g.fillRect(x, y, 4, wh); g.fillRect(x + cw / 2, y, 3, wh); // стойки рам
+            g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(x, y, cw, 3); // блик по верху окон
+        }
     });
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     return t;
+}
+
+// баннер «ПЕРВЫЙ КАНАЛ» на крыше: синий с гранями, белые буквы, посередине — «1» в квадрате
+function channelBanner() {
+    return canvasTex(1024, 170, (g, w, h) => {
+        const bg = g.createLinearGradient(0, 0, 0, h);
+        bg.addColorStop(0, "#3d7fe0"); bg.addColorStop(0.55, "#1f56b8"); bg.addColorStop(1, "#163f8e");
+        g.fillStyle = bg; g.fillRect(0, 0, w, h);
+        for (let i = 0; i < 14; i++) { // светлые грани, как на настоящем баннере
+            g.fillStyle = `rgba(255,255,255,${rnd(0.05, 0.16)})`;
+            const x = rnd(-100, w);
+            g.beginPath(); g.moveTo(x, 0); g.lineTo(x + rnd(60, 220), 0); g.lineTo(x + rnd(-80, 160), h); g.closePath(); g.fill();
+        }
+        g.fillStyle = "#fff"; g.textBaseline = "middle"; g.font = "600 92px Arial, sans-serif";
+        g.textAlign = "right"; g.fillText("ПЕРВЫЙ", w / 2 - 86, h / 2 + 4);
+        g.textAlign = "left"; g.fillText("КАНАЛ", w / 2 + 86, h / 2 + 4);
+        const s = 128, x0 = w / 2 - s / 2, y0 = (h - s) / 2;
+        g.fillStyle = "#123a86"; g.fillRect(x0, y0, s, s);
+        g.strokeStyle = "#fff"; g.lineWidth = 5; g.strokeRect(x0 + 6, y0 + 6, s - 12, s - 12);
+        g.fillStyle = "#fff"; g.font = "900 112px Arial Black, Arial, sans-serif"; g.textAlign = "center";
+        g.fillText("1", w / 2, h / 2 + 6);
+    });
 }
 
 // балюстрада набережной: белые столбики и перила (одна плоскость с прозрачностью, «едет» сдвигом текстуры)
@@ -260,7 +288,7 @@ export class Vietnam {
         }
     }
 
-    // Телецентр «Останкино» (Meshy, models/obj/ostankino.glb — 30 тыс. треугольников, на слабой графике lite — 12 тыс.;
+    // Телецентр Первого канала в Останкино (Meshy, models/obj/ostankino.glb — 30 тыс. треугольников, на слабой графике lite — 12 тыс.;
     // исходник был 2,2 млн и 79 МБ) — в первом ряду справа вместо двух башен, фасадом к дороге. Грузится в фоне:
     // пока его нет — проём между башнями. Свой объект улицы (не в пакетах batchScenery — их собирают сразу при постройке)
     buildOstankino(slot) {
@@ -287,7 +315,7 @@ export class Vietnam {
                 for (let i = 0; i < p.count; i++) {
                     const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
                     const [u, v] = ay > ax && ay > az ? [p.getX(i), p.getZ(i)] : ax > az ? [p.getZ(i), p.getY(i)] : [p.getX(i), p.getY(i)];
-                    uv[i * 2] = (u * k) / 4; uv[i * 2 + 1] = (v * k) / 3.4;
+                    uv[i * 2] = (u * k) / 32; uv[i * 2 + 1] = (v * k) / 20.4; // 8 окон по 4 м × 6 этажей по 3,4 м
                 }
                 c.geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
                 c.material = mat;
@@ -296,15 +324,20 @@ export class Vietnam {
             b = new THREE.Box3().setFromObject(m);
             m.position.set(o.x - b.min.x, -b.min.y, -(b.min.z + b.max.z) / 2);
             g.add(m);
-            // вывеска над фасадом: красные буквы на белой плашке, лицом к дороге
-            const sign = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.2), new THREE.MeshBasicMaterial({ map: canvasTex(512, 80, (s, W, H) => {
-                s.fillStyle = "#f4f1ea"; s.fillRect(0, 0, W, H);
-                s.fillStyle = "#c8102e"; s.font = "900 58px Arial Black, Arial, sans-serif"; s.textAlign = "center"; s.textBaseline = "middle";
-                s.fillText("ОСТАНКИНО", W / 2, H / 2 + 3);
-            }) }));
-            sign.rotation.y = -Math.PI / 2;
-            sign.position.set(o.x - 0.3, b.max.y - b.min.y - 4, 0);
-            g.add(sign);
+            // на крыше — баннер «ПЕРВЫЙ КАНАЛ» на опорах, лицом к дороге (как у настоящего телецентра)
+            const top = b.max.y - b.min.y, bw = o.length * 0.86, bh = bw / 6;
+            const banner = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshBasicMaterial({ map: channelBanner(), color: 0xdddddd }));
+            banner.rotation.y = -Math.PI / 2;
+            banner.position.set(o.x + 1.5, top + 1.2 + bh / 2, 0);
+            const steel = new THREE.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.6, metalness: 0.5 });
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(0.5, bh + 0.5, bw + 0.5), steel);
+            frame.position.set(o.x + 1.85, banner.position.y, 0);
+            for (let zz = -bw / 2 + 2; zz <= bw / 2 - 2; zz += bw / 6) {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.4, 0.25), steel);
+                leg.position.set(o.x + 1.85, top + 0.6, zz);
+                g.add(leg);
+            }
+            g.add(banner, frame);
         });
     }
 

@@ -54,7 +54,7 @@ export class Audio {
             this.players[list] = p;
         }
 
-        const urls = [SOUNDS.ambience.url, ...Object.values(SOUNDS.sfx).flatMap((s) => s.urls)];
+        const urls = [...new Set([SOUNDS.ambience.url, ...Object.values(SOUNDS.sfx).flatMap((s) => s.urls)])]; // общие файлы (hit и crash) — один раз
         for (const url of urls) {
             fetch(url)
                 .then((r) => r.arrayBuffer())
@@ -194,7 +194,9 @@ export class Audio {
         return this.ctx && !document.hidden && performance.now() > (this.quietUntil || 0);
     }
 
-    sample(name) {
+    // opts: vol — доля громкости, rate — высота (0,75 — глуше и ниже), vary — каждый раз чуть другая высота
+    // (удары серией не сливаются в один и тот же звук)
+    sample(name, { vol = 1, rate = 1, vary = false } = {}) {
         const s = SOUNDS.sfx[name];
         if (!s) return false;
         const buf = this.buffers[s.urls[Math.floor(Math.random() * s.urls.length)]];
@@ -202,8 +204,9 @@ export class Audio {
         try {
             const src = this.ctx.createBufferSource();
             src.buffer = buf;
+            src.playbackRate.value = rate * (s.rate || 1) * (vary ? 0.92 + Math.random() * 0.16 : 1);
             const amp = this.ctx.createGain();
-            amp.gain.value = s.volume;
+            amp.gain.value = s.volume * vol;
             src.connect(amp).connect(this.master);
             src.start();
             // max — звук длиннее сцены (сирена ~12 с): гасим к концу, а новый забег глушит его сразу (stop)
@@ -244,8 +247,8 @@ export class Audio {
         } catch {}
     }
 
-    play(name) {
-        if (!this.ctx || !this.enabled || !this.sfxOn || !this.live() || this.sample(name)) return;
+    play(name, opts) {
+        if (!this.ctx || !this.enabled || !this.sfxOn || !this.live() || this.sample(name, opts)) return;
         switch (name) {
             case "coin": this.tone(1320, { dur: 0.08, vol: 0.12, type: "square" }); this.tone(1760, { at: 0.06, dur: 0.12, vol: 0.12, type: "square" }); break;
             case "boost": [660, 880, 1100, 1320].forEach((f, i) => this.tone(f, { at: i * 0.06, dur: 0.15, vol: 0.12, type: "square" })); break;

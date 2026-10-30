@@ -110,7 +110,7 @@ export const VIETNAM = {
         { url: "img/billboards/tv_dima.jpg", w: 7.2, aspect: 16 / 9, x: -9.2, z: 0.14, turn: 0.55 },
         { url: "img/billboards/dima_sasha.jpg", w: 5.8, aspect: 1043 / 819, x: -9.2, z: 0.64, turn: 0.55 },
     ],
-    // телецентр «Останкино»: модель, вместо каких башен первого ряда (номера слотов), длина вдоль улицы (м), фасад — x (м)
+    // телецентр Первого канала (Останкино): модель, вместо каких башен первого ряда (номера слотов), длина вдоль улицы (м), фасад — x (м)
     ostankino: { url: "models/obj/ostankino.glb", slots: [3, 4], length: 36, x: 6.2 },
     signs: ["PHỞ 24H", "CÀ PHÊ", "BÁNH MÌ", "KARAOKE", "MASSAGE", "HOTEL", "BIA HƠI", "P2P USDT", "SIM 4G", "ĐỔI TIỀN"],
 };
@@ -389,6 +389,9 @@ export const SOUNDS = {
     sfx: {
         swipe: { urls: ["audio/swipe1.mp3", "audio/swipe2.mp3", "audio/swipe3.mp3"], volume: 0.6 }, // полоса, прыжок, подкат
         hit: { urls: ["audio/crash.mp3", "audio/crash2.mp3"], volume: 0.9 },
+        // тяжёлый удар: хук (каждый третий в связке), удар с замахом, супер, ярость, «VS», проигранный раунд. Звука «crash»
+        // в списке не было — всё это шло беззвучно. Те же записи, громче и ниже (rate — высота)
+        crash: { urls: ["audio/crash.mp3", "audio/crash2.mp3"], volume: 1, rate: 0.8 },
         boost: { urls: ["audio/purchase.mp3"], volume: 0.7 }, // золотая монета ×2 и прочие «бонусы»
         whistle: { urls: ["audio/police_whistle.mp3"], volume: 0.6 }, // пробегаешь мимо ДПС
         busted: { urls: ["audio/police.mp3"], volume: 0.6, max: 3.5 }, // поймал ДПС; файл ~12 с — гасим после сцены задержания

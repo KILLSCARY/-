@@ -531,6 +531,7 @@ export class Fight {
         // уклон: мимо; от хука с замахом — бьющий проваливается и открыт для контратаки
         if (def.act === "dodge" && def.t < def.dur * 0.85 && !unstoppable) {
             this.popText(def, "МИМО", "miss");
+            this.g.audio?.play("swipe", { vol: 0.8, vary: true }); // свист мимо — у каждого нажатия свой звук
             if (kind === "heavy") { this.act(att, "recoil", FIGHT.whiffTime); this.popText(att, "КОНТРАТАКА!", "crit"); }
             return 0;
         }
@@ -556,7 +557,9 @@ export class Fight {
             def.t = Math.min(def.t, def.dur * 0.5);
             this.popText(def, "БЛОК", "block");
             this.spark(contact, 0.45, 0xe8ecef);
-            this.g.audio?.play("coin");
+            // глухой удар по защите. Было — звон монетки: при частых тапах соперник уходит в блок (контратака после
+            // 4 ударов подряд, ответ на спам), и казалось, что звук ударов пропал
+            this.g.audio?.play("hit", { vol: 0.55, rate: 0.72, vary: true });
             this.act(att, "recoil", kind === "heavy" ? FIGHT.recoilTime * 1.4 : FIGHT.recoilTime);
             st[key + "_blk"] = (st[key + "_blk"] || 0) + 1;
             return d;
@@ -583,7 +586,7 @@ export class Fight {
         this.punchIn = kind === "jab" ? 0.03 : kind === "super" ? 0.12 : 0.06; // камера на миг «вздрагивает» к удару
         if (kind === "super") { this.slow = 0.2; this.flashScreen(); }
         this.shake = kind === "jab" ? 0.05 : kind === "super" ? 0.3 : 0.16;
-        this.g.audio?.play(kind === "jab" || kind === "cross" ? "hit" : "crash");
+        this.g.audio?.play(kind === "jab" || kind === "cross" ? "hit" : "crash", { vary: true });
         if (def === this.f[0]) tg.haptic(kind === "jab" ? "light" : "heavy");
         if (att === this.f[0] && kind !== "super") this.superV = Math.min(FIGHT.superMax, this.superV + FIGHT.superPerHit);
         if (def === this.f[0]) this.superV = Math.min(FIGHT.superMax, this.superV + FIGHT.superPerHurt); // и за пропущенный
