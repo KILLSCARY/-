@@ -44,9 +44,9 @@ export function createRat() {
     for (const side of [-1, 1]) {
         const hip = new THREE.Group();
         hip.position.set(side * 0.13, 0.62, 0);
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.56, 10), pants);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.56, 14), pants);
         leg.position.y = -0.28;
-        const foot = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skin);
+        const foot = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), skin);
         foot.scale.set(0.9, 0.55, 1.7);
         foot.position.set(0, -0.58, -0.07);
         hip.add(leg, foot);
@@ -65,12 +65,12 @@ export function createRat() {
     torso.position.y = 0.98;
     body.add(torso);
     for (const side of [-1, 1]) {
-        const delt = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), fur);
+        const delt = new THREE.Mesh(new THREE.SphereGeometry(0.14, 18, 14), fur);
         delt.position.set(side * 0.31, 1.16, 0);
-        const lat = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), fur);
+        const lat = new THREE.Mesh(new THREE.SphereGeometry(0.14, 18, 14), fur);
         lat.scale.set(0.8, 1.3, 0.7);
         lat.position.set(side * 0.17, 1.0, 0.07);
-        const pec = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), furLight);
+        const pec = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 14), furLight);
         pec.scale.set(1.1, 0.75, 0.6);
         pec.position.set(side * 0.12, 1.1, -0.13);
         body.add(delt, lat, pec);
@@ -87,9 +87,9 @@ export function createRat() {
     for (const side of [-1, 1]) {
         const shoulder = new THREE.Group();
         shoulder.position.set(side * 0.35, 1.14, 0);
-        const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.2, 4, 10), fur);
+        const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.2, 5, 14), fur);
         upper.position.y = -0.17;
-        const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.18, 4, 10), fur);
+        const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.18, 5, 14), fur);
         fore.position.set(0, -0.4, -0.06);
         fore.rotation.x = 0.5;
         const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.022, 6, 14), silver);
@@ -107,9 +107,9 @@ export function createRat() {
     const head = new THREE.Group();
     head.position.y = 1.36;
     body.add(head);
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), fur);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 18), fur);
     skull.scale.set(1.05, 0.95, 1.05);
-    const snout = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), furLight);
+    const snout = new THREE.Mesh(new THREE.SphereGeometry(0.1, 18, 14), furLight);
     snout.scale.set(1, 0.8, 1.2);
     snout.position.set(0, -0.06, -0.14);
     const nose = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), black);
@@ -125,7 +125,7 @@ export function createRat() {
         const brow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025, 0.03), black);
         brow.position.set(side * 0.07, 0.085, -0.16);
         brow.rotation.z = side * 0.45; // сведены к переносице — злой взгляд
-        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), skin);
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.1, 18, 12), skin);
         ear.scale.set(1, 1, 0.3);
         ear.position.set(side * 0.17, 0.08, 0.02);
         ear.rotation.y = side * 0.6;

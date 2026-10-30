@@ -405,6 +405,9 @@ export class World {
             boost: std({ map: usdtTexture("×2", "#e9b730", "#3a2500"), metalness: 0.6, roughness: 0.3, emissive: 0x8a6000, emissiveIntensity: 0.8 }),
             boostEdge: std({ color: 0xb8860b, metalness: 1, roughness: 0.2 }),
             trash: std({ color: 0x0c0c0e, roughness: 0.25, metalness: 0.1 }),
+            trashBag: std({ color: 0x17181a, roughness: 0.72, metalness: 0.05 }),
+            cardboard: std({ color: 0x71513a, roughness: 0.92, metalness: 0 }),
+            tin: std({ color: 0x6e787d, roughness: 0.36, metalness: 0.82 }),
         };
         const glowSpill = (color) => new THREE.MeshBasicMaterial({
             map: canvasTex(64, 64, (g2, w, h) => {
@@ -456,6 +459,9 @@ export class World {
             sign: new THREE.BoxGeometry(0.9, 0.22, 0.03),
             beam: new THREE.PlaneGeometry(2.4, 7),
             blob: new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), // пятно-тень под предметом (groundBlob)
+            trashBag: new THREE.SphereGeometry(1, 14, 10),
+            cardboard: new THREE.BoxGeometry(1, 1, 1),
+            tin: new THREE.CylinderGeometry(1, 1, 1, 12),
         };
         // пятно-тень: мягкий край (радиальный градиент), только форма — альфа; сила — по графике (tier.blob, 0 — нет)
         this.mat.blob = new THREE.MeshBasicMaterial({
@@ -1583,6 +1589,7 @@ export class World {
         keep(this.critters.filter((o) => o.userData.npc === "girl"), this.swaps.girl?.length || 0);
         keep(this.critters.filter((o) => o.userData.npc === "cat"), NPCS.cat.count);
         keep(this.flocks, NPCS.pigeon.flocks);
+        for (const bin of this.swaps.bin || []) this.addLitter(bin);
     }
 
     // гуляет вдоль тротуара (walk — м/с по Z) или танцует на месте
@@ -1947,7 +1954,36 @@ export class World {
         g.rotation.y = g.userData.faceY ?? 0;
         if (kind === "police") g.userData.police = true;
         if (kind === "bank") this.placeBank(g);
+        if (kind === "bin") this.addLitter(g);
         if (BLOB_KINDS.has(kind)) this.groundBlob(g); // g.clear() убрал и пятно спрайта — новое под модель
+    }
+
+    // У урн не остаётся одинокая идеальная модель: на высокой графике рядом появляются пакет, картон и банка.
+    // Геометрия и материалы общие, поэтому это не тянет новых текстур и почти не влияет на память.
+    addLitter(bin) {
+        if (bin.userData.litter) {
+            bin.userData.litter.visible = !this.tier.lite;
+            return;
+        }
+        if (this.tier.lite) return;
+        const litter = new THREE.Group();
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const bag = new THREE.Mesh(this.geo.trashBag, this.mat.trashBag);
+        bag.scale.set(0.19, 0.14, 0.16);
+        bag.position.set(side * 0.38, 0.13, -0.12);
+        bag.rotation.set(0.18, Math.random() * Math.PI, side * 0.16);
+        const box = new THREE.Mesh(this.geo.cardboard, this.mat.cardboard);
+        box.scale.set(0.23, 0.035, 0.16);
+        box.position.set(side * 0.19, 0.045, 0.26);
+        box.rotation.set(0.06, Math.random() * Math.PI, 0.1);
+        const can = new THREE.Mesh(this.geo.tin, this.mat.tin);
+        can.scale.set(0.038, 0.11, 0.038);
+        can.rotation.z = Math.PI / 2;
+        can.position.set(side * 0.53, 0.05, 0.18);
+        litter.add(bag, box, can);
+        litter.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        bin.add(litter);
+        bin.userData.litter = litter;
     }
 
     // Препятствия-спрайты: инспектор ДПС и бетонный блок — объезжать, ограждение — перепрыгнуть

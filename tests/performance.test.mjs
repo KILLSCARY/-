@@ -107,3 +107,83 @@ test('пакет монет сохраняет GLB-трансформации, �
     assert.equal(CoinBatch.fromTemplate(new THREE.Group()), null, 'неизвестная модель остаётся на обычном пути');
     batch.mesh.geometry.dispose(); source.geometry.dispose(); source.material.dispose();
 });
+
+
+// Проверяем настоящие методы Game без запуска WebGL/Telegram конструктора.
+const gameSource = (await import('node:fs/promises')).readFile;
+const gameText = await gameSource(new URL('../js/game.js', import.meta.url), 'utf8');
+function gameMethod(name, prizeStub = {}) {
+    let start = gameText.indexOf(`    ${name}(`);
+    if (start < 0) start = gameText.indexOf(`    async ${name}(`);
+    const end = gameText.indexOf('\n    }', start) + 6;
+    const method = gameText.slice(start, end);
+    // Комментарии между методами допустимы внутри литерала объекта.
+    return Function('QUALITY', 'RES_MIN', 'prize', `return ({${method}\n}).${name}`)('auto', 0.6, prizeStub);
+}
+const measureFps = gameMethod('measureFps');
+
+test('устойчивые 28 FPS не застревают на средней графике телефона; затем включается лимит 30', () => {
+    const g = {
+        state: 'playing', runTime: 10, measuredState: 'playing', mobile: true,
+        settings: {}, quality: 'medium', resScale: 0.7, perfStep: 3,
+        frameMeter: { sample: () => 28, reset() {} }, frameBudget: () => 1000 / 60,
+        setQuality(level) { this.quality = level; }, onResize() {},
+    };
+    measureFps.call(g);
+    assert.equal(g.quality, 'low');
+    g.resScale = 0.7;
+    measureFps.call(g);
+    assert.equal(g.performanceFpsCap, 30);
+    g.performanceFpsCap = 60;
+    measureFps.call(g);
+    assert.equal(g.performanceFpsCap, 30, 'после возврата со 120 к 60 можно снизить лимит дальше');
+});
+
+test('бой не пересобирает уровень графики во время раунда', () => {
+    const g = {
+        state: 'fight', measuredState: 'fight', mobile: true, settings: {},
+        quality: 'medium', resScale: 0.7, perfStep: 0,
+        frameMeter: { sample: () => 20, reset() {} }, frameBudget: () => 1000 / 60,
+        setQuality() { assert.fail('пересборка шейдеров в бою'); },
+    };
+    measureFps.call(g);
+    assert.equal(g.quality, 'medium');
+    assert.equal(g.performanceFpsCap, 30);
+});
+
+
+test('повторный выбор того же качества восстанавливает эффекты, снятые адаптацией', () => {
+    const setSetting = gameMethod('setSetting');
+    const previous = globalThis.localStorage;
+    globalThis.localStorage = { setItem() {} };
+    try {
+        let applied = 0;
+        const g = { settings: {}, quality: 'medium', autoQuality: 'medium', perfStep: 3,
+            applySettings() {}, frameMeter: { reset() {} },
+            setQuality(level) { assert.equal(level, 'medium'); assert.equal(this.perfStep, 0); applied++; },
+        };
+        setSetting.call(g, 'quality', 'auto');
+        assert.equal(applied, 1);
+    } finally { globalThis.localStorage = previous; }
+});
+
+
+test('награды ждут облако и записываются в актуальный профиль после ответа сервера', async () => {
+    let ready, response, requested = false, saves = 0;
+    const profile = { data: {}, ready: new Promise(resolve => { ready = resolve; }), save() { saves++; } };
+    const syncRewards = gameMethod('syncRewards', { rewards() {
+        requested = true;
+        return new Promise(resolve => { response = resolve; });
+    } });
+    await syncRewards.call({}); // неуспешный запуск до создания профиля
+    const pending = syncRewards.call({ profile });
+    assert.equal(requested, false);
+    ready();
+    await Promise.resolve();
+    assert.equal(requested, true);
+    const current = profile.data = {};
+    response({ rewards: { 'boss:one': true } });
+    await pending;
+    assert.equal(current.bossPaid.one, 1);
+    assert.equal(saves, 1);
+});

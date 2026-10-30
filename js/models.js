@@ -23,8 +23,8 @@ setTimeout(() => release(), 6000);
 export const releaseQueue = () => release();
 export const later = (fn) => gate.then(fn);
 
-// Персонажи (сетки со скелетом) — матовые: у моделей Meshy металличность 0.1 и шероховатость 0.75, и на ночной
-// улице кожа и одежда ловят отражения неба и неона — выглядят масляными и «зеркальными». Ткань и кожа так не блестят.
+// Персонажи (сетки со скелетом) — не металлические. Оставляем мягкий блик, чтобы кожа, ткань и шерсть не выглядели
+// пластиковой фигуркой, но не даём ночному неону превращать их в мокрое зеркало.
 export function matteCharacters(root) {
     root.traverse((o) => {
         if (!o.isSkinnedMesh) return;
@@ -32,8 +32,11 @@ export function matteCharacters(root) {
             if (!m || !m.isMeshStandardMaterial) continue;
             m.metalness = 0;
             m.metalnessMap = null;
-            m.roughness = Math.max(m.roughness ?? 1, 0.93);
-            m.envMapIntensity = 0.28; // отражения окружения — едва-едва, только чтобы не было плоско
+            m.roughness = Math.max(m.roughness ?? 1, 0.72);
+            m.envMapIntensity = 0.42;
+            // Нормали не должны быть «шершавыми» как асфальт: чуть ослабляем их, чтобы лицо и одежда читались чисто.
+            if (m.normalMap) m.normalScale.setScalar(Math.min(0.85, m.normalScale.x || 0.85));
+            m.aoMapIntensity = Math.min(1, Math.max(m.aoMapIntensity ?? 1, 0.85));
             m.needsUpdate = true;
         }
     });

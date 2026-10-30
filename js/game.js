@@ -175,7 +175,6 @@ function parseAnswer(raw) {
 class Game {
     constructor() {
         window.game = this; // удобно для отладки из консоли
-        setTimeout(() => this.syncRewards?.(), 1500);
         this.camMix = 0;
         this.state = "menu"; // menu → countdown → playing ⇄ paused → over
         this.audio = new Audio();
@@ -234,6 +233,7 @@ class Game {
         // невыкупленного героя (раньше все были бесплатными) меняем на стартового
         this.hub.render(); // кошелёк и плитки — сразу из локальной копии
         this.profile.ready.then(() => {
+            this.syncRewards().catch((error) => console.warn("Синхронизация наград недоступна", error));
             if (!this.profile.owns(this.heroId)) this.selectHero(CHARACTERS[0].id);
             this.hub.render();
             for (const g of this.profile.granted || []) { // разовое начисление (GRANTS) — сказать, что пришло (валюта одна — USDT)
@@ -1289,7 +1289,7 @@ class Game {
             this.resScale = 1;
             this.perfStep = 0;
             const level = value === "auto" ? this.autoQuality : value;
-            if (level !== this.quality) this.setQuality(level); else this.onResize();
+            this.setQuality(level); // повторный выбор тоже восстанавливает снятые адаптацией эффекты
         }
     }
 
@@ -1346,12 +1346,11 @@ class Game {
         }
         if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
-        // телефон: разрешение — не ниже 0,75 (ниже — мыло на маленьком экране), графику ниже средней сам не снижаем:
-        // в Telegram кадры то и дело проседают на долю секунды, и игра уезжала в слабую графику — размытую и рывками
-        const resMin = this.mobile ? 0.85 : RES_MIN;
+        // После снятия дорогих эффектов разрешаем ещё одну ступень разрешения и low:
+        // средняя графика не должна навсегда оставаться на 24–30 FPS при цели 60.
+        const resMin = this.mobile ? 0.7 : RES_MIN;
         const floor = this.resScale <= resMin + 0.01;
-        // Не хватает кадров: разрешение — только до 0,85, дальше сначала снимаем дорогие эффекты (зеркало луж, тени,
-        // свечение), и лишь потом снова разрешение. Было: сразу до 0,6 — на хорошей графике картинка мыльная и пиксельная
+        // Сначала разрешение до 0,85, затем дорогие эффекты, затем оставшийся запас разрешения.
         const effects = this.quality !== "low" && (this.perfStep || 0) < 3;
         if (this.resScale <= 0.86 && effects && this.state !== "fight") {
             this.perfStep = (this.perfStep || 0) + 1;
@@ -1359,11 +1358,18 @@ class Game {
         } else if (!floor) {
             this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : resMin, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
-        } else if (!tierLocked && this.quality !== "low" && !(this.mobile && this.quality === "medium" && fps >= 24)) {
-            if (this.state === "fight") return; // не пересобираем шейдеры посреди раунда
+        } else if (!tierLocked && this.quality !== "low") {
+            if (this.state === "fight") { // не пересобираем шейдеры посреди раунда
+                if (this.mobile && fps < 40) { this.performanceFpsCap = 30; this.frameMeter.reset(); }
+                return;
+            }
             this.resScale = 0.85;
             this.perfStep = 0;
             this.setQuality(this.quality === "high" ? "medium" : "low");
+        } else if (this.mobile && fps < 40 && (this.performanceFpsCap || 60) > 30) {
+            // Нижний уровень уже достигнут: стабильные 30 лучше постоянной попытки выжать 60.
+            this.performanceFpsCap = 30;
+            this.frameMeter.reset();
         } else if (tierLocked && !this.qualityHinted) {
             this.qualityHinted = true;
             this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»");
@@ -2334,7 +2340,10 @@ class Game {
     // Ошибка — реплика Гориллы с пояснением, без удара и без заряда; табличку можно пересдать в следующем забеге.
     // флаги наград с сервера: что уже выдано на этот Telegram ID; повтор неудавшихся по сети запросов
     async syncRewards() {
-        const d = this.profile.data, r = await prize.rewards();
+        if (!this.profile) return;
+        await this.profile.ready;
+        const r = await prize.rewards();
+        const d = this.profile.data; // облачная загрузка могла заменить объект профиля
         if (!r?.rewards) return;
         for (const k of Object.keys(r.rewards)) {
             const [kind, id] = k.split(":");
