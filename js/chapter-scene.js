@@ -6,6 +6,23 @@ export class ChapterScene {
     constructor(game, story, onDone) {
         this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
         this.stage = new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
+        this.hiddenScenery = [];
+        if (story.id === 3) game.scene.traverse(o => {
+            if (!o.userData?.house || o.userData.side !== -1 || !o.visible) return;
+            const pos = new THREE.Vector3(); o.getWorldPosition(pos);
+            if (Math.abs(pos.z + 14) < 11) { this.hiddenScenery.push(o); o.visible = false; }
+        });
+        const road = game.world?.roadMat, reflector = game.world?.reflector;
+        if (road) {
+            this.roadState = { road, reflector, reflectorVisible: reflector?.visible,
+                transparent: road.transparent, alphaMap: road.alphaMap, roughnessMap: road.roughnessMap, opacity: road.opacity,
+                roughness: road.roughness, metalness: road.metalness, envMapIntensity: road.envMapIntensity,
+                normalScale: road.normalScale.clone() };
+            if (reflector) reflector.visible = false;
+            road.transparent = false; road.alphaMap = null; road.roughnessMap = null; road.opacity = 1;
+            road.roughness = .68; road.metalness = .18; road.envMapIntensity = .8;
+            road.normalScale.set(.24, .24); road.needsUpdate = true;
+        }
         this.ui = document.getElementById('phone-cutscene');
         this.label = this.ui.querySelector('.phone-cutscene-top');
         this.caption = document.getElementById('phone-cutscene-text');
@@ -29,14 +46,21 @@ export class ChapterScene {
         this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];
         const t = THREE.MathUtils.clamp(this.time / 10.5, 0, 1);
         const k = t * t * (3 - 2 * t);
-        camera.position.set(1.5 * (1 - k), (portrait ? 3.3 : 2.5) - .4 * (1 - k), (portrait ? 5 : 4.4) - 1.2 * (1 - k));
-        camera.lookAt(0, .9, -5 - 3 * k);
+        const focus = this.story.id === 3 ? (portrait ? -2.1 : -.65) : 0;
+        camera.position.set(1.5 * (1 - k) + (portrait ? focus * .4 : 0), (portrait ? 3.3 : 2.5) - .4 * (1 - k), (portrait ? 5 : 4.4) - 1.2 * (1 - k));
+        camera.lookAt(focus, .9, -5 - 3 * k);
         if (this.time >= 10.5) this.finish();
     }
     finish() {
         if (this.done) return;
         this.done = true;
         this.stage.dispose(); this.ui.hidden = true;
+        for (const item of this.hiddenScenery) item.visible = true;
+        if (this.roadState) {
+            const { road, reflector, reflectorVisible, normalScale, ...original } = this.roadState;
+            Object.assign(road, original); road.normalScale.copy(normalScale); road.needsUpdate = true;
+            if (reflector) reflector.visible = reflectorVisible;
+        }
         document.getElementById('phone-cutscene-skip').onclick = null;
         this.game.camMix = 1;
         this.onDone();

@@ -22,3 +22,24 @@ test('вступления глав идут в игровой сцене и п�
         }
     } finally { globalThis.document = old; }
 });
+
+test('после заставки восстанавливаются материалы дороги и отражение', () => {
+    const old = globalThis.document;
+    const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
+    globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id] };
+    try {
+        const map = new THREE.Texture();
+        const road = new THREE.MeshStandardMaterial({ transparent: true, alphaMap: map, roughnessMap: map, roughness: .4 });
+        const reflector = { visible: true };
+        const game = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), world: { roadMat: road, reflector }, storyModelLoader: () => {} };
+        const cut = new ChapterScene(game, { id: 3 }, () => {});
+        assert.equal(road.roughnessMap, null);
+        assert.equal(reflector.visible, false);
+        cut.finish();
+        assert.equal(road.roughnessMap, map);
+        assert.equal(road.alphaMap, map);
+        assert.equal(road.transparent, true);
+        assert.equal(road.roughness, .4);
+        assert.equal(reflector.visible, true);
+    } finally { globalThis.document = old; }
+});
