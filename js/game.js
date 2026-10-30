@@ -19,7 +19,7 @@ import { RenderPass } from "./vendor/jsm/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/jsm/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/jsm/ShaderPass.js";
 import { HeroGlowPass, markGlow } from "./heroglow.js";
-import { loadModel, releaseQueue, preloadModel, setModelAnisotropy, upgradeTextures, setKtx2Renderer } from "./models.js";
+import { loadModel, releaseQueue, preloadModel, setModelAnisotropy, sharpen, upgradeTextures, setKtx2Renderer } from "./models.js";
 import { Audio } from "./audio.js";
 import { tg } from "./tg.js";
 
@@ -194,10 +194,9 @@ class Game {
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
-        // 30.10: всем один раз — графика «Авто» и 60 FPS (на «Высокой» и «120» телефоны давали мыло, пока это чиним).
-        // Дальше выбор игрока снова сохраняется
+        // Сохраняем выбранные игроком графику и частоту, включая старые профили.
         if (this.settings.v !== 2) {
-            delete this.settings.quality; delete this.settings.frameRate; this.settings.v = 2;
+            this.settings.v = 2;
             try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         }
         const requestedLocation = new URLSearchParams(location.search).get("location");
@@ -263,9 +262,9 @@ class Game {
 
     setupScene() {
         const canvas = $("game");
-        // лёгкая графика рисует прямо на экран (см. render()): сглаживание — аппаратное MSAA холста, на телефонных
-        // видеокартах оно почти бесплатное. Остальные уровни сглаживают в постобработке (FXAA/MSAA буферов)
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !!this.tier.direct, powerPreference: "high-performance" });
+        // Высокая графика сглаживается в буферах постобработки; холст не дублирует MSAA.
+        // Прямой рендер на ПК использует сглаживание холста, на телефоне остаётся облегчённым.
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.mobile && !!this.tier.direct, powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         // плоскость отсечения для боя: камера боя стоит сбоку за бордюром, и тротуар, сугробы, ограда на её стороне
         // закрывали бойцов (Fight.camera ставит плоскость по краю дороги). Включена всегда, в забеге отнесена далеко —
@@ -1085,7 +1084,7 @@ class Game {
         this.driftSky();
         ou.speed.value = this.state === "playing" && cine && this.tier.fx !== false ? Math.min(1, Math.max(0, (this.speed - CINE.speedFrom) / (CINE.speedTo - CINE.speedFrom))) * CINE.speed * cine : 0;
         // меню: фон мягко размыт (CINE.menu), в фокусе — герой (грудь и голова на экране); к забегу плавно становится резким
-        const softTo = this.state === "menu" && cine ? CINE.menu : 0;
+        const softTo = this.state === "menu" && cine && this.tier.fx !== false ? CINE.menu : 0;
         ou.soft.value += (softTo - ou.soft.value) * Math.min(1, dt * 4);
         if (ou.soft.value > 0.002) {
             const p = (this.focusV ||= new THREE.Vector3()).copy(this.rat.position);
@@ -1215,10 +1214,10 @@ class Game {
     // свечением. Днём (VIETNAM.post) свечение слабее и экспозиция постобработки ниже; прямая отрисовка не меняется
     applyLook() {
         const vn = this.location === "vietnam" && VIETNAM.post;
-        if (this.bloom) this.bloom.strength = this.tier?.bloom ? (vn ? vn.bloom : 0.8) : 0;
+        if (this.bloom) this.bloom.strength = this.tier?.bloom ? (vn ? vn.bloom : this.tier.bloomStrength ?? 0.8) : 0;
         if (!this.output) return;
         this.output.uniforms.exposure.value = (this.look2 ? LOOK2.exposure : SKY.exposure) * (vn ? vn.exposure : 1);
-        this.output.uniforms.grade.value = (this.tier?.cine ? CINE.grade : 0) * (vn ? vn.grade : 1); // днём тёплый тон слабее
+        this.output.uniforms.grade.value = (this.tier?.cine || 0) * CINE.grade * (vn ? vn.grade : 1); // днём тёплый тон слабее
     }
 
     setDirect(on) {
@@ -1235,10 +1234,17 @@ class Game {
         const prevShadows = this.tier.shadows;
         this.quality = level;
         // на телефоне у уровня свои облегчения (phone), а при нехватке кадров — снятые эффекты (perfStep, measureFps):
-        // 1 — без зеркала луж, 2 — без теней, 3 — без свечения и «кино»
+        // 1 — меньше карта теней, 2 — без теней, 3 — без свечения и цветокоррекции.
         const base = QUALITY_TIERS[level], s = this.perfStep || 0;
         this.tier = { ...base, ...(this.mobile && base.phone), ...(s >= 1 && { reflections: false }), ...(s >= 2 && { shadows: false }), ...(s >= 3 && { bloom: 0, cine: 0 }) };
-        const shadowSize = this.tier.shadowSize || 1024;
+        if (!this.tier.heat) this.heatScale = 1;
+        setModelAnisotropy(Math.min(this.tier.aniso || 1, this.renderer.capabilities.getMaxAnisotropy()));
+        sharpen(this.scene);
+        for (const [id, model] of Object.entries(this.heroes || {})) {
+            sharpen(model.scene);
+            upgradeTextures(model.scene, CHARACTERS.find(c => c.id === id)?.hd, this.tier.hd);
+        }
+        const shadowSize = Math.max(512, (this.tier.shadowSize || 1024) / (s >= 1 ? 2 : 1));
         if (this.moon.shadow.mapSize.x !== shadowSize) { this.moon.shadow.mapSize.set(shadowSize, shadowSize); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
         if (this.tier.reflections && this.location === "street") { // зеркало луж — только в мокром ночном районе (зима под снегом, Дубай сухой)
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
@@ -1254,13 +1260,14 @@ class Game {
         }
         this.applyLook(); // сила свечения и экспозиция — под уровень графики и локацию
         // сглаживание: msaa — 4 выборки в буферах постобработки (WebGL2, сильные устройства), fxaa — дешёвый проход в конце
-        const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2 ? 4 : 0;
+        const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2
+            ? Math.min(this.tier.samples || 4, this.renderer.capabilities.maxSamples) : 0;
         for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
         this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
         // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
         const k = this.tier.cine || 0, u = this.output.uniforms;
         const fx = this.tier.fx === false ? 0 : k; // телефон: без зерна и хроматики — на маленьком экране это шум и мыло
-        u.grade.value = k ? CINE.grade * (this.location === "vietnam" ? VIETNAM.post?.grade ?? 1 : 1) : 0; u.ca.value = CINE.ca * fx;
+        u.grade.value = k * CINE.grade * (this.location === "vietnam" ? VIETNAM.post?.grade ?? 1 : 1); u.ca.value = CINE.ca * fx;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * fx; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * fx : 0;
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         const direct = !!this.tier.direct && !this.look2;
@@ -1281,6 +1288,7 @@ class Game {
         if (key === "perf") this.perf.toggle(!!value);
         if (key === "frameRate" || key === "quality") {
             this.performanceFpsCap = 0;
+            this.slowFpsWindows = 0;
             this.frameMeter.reset();
         }
         if (key === "location") {
@@ -1334,12 +1342,18 @@ class Game {
     measureFps() {
         if (this.measuredState !== this.state) {
             this.measuredState = this.state;
+            this.slowFpsWindows = 0;
             this.frameMeter.reset();
         }
         if (this.state === "playing" && this.runTime < 1.5) { this.frameMeter.reset(); return; }
         const fps = this.frameMeter.sample(performance.now());
         if (fps === null) return;
         const target = Math.min(60, 1000 / this.frameBudget());
+        const threshold = this.frameBudget() < 1000 / 60 ? 85 : target * .85;
+        if (fps >= threshold) { this.slowFpsWindows = 0; return; }
+        // Одиночная загрузка модели или короткая заминка не меняет графику.
+        if ((this.slowFpsWindows = (this.slowFpsWindows || 0) + 1) < 3) return;
+        this.slowFpsWindows = 0;
         // Повышенная частота требует запаса. При нехватке сначала возвращаем 60,
         // сохраняя разрешение; настройка «До 120» может быть выбрана повторно.
         // 30.10: раньше при fps < 55 тут же снижались разрешение и эффекты — «120» на телефоне превращало картинку в мыло.
@@ -1349,14 +1363,12 @@ class Game {
             this.frameMeter.reset();
             return;
         }
-        if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
-        // телефон: разрешение — не ниже 0,75 (ниже — мыло на маленьком экране), графику ниже средней сам не снижаем:
-        // в Telegram кадры то и дело проседают на долю секунды, и игра уезжала в слабую графику — размытую и рывками
-        const resMin = this.mobile ? 0.85 : RES_MIN;
+        // После снятия дорогих эффектов разрешаем ещё одну ступень разрешения и low:
+        // средняя графика не должна навсегда оставаться на 24–30 FPS при цели 60.
+        const resMin = tierLocked && this.quality === "high" ? .85 : this.mobile ? 0.7 : RES_MIN;
         const floor = this.resScale <= resMin + 0.01;
-        // Не хватает кадров: разрешение — только до 0,85, дальше сначала снимаем дорогие эффекты (зеркало луж, тени,
-        // свечение), и лишь потом снова разрешение. Было: сразу до 0,6 — на хорошей графике картинка мыльная и пиксельная
+        // Сначала разрешение до 0,85, затем дорогие эффекты, затем оставшийся запас разрешения.
         const effects = this.quality !== "low" && (this.perfStep || 0) < 3;
         if (this.resScale <= 0.86 && effects && this.state !== "fight") {
             this.perfStep = (this.perfStep || 0) + 1;
@@ -1364,20 +1376,28 @@ class Game {
         } else if (!floor) {
             this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : resMin, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
-        } else if (!tierLocked && this.quality !== "low" && !(this.mobile && this.quality === "medium" && fps >= 24)) {
-            if (this.state === "fight") return; // не пересобираем шейдеры посреди раунда
+        } else if (!tierLocked && this.quality !== "low") {
+            if (this.state === "fight") { // не пересобираем шейдеры посреди раунда
+                if (this.mobile && fps < 40) { this.performanceFpsCap = 30; this.frameMeter.reset(); }
+                return;
+            }
             this.resScale = 0.85;
             this.perfStep = 0;
             this.setQuality(this.quality === "high" ? "medium" : "low");
+        } else if (this.mobile && fps < 40 && (this.performanceFpsCap || 60) > 30) {
+            // Нижний уровень уже достигнут: стабильные 30 лучше постоянной попытки выжать 60.
+            this.performanceFpsCap = 30;
+            this.frameMeter.reset();
         } else if (tierLocked && !this.qualityHinted) {
             this.qualityHinted = true;
             this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»");
         }
     }
 
-    // частота забега: выбранная в настройках, по умолчанию на телефоне 60 (120 — вдвое больше работы видеокарте:
-    // телефон грелся и через пару минут сбрасывал частоту сам), на компьютере — до 120
-    frameRate() { return this.settings.frameRate === 120 ? 120 : 60; } // по умолчанию 60 везде (и на компьютере); 120 — только выбором в настройках
+    // Выбранная частота не зависит от качества; реальный предел задают экран и браузер.
+    frameRate() {
+        return this.settings.frameRate === 120 ? 120 : 60;
+    }
 
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
     frameBudget() {

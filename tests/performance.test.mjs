@@ -116,6 +116,38 @@ function gameMethod(name, prizeStub = {}) {
     const end = gameText.indexOf('\n    }', start) + 6;
     return Function('QUALITY', 'RES_MIN', 'prize', `return ({${gameText.slice(start, end)}\n}).${name}`)('auto', 0.6, prizeStub);
 }
+const measureFps = gameMethod('measureFps');
+const sustainedSlow = g => { for (let i = 0; i < 3; i++) measureFps.call(g); };
+
+test('устойчивые 28 FPS не застревают на средней графике телефона; затем включается лимит 30', () => {
+    const g = {
+        state: 'playing', runTime: 10, measuredState: 'playing', mobile: true,
+        settings: {}, quality: 'medium', resScale: 0.7, perfStep: 3,
+        frameMeter: { sample: () => 28, reset() {} }, frameBudget: () => 1000 / 60,
+        setQuality(level) { this.quality = level; }, onResize() {},
+    };
+    sustainedSlow(g);
+    assert.equal(g.quality, 'low');
+    g.resScale = 0.7;
+    sustainedSlow(g);
+    assert.equal(g.performanceFpsCap, 30);
+    g.performanceFpsCap = 60;
+    sustainedSlow(g);
+    assert.equal(g.performanceFpsCap, 30, 'после возврата со 120 к 60 можно снизить лимит дальше');
+});
+
+test('бой не пересобирает уровень графики во время раунда', () => {
+    const g = {
+        state: 'fight', measuredState: 'fight', mobile: true, settings: {},
+        quality: 'medium', resScale: 0.7, perfStep: 0,
+        frameMeter: { sample: () => 20, reset() {} }, frameBudget: () => 1000 / 60,
+        setQuality() { assert.fail('пересборка шейдеров в бою'); },
+    };
+    sustainedSlow(g);
+    assert.equal(g.quality, 'medium');
+    assert.equal(g.performanceFpsCap, 30);
+});
+
 
 test('повторный выбор того же качества восстанавливает эффекты, снятые адаптацией', () => {
     const setSetting = gameMethod('setSetting');
@@ -131,6 +163,50 @@ test('повторный выбор того же качества восста�
         assert.equal(applied, 1);
     } finally { globalThis.localStorage = previous; }
 });
+
+test('высокая графика сохраняет выбранные 60 или 120 FPS на телефоне и ПК', () => {
+    const frameRate = gameMethod('frameRate');
+    assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 120 } }), 120);
+    assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 60 } }), 60);
+    assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: { frameRate: 120 } }), 120);
+    assert.equal(frameRate.call({ mobile: false, quality: 'high', settings: {} }), 60);
+});
+
+test('одиночные просадки не снижают качество; устойчивые сначала возвращают 60 FPS', () => {
+    let fps = 40;
+    const g = { state: 'playing', measuredState: 'playing', runTime: 10,
+        frameMeter: { sample: () => fps, reset() {} }, frameBudget: () => 1000 / 120,
+        setQuality() { assert.fail('качество не должно падать до повторного замера на 60 FPS'); },
+        onResize() { assert.fail('разрешение не должно падать'); } };
+    measureFps.call(g); measureFps.call(g);
+    assert.equal(g.performanceFpsCap, undefined);
+    fps = 115; measureFps.call(g);
+    fps = 40; measureFps.call(g); measureFps.call(g);
+    assert.equal(g.performanceFpsCap, undefined, 'хороший замер обнуляет серию просадок');
+    measureFps.call(g);
+    assert.equal(g.performanceFpsCap, 60);
+});
+
+test('все активные сцены получают бюджет 120 FPS; ограничение нагрузки применяется отдельно', () => {
+    const frameBudget = gameMethod('frameBudget');
+    const g = { frameRate: () => 120, tier: { fps: [120, 40] } };
+    for (const state of ['playing', 'fight', 'countdown', 'bossintro']) {
+        g.state = state;
+        assert.equal(frameBudget.call(g), 1000 / 120);
+    }
+    g.performanceFpsCap = 60;
+    assert.equal(frameBudget.call(g), 1000 / 60);
+});
+
+test('высокая графика сохраняет чёткость без таймера нагрева и размытия', async () => {
+    const { QUALITY_TIERS } = await import('../js/config.js');
+    const phone = { ...QUALITY_TIERS.high, ...QUALITY_TIERS.high.phone };
+    assert.equal(phone.heat, undefined);
+    assert.equal(phone.fx, false);
+    assert.ok(phone.ratio >= 2);
+    assert.ok(phone.shadowSize >= 1024);
+});
+
 
 test('награды ждут облако и записываются в актуальный профиль после ответа сервера', async () => {
     let ready, response, requested = false, saves = 0;
