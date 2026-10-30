@@ -12,6 +12,7 @@ import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { mergeBufferGeometries } from "./vendor/jsm/BufferGeometryUtils.js";
 import { loadModel, later } from "./models.js";
 import { Vietnam } from "./vietnam.js";
+import { Winter, WINTER_OBSTACLES } from "./winter.js";
 
 const SPAWN_Z = -95;   // где появляются предметы
 const DESPAWN_Z = 12;  // где исчезают (уже за камерой)
@@ -304,7 +305,9 @@ export class World {
         this.flocks = [];       // стайки голубей у бордюра
         this.npcModels = {};
         this.buildMaterials();
+        const beforeStreet = new Set(scene.children);
         this.buildStreet();
+        this.streetRoots = scene.children.filter(o => !beforeStreet.has(o));
         this.buildRain();
         this.buildRipples();
         this.buildSplash();
@@ -318,12 +321,16 @@ export class World {
         this.loadNpcs();
     }
 
-    // Локация: "street" — ночной район (по умолчанию), "vietnam" — Нячанг у Димы и Саши (js/vietnam.js, строится при первом включении)
+    // Локации строятся при первом выборе; перед переключением восстанавливаем скрытые объекты предыдущей.
     setLocation(name) {
         if ((this.location || "street") === name) return;
+        this.winter?.set(false);
+        this.vietnam?.set(false);
         this.location = name;
         if (name === "vietnam" && !this.vietnam) this.vietnam = new Vietnam(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
-        this.vietnam?.set(name === "vietnam"); // асфальт и лужи те же: после тропического ливня он тоже мокрый
+        if (name === "winter" && !this.winter) this.winter = new Winter(this, { streetLen: STREET_LEN, behindZ: BEHIND_Z });
+        if (name === "vietnam") this.vietnam.set(true); // асфальт и лужи те же: после тропического ливня он тоже мокрый
+        if (name === "winter") this.winter.set(true);
         if (this.roadMat) this.wetSheen(); // но днём асфальт матовее (wetSheen)
     }
 
@@ -995,6 +1002,7 @@ export class World {
         o.userData.loop = loop;
         this.scene.add(o);
         this.scenery.push(o);
+        if (this.winter?.on) this.winter.hide(o);
         return o;
     }
 
@@ -1084,7 +1092,7 @@ export class World {
 
     updateRipples(dt, move) {
         const r = this.ripples, n = r.count;
-        if (!n) return;
+        if (!n || !r.visible) return;
         const m = this.rippleMatrix ||= new THREE.Matrix4(), c = this.rippleColor ||= new THREE.Color();
         for (let i = 0; i < n; i++) {
             const s = this.rippleState[i];
@@ -2185,7 +2193,7 @@ export class World {
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
         for (const lane of blocked) {
-            let kind = this.pickKind();
+            let kind = this.location === 'winter' ? pick(WINTER_OBSTACLES) : this.pickKind();
             if (this.noCars && kind === "car") kind = "block"; // встречная тачка проехала бы сквозь стену-возражение
             const o = this.addObstacle(kind, lane, z);
             if (o.userData.oncoming) o.position.z = z * (1 + o.userData.oncoming / Math.max(1, speed));
@@ -2313,6 +2321,7 @@ export class World {
     }
 
     update(dt, move, t) {
+        this.winter?.update(dt, move);
         // дорога, разметка и плитка «едут» через сдвиг текстуры
         this.roadMap.offset.y += move * this.roadRepeat / STREET_LEN;
         this.dashMap.offset.y += move * (STREET_LEN / 8) / STREET_LEN;
@@ -2328,7 +2337,7 @@ export class World {
         }
 
         // скелетная анимация только у тех, кто рядом и впереди (дальше — туман)
-        for (const o of this.officers) updateAmbientAnimation(o, dt, this.tier);
+        for (const o of this.officers) if (o.visible) updateAmbientAnimation(o, dt, this.tier); // спрятанных локацией не анимируем
         this.walkCheck = (this.walkCheck || 0) + 1;
         for (const o of this.critters) {
             if (o.visible && o.userData.walk) {
@@ -2400,7 +2409,7 @@ export class World {
         this.updateLampGlow();
         this.vietnam?.update(dt, move, t);
 
-        // Невидимый дождь Нячанга не требует ни CPU-обновления, ни загрузки буфера на GPU.
+        // Невидимый дождь (Нячанг, зима) не требует ни CPU-обновления, ни загрузки буфера на GPU.
         if (!this.rain.visible) return;
         const pos = this.rain.geometry.attributes.position.array;
         for (let i = 0, n = this.rainCount ?? this.rainSpeed.length; i < n; i++) {

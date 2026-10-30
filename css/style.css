@@ -1596,3 +1596,4 @@ body.guide-running .hub::after { content: ''; display: block; flex: none; height
     .guide-controls { margin-top: 6px; }
     .guide-controls span { font-size: 11px; padding: 3px 5px; }
 }
+body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80% at 50% 45%, transparent 35%, rgba(9, 13, 40, .55) 100%); }

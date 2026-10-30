@@ -12,6 +12,7 @@ import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
 import { World, SPAWN_Z, buildEnvironment } from "./world.js";
+import { WINTER } from "./winter.js";
 import * as THREE from "./vendor/three.module.js";
 import { EffectComposer } from "./vendor/jsm/EffectComposer.js";
 import { RenderPass } from "./vendor/jsm/RenderPass.js";
@@ -192,6 +193,11 @@ class Game {
         this.autoQuality = this.quality;
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
+        const requestedLocation = new URLSearchParams(location.search).get("location");
+        if (["winter", "auto"].includes(requestedLocation)) {
+            this.settings.location = requestedLocation;
+            try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
+        }
         // режим: ?startapp=q / noq задаёт его и снимает выбор при первом входе
         const sp = (tg.startParam || "").toLowerCase();
         if (sp === "q" || sp === "noq") { this.settings.questions = sp === "q"; this.settings.modeChosen = true; try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {} }
@@ -342,10 +348,34 @@ class Game {
         c.width = W; c.height = H;
         const g = c.getContext("2d");
         const vn = this.location === "vietnam" && VIETNAM.sky;
-        const sky = vn || SKY;
+        const winter = this.location === "winter";
+        const sky = winter ? WINTER.sky : vn || SKY;
         const grad = g.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, sky.zenith); grad.addColorStop(0.5, sky.mid); grad.addColorStop(1, sky.horizon);
+        grad.addColorStop(0, sky.zenith); grad.addColorStop(winter ? .3 : .5, sky.mid); grad.addColorStop(winter ? .65 : 1, sky.horizon);
         g.fillStyle = grad; g.fillRect(0, 0, W, H);
+        if (winter) {
+            if (!this.winterSky) {
+                this.winterSky = new Image();
+                this.winterSky.onload = () => { if (this.location === 'winter') { this.skyKey = null; this.paintSky(); this.stillDrawn = false; } };
+                this.winterSky.src = 'textures/winter/sky-v1.webp';
+            }
+            if (this.winterSky.complete && this.winterSky.naturalWidth) {
+                // Crop to the visible upper half of the viewport so the rosy horizon remains above the road.
+                const img = this.winterSky, visibleH = H * .6, sourceW = Math.min(img.width, img.height * W / visibleH);
+                g.drawImage(img, (img.width - sourceW) / 2, 0, sourceW, img.height, 0, 0, W, visibleH);
+                g.fillStyle = WINTER.sky.horizon; g.fillRect(0, visibleH, W, H - visibleH);
+                this.setSkyCanvas(c); return;
+            }
+            // Soft cloud ribbons baked once into the background, no transparent cloud meshes.
+            for (let i = 0; i < 14; i++) {
+                const x = ((i * 317) % W), y = H * (.12 + (i % 5) * .065);
+                const cloud = g.createRadialGradient(x, y, 0, x, y, W * .2);
+                cloud.addColorStop(0, "rgba(245,207,226,.13)"); cloud.addColorStop(1, "rgba(245,207,226,0)");
+                g.save(); g.translate(x, y); g.scale(1, .18); g.translate(-x, -y);
+                g.fillStyle = cloud; g.fillRect(x - W * .2, y - W * .2, W * .4, W * .4); g.restore();
+            }
+            this.setSkyCanvas(c); return;
+        }
         if (vn) return this.paintSunset(g, W, H, vn, c);
         let seed = 11;
         const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -446,7 +476,7 @@ class Game {
         this.flight = null;
         if (this.rat.userData) this.rat.userData.clipT = null;
         this.phase = 0;
-        this.nextRowZ = -40;
+        this.nextRowZ = this.location === 'winter' ? -28 : -40;
         // стены-возражения: где следующая, серия правильных, ошибки по типам клиентов за забег
         this.nextWallAt = this.wallGap(this.questions ? WALLS.firstAt : ARCHES.firstAt);
         this.endBossFight(true); // экзамен Инакова (this.boss) — часть финального боя
@@ -1080,10 +1110,10 @@ class Game {
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
 
-        // в меню камера спереди (видно морду и цепь), в игре — сзади-сверху
+        // В меню камера спереди; зимний район показываем со стороны забега, как на концепте.
         const cam = this.camera;
         const portrait = cam.aspect < 0.8;
-        const behind = this.state === "menu" ? 0 : 1;
+        const behind = this.state === "menu" && this.location !== "winter" ? 0 : 1;
         const arr = this.state === "over" && this.arrest;
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
@@ -1183,7 +1213,7 @@ class Game {
         this.tier = { ...base, ...(this.mobile && base.phone), ...(s >= 1 && { reflections: false }), ...(s >= 2 && { shadows: false }), ...(s >= 3 && { bloom: 0, cine: 0 }) };
         const shadowSize = this.tier.shadowSize || 1024;
         if (this.moon.shadow.mapSize.x !== shadowSize) { this.moon.shadow.mapSize.set(shadowSize, shadowSize); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
-        if (this.tier.reflections) {
+        if (this.tier.reflections && this.location !== "winter") { // зимой асфальт под снегом — зеркала луж нет
             // отражение в лужах размыто шейдером — полное разрешение не нужно: 0,45 экрана, не больше 512 (мягче и быстрее)
             const w = Math.min(512, Math.round(window.innerWidth * this.renderer.getPixelRatio() * 0.45));
             this.world.enableReflections(w, Math.round(w * window.innerHeight / window.innerWidth));
@@ -1211,6 +1241,7 @@ class Game {
         this.camera.far = this.tier.far;
         this.scene.fog.far = this.tier.far - 12;
         this.camera.updateProjectionMatrix();
+        this.applyLocationLook();
         this.onResize();
     }
 
@@ -1223,6 +1254,13 @@ class Game {
         if (key === "frameRate" || key === "quality") {
             this.performanceFpsCap = 0;
             this.frameMeter.reset();
+        }
+        if (key === "location") {
+            const url = new URL(location.href);
+            url.searchParams.delete("location");
+            history.replaceState(null, "", url);
+            this.setLocation(this.heroLocation(this.heroId));
+            this.hub?.updatePlay();
         }
         if (key === "quality") {
             this.resScale = 1;
@@ -1403,11 +1441,39 @@ class Game {
         this.applyLook();
         this.skyKey = null;
         this.paintSky();
+        this.setQuality(this.quality);
+    }
+
+    heroLocation(id) {
+        return this.settings.location === "winter" ? "winter" : VIETNAM.heroes.includes(id) ? "vietnam" : "street";
+    }
+
+    // Вид зимнего района (WINTER): свет, дымка, дальность и цвет кадра. Район и Нячанг свет ставят в setLocation и
+    // applyLook — здесь им возвращаем только то, что зима меняет сверх них (сочность, контраст, виньетка, тонмаппинг)
+    applyLocationLook() {
+        const winter = this.location === "winter", u = this.output.uniforms;
+        u.sat.value = winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
+        u.contrast.value = winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.vig.value = winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
+        this.renderer.toneMappingExposure = (winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure) * .55;
+        document.body.classList.toggle("winter", winter);
+        this.world.winter?.sync();
+        if (this.world.vietnam?.on) this.world.vietnam.sync();
+        if (!winter) return;
+        this.hemi.color.set(WINTER.hemi[0]); this.hemi.groundColor.set(WINTER.hemi[1]);
+        this.hemi.intensity = WINTER.light;
+        this.moon.color.set(WINTER.moon); this.moon.intensity = .8;
+        this.scene.fog.color.set(WINTER.fog);
+        this.scene.fog.near = WINTER.near;
+        this.scene.fog.far = WINTER.far;
+        this.camera.far = WINTER.viewFar;
+        this.camera.updateProjectionMatrix();
+        u.exposure.value = 1.35;
     }
 
     selectHero(id) {
         this.heroId = id;
-        this.setLocation(VIETNAM.heroes.includes(id) ? "vietnam" : "street");
+        this.setLocation(this.heroLocation(id));
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
         this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
         try { localStorage.setItem("p2p_hero", id); } catch {}
@@ -1508,8 +1574,9 @@ class Game {
             // и ряд, который доедет до героя, пока на экране реплика (talkCalm)
             const talking = this.talkCalm > 0 && -this.nextRowZ < this.talkCalm * this.speed;
             if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
-            // в Нячанге (свободный бег Димы и Саши, без стен) ряды чаще — VIETNAM.rowGap
-            const gap = (BALANCE.rowGapStart - (BALANCE.rowGapStart - BALANCE.rowGapMin) * difficulty) * (this.location === "vietnam" ? VIETNAM.rowGap : 1);
+            // в Нячанге (свободный бег Димы и Саши, без стен) ряды чаще — VIETNAM.rowGap; зимой свои интервалы — WINTER.rowGap
+            const [gapStart, gapMin] = this.location === "winter" ? WINTER.rowGap : [BALANCE.rowGapStart, BALANCE.rowGapMin];
+            const gap = (gapStart - (gapStart - gapMin) * difficulty) * (this.location === "vietnam" ? VIETNAM.rowGap : 1);
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
