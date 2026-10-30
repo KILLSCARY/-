@@ -1266,9 +1266,10 @@ class Game {
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
         const back = v.back.set(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
-        const front = v.front.set(0.7, 1.5, portrait ? -3.6 : -3.0);
+        // на узком экране герой слева, Никита у бака справа: кадр не перекрывается ни логотипом, ни кнопками
+        const front = v.front.set(portrait ? 0.2 : 0.7, portrait ? 1.3 : 1.5, portrait ? -3.9 : -3.0);
         const target = v.target.set(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
-            .lerp(v.menu.set(0, portrait ? 0.5 : 1.0, 0), 1 - k);
+            .lerp(v.menu.set(portrait ? -0.55 : 0, portrait ? 0.3 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
         if (this.camFocus > 0.01 && this.wind) { // Ислам дует: камера поворачивается к нему и сдвигается в его сторону

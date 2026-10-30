@@ -1721,3 +1721,23 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
 @keyframes record-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes record-pop { from { transform: scale(.5); } to { transform: scale(1); } }
 @keyframes record-tap { from { opacity: .55; } to { opacity: 1; } }
+
+/* главное меню на телефоне: логотип в одну строку и плитки компактнее, середина экрана свободна для героя и Никиты */
+@media (max-aspect-ratio: 4/5) {
+    #view-run .brand { --wsz: clamp(19px, calc((100vw - 32px) / 14.5), 30px); padding-top: 8px; }
+    #view-run .word { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+    #view-run .brand-row { margin-top: 0; gap: 8px; }
+    #view-run .brand-plate { border-radius: 6px; }
+    #view-run .brand-sub { font-size: 10px; line-height: 1.15; }
+    #view-run .tiles { gap: 6px; }
+    #view-run .tile { min-height: 54px; padding: 8px 11px; border-radius: 14px; }
+    #view-run .tile-name { font-size: 13px; }
+    #view-run .tile-sub { margin-top: 2px; font-size: 10px; }
+    #view-run .tile-run { min-height: 60px; }
+    #view-run .tile-run .tile-name { font-size: 18px; }
+    #view-run .tile-run .arr { width: 36px; height: 36px; font-size: 17px; }
+    #view-run .tile-heroes .thumb { width: 48px; height: 48px; }
+    #view-run .tile-rate { grid-column: auto; min-height: 42px; gap: 6px; }
+    #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
+    #view-run .tiles-note { display: none; }
+}
