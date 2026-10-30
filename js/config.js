@@ -1012,24 +1012,28 @@ export const FIGHT_CLIPS = {
     win: ["win", "victory", "taunt"],
 };
 
-// Карта города (меню → «Карта», js/map.js): районы — кварталы-блоки, между ними дороги. loc — локация забега
-// (Game.location), heroes — у кого открыт (остальным закрыт), soon — строится. rect — блок [x1, y1, x2, y2] на карте
-// 1000×1000, theme — фактура блока (winter / street / dubai / soon)
+// Карта города (меню → «Карта», js/map.js): районы — пятна местности с рваным краем, внутри дороги, между ними
+// трасса. loc — локация забега (Game.location), heroes — у кого открыт (остальным закрыт), soon — строится.
+// at — центр района на карте 1000×1000, r — радиусы пятна, theme — цвет и фактура (forest, ice, sand, rust, city, olive,
+// harbor, runway), pois — подписи мест внутри района [x, y, «текст»]
 export const MAP_DISTRICTS = [
-    { id: "mountains", name: "Горный серпантин", soon: true, theme: "soon", rect: [20, 20, 320, 330],
-        text: "Серпантин над обрывом, туман и камнепады." },
-    { id: "winter", name: "Зимняя сказка", loc: "winter", theme: "winter", rect: [346, 20, 654, 330],
+    { id: "winter", name: "Зимняя сказка", loc: "winter", theme: "ice", at: [480, 255], r: [185, 135],
+        pois: [[372, 178, "Продукты"], [612, 345, "Пост ДПС"]],
         text: "Снежные дворы, гирлянды на ёлках, Сбер и обменники в инее, посты ДПС в проёмах ограды." },
-    { id: "dubai", name: "Дубайский отдых", loc: "vietnam", heroes: ["dima", "tovarus"], theme: "dubai", rect: [680, 20, 980, 560],
+    { id: "dubai", name: "Дубайский отдых", loc: "vietnam", heroes: ["dima", "tovarus"], theme: "sand", at: [800, 330], r: [135, 185],
+        pois: [[850, 225, "Марина"], [760, 430, "Башня"]],
         text: "Марина с яхтами, стеклянные башни и закат над заливом. Активистки с помидорами прилагаются." },
-    { id: "street", name: "Ночной район", loc: "street", theme: "street", rect: [20, 356, 420, 640],
+    { id: "street", name: "Ночной район", loc: "street", theme: "city", at: [760, 760], r: [175, 160],
+        pois: [[690, 680, "Обмен 24/7"], [840, 880, "Хрущёвки"]],
         text: "Хрущёвки, мокрый асфальт и неон обменников. Тут всё начиналось." },
-    { id: "industrial", name: "Промзона", soon: true, theme: "soon", rect: [446, 356, 654, 640],
+    { id: "mountains", name: "Горный серпантин", soon: true, theme: "forest", at: [185, 520], r: [150, 210],
+        text: "Серпантин над обрывом, туман и камнепады." },
+    { id: "industrial", name: "Промзона", soon: true, theme: "rust", at: [470, 545], r: [150, 120],
         text: "Склады, фуры и краны — гонка между контейнерами." },
-    { id: "airport", name: "Аэропорт", soon: true, theme: "soon", rect: [680, 586, 980, 980],
-        text: "Взлётная полоса и терминалы — побег от популярности в последний момент." },
-    { id: "port", name: "Порт", soon: true, theme: "soon", rect: [20, 666, 320, 980],
+    { id: "port", name: "Порт", soon: true, theme: "harbor", at: [215, 175], r: [135, 105],
         text: "Причалы, контейнеровозы и ночная разгрузка." },
-    { id: "rublevka", name: "Рублёвка", soon: true, theme: "soon", rect: [346, 666, 654, 980],
+    { id: "rublevka", name: "Рублёвка", soon: true, theme: "olive", at: [230, 850], r: [150, 105],
         text: "Особняки за заборами, охрана и дорогие машины." },
+    { id: "airport", name: "Аэропорт", soon: true, theme: "runway", at: [490, 860], r: [150, 90],
+        text: "Взлётная полоса и терминалы — побег от популярности в последний момент." },
 ];

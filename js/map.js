@@ -1,20 +1,38 @@
-// Карта города (меню → «Карта»): в стиле меню игры — чёрный фон, графитовые кварталы-блоки, между ними дороги
-// с пунктиром, красный — где ты сейчас. Открытые районы выбираются как локация забега, у Дубая — свои герои,
-// остальные — «СКОРО». Один SVG (векторно — чётко на любом экране); районы и тексты — MAP_DISTRICTS в config.js.
+// Карта города (меню → «Карта»): как карта местности в гонках — тёмная земля, районы пятнами с рваным краем,
+// внутри тонкие белые дороги, между районами толстая трасса, вода, красные названия на чёрных плашках и подписи мест.
+// Открытые районы выбираются как локация забега, у Дубая — свои герои, остальные — «СКОРО».
+// Один SVG (векторно — чётко на любом экране); районы, подписи и тексты — MAP_DISTRICTS в config.js.
 import { MAP_DISTRICTS, CHARACTERS } from "./config.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // детерминированный «шум» — одинаковая карта у всех и при каждом открытии
 const random = (seed) => () => ((seed = Math.imul(1664525, seed) + 1013904223 >>> 0) / 4294967296);
 
-// фактура кварталов: цвет «домов» внутри блока и свет в окнах
+// цвет пятна района (как зелень, пустыня, каньон на картах гонок)
 const THEMES = {
-    winter: { from: "#1a2433", to: "#0f141c", house: "#9fc2ff", lit: "#ffd9a0", snow: true },
-    street: { from: "#221a2b", to: "#121016", house: "#8f7aa8", lit: "#ffb36a" },
-    dubai: { from: "#2e2116", to: "#16110c", house: "#e0b07a", lit: "#ffe0a8", water: true },
-    soon: { from: "#17171a", to: "#111113", house: "#3b3b42", lit: null },
+    ice: "#5f7f99", sand: "#b98a4e", city: "#2b2f35", forest: "#3d5a45", rust: "#8a3f2c", harbor: "#3f5f63", olive: "#6f6a3c", runway: "#3a3836",
 };
-const LOCK = "M-7 -1v-4a7 7 0 0 1 14 0v4h2v12h-18v-12z M-4 -1h8v-4a4 4 0 0 0-8 0z"; // замок (центр в 0,0)
+
+// сглаженный контур по точкам: замкнутый (closed) или линия
+function smooth(points, closed = true, k = 0.2) {
+    const n = points.length, p = (i) => points[closed ? (i + n) % n : Math.max(0, Math.min(n - 1, i))];
+    let d = `M${p(0)[0].toFixed(0)},${p(0)[1].toFixed(0)}`;
+    for (let i = 0; i < (closed ? n : n - 1); i++) {
+        const [a, b, c, e] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+        d += ` C${(b[0] + (c[0] - a[0]) * k).toFixed(0)},${(b[1] + (c[1] - a[1]) * k).toFixed(0)} ${(c[0] - (e[0] - b[0]) * k).toFixed(0)},${(c[1] - (e[1] - b[1]) * k).toFixed(0)} ${c[0].toFixed(0)},${c[1].toFixed(0)}`;
+    }
+    return closed ? d + "Z" : d;
+}
+
+// пятно района: неровный эллипс из точек по кругу
+function blob(rand, [cx, cy], [rx, ry], n = 14) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2, k = 0.82 + rand() * 0.3;
+        pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+    }
+    return pts;
+}
 
 export class CityMap {
     constructor(hub) {
@@ -46,6 +64,12 @@ export class CityMap {
         return { here: "ВЫ ЗДЕСЬ", open: "ОТКРЫТ", soon: "СКОРО", hero: "ДИМА · САША", fixed: "НЕ ДЛЯ ГЕРОЯ" }[st];
     }
 
+    // плашка: чёрный прямоугольник с наклонным текстом (ширина — по длине надписи)
+    plate(x, y, text, cls, size) {
+        const w = text.length * size * 0.56 + size;
+        return `<g class="map-plate ${cls}" transform="translate(${x},${y})"><rect x="${(-w / 2).toFixed(0)}" y="${(-size * 0.85).toFixed(0)}" width="${w.toFixed(0)}" height="${(size * 1.35).toFixed(0)}"/><text>${esc(text)}</text></g>`;
+    }
+
     render() {
         if (!this.root) return;
         if (!this.svg) this.build();
@@ -53,64 +77,78 @@ export class CityMap {
             const g = this.svg.querySelector(`[data-district="${d.id}"]`), st = this.state(d), label = this.chip(d, st);
             g.dataset.state = st;
             g.classList.toggle("sel", this.selected === d.id);
-            const w = 30 + label.length * 11, rect = g.querySelector(".chip rect");
-            g.querySelector(".chip text").textContent = label;
-            rect.setAttribute("x", -w / 2);
-            rect.setAttribute("width", w);
+            const l = this.svg.querySelector(`[data-label="${d.id}"]`); // подписи — отдельным слоем поверх районов
+            l.dataset.state = st;
+            const w = label.length * 11.5 + 22, rect = l.querySelector(".status rect");
+            l.querySelector(".status text").textContent = label;
+            rect.setAttribute("x", (-w / 2).toFixed(0));
+            rect.setAttribute("width", w.toFixed(0));
         }
-        this.card(MAP_DISTRICTS.find((d) => d.id === (this.selected || this.current())));
+        const here = MAP_DISTRICTS.find((d) => d.id === this.current());
+        this.svg.querySelector(".map-pin").setAttribute("transform", `translate(${here.at[0]},${here.at[1] - 70})`);
+        this.card(MAP_DISTRICTS.find((d) => d.id === (this.selected || here.id)));
     }
 
     build() {
-        const rand = random(91), roads = [], blocks = [];
-        // дороги — в промежутках между кварталами: тёмное полотно и пунктир по оси
-        const lanes = [[20, 343, 654, 343], [20, 653, 654, 653], [680, 573, 980, 573], [333, 20, 333, 330], [333, 666, 333, 980],
-            [433, 356, 433, 640], [667, 20, 667, 980]];
-        for (const [x1, y1, x2, y2] of lanes) roads.push(`<line class="road" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line class="lane" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
+        const rand = random(57), areas = [], labels = [];
         for (const d of MAP_DISTRICTS) {
-            const [x1, y1, x2, y2] = d.rect, t = THEMES[d.theme], w = x2 - x1, h = y2 - y1;
-            const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, houses = [];
-            // застройка: дома сеткой с пропусками, в части окон свет; у Дубая — вода вдоль края, у зимы — снег
-            for (let y = y1 + 18; y < y2 - 24; y += 30) for (let x = x1 + 18; x < x2 - 24; x += 30) {
-                if (rand() < 0.28) continue;
-                const s = 12 + rand() * 10;
-                houses.push(`<rect x="${(x + rand() * 6).toFixed(0)}" y="${(y + rand() * 6).toFixed(0)}" width="${s.toFixed(0)}" height="${s.toFixed(0)}" rx="3" fill="${t.lit && rand() < 0.22 ? t.lit : t.house}" opacity="${(0.08 + rand() * 0.14).toFixed(2)}"/>`);
+            const shape = smooth(blob(rand, d.at, d.r), true, 0.22), [cx, cy] = d.at, [rx, ry] = d.r, inner = [];
+            // дороги внутри района: у города — сетка улиц, у аэропорта — полосы, у остальных — извилистые
+            if (d.theme === "city") {
+                for (let x = cx - rx; x < cx + rx; x += 26 + rand() * 18) inner.push(`<path d="M${x.toFixed(0)},${cy - ry} L${(x + rand() * 30 - 15).toFixed(0)},${cy + ry}"/>`);
+                for (let y = cy - ry; y < cy + ry; y += 26 + rand() * 18) inner.push(`<path d="M${cx - rx},${y.toFixed(0)} L${cx + rx},${(y + rand() * 30 - 15).toFixed(0)}"/>`);
+                inner.push(`<path class="ring" d="${smooth(blob(rand, d.at, [rx * 0.62, ry * 0.62], 10), true, 0.22)}"/>`);
+            } else if (d.theme === "runway") {
+                for (const dy of [-22, 22]) inner.push(`<path class="runway" d="M${cx - rx * 0.8},${cy + dy} L${cx + rx * 0.8},${cy + dy - 20}"/>`);
             }
-            if (t.water) houses.push(`<rect x="${x2 - 70}" y="${y1}" width="70" height="${h}" fill="#3a6f8f" opacity=".35"/>`);
-            if (t.snow) for (let i = 0; i < 40; i++) houses.push(`<circle cx="${(x1 + rand() * w).toFixed(0)}" cy="${(y1 + rand() * h).toFixed(0)}" r="${(1 + rand() * 2).toFixed(1)}" fill="#fff" opacity=".35"/>`);
-            blocks.push(`
-                <g class="district" data-district="${d.id}" tabindex="0" role="button" aria-label="${esc(d.name)}">
-                    <clipPath id="clip-${d.id}"><rect x="${x1}" y="${y1}" width="${w}" height="${h}" rx="26"/></clipPath>
-                    <linearGradient id="fill-${d.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.from}"/><stop offset="1" stop-color="${t.to}"/></linearGradient>
-                    <rect class="block" x="${x1}" y="${y1}" width="${w}" height="${h}" rx="26" fill="url(#fill-${d.id})"/>
-                    <g clip-path="url(#clip-${d.id})">${houses.join("")}${d.soon ? `<rect x="${x1}" y="${y1}" width="${w}" height="${h}" fill="url(#map-hatch)"/>` : ""}</g>
-                    <rect class="frame" x="${x1}" y="${y1}" width="${w}" height="${h}" rx="26"/>
-                    ${d.soon ? `<path class="lock" d="${LOCK}" transform="translate(${cx},${cy - 66}) scale(1.6)"/>` : ""}
-                    <text class="name" x="${cx}" y="${cy}">${this.wrap(d.name, cx, w)}</text>
-                    <g class="chip" transform="translate(${cx},${cy + 44})"><rect y="-17" height="32" rx="16"/><text y="6"></text></g>
+            for (let i = 0; i < (d.theme === "city" ? 3 : 9); i++) {
+                const pts = [];
+                let x = cx + (rand() - 0.5) * rx * 1.6, y = cy + (rand() - 0.5) * ry * 1.6;
+                for (let k = 0; k < 5; k++) { pts.push([x, y]); x += (rand() - 0.5) * rx * 0.7; y += (rand() - 0.5) * ry * 0.7; }
+                inner.push(`<path d="${smooth(pts, false, 0.3)}"/>`);
+            }
+            areas.push(`
+                <g class="district" data-district="${d.id}" data-theme="${d.theme}" tabindex="0" role="button" aria-label="${esc(d.name)}">
+                    <clipPath id="clip-${d.id}"><path d="${shape}"/></clipPath>
+                    <path class="area" d="${shape}" fill="${THEMES[d.theme]}" filter="url(#map-rough)"/>
+                    <g class="streets" clip-path="url(#clip-${d.id})">${inner.join("")}</g>
+                    <path class="edge" d="${shape}" filter="url(#map-rough)"/>
                 </g>`);
+            // подписи — поверх всего: места (белые), название района (красное), статус
+            for (const [x, y, t] of d.pois || []) labels.push(this.plate(x, y, t.toUpperCase(), "poi", 17));
+            labels.push(`<g class="label" data-label="${d.id}">${this.plate(cx, cy, d.name.toUpperCase(), "name", 30)}
+                <g class="status" transform="translate(${cx},${cy + 38})"><rect y="-15" height="26" rx="3"/><text y="4"></text></g></g>`);
         }
+        // трасса: петля через все районы и поперечина через центр
+        const loop = ["port", "winter", "dubai", "street", "airport", "rublevka", "mountains"].map((id) => MAP_DISTRICTS.find((d) => d.id === id).at);
+        const cross = ["winter", "industrial", "airport"].map((id) => MAP_DISTRICTS.find((d) => d.id === id).at);
         this.root.innerHTML = `
             <svg class="map-svg" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
-                <defs><pattern id="map-hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="16" fill="#fff" opacity=".035"/></pattern></defs>
-                <rect class="ground" x="0" y="0" width="1000" height="1000" rx="34"/>
-                <g class="roads">${roads.join("")}</g>
-                <g class="districts">${blocks.join("")}</g>
+                <defs>
+                    <filter id="map-rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="4"/><feDisplacementMap in="SourceGraphic" scale="26"/></filter>
+                    <filter id="map-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="2"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 .9  0 0 0 0 .8  0 0 0 .05 0"/></filter>
+                    <radialGradient id="map-vignette" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+                </defs>
+                <rect class="ground" width="1000" height="1000"/>
+                <rect width="1000" height="1000" filter="url(#map-grain)"/>
+                <path class="water" d="M1000,0 L1000,330 C950,320 930,250 900,200 C870,150 880,90 850,40 C840,20 830,8 820,0 Z" filter="url(#map-rough)"/>
+                <path class="water" d="M0,0 L170,0 C150,40 110,60 70,70 C40,80 20,100 0,110 Z" filter="url(#map-rough)"/>
+                <g class="districts">${areas.join("")}</g>
+                <path class="highway" d="${smooth(loop, true, 0.2)}"/>
+                <path class="highway minor" d="${smooth(cross, false, 0.3)}"/>
+                <g class="labels">${labels.join("")}</g>
+                <g class="map-pin"><circle class="pulse" r="16"/><circle class="dot" r="7"/></g>
+                <rect width="1000" height="1000" fill="url(#map-vignette)" pointer-events="none"/>
             </svg>
             <div class="map-card card" id="map-card"></div>`;
         this.svg = this.root.querySelector("svg");
-        for (const g of this.svg.querySelectorAll(".district")) {
-            const pick = () => { this.selected = g.dataset.district; this.game.audio.play("swipe"); this.render(); };
+        const pickers = [...this.svg.querySelectorAll(".district"), ...this.svg.querySelectorAll(".label")];
+        for (const g of pickers) {
+            const id = g.dataset.district || g.dataset.label;
+            const pick = () => { this.selected = id; this.game.audio.play("swipe"); this.render(); };
             g.addEventListener("click", pick);
             g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
         }
-    }
-
-    // название в одну строку, если влезает в блок, иначе — в две (по пробелу)
-    wrap(name, cx, w) {
-        const up = esc(name.toUpperCase()), words = up.split(" ");
-        if (up.length * 23 < w - 40 || words.length < 2) return up;
-        return `<tspan x="${cx}" dy="-14">${words[0]}</tspan><tspan x="${cx}" dy="32">${words.slice(1).join(" ")}</tspan>`;
     }
 
     // карточка района под картой: что это, можно ли сюда, и действие
@@ -121,12 +159,14 @@ export class CityMap {
             : st === "hero" ? `Открывается только у героев: ${this.heroNames(d.heroes)}.`
                 : st === "fixed" ? `${hero} бегает только в своём районе. Чтобы бежать здесь — выбери другого героя.`
                     : st === "here" ? "Здесь проходит твой забег." : "Открыт — можно бежать здесь.";
+        // в сюжетном забеге район задаёт глава (Game.story), выбор на карте действует в свободной игре
+        const storyNote = this.game.story && !d.soon ? "В сюжетном забеге район задаётся главой; выбор карты действует в свободной игре." : "";
         const action = st === "open" ? `<button class="btn btn-main" id="map-go">Бежать здесь</button>`
             : st === "hero" || st === "fixed" ? `<button class="btn btn-ghost map-btn-line" id="map-heroes">К героям</button>`
                 : st === "here" ? `<button class="btn btn-main" id="map-run">Забег</button>` : "";
         el.dataset.state = st;
         el.innerHTML = `<div class="card-main"><div class="map-card-head"><h3>${esc(d.name)}</h3><span class="map-chip">${this.chip(d, st)}</span></div>
-            <p class="map-text">${esc(d.text || "")}</p><p>${esc(note)}</p>${action}</div>`;
+            <p class="map-text">${esc(d.text || "")}</p><p>${esc(note)}</p>${storyNote ? `<p>${esc(storyNote)}</p>` : ""}${action}</div>`;
         el.querySelector("#map-go")?.addEventListener("click", () => {
             this.game.setSetting("location", d.loc);
             this.selected = null;

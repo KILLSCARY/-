@@ -1613,34 +1613,49 @@ body.guide-running .hub::after { content: ''; display: block; flex: none; height
 }
 body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80% at 50% 45%, transparent 35%, rgba(9, 13, 40, .55) 100%); }
 
-/* ---- Карта города (js/map.js): в стиле меню — чёрный фон, графитовые кварталы, дороги с пунктиром, красный — где ты ---- */
+/* ---- Карта города (js/map.js): как карта местности в гонках — тёмная земля, районы пятнами, белые дороги,
+   красные названия на чёрных плашках; внизу — карточка района как карточки меню ---- */
 .map-root { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-.map-svg { width: 100%; height: auto; max-height: 58vh; display: block; }
-.map-svg .ground { fill: #0b0b0d; stroke: var(--line); stroke-width: 2; }
-.map-svg .road { stroke: #151518; stroke-width: 22; stroke-linecap: round; }
-.map-svg .lane { stroke: rgba(255, 255, 255, .22); stroke-width: 2.5; stroke-dasharray: 14 12; stroke-linecap: round; }
+.map-svg { width: 100%; height: auto; max-height: 58vh; display: block; border-radius: 18px; border: 1px solid var(--line); }
+.map-svg .ground { fill: #241c18; }
+.map-svg .water { fill: #2f6b6b; }
 .map-svg .district { cursor: pointer; outline: none; }
-.map-svg .district .frame { fill: none; stroke: rgba(255, 255, 255, .14); stroke-width: 2; transition: stroke .2s, stroke-width .2s; }
-.map-svg .district .name { fill: #fff; font: 800 26px var(--font-display); text-anchor: middle; letter-spacing: .3px; paint-order: stroke; stroke: rgba(0, 0, 0, .55); stroke-width: 5px; }
-.map-svg .district .chip rect { fill: rgba(255, 255, 255, .1); stroke: rgba(255, 255, 255, .35); stroke-width: 1.5; }
-.map-svg .district .chip text { fill: #fff; font: 500 17px var(--font-ui); text-anchor: middle; letter-spacing: 1.5px; }
-.map-svg .district .lock { fill: rgba(255, 255, 255, .28); fill-rule: evenodd; }
-.map-svg .district[data-state="here"] .frame { stroke: var(--red); stroke-width: 5; filter: drop-shadow(0 0 10px rgba(227, 52, 58, .7)); }
-.map-svg .district[data-state="here"] .chip rect { fill: var(--red); stroke: none; }
-.map-svg .district[data-state="soon"] .name { fill: #8b8b92; }
-.map-svg .district[data-state="soon"] .chip rect { fill: #202024; stroke: rgba(255, 255, 255, .12); }
-.map-svg .district[data-state="soon"] .chip text { fill: var(--muted); }
-.map-svg .district[data-state="hero"] .chip rect, .map-svg .district[data-state="fixed"] .chip rect { fill: rgba(233, 194, 90, .14); stroke: var(--gold); }
-.map-svg .district[data-state="hero"] .chip text, .map-svg .district[data-state="fixed"] .chip text { fill: var(--gold); }
-.map-svg .district.sel:not([data-state="here"]) .frame, .map-svg .district:focus-visible .frame { stroke: #fff; stroke-width: 4; }
+.map-svg .district .area { opacity: .78; transition: opacity .2s; }
+.map-svg .district .edge { fill: none; stroke: rgba(0, 0, 0, .35); stroke-width: 6; }
+.map-svg .district .streets path { fill: none; stroke: #f2ece4; stroke-width: 1.6; opacity: .5; stroke-linecap: round; }
+.map-svg .district .streets .ring { stroke-width: 4; opacity: .85; }
+.map-svg .district .streets .runway { stroke-width: 12; opacity: .45; }
+.map-svg .district[data-state="soon"] .area { opacity: .38; }
+.map-svg .district[data-state="soon"] .streets path { opacity: .22; }
+.map-svg .district[data-state="here"] .edge { stroke: var(--red); stroke-width: 7; }
+.map-svg .district.sel:not([data-state="here"]) .edge { stroke: #fff; stroke-width: 6; }
+.map-svg .highway { fill: none; stroke: #f4f0ea; stroke-width: 6; stroke-linecap: round; opacity: .9; }
+.map-svg .highway.minor { stroke-width: 3.5; opacity: .7; }
+.map-svg .map-plate rect { fill: #0b0b0c; stroke: rgba(255, 255, 255, .25); stroke-width: 1.2; }
+.map-svg .map-plate text { font-family: var(--font-ui); font-style: italic; text-anchor: middle; dominant-baseline: middle; }
+.map-svg .map-plate.poi text { fill: #f2ece4; font-size: 17px; letter-spacing: .5px; }
+.map-svg .map-plate.poi { opacity: .9; }
+.map-svg .map-plate.name text { fill: var(--red); font-size: 30px; font-weight: 600; letter-spacing: 1px; }
+.map-svg .label { cursor: pointer; }
+.map-svg .label .status rect { fill: #0b0b0c; stroke: rgba(255, 255, 255, .3); stroke-width: 1.2; }
+.map-svg .label .status text { fill: #fff; font: 500 15px var(--font-ui); text-anchor: middle; letter-spacing: 1.4px; }
+.map-svg .label[data-state="here"] .status rect { fill: var(--red); stroke: var(--red); }
+.map-svg .label[data-state="soon"] .map-plate.name text { fill: #9a8f88; }
+.map-svg .label[data-state="soon"] .status text { fill: var(--muted); }
+.map-svg .label[data-state="hero"] .status rect, .map-svg .label[data-state="fixed"] .status rect { stroke: var(--gold); }
+.map-svg .label[data-state="hero"] .status text, .map-svg .label[data-state="fixed"] .status text { fill: var(--gold); }
+.map-svg .map-pin .dot { fill: var(--red); stroke: #fff; stroke-width: 3; }
+.map-svg .map-pin .pulse { fill: none; stroke: var(--red); stroke-width: 4; animation: map-pin 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes map-pin { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .map-svg .map-pin .pulse { animation: none; } }
 .map-card { flex-direction: column; align-items: stretch; }
 .map-card .card-main { gap: 8px; }
 .map-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .map-card h3 { font: 800 18px var(--font-display); }
 .map-card .map-text { color: #e6e6e6; font-size: 14px; }
-.map-chip { flex: none; padding: 5px 11px; border-radius: 999px; font: 500 13px var(--font-ui); letter-spacing: 1.2px; border: 1px solid rgba(255, 255, 255, .35); color: #fff; }
+.map-chip { flex: none; padding: 5px 11px; border-radius: 4px; font: italic 500 13px var(--font-ui); letter-spacing: 1.2px; border: 1px solid rgba(255, 255, 255, .35); color: #fff; background: #0b0b0c; }
 .map-card[data-state="here"] .map-chip { background: var(--red); border-color: var(--red); }
-.map-card[data-state="soon"] .map-chip { color: var(--muted); border-color: rgba(255, 255, 255, .15); background: #202024; }
+.map-card[data-state="soon"] .map-chip { color: var(--muted); border-color: rgba(255, 255, 255, .15); }
 .map-card[data-state="hero"] .map-chip, .map-card[data-state="fixed"] .map-chip { color: var(--gold); border-color: var(--gold); }
 .map-card .btn { margin-top: 4px; }
 .map-btn-line { border: 1px solid var(--line); color: #fff; }
