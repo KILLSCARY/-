@@ -4,14 +4,14 @@ import * as THREE from '../js/vendor/three.module.js';
 import { StoryStage } from '../js/story-stage.js';
 
 test('главы загружают нужные модели и удаляют их после сцены', () => {
-    for (const [chapter, expected] of [[1, ['station']]]) {
+    for (const [chapter, expected] of [[2, ['patrol1', 'cop']]]) {
         const scene = new THREE.Scene(), calls = [];
         const stage = new StoryStage(scene, chapter, 1.7, (url, done) => calls.push({ url, done }));
         assert.deepEqual(calls.map(c => c.url.split('/').pop().replace('.glb', '')), expected);
         const geometry = new THREE.BoxGeometry(1, 2, 1), material = new THREE.MeshBasicMaterial();
         let disposed = 0; geometry.addEventListener('dispose', () => disposed++);
         calls[0].done({ scene: new THREE.Mesh(geometry, material) });
-        assert.equal(stage.root.children.length, 1);
+        assert.equal(stage.root.children.filter(o => o.isGroup).length, 1);
         stage.dispose();
         assert.equal(disposed, 1);
         assert.equal(stage.root.parent, null);
@@ -22,9 +22,9 @@ test('главы загружают нужные модели и удаляют 
     }
 });
 
-test('во второй главе на дороге нет случайного кордона и кейса', () => {
+test('перед Мизулиной нет пересекающего дорогу киоска', () => {
     const scene = new THREE.Scene();
-    const stage = new StoryStage(scene, 2, 0, () => assert.fail('модели не должны загружаться'));
+    const stage = new StoryStage(scene, 1, 0, () => assert.fail('модели не должны загружаться'));
     assert.equal(stage.root.children.length, 0);
     stage.dispose();
 });

@@ -54,6 +54,7 @@ export class ChapterScene {
     }
     update(dt) {
         this.time += dt;
+        this.stage.update(dt);
         if (this.story.id === 3) this.clearEntrance();
         const camera = this.game.camera, portrait = camera.aspect < .8;
         this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];

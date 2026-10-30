@@ -2,8 +2,11 @@ import * as THREE from './vendor/three.module.js';
 import { loadModel, preloadModel } from './models.js';
 
 const PROPS = {
-    1: [{ url: 'models/story/station.glb', x: -3.6, z: 0, height: 3.1 }],
-    2: [],
+    1: [],
+    2: [
+        { url: 'models/obj/lite/patrol1.glb', x: 2.5, z: -4.5, height: 1.65, rotation: Math.PI / 2 },
+        { url: 'models/obj/lite/cop.glb', x: 1.3, z: -.7, height: 1.85, clip: 'talk' },
+    ],
     3: [],
 };
 
@@ -51,9 +54,15 @@ function headquartersEntrance() {
 export class StoryStage {
     constructor(scene, chapter, x, loader = loadModel) {
         this.scene = scene;
+        this.mixers = [];
         this.root = new THREE.Group();
         this.root.position.set(x, 0, -7);
         scene.add(this.root);
+        if (chapter === 2) {
+            const light = new THREE.PointLight(0xffd8aa, 1.5, 8, 2);
+            light.position.set(1.3, 3, 0);
+            this.root.add(light);
+        }
         if (chapter === 3) {
             const entrance = headquartersEntrance();
             entrance.position.set(-6.95 - x, .18, -7);
@@ -74,11 +83,15 @@ export class StoryStage {
             placement.position.set(prop.x - (prop.sidewalk ? x : 0) - center.x * scale,
                 (prop.sidewalk ? .18 : 0) - bounds.min.y * scale, prop.z - center.z * scale);
             this.root.add(placement);
+            const clip = prop.clip && (gltf.animations || []).find(a => a.name === prop.clip);
+            if (clip) { const mixer = new THREE.AnimationMixer(model); mixer.clipAction(clip).play(); this.mixers.push(mixer); }
         }, () => {});
     }
+    update(dt) { for (const mixer of this.mixers) mixer.update(dt); }
     dispose() {
         if (this.disposed) return;
         this.disposed = true;
+        for (const mixer of this.mixers) { mixer.stopAllAction(); mixer.uncacheRoot(mixer.getRoot()); }
         this.scene.remove(this.root);
         for (const model of [...this.root.children]) { this.root.remove(model); disposeModel(model); }
     }
