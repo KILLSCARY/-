@@ -77,7 +77,10 @@ const hdTexture = (url) => {
 export function upgradeTextures(root, base, mode = "webp") {
     if (!base || !mode || (mode === "ktx2" && !ktxRenderer)) return;
     const files = mode === "ktx2" ? [["map", "_c.ktx2"]] : [["map", "_c.webp"], ["normalMap", "_n.webp"]];
-    for (const [key, suffix] of files) hdTexture(`${base}${suffix}`).then((hd) => {
+    // HD-нормали — только если у модели есть карта нормалей (у Денчика её нет: запрос _n.webp был всегда 404)
+    let normals = false;
+    root.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m?.normalMap) normals = true; });
+    for (const [key, suffix] of files) if (key !== "normalMap" || normals) hdTexture(`${base}${suffix}`).then((hd) => {
         if (!hd) return;
         root.traverse((o) => {
             if (!o.isMesh) return;
