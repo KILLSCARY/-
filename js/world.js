@@ -1578,7 +1578,11 @@ export class World {
                 if (kind === "pigeon") for (let i = 0; i < this.npcLimit(cfg.flocks); i++) this.makeFlock(m, cfg, i);
                 if (kind === "nikita") { // ночью текстура почти чёрная и он теряется на фоне бака: подсвечиваем её саму, без лишнего источника света
                     m.gltf.scene.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.42; o.material.needsUpdate = true; } });
-                    for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i);
+                    loadModel(this.lite(cfg.bin), (bin) => { // сцены ставим, когда загрузились и бак, и Никита
+                        const b = bin.scene;
+                        b.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.3; o.material.needsUpdate = true; } });
+                        for (let i = 0; i < cfg.spots.length; i++) this.makeNikita(m, cfg, i, b);
+                    }, () => {}, { deferred: true });
                 }
             }, () => {}, { deferred: true });
         }
@@ -1665,48 +1669,47 @@ export class World {
     }
 
     // Никита Енот у мусорки: своя сцена у каждого бака. Стоит во всех районах, поэтому не в общей декорации улицы
-    makeDumpster() {
+    // имя не makeDumpster: так называется препятствие на дороге, и второй метод с этим именем подменял его
+    makeNikitaBin(binModel, cfg, side) {
         const m = (this.dumpMat ||= {
-            wall: new THREE.MeshStandardMaterial({ color: 0x3f8a5f, roughness: 0.75, emissive: 0x12301f }),
-            rim: new THREE.MeshStandardMaterial({ color: 0x2a5a42, roughness: 0.6, emissive: 0x0c2016 }),
             bag: new THREE.MeshStandardMaterial({ color: 0x2b2b33, roughness: 0.35, emissive: 0x08080c }),
             box: new THREE.MeshStandardMaterial({ color: 0xa8804f, roughness: 1 }),
             trash: new THREE.MeshStandardMaterial({ color: 0xd8c24a, roughness: 0.8 }),
         });
-        const g = new THREE.Group(), W = 1.1, L = 1.6, H = 1.12;
+        const g = new THREE.Group(), H = 1.12, k = H / cfg.binRim, bin = binModel.clone();
+        bin.scale.multiplyScalar(k);
+        bin.rotation.y = -side * Math.PI / 2; // открытая крышка — к домам, бак раскрыт к дороге
+        g.add(bin);
         const box = (w, h, d, mat, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); b.castShadow = true; g.add(b); return b; };
-        for (const s of [-1, 1]) { box(0.05, H - 0.1, L, m.wall, s * W / 2, H / 2 + 0.05, 0); box(W, H - 0.1, 0.05, m.wall, 0, H / 2 + 0.05, s * L / 2); }
-        for (const s of [-1, 1]) { box(0.09, 0.06, L + 0.08, m.rim, s * W / 2, H, 0); box(W + 0.08, 0.06, 0.09, m.rim, 0, H, s * L / 2); }
-        for (const x of [-1, 1]) for (const z of [-1, 1]) box(0.09, 0.09, 0.09, m.rim, x * (W / 2 - 0.08), 0.045, z * (L / 2 - 0.1));
         const bag = (x, y, z, r) => { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m.bag); b.position.set(x, y, z); b.scale.y = 0.8; b.rotation.y = x * 3; b.castShadow = true; g.add(b); return b; };
-        return { g, m, W, L, H, box, bag };
+        return { g, m, H, box, bag };
     }
 
-    makeNikita(model, cfg, i) {
-        const mode = cfg.spots[i], side = i % 2 ? -1 : 1, d = this.makeDumpster(), root = d.g;
-        root.position.set(side * cfg.x, 0, BEHIND_Z - 40 - i * (STREET_LEN / cfg.spots.length));
+    makeNikita(model, cfg, i, binModel) {
+        const mode = cfg.spots[i], side = i % 2 ? -1 : 1, d = this.makeNikitaBin(binModel, cfg, side), root = d.g;
+        root.position.set(side * NIKITA_X.street, 0, BEHIND_Z - 40 - i * (STREET_LEN / cfg.spots.length));
         const rig = this.rig(model, "look");
         rig.userData.mixer.stopAllAction();
         const face = -side * 0.75; // к дороге и навстречу бегущему
         const u = root.userData = { mode, rig, side, t: 0, step: -1, y: 0, yTo: 0, mixer: rig.userData.mixer, acts: {}, thrown: [], nextThrow: 0, rim: d.H };
         for (const c of model.gltf.animations) { const a = u.mixer.clipAction(c); a.setLoop(THREE.LoopPingPong, Infinity); u.acts[c.name] = a; }
         root.add(rig);
-        if (mode === "dig") { // стоит у бака со стороны дороги, роется внутри; рядом мешки и коробка
-            rig.position.set(-side * 0.78, 0, 0.1); rig.rotation.y = side * Math.PI / 2;
-            d.bag(side * 0.1, d.H - 0.12, 0.35, 0.3); d.bag(side * 0.1, d.H - 0.18, -0.35, 0.34);
-            d.bag(-side * 0.72, 0.2, -1.02, 0.28); d.bag(-side * 0.36, 0.17, -1.12, 0.22);
-            d.box(0.42, 0.3, 0.42, d.m.box, -side * 0.72, 0.15, 1.0).rotation.y = 0.5;
-            u.script = [["shovel", 5, 0, true], ["look", 2.6, 0], ["shovel", 4, 0, true], ["laugh", 3, 0], ["dig", 4, 0]];
-        } else if (mode === "sit") { // сидит на закрытой крышке, потом встаёт и ржёт сверху
-            d.box(d.W + 0.1, 0.06, d.L + 0.1, d.m.rim, 0, d.H + 0.05, 0);
+        if (mode === "dig") { // снаружи роется в куче у бака, а не сквозь стенку; в сам бак лезет только сценка inside
+            rig.position.set(-side * 0.15, 0, 1.4); rig.rotation.y = -side * Math.PI / 2;
+            d.bag(-side * 0.72, 0.2, 1.72, 0.28); d.bag(-side * 0.82, 0.17, 1.2, 0.24);
+            d.box(0.42, 0.3, 0.42, d.m.box, -side * 0.98, 0.15, 1.5).rotation.y = 0.5;
+            d.bag(side * 0.05, d.H - 0.08, 0.1, 0.32);
+            u.script = [["dig", 5, 0], ["look", 2.6, 0], ["dig", 4, 0], ["laugh", 3, 0], ["frustrated", 2.4, 0]];
+        } else if (mode === "sit") { // сидит на краю бака, потом встаёт на него и ржёт сверху
+            rig.position.x = -side * 0.62;
+            d.bag(side * 0.1, d.H - 0.08, 0.1, 0.32);
             d.bag(side * -0.3, 0.2, 1.1, 0.26); d.bag(side * 0.25, 0.17, 1.15, 0.2);
             rig.rotation.y = face;
-            u.script = [["sit", 6, cfg.sitY], ["laugh", 3.2, d.H + 0.08], ["sit", 5, cfg.sitY], ["frustrated", 2.6, d.H + 0.08]];
+            u.script = [["sit", 6, cfg.sitY], ["laugh", 3.2, d.H + 0.02], ["sit", 5, cfg.sitY], ["frustrated", 2.6, d.H + 0.02]];
         } else { // сидит в баке: выглядывает, ныряет с головой, выбрасывает мусор и снова прячется
-            d.bag(side * -0.3, d.H - 0.1, 0.5, 0.28);
             d.bag(side * 0.2, 0.2, 1.12, 0.24);
             rig.rotation.y = face;
-            u.script = [["look", 3.2, cfg.insideY], ["shovel", 4, cfg.insideY, true], ["laugh", 2.8, cfg.insideY], ["look", 1.6, cfg.hiddenY]];
+            u.script = [["look", 3.2, cfg.insideY], ["shovel", 4, cfg.insideY, true], ["look", 2.6, cfg.insideY], ["look", 1.6, cfg.hiddenY]];
         }
         rig.visible = true;
         for (let k = 0; k < 3; k++) { // что вылетает из бака

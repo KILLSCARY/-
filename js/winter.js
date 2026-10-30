@@ -713,13 +713,15 @@ export class Winter {
 
     bridge(z) {
         const c = this.colours;
-        for (const x of [-7.3, 7.3]) this.box(0x8998ad, x, 2.4, z, .6, 4.8, 1.5);
-        this.box(c.dark, 0, 4.9, z, 15.5, .32, 2);
-        this.box(c.snow, 0, 5.1, z, 15.7, .15, 2.1);
+        // низ настила на 7,4 м: в полёте макушка героя на 6,2 м, камера на 5,9 м, обоим проходить под мостом
+        const up = 2.65;
+        for (const x of [-7.3, 7.3]) this.box(0x8998ad, x, (4.8 + up) / 2, z, .6, 4.8 + up, 1.5);
+        this.box(c.dark, 0, 4.9 + up, z, 15.5, .32, 2);
+        this.box(c.snow, 0, 5.1 + up, z, 15.7, .15, 2.1);
         for (const dz of [-.9, .9]) {
-            this.box(c.iron, 0, 6, z + dz, 15.5, .07, .07);
-            this.box(c.snow, 0, 6.06, z + dz, 15.5, .06, .11);
-            for (let x = -7.5; x <= 7.5; x += .55) this.box(c.iron, x, 5.55, z + dz, .045, .9, .045);
+            this.box(c.iron, 0, 6 + up, z + dz, 15.5, .07, .07);
+            this.box(c.snow, 0, 6.06 + up, z + dz, 15.5, .06, .11);
+            for (let x = -7.5; x <= 7.5; x += .55) this.box(c.iron, x, 5.55 + up, z + dz, .045, .9, .045);
         }
     }
 
