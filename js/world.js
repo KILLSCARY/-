@@ -444,10 +444,6 @@ export class World {
             g2.fillStyle = gr;
             g2.fillRect(0, 0, w, h);
         });
-        this.mat.cue = {
-            police: new THREE.SpriteMaterial({ map: this.glowTex, color: 0x5a9cff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
-            obstacle: new THREE.SpriteMaterial({ map: this.glowTex, color: 0xffb34d, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
-        };
         this.geo = {
             glow: new THREE.PlaneGeometry(1, 1),
             coin: new THREE.CylinderGeometry(0.32, 0.32, 0.07, 24),
@@ -1489,7 +1485,6 @@ export class World {
                             o.material.emissiveIntensity = cfg.glow;
                         }
                     });
-                    this.polishGameplayModel(m, kind);
                     let animated = gltf.animations.length > 0;
                     m.traverse((o) => { if (o.isSkinnedMesh) animated = true; });
                     if (!animated) m.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
@@ -2009,7 +2004,6 @@ export class World {
         if (kind === "cop" && this.officer) { // живой инспектор на полосе: кричит или объясняет руками
             const g = this.makeOfficer(pick(POLICE_OFFICER.idle));
             Object.assign(g.userData, { type: "cop", halfZ: 0.3, police: true });
-            this.addGameplayCue(g, kind);
             return g;
         }
         const t = this.modelFor(kind);
@@ -2018,7 +2012,6 @@ export class World {
                 : kind === "dumpster" ? this.makeDumpster() : kind === "barrier" ? this.makeBarrier()
                 : kind === "atm" ? this.makeAtm() : this.makeCar();
             if (kind === "car") this.addHeadlights(g, CAR_FRONT);
-            this.addGameplayCue(g, kind);
             return g;
         }
         // Модель из .glb. Столкновения — по её габаритам, чтобы не расходились с тем, что видно: тележку высотой 1,4 м
@@ -2031,38 +2024,7 @@ export class World {
         g.userData.halfZ = cfg.halfZ ?? Math.max(base.halfZ, size.z * 0.45);
         if (kind === "cop") g.userData.police = true;
         if (kind === "car") this.addHeadlights(g, t.userData.front);
-        this.polishGameplayModel(g, kind);
-        this.addGameplayCue(g, kind);
         return g;
-    }
-
-    // Объекты на пути нельзя прятать в ночной тени. Эмиссия слабая и не создаёт нового источника света,
-    // поэтому повышает читаемость без стоимости shadow maps или десятков PointLight.
-    polishGameplayModel(root, kind) {
-        const accent = new THREE.Color(kind === "cop" ? 0x5a86c8 : 0xbc7a2d);
-        root.traverse((o) => {
-            if (!o.isMesh) return;
-            for (const m of [].concat(o.material || [])) {
-                if (!m?.isMeshStandardMaterial || m.userData.gameplayFill) continue;
-                m.emissive.lerp(m.color.clone().lerp(accent, kind === "cop" ? 0.38 : 0.2), 0.16);
-                m.emissiveIntensity = Math.max(m.emissiveIntensity ?? 1, kind === "cop" ? 0.52 : 0.28);
-                m.envMapIntensity = Math.max(m.envMapIntensity ?? 1, 0.75);
-                m.userData.gameplayFill = true;
-                m.needsUpdate = true;
-            }
-        });
-    }
-
-    addGameplayCue(g, kind) {
-        if (g.userData.cue || kind === "coin" || kind === "testo" || kind === "choline") return;
-        const police = kind === "cop";
-        const cue = new THREE.Sprite(this.mat.cue[police ? "police" : "obstacle"]);
-        cue.position.set(0, police ? 1.15 : 0.45, 0.08);
-        cue.scale.setScalar(police ? 0.58 : 0.38);
-        cue.renderOrder = 2;
-        cue.userData.fx = true;
-        g.add(cue);
-        g.userData.cue = cue;
     }
 
     // f — где фары: ±x от оси машины, высота y, передняя грань z (машина смотрит на игрока, в +Z)

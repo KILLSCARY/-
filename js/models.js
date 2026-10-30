@@ -37,12 +37,6 @@ export function matteCharacters(root) {
             // Нормали не должны быть «шершавыми» как асфальт: чуть ослабляем их, чтобы лицо и одежда читались чисто.
             if (m.normalMap) m.normalScale.setScalar(Math.min(0.85, m.normalScale.x || 0.85));
             m.aoMapIntensity = Math.min(1, Math.max(m.aoMapIntensity ?? 1, 0.85));
-            // Очень дешёвый заполняющий цвет: персонаж остаётся читаемым в тени без нового источника света.
-            if (!m.userData.softFill) {
-                m.emissive.lerp(m.color, 0.14);
-                m.emissiveIntensity = Math.max(m.emissiveIntensity ?? 1, 0.42);
-                m.userData.softFill = true;
-            }
             m.needsUpdate = true;
         }
     });
