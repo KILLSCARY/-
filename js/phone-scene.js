@@ -36,8 +36,13 @@ export class PhoneScene {
         this.bodyMat = new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: .55 });
         this.screenTexture = phoneScreen();
         this.screenMat = new THREE.MeshBasicMaterial({ map: this.screenTexture, toneMapped: false });
-        this.phone.add(new THREE.Mesh(this.bodyGeo, this.bodyMat));
+        this.bodyMat.depthTest = false;
+        this.screenMat.depthTest = false;
+        const body = new THREE.Mesh(this.bodyGeo, this.bodyMat);
+        body.renderOrder = 20;
+        this.phone.add(body);
         const screen = new THREE.Mesh(this.screenGeo, this.screenMat);
+        screen.renderOrder = 21;
         // Экран отдельно от корпуса: нет мерцания из-за совпадающих поверхностей.
         screen.position.z = .017; this.phone.add(screen);
         game.scene.add(this.phone);
@@ -77,7 +82,13 @@ export class PhoneScene {
             // Кисть держит нижний край телефона, а не закрывает центр экрана.
             this.phone.position.copy(this.pos).add(new THREE.Vector3(-.045, .12, -.13));
             this.phone.rotation.set(0, Math.PI, -.18);
-            if (this.time >= 3.2) { this.released = true; this.start.copy(this.phone.position); this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». '; }
+            if (this.time >= 3.2) {
+                this.released = true;
+                this.start.copy(this.phone.position);
+                // На земле телефон снова перекрывается окружающими объектами как обычная 3D-модель.
+                this.bodyMat.depthTest = this.screenMat.depthTest = true;
+                this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». ';
+            }
         } else {
             const t = Math.min(1, (this.time - 3.2) / .75);
             this.phone.position.set(this.start.x + .22 * t, Math.max(.025, this.start.y - 1.9 * t * t), this.start.z - .25 * t);
