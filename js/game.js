@@ -1639,7 +1639,7 @@ class Game {
             if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
             // в Нячанге (свободный бег Димы и Саши, без стен) ряды чаще — VIETNAM.rowGap; зимой свои интервалы — WINTER.rowGap
             const [gapStart, gapMin] = this.location === "winter" ? WINTER.rowGap : [BALANCE.rowGapStart, BALANCE.rowGapMin];
-            const gap = (gapStart - (gapStart - gapMin) * difficulty) * (this.location === "vietnam" ? VIETNAM.rowGap : 1);
+            const gap = Math.max((gapStart - (gapStart - gapMin) * difficulty) * (this.location === "vietnam" ? VIETNAM.rowGap : 1), BALANCE.rowTimeMin * this.speed);
             this.nextRowZ -= gap * (0.85 + Math.random() * 0.4);
         }
         // в полёте стены не ставим (их бы пролетели, не ответив) — поставим сразу после приземления
@@ -2655,7 +2655,7 @@ class Game {
             if (gone()) { $("fade").classList.remove("on"); return; }
             setTimeout(() => $("fade").classList.remove("on"), 120);
         }
-        const splash = $("boss-splash");
+        const splash = $("boss-splash");
         splash.classList.remove("out");
         $("toast").hidden = true; // уведомления забега («Серия 5!») — не поверх заставки
         splash.hidden = false;
@@ -3031,12 +3031,12 @@ class Game {
         if (w.state === "near" && z > WIND.startZ) { // вдох дольше и раньше — видно, что это Ислам набирает воздух
             if (!w.npc.visible || !w.npc.parent) w.state = "done"; // Ислама не видно (спрятан, убран) — порыва без него нет
             else if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
-            else if (this.fx.windproof) { w.state = "done"; this.hub.toast("Ислам: «Даже я не сдую»"); }
-            else {
+            else { // с «Устойчивостью» сцена та же (иначе Ислам просто стоял без карточки), только тапать не нужно
+                w.proof = !!this.fx.windproof;
                 w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane;
                 this.audio.play("swipe");
                 $("wind-title").textContent = "Ислам вдыхает…";
-                $("wind-sub").textContent = "Тапай, когда задует!";
+                $("wind-sub").textContent = w.proof ? "«Устойчивость» удержит" : "Тапай, когда задует!";
                 $("wind-taps").innerHTML = "<i></i>".repeat(WIND.taps);
                 $("wind-q").classList.add("inhale");
                 $("wind-q").hidden = false;
@@ -3051,7 +3051,7 @@ class Game {
                 w.state = "gust";
                 w.t = WIND.gust;
                 $("wind-title").textContent = "Ислам дует!";
-                $("wind-sub").textContent = "Тапай, чтобы удержаться";
+                $("wind-sub").textContent = w.proof ? "«Устойчивость» держит, тапать не нужно" : "Тапай, чтобы удержаться";
                 box.classList.remove("inhale");
                 box.style.setProperty("--wd", w.side > 0 ? "-1" : "1");
                 box.hidden = false;
@@ -3069,11 +3069,11 @@ class Game {
             } else this.windPose(w, k);
             const mouth = w.head.getWorldPosition(this.windMouth ||= new THREE.Vector3());
             this.world.blowWind(mouth, -w.side, dt, k);
+            if (w.proof) w.taps = WIND.taps; // «Устойчивость»: ветер не сносит
             [...$("wind-taps").children].forEach((el, i) => el.classList.toggle("on", i < w.taps));
             const flying = !!this.flight;
             const grip = Math.min(1, w.taps / WIND.taps);
             if (!flying) this.windSlide = -w.side * WIND.push * (1 - grip) * k; // скольжением поперёк полос
-            if (this.fx.windproof) w.taps = WIND.taps; // «Устойчивость»: ветер не сносит
             // удержался — но порыв всё равно идёт не меньше minGust: выдох Ислама и ветер должно быть видно
             if ((grip >= 1 && WIND.gust - w.t >= WIND.minGust) || w.t <= 0 || flying) {
                 w.state = "done";

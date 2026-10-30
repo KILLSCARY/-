@@ -20,6 +20,7 @@ export const BALANCE = {
     slideTime: 0.65,        // сек, сколько длится подкат
     rowGapStart: 20,        // метров между рядами препятствий в начале
     rowGapMin: 11,          // ...и минимум к концу
+    rowTimeMin: 0.42,       // и не чаще раза в столько секунд: в Дубае на скорости 30 ряд шёл каждые 0,23 с — вдвое больше объектов и лаги
     boostTime: 8,           // сек действия бонуса ×2
     stumbleTime: 8,         // как в сабвее: первый удар прощается, но столько секунд ДПС на хвосте — второй удар = поймали
     stumbleSlow: 0.9,       // сек замедления после удара
@@ -290,36 +291,25 @@ export const NPCS = {
 const HERO_CLIPS = { run: "run", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer", dance: "dance" }; // dance — в меню, перенесён с девушек-прохожих (girl_npc)
 const HERO_FLY = { loop: true, speed: 1 }, HERO_TIMES = { dead: 2.2, fall: 1.5 };
 export const CHARACTERS = [
-    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=76", hd: "models/hd/mouse_v2", height: 1.75, portrait: "img/heroes/speedy.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=76", hd: "models/hd/pavel_v2", height: 1.8, portrait: "img/heroes/pavel.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "islam", name: "Ислам", url: "models/islam.glb?v=76", hd: "models/hd/islam_v2", height: 1.8, portrait: "img/heroes/islam.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=71", hd: "models/hd/denchik", clipsUrl: "models/denchik_x.json", height: 1.78, portrait: "img/heroes/denchik.webp",
-        // v5 (denchik_v2 команды): гипс на левой ноге и два костыля (меши crutch_L/crutch_R на кистях, в полёте, подкате и бою
-        // спрятаны в самих клипах). Бег — на костылях, полёт — «Swim Forward» 2 с по кругу, поймали — падение лицом вперёд,
-        // в меню и на паузе — idle. В этой же модели и боевые клипы (FIGHTERS.hero_denchik ниже)
-        // бег — хромота limp (шаг на гипсе и рывок корпусом): клип «run» — медленная ходьба с ходунками (цикл 3,7 с),
-        // на скорости забега ноги почти стояли — будто едет на скейте. limp ускорен до цикла 1,0 с (durations.run; у остальных героев бег — 0,63 с)
-        // stumble — свой клип модели (с костылями). Комментарий раньше стоял посреди строки и выключал durations и flyClip:
-        // хромота шла в натуральном темпе (шаг за 3,5 с), ноги стояли, а дорога ехала — Денчик «скользил по асфальту»
-        clips: { run: "limp", jump: "jump", slide: "slide", dead: "dead", fly: "fly", fall: "fall", idle: "idle", stumble: "stumble", cheer: "cheer" },
-        durations: { run: 1.0 }, flyClip: { loop: true, speed: 1.0 },
-        footMax: 0.8, // хромота — короткий шаг: темп как был до подгонки под дорогу (быстрее — семенит)
-        // больной: нога сломана — весь забег ковыляет с одной скоростью speed (м/с), как другие герои у табличек
-        // (там замедление до ~1–2,4 м/с), и без разгона. 2,5 — под шаг хромоты: темп клипа упирается в footMax 0.8,
-        // ступня уходит назад ~2,5 м/с — вровень с дорогой, ноги не скользят. Замедления у стены нет (он и так медленный).
-        // walls — во сколько раз ближе друг к другу стены и арки (иначе первая — только через минуту, а Мизулина ловит раньше);
-        // на catchAt-й секунде его догоняет Мизулина и задерживает (раз за забег; после апелляции — дальше)
+    { id: "mouse", name: "Спиди Гонзалес", url: "models/mouse.glb?v=80", hd: "models/hd/mouse_v2", height: 1.75, portrait: "img/heroes/speedy.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "pavel", name: "Павел Инаков", url: "models/pavel.glb?v=80", hd: "models/hd/pavel_v2", height: 1.8, portrait: "img/heroes/pavel.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "islam", name: "Ислам", url: "models/islam.glb?v=80", hd: "models/hd/islam_v2", height: 1.8, portrait: "img/heroes/islam.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "denchik", name: "Денчик", url: "models/denchik.glb?v=80", hd: "models/hd/denchik_v2", height: 1.78, portrait: "img/heroes/denchik.webp", clips: HERO_CLIPS, flyClip: HERO_FLY,
+        // бег — хромота из файла команды; durations.run — под шаг на скорости sick.speed, footMax — чтобы не семенил
+        durations: { ...HERO_TIMES, run: 2.5 }, footMax: 0.8,
+        // больной: весь забег ковыляет с одной скоростью speed (м/с) и без разгона. walls — во сколько раз ближе друг к другу стены и арки
+        // (иначе первая — только через минуту, а Мизулина ловит раньше); на catchAt-й секунде его догоняет Мизулина (раз за забег; после апелляции — дальше)
         sick: { speed: 2.5, walls: 0.25, catchAt: 40,
             start: "Денчик на костылях — бегать не может, только ковыляет. Мизулина уже идёт по следу…",
             catchLine: "Далеко собрался на костылях? Пройдёмте.", over: "Мизулина: «На костылях от меня не уходят»" } },
-    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=76", hd: "models/hd/sasha_v2", height: 1.82, portrait: "img/heroes/sasha.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "sasha", name: "Саша Белый", url: "models/sasha.glb?v=80", hd: "models/hd/sasha_v2", height: 1.82, portrait: "img/heroes/sasha.webp", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // Горилла — бонусный герой (HERO_UNLOCKS: act "all"). В сцене «Маска» (MASK_SCENE) — прежняя models/gorilla.glb: там голова костюма снимается, отдельная сетка
-    { id: "gorilla", name: "Горилла", url: "models/gorilla_hero.glb?v=5", hd: "models/hd/gorilla_v2", height: 1.9, portrait: "img/heroes/gorilla.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "gorilla", name: "Горилла", url: "models/gorilla_hero.glb?v=6", hd: "models/hd/gorilla_v2", height: 1.9, portrait: "img/heroes/gorilla.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // Дима Мент и Саша Товарус — герои по фото. Без сюжета: эксклюзив за 250 Карт (HERO_UNLOCKS).
     // free — только свободный бег: без глав, табличек, боссов и Мизулины (за ними гонится Малахов)
-    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=76", hd: "models/hd/dima_v2", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=80", hd: "models/hd/dima_v2", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
-    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=76", hd: "models/hd/tovarus_v2", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=80", hd: "models/hd/tovarus_v2", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -413,19 +403,19 @@ export const CHAPTER_BOSSES = [
         mid: "Протокол: слишком много «подумаю»…",
         win: "Нарушений не выявлено… Свободен. Пока что.",
         lose: "Протокол составлен. Жду в следующем забеге." },
-    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=71", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
+    { id: "denchik", name: "Денчик", model: "models/denchik.glb?v=80", height: 1.78, clip: "run", portrait: "img/heroes/denchik.webp",
         throw: "block", need: 8, every: [1.4, 1.15, 0.95], speed: 17, vary: ["double"],
         intro: "Дорого? Давай посчитаем, во сколько тебе обходится стоять на месте.",
         mid: "Цифры не врут. Беги быстрее.",
         win: "Посчитал: стоять дороже, чем бежать. Ты в плюсе.",
         lose: "Баланс не сошёлся. Пересчитаем в следующий раз." },
-    { id: "sasha", name: "Саша Белый", model: "models/sasha.glb?v=76", height: 1.82, clip: "run", portrait: "img/heroes/sasha.webp",
+    { id: "sasha", name: "Саша Белый", model: "models/sasha.glb?v=80", height: 1.82, clip: "run", portrait: "img/heroes/sasha.webp",
         throw: "dumpster", need: 10, every: [1.3, 1.05, 0.85], speed: 19, vary: ["double"],
         intro: "Первый миллион начинается с первого «да». Покажи, что ты его скажешь.",
         mid: "В Тюмени холодно, а мы горячие!",
         win: "Вот это хватка. Миллион сам себя не соберёт — но ты соберёшь.",
         lose: "Рано тебе в промзону. Возвращайся." },
-    { id: "islam", name: "Ислам", model: "models/islam.glb?v=76", height: 1.8, clip: "run", portrait: "img/heroes/islam.webp",
+    { id: "islam", name: "Ислам", model: "models/islam.glb?v=80", height: 1.8, clip: "run", portrait: "img/heroes/islam.webp",
         throw: "barrier", need: 12, every: [1.2, 0.95, 0.8], speed: 20, vary: ["double", "wind"],
         intro: "Не сейчас? Ветер ждать не будет.",
         mid: "Крыши — это наш спортзал. Держись!",
@@ -437,7 +427,7 @@ export const CHAPTER_BOSSES = [
         mid: "Лабиринт курсов — без системы не выйдешь.",
         win: "Ладно, система у тебя есть. Дальше — к Инакову.",
         lose: "Заблудился в курсах? Вот и я так же." },
-    { id: "pavel", name: "Павел Инаков", model: "models/pavel.glb?v=76", height: 1.8, clip: "run", portrait: "img/heroes/pavel.jpg",
+    { id: "pavel", name: "Павел Инаков", model: "models/pavel.glb?v=80", height: 1.8, clip: "run", portrait: "img/heroes/pavel.jpg",
         throw: "cop", need: 12, every: [1.1, 0.9, 0.75], speed: 21, vary: ["double", "exam"], final: true,
         intro: "Возражения слышал все. Покажи, что ты их прошёл.",
         rounds: ["Разминка. Ты уже это слышал.", "Теперь честно. Что мешает именно тебе?", "Последний. Ответь, как будто это уже твоя жизнь."],
@@ -457,7 +447,7 @@ export const ARCHES = { firstAt: 160, every: [200, 280], reward: [3, 8, 20] };
 // дует клипом blow — до кадра hold (сек):
 // присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
 export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, minGust: 0.9, push: 2.4, taps: 5, reward: 3, startZ: -34,
-    npc: { url: "models/obj/islam_wind.glb", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
+    npc: { url: "models/obj/islam_wind.glb?v=2", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»). startZ — за сколько метров до Ислама начинается вдох:
 // было 15 — за вдох и порыв (~27 м) он уезжал за камеру, и на телефоне «Ислам дует!» шло без Ислама в кадре;
@@ -857,8 +847,7 @@ const GUARD_MOVES = {
     hit: { clip: "g_hit", from: 0, to: 1.1, fit: true },
     recoil: { clip: "g_hit", from: 0.1, to: 0.8, fit: true },
 };
-// Приёмы новых моделей: куски клипов, собранных из Meshy. Блока и уклона в наборе нет: блок — закрылся руками (afraid), уклон — отклонение
-// из hit_to_head. Супер — серия combo (4 удара подряд, собрана из box_01 и box_03)
+// Приёмы новых моделей: куски клипов, собранных из файлов команды. Супер — серия combo (4 удара подряд, собрана из box_01 и box_03)
 // aim — доворот модели к моменту удара: стопа в клипах front_kick летит на ~106° вбок от стойки (бёдра при этом крутятся в другую сторону,
 // поэтому целимся по стопе, а не по бёдрам). step — тяжёлый удар с шагом вперёд, а не с отступлением
 const KICK_AIM = -1.85;
@@ -868,15 +857,15 @@ const MESHY_MOVES = { idle: { clip: "jab", from: 0.02, to: 0.35, period: 2.8, fa
     super: { clip: "combo", from: 0, to: 2.25, hits: [0.27, 0.84, 1.41, 1.98], speed: 1, face: 0 }, superFin: { clip: "hkick", from: 0.55, to: 1.75, hit: 1.08, speed: 0.85, face: 0, aim: KICK_AIM },
     heavyWind: { clip: "hkick", from: 0.35, to: 0.9, fit: true, hold: true, face: 0, aim: KICK_AIM, step: true }, heavy: { clip: "hkick", from: 0.9, to: 1.7, hit: 1.1, speed: 1, face: 0, aim: KICK_AIM, step: true },
     knee: { clip: "kick", from: 0.4, to: 1.1, hit: 0.8, speed: 1.1, face: 0, aim: KICK_AIM },
-    block: { clip: "block", from: 0.5, to: 1.3, fit: true, face: 0 }, dodge: { clip: "hit_head", from: 0.1, to: 1.0, fit: true, face: 0 },
+    block: { clip: "block", from: 0.1, to: 0.9, fit: true, face: 0 }, dodge: { clip: "dodge", from: 0, to: 1.3, fit: true, face: 0 },
     hit: { clip: "hit_body", from: 0.25, to: 1.3, fit: true, face: 0 }, recoil: { clip: "hit_light", from: 0.1, to: 0.9, fit: true, face: 0 },
-    win: { clip: "cheer", from: 0, to: 2.25, loop: true, face: 0 } };
+    win: { clip: "cheer", from: 0, to: 1.7, loop: true, face: 0 } };
 export const FIGHTERS = {
-    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse.glb?v=76", hd: "models/hd/mouse_v2", height: 1.62, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.3, gap: 1.25,
+    mouse: { name: "Спиди", short: "Спиди", model: "models/mouse.glb?v=80", hd: "models/hd/mouse_v2", height: 1.62, foot: 0.05, portrait: "img/heroes/speedy.webp", hp: 100, capWhite: 0.72, lunge: 0.3, gap: 1.25,
         // приёмы — куски клипов боя (сек): hit — момент удара; hits — серия; air — в прыжке (ступни к асфальту не прижимаем)
         moves: MESHY_MOVES,
         dmg: { jab: 3, cross: 3, hook: 5, heavy: 12, super: 30, low: 4 } }, // low — удар ногой (тап по ногам соперника)
-    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel.glb?v=76", hd: "models/hd/pavel_v2", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.jpg", hp: 85, hpRounds: [85, 100, 100], lunge: 0.3, gap: 1.25,
+    pavel: { name: "Павел Инаков", short: "Инаков", model: "models/pavel.glb?v=80", hd: "models/hd/pavel_v2", height: 1.86, foot: 0.06, portrait: "img/heroes/pavel.jpg", hp: 85, hpRounds: [85, 100, 100], lunge: 0.3, gap: 1.25,
         moves: MESHY_MOVES,
         dmg: { jab: 5, cross: 5, hook: 6, heavy: 11, super: 26 }, punchTime: 0.48, // бьёт тяжелее и медленнее Спиди (ослаблен по плейтесту)
         ai: { every: [[1.2, 2.0], [1.0, 1.8], [0.85, 1.5]], block: [0.25, 0.32, 0.4], heavy: [0.16, 0.2, 0.24], combo: [0.18, 0.22, 0.27], third: [0.1, 0.16, 0.22] },
@@ -889,7 +878,7 @@ export const FIGHTERS = {
             examIntro: ["Всю дорогу подсказывал тебе я. Теперь — без подсказок.", "Я не враг. Я экзамен. Покажи, чему научился."],
             examOk: ["Вот. Это уже не удача."], examTrap: "Так и разводят. Запомни.",
             examKo: null } }, // после K.O. Павел говорит в сцене «Маска» (MASK_SCENE.lines.outro)
-    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina.glb?v=5", hd: "models/hd/mizulina_v2", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, lunge: 0.3, gap: 1.25, splash: { h: 62, fx: 0.5, fy: 0.2 },
+    mizulina: { name: "Мизулина", short: "Мизулина", she: true, model: "models/mizulina.glb?v=6", hd: "models/hd/mizulina_v2", height: 1.72, foot: 0.06, portrait: "img/heroes/mizulina.webp?v=2", hp: 75, lunge: 0.3, gap: 1.25, splash: { h: 62, fx: 0.5, fy: 0.2 },
         moves: MESHY_MOVES,
         // ослаблена по плейтесту: меньше HP и урона, атакует и блокирует реже
         dmg: { jab: 3, cross: 3, hook: 5, heavy: 8, super: 24 }, punchTime: 0.5,
@@ -924,21 +913,6 @@ for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { .
     model: c.url, height: c.height, portrait: c.portrait, hd: c.hd, capWhite: 0 }; // capWhite — только шляпа Спиди
 FIGHTERS.hero_dima.short = "Дима";
 FIGHTERS.hero_tovarus.short = "Товарус"; // «Саша» — уже Саша Белый
-// Денчик (denchik_v2) дерётся своими клипами из той же модели, что и в забеге: стойка, джеб (удар 0.50 с), кросс (0.63 с),
-// лоу-кик (0.87 с), блок, пропущенный удар в голову (0.60 с). Серии в наборе нет: супер — джеб и добивание кроссом в замедлении
-FIGHTERS.hero_denchik = { ...FIGHTERS.hero_denchik, model: "models/denchik.glb?v=71", yaw: 0.6, lunge: 0.15, gap: 1, capWhite: 0,
-    moves: { idle: { clip: "fight_idle", from: 0, to: 1.67, loop: true },
-        jab: { clip: "jab", from: 0.2, to: 0.95, hit: 0.5, speed: 1.1 },
-        cross: { clip: "cross", from: 0.3, to: 1.1, hit: 0.63, speed: 1.1 },
-        hook: { clip: "low_kick", from: 0.45, to: 1.35, hit: 0.87, speed: 1.1 }, // третий в связке — ногой
-        super: { clip: "jab", from: 0.2, to: 1.0, hits: [0.5], speed: 1.1 },
-        superFin: { clip: "cross", from: 0.3, to: 1.2, hit: 0.63, speed: 0.8 },
-        low: { clip: "low_kick", from: 0.45, to: 1.35, hit: 0.87, speed: 1.1 },
-        block: { clip: "block", from: 0.5, to: 1.5, fit: true },
-        dodge: { clip: "hit_head", from: 0.3, to: 1.0, fit: true },
-        hit: { clip: "hit_head", from: 0.45, to: 1.4, fit: true },
-        recoil: { clip: "hit_head", from: 0.5, to: 1.1, fit: true },
-        win: { clip: "idle", from: 0, to: 4.0, loop: true } } };
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);
 // тайминги действий (с); blockCut — сколько урона гасит блок; супер копится: superPerHit — за попадание,
