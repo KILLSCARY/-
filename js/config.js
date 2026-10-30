@@ -180,10 +180,10 @@ export const QUALITY_TIERS = {
         // телефон по умолчанию (30.10): плотный экран ×2–3 — в 1,15 пикселя картинка была мылом. Пикселей ×1,75 (рисуем без
         // постобработки — это дёшево), анимация героя и NPC 60 раз в секунду, а не 30 (рывками). Не тянет — measureFps
         // сам снизит разрешение, потом графику
-        phone: { ratio: 1.75, animationHz: 60 } },
+        phone: { ratio: 2.2, animationHz: 60, aniso: 8 } }, // 30.10: ×1,75 на iPhone (экран ×3) — всё ещё мыло
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
     low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  npc: 0.4, heat: true,
-        phone: { ratio: 1.35, animationHz: 30 } }, // слабый телефон: и тут не 1 пиксель на 3 точки экрана
+        phone: { ratio: 1.6, animationHz: 30 } }, // слабый телефон: и тут не 1 пиксель на 3 точки экрана
 };
 
 // Отделения банков на первых этажах (фото из textures/bank_*). aspect — ширина/высота картинки.

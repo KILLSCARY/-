@@ -22,7 +22,7 @@ function texture(width, height, draw) {
     canvas.width = width; canvas.height = height;
     draw(canvas.getContext('2d'), width, height);
     const t = new THREE.CanvasTexture(canvas);
-    t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; // дорога и фасады под углом — без мыла вдали
     return t;
 }
 
@@ -728,7 +728,7 @@ export class Winter {
             loader.loadAsync('textures/winter/spruce-bough-v1.webp'),
             loader.loadAsync('textures/winter/kiosk-v1.webp'),
         ]);
-        for (const map of [facade, surfaces, foliage, kiosk]) { map.encoding = THREE.sRGBEncoding; map.anisotropy = 4; }
+        for (const map of [facade, surfaces, foliage, kiosk]) { map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; }
         this.materials.foliage.map.dispose(); this.materials.foliage.map = foliage; this.materials.foliage.needsUpdate = true;
         this.materials.shop.map.dispose(); this.materials.shop.map = kiosk; this.materials.shop.needsUpdate = true;
         const mat = this.materials.facade;

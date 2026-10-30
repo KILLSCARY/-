@@ -203,7 +203,7 @@ class Game {
         const sp = (tg.startParam || "").toLowerCase();
         if (sp === "q" || sp === "noq") { this.settings.questions = sp === "q"; this.settings.modeChosen = true; try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {} }
         if (this.settings.quality && this.settings.quality !== "auto" && QUALITY_TIERS[this.settings.quality]) this.quality = this.settings.quality; // динамическое разрешение: при нехватке кадров сначала 0.85, 0.7 — и только потом графика ниже
-        this.tier = QUALITY_TIERS[this.quality];
+        this.tier = { ...QUALITY_TIERS[this.quality], ...(this.mobile && QUALITY_TIERS[this.quality].phone) }; // с первого кадра — облегчения/резкость телефона
 
         this.bootWatch(); // стартовый экран загрузки — до готовности героя, улицы и моделей
         this.setupScene();
@@ -1321,7 +1321,10 @@ class Game {
         }
         if (fps >= target * 0.85) return;
         const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
-        const floor = this.resScale <= RES_MIN + 0.01;
+        // телефон: разрешение — не ниже 0,75 (ниже — мыло на маленьком экране), графику ниже средней сам не снижаем:
+        // в Telegram кадры то и дело проседают на долю секунды, и игра уезжала в слабую графику — размытую и рывками
+        const resMin = this.mobile ? 0.75 : RES_MIN;
+        const floor = this.resScale <= resMin + 0.01;
         // Не хватает кадров: разрешение — только до 0,85, дальше сначала снимаем дорогие эффекты (зеркало луж, тени,
         // свечение), и лишь потом снова разрешение. Было: сразу до 0,6 — на хорошей графике картинка мыльная и пиксельная
         const effects = this.quality !== "low" && (this.perfStep || 0) < 3;
@@ -1329,9 +1332,9 @@ class Game {
             this.perfStep = (this.perfStep || 0) + 1;
             this.setQuality(this.quality);
         } else if (!floor) {
-            this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : RES_MIN, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
+            this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : resMin, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
-        } else if (!tierLocked && this.quality !== "low") {
+        } else if (!tierLocked && this.quality !== "low" && !(this.mobile && this.quality === "medium" && fps >= 24)) {
             if (this.state === "fight") return; // не пересобираем шейдеры посреди раунда
             this.resScale = 0.85;
             this.perfStep = 0;
