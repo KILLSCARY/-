@@ -156,7 +156,7 @@ export class Hub {
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Локация</h3><p>Зимний район: снежные дворы, тёплые окна и вечерняя улица.</p>
-            <div class="seg">${[["auto", "По герою"], ["winter", "Зимний район"]].map(([v, n]) => `<button data-location="${v}" class="${(g.settings.location || "auto") === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
+            <div class="seg">${[["winter", "Зимний район"], ["street", "Ночной район"]].map(([v, n]) => `<button data-location="${v}" class="${(g.settings.location === "street" ? "street" : "winter") === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
         for (const b of box.querySelectorAll("[data-location]")) b.onclick = () => { g.setSetting("location", b.dataset.location); this.renderSettings(); };
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];

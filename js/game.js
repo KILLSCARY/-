@@ -195,7 +195,7 @@ class Game {
         // настройки игрока (музыка, звуки, вибрация, графика) — из памяти телефона
         try { this.settings = JSON.parse(localStorage.getItem("p2p_settings") || "{}"); } catch { this.settings = {}; }
         const requestedLocation = new URLSearchParams(location.search).get("location");
-        if (["winter", "auto"].includes(requestedLocation)) {
+        if (["winter", "street", "auto"].includes(requestedLocation)) {
             this.settings.location = requestedLocation;
             try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         }
@@ -1446,7 +1446,9 @@ class Game {
     }
 
     heroLocation(id) {
-        return this.settings.location === "winter" ? "winter" : VIETNAM.heroes.includes(id) ? "vietnam" : "street";
+        // зимний район — начальный; ночной район — в настройках (location "street"); у Димы и Саши — свой Нячанг
+        if (VIETNAM.heroes.includes(id)) return "vietnam";
+        return this.settings.location === "street" ? "street" : "winter";
     }
 
     // Вид зимнего района (WINTER): свет, дымка, дальность и цвет кадра. Район и Нячанг свет ставят в setLocation и

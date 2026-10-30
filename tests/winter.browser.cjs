@@ -26,7 +26,7 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:8001/';
 
         // Real settings buttons, including persistent choice and removing an old deep link override.
         await page.evaluate(() => { document.querySelector('#daily').hidden = true; game.hub.showDaily = () => {}; game.hub.tab('settings'); });
-        await page.locator('[data-location="auto"]').click();
+        await page.locator('[data-location="street"]').click();
         assert.equal(await page.evaluate(() => game.location), 'street');
         assert.equal(new URL(page.url()).searchParams.get('location'), null);
         await page.locator('[data-location="winter"]').click();

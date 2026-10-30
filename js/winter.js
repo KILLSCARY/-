@@ -97,6 +97,8 @@ function shopTexture() {
 // Витрины на первых этажах (между подъездами): Сбер и Альфа — те же фото-вывески, что в районе (BANKS), обменники
 // рисуются здесь. Всё «по-зимнему»: холоднее тон, иней по углам, шапка снега на вывеске (winterize), сосульки и полка
 // снега сверху, цветной отсвет на сугробе. Порядок по домам (10 мест на улице), null — дом без витрины
+// участки улицы с постом ДПС: слева на месте секции ограды машина стоит вдоль дороги, инспектор — у проёма
+const POST_CHUNKS = [1, 3];
 const STORE_ORDER = ['sber', 'obmen', 'alfa', null, 'p2p', 'sber', 'alfa', 'obmen', null, 'alfa'];
 const STORE_LIGHT = { sber: 0x5fe39a, alfa: 0xff4a5a, obmen: 0x48e0ff, p2p: 0xffb347 };
 
@@ -265,7 +267,10 @@ export class Winter {
                 this.building(side, 0, index);
                 this.box(colours.snow, side * 6.1, .12, 0, 4.6, .27, 32);
                 this.snowbank(side, index);
-                for (const z of [-12, -4, 4, 12]) this.fence(side * 4.15, z, 7.5);
+                for (const z of [-12, -4, 4, 12]) {
+                    if (side < 0 && z === -12 && POST_CHUNKS.includes(index)) continue; // проём под патрульную машину
+                    this.fence(side * 4.15, z, 7.5);
+                }
                 this.lamp(side * 4.1, side < 0 ? -5 : 10);
                 this.birch(side * 5.65, side < 0 ? 8 : 0, 6.1 + index % 3);
                 this.birch(side * 7.3, side < 0 ? 14 : -15, 7.1);
@@ -532,26 +537,41 @@ export class Winter {
     policePosts() {
         const w = this.world;
         this.posts = [];
-        for (const i of [1, 3]) {
+        for (const i of POST_CHUNKS) {
             const chunk = this.chunks[i];
             if (!chunk) continue;
-            const car = w.makePoliceCar();
-            car.position.set(-6.4, .27, -10);
-            car.userData.billboard = false;
+            const car = new THREE.Group();
+            car.position.set(-5.05, .27, -12); // вдоль дороги в проёме ограды, на расчищенной обочине
+            const flashers = [0xff2020, 0x2050ff].map((color, k) => {
+                const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: w.glowTex, color: new THREE.Color(color).multiplyScalar(3),
+                    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+                glow.scale.setScalar(.9);
+                glow.position.set(0, 1.62, k ? .35 : -.35);
+                car.add(glow);
+                return glow;
+            });
+            car.userData.flashers = flashers;
             chunk.add(car);
-            this.posts.push({ chunk, car, officer: null });
+            this.posts.push({ chunk, car, officer: null, model: null });
         }
         this.placeOfficers();
     }
 
     placeOfficers() {
         const w = this.world;
+        for (const p of this.posts || []) { // 3D-патруль, когда загрузились модели машин (MODELS.police)
+            if (p.model) continue;
+            const t = w.modelFor('police');
+            if (!t) break;
+            p.model = t.clone();
+            p.car.add(p.model);
+        }
         if (!w.officer) return;
         for (const p of this.posts || []) {
             if (p.officer) continue;
             const o = w.makeOfficer(POLICE_OFFICER.idle[0]);
             if (!o) return;
-            o.position.set(-4.75, .3, -7.4); // перед капотом, у ограды
+            o.position.set(-4.3, .3, -7.5); // у края проёма, в шаге перед машиной
             o.rotation.y = .55; // к бегущему, вполоборота к дороге
             p.chunk.add(o);
             p.officer = o;
@@ -829,7 +849,7 @@ export class Winter {
             const z = p.chunk.position.z + p.car.position.z;
             if (p.officer && z > -70 && z < 8) p.officer.userData.mixer?.update(dt);
         }
-        if (this.posts?.some((p) => !p.officer)) this.placeOfficers();
+        if (this.posts?.some((p) => !p.officer || !p.model)) this.placeOfficers();
         this.sync(); // includes asynchronously loaded NPCs and quality-dependent light batches
     }
 }
