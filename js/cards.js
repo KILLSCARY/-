@@ -26,113 +26,75 @@ function toTexture(c, aniso) {
     t.anisotropy = aniso;
     return t;
 }
-// светлая надпись на тёмной карте — тонкие линии белые, тёмная на светлой (Тинькофф) — тёмные
-const lineTint = (bank, a) => (bank.ink === "#ffffff" ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`);
 // четыре цифры номера — свои у банка, но не случайные (одинаковые у всех игроков)
 const last4 = (id) => String([...id].reduce((s, ch) => (s * 31 + ch.charCodeAt(0)) % 9000, 7) + 1000);
 
+// Лицо карты: глубокий цвет банка, широкая светлая диагональ и крупное название — с дороги читается бренд, а не мелкие детали
 function cardFront(bank, aniso) {
     const [c, x] = canvas();
     const rr = (X, Y, w, h, r) => roundRect(x, X, Y, w, h, r);
     x.save(); rr(0, 0, W, H, R); x.clip();
-    // фон: диагональный градиент банка
     const g = x.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, bank.bg[0]); g.addColorStop(1, bank.bg[1]);
     x.fillStyle = g; x.fillRect(0, 0, W, H);
-    // гильош — тонкие волнистые линии, как защитная сетка на настоящих картах
-    x.lineWidth = 1.2;
-    for (let i = 0; i < 22; i++) {
-        x.strokeStyle = lineTint(bank, 0.05 + (i % 3) * 0.015);
-        x.beginPath();
-        for (let px = -10; px <= W + 10; px += 8) {
-            const py = 30 + i * 13 + Math.sin(px / 46 + i * 0.7) * 10 + Math.sin(px / 17 + i) * 2;
-            px < 0 ? x.moveTo(px, py) : x.lineTo(px, py);
-        }
-        x.stroke();
-    }
-    // две волны цвета банка — снизу справа
-    x.globalAlpha = 0.55; x.fillStyle = bank.wave;
-    x.beginPath(); x.moveTo(140, H); x.bezierCurveTo(250, 250, 330, 150, W, 120); x.lineTo(W, H); x.closePath(); x.fill();
-    x.globalAlpha = 0.9;
-    x.beginPath(); x.moveTo(230, H); x.bezierCurveTo(320, 275, 400, 210, W, 196); x.lineTo(W, H); x.closePath(); x.fill();
+    // диагональ цвета банка и блик на её кромке
+    x.fillStyle = bank.wave; x.globalAlpha = 0.75;
+    x.beginPath(); x.moveTo(W * 0.52, 0); x.lineTo(W, 0); x.lineTo(W, H * 0.72); x.lineTo(W * 0.3, H * 0.72 - 0.42 * W * 0.7 + 90); x.closePath(); x.fill();
+    x.globalAlpha = 0.28; x.fillStyle = "#ffffff";
+    x.beginPath(); x.moveTo(W * 0.52, 0); x.lineTo(W * 0.6, 0); x.lineTo(W * 0.38, H * 0.72 - 0.42 * W * 0.7 + 90); x.lineTo(W * 0.3, H * 0.72 - 0.42 * W * 0.7 + 90); x.closePath(); x.fill();
     x.globalAlpha = 1;
-    // блик по диагонали — карта «глянцевая»
-    const sh = x.createLinearGradient(0, 0, W * 0.75, H * 0.75);
-    sh.addColorStop(0, "rgba(255,255,255,.26)"); sh.addColorStop(0.45, "rgba(255,255,255,0)");
-    x.fillStyle = sh; x.fillRect(0, 0, W, H);
-    // название банка и пометка «игровая»
-    x.fillStyle = bank.ink; x.textBaseline = "alphabetic";
-    x.font = "900 44px Arial Black, Arial, sans-serif"; x.textAlign = "left"; x.fillText(bank.name, 36, 72);
-    x.globalAlpha = 0.72; x.font = "700 15px Arial, sans-serif"; x.textAlign = "right"; x.fillText("ИГРОВАЯ КАРТА", W - 34, 46);
-    x.globalAlpha = 1;
-    // чип: золотой, с рисунком контактов
-    const cx = 40, cy = 112, cw = 76, chh = 58;
+    // тёмная подложка снизу — на ней название
+    const foot = x.createLinearGradient(0, H * 0.55, 0, H);
+    foot.addColorStop(0, "rgba(0,0,0,0)"); foot.addColorStop(1, "rgba(0,0,0,.42)");
+    x.fillStyle = foot; x.fillRect(0, H * 0.55, W, H * 0.45);
+    // чип
+    const cx = 36, cy = 40, cw = 72, chh = 54;
     const gold = x.createLinearGradient(cx, cy, cx + cw, cy + chh);
-    gold.addColorStop(0, "#fff0b8"); gold.addColorStop(0.45, "#e2b65a"); gold.addColorStop(1, "#9c6e22");
+    gold.addColorStop(0, "#fff0b8"); gold.addColorStop(0.5, "#e2b65a"); gold.addColorStop(1, "#a87826");
     x.fillStyle = gold; rr(cx, cy, cw, chh, 11); x.fill();
-    x.strokeStyle = "rgba(110,72,20,.85)"; x.lineWidth = 2;
+    x.strokeStyle = "rgba(110,72,20,.8)"; x.lineWidth = 2;
     x.beginPath();
-    x.moveTo(cx, cy + chh / 2); x.lineTo(cx + 22, cy + chh / 2); x.moveTo(cx + cw - 22, cy + chh / 2); x.lineTo(cx + cw, cy + chh / 2);
-    x.moveTo(cx, cy + 18); x.lineTo(cx + 22, cy + 18); x.moveTo(cx, cy + chh - 18); x.lineTo(cx + 22, cy + chh - 18);
-    x.moveTo(cx + cw - 22, cy + 18); x.lineTo(cx + cw, cy + 18); x.moveTo(cx + cw - 22, cy + chh - 18); x.lineTo(cx + cw, cy + chh - 18);
+    x.moveTo(cx, cy + chh / 2); x.lineTo(cx + cw, cy + chh / 2);
+    x.moveTo(cx + cw / 3, cy); x.lineTo(cx + cw / 3, cy + chh);
+    x.moveTo(cx + cw * 2 / 3, cy); x.lineTo(cx + cw * 2 / 3, cy + chh);
     x.stroke();
-    rr(cx + 22, cy + 10, cw - 44, chh - 20, 6); x.stroke();
-    x.fillStyle = "rgba(255,255,255,.35)"; rr(cx + 4, cy + 4, cw - 8, 10, 5); x.fill(); // блик на чипе
-    // бесконтакт — справа от чипа
-    x.strokeStyle = bank.ink; x.globalAlpha = 0.85; x.lineWidth = 5; x.lineCap = "round";
-    for (const [rad, a] of [[12, 0.7], [22, 0.66], [32, 0.62]]) { x.beginPath(); x.arc(cx + cw + 24, cy + chh / 2, rad, -a, a); x.stroke(); }
+    // бесконтакт
+    x.strokeStyle = bank.ink; x.globalAlpha = 0.9; x.lineWidth = 5; x.lineCap = "round";
+    for (const [rad, ang] of [[11, 0.7], [20, 0.66], [29, 0.62]]) { x.beginPath(); x.arc(cx + cw + 22, cy + chh / 2, rad, -ang, ang); x.stroke(); }
     x.globalAlpha = 1;
-    // номер с тиснением: тёмная тень снизу-справа, светлый блик сверху
-    const num = `••••  ••••  ••••  ${last4(bank.id)}`;
-    x.font = "700 32px 'Courier New', monospace"; x.textAlign = "left";
-    x.fillStyle = "rgba(0,0,0,.35)"; x.fillText(num, 38, 230);
-    x.fillStyle = bank.ink === "#ffffff" ? "#f3f3f3" : "#1a1a1a"; x.fillText(num, 36, 228);
-    // имя и срок
-    x.fillStyle = bank.ink; x.globalAlpha = 0.85;
-    x.font = "700 18px Arial, sans-serif"; x.fillText("ПОКОРИТЕЛЬ P2P", 36, 280);
-    x.font = "600 11px Arial, sans-serif"; x.fillText("ДО", 250, 266);
-    x.font = "700 18px 'Courier New', monospace"; x.fillText("12/30", 250, 284);
+    // пометка «игровая» и последние цифры
+    x.fillStyle = bank.ink; x.textBaseline = "alphabetic";
+    x.globalAlpha = 0.8; x.font = "700 15px Arial, sans-serif"; x.textAlign = "right"; x.fillText("ИГРОВАЯ КАРТА", W - 32, 52);
+    x.font = "700 22px 'Courier New', monospace"; x.fillText(`•• ${last4(bank.id)}`, W - 32, H - 34);
     x.globalAlpha = 1;
-    // голограмма — радужная плашка справа снизу
-    const hx = W - 112, hy = H - 76, hw = 78, hh = 48;
-    const holo = x.createLinearGradient(hx, hy, hx + hw, hy + hh);
-    holo.addColorStop(0, "#ffb3e6"); holo.addColorStop(0.3, "#a8e0ff"); holo.addColorStop(0.6, "#c9ffc0"); holo.addColorStop(1, "#ffe8a3");
-    x.fillStyle = holo; rr(hx, hy, hw, hh, 9); x.fill();
-    x.save(); rr(hx, hy, hw, hh, 9); x.clip();
-    x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 2;
-    for (let i = -hh; i < hw; i += 8) { x.beginPath(); x.moveTo(hx + i, hy + hh); x.lineTo(hx + i + hh, hy); x.stroke(); }
+    // крупное название: чем длиннее, тем мельче, но всегда на всю доступную ширину
+    x.textAlign = "left";
+    let size = 76;
+    do { x.font = `900 ${size}px "Arial Black", Arial, sans-serif`; size -= 2; } while (x.measureText(bank.name).width > W - 72 && size > 30);
+    x.fillStyle = "rgba(0,0,0,.28)"; x.fillText(bank.name, 38, H - 72);
+    x.fillStyle = bank.ink; x.fillText(bank.name, 36, H - 74);
+    x.globalAlpha = 0.85; x.font = "700 15px Arial, sans-serif"; x.fillText("ПОКОРИТЕЛЬ P2P", 36, H - 34);
+    x.globalAlpha = 1;
     x.restore();
-    x.strokeStyle = "rgba(255,255,255,.7)"; x.lineWidth = 1.5; rr(hx, hy, hw, hh, 9); x.stroke();
-    x.restore();
-    x.strokeStyle = "rgba(255,255,255,.4)"; x.lineWidth = 4; rr(2, 2, W - 4, H - 4, R - 2); x.stroke(); // кромка
+    x.strokeStyle = "rgba(255,255,255,.35)"; x.lineWidth = 4; rr(2, 2, W - 4, H - 4, R - 2); x.stroke();
     return toTexture(c, aniso);
 }
 
-// оборот: магнитная полоса, полоса для подписи с кодом, пометка «игровая, не платёжная»
+// оборот: магнитная полоса и пометка «игровая, не платёжная»
 function cardBack(bank, aniso) {
     const [c, x] = canvas();
     const rr = (X, Y, w, h, r) => roundRect(x, X, Y, w, h, r);
     x.save(); rr(0, 0, W, H, R); x.clip();
     const g = x.createLinearGradient(W, 0, 0, H);
-    g.addColorStop(0, bank.bg[1]); g.addColorStop(1, bank.bg[0]);
+    g.addColorStop(0, bank.bg[0]); g.addColorStop(1, bank.bg[1]);
     x.fillStyle = g; x.fillRect(0, 0, W, H);
-    x.fillStyle = "rgba(0,0,0,.18)"; x.fillRect(0, 0, W, H);
-    x.fillStyle = "#151515"; x.fillRect(0, 34, W, 58); // магнитная полоса
-    x.fillStyle = "rgba(255,255,255,.08)"; x.fillRect(0, 40, W, 6);
-    // полоса подписи — светлая, в косую линейку
-    x.fillStyle = "#f4f1ea"; rr(34, 120, 330, 48, 6); x.fill();
-    x.save(); rr(34, 120, 330, 48, 6); x.clip();
-    x.strokeStyle = "rgba(180,150,120,.35)"; x.lineWidth = 2;
-    for (let i = 0; i < 360; i += 10) { x.beginPath(); x.moveTo(34 + i, 168); x.lineTo(34 + i + 48, 120); x.stroke(); }
-    x.restore();
-    x.fillStyle = "#ffffff"; rr(372, 120, 92, 48, 6); x.fill();
-    x.fillStyle = "#222"; x.font = "700 24px 'Courier New', monospace"; x.textAlign = "center"; x.fillText("•••", 418, 152);
-    x.fillStyle = bank.ink; x.textAlign = "left"; x.globalAlpha = 0.85;
-    x.font = "600 16px Arial, sans-serif";
-    x.fillText("Игровая карта «Покоритель P2P 3.0».", 34, 214);
-    x.fillText("Не платёжная: денег на ней нет.", 34, 238);
+    x.fillStyle = "#121212"; x.fillRect(0, 38, W, 62);
+    x.fillStyle = bank.ink; x.textAlign = "left"; x.textBaseline = "alphabetic"; x.globalAlpha = 0.9;
+    x.font = "600 17px Arial, sans-serif";
+    x.fillText("Игровая карта «Покоритель P2P 3.0».", 36, 160);
+    x.fillText("Не платёжная: денег на ней нет.", 36, 186);
     x.globalAlpha = 1;
-    x.font = "900 26px Arial Black, Arial, sans-serif"; x.textAlign = "right"; x.fillText(bank.name, W - 34, H - 36);
+    x.font = "900 34px \"Arial Black\", Arial, sans-serif"; x.textAlign = "right"; x.fillText(bank.name, W - 34, H - 36);
     x.restore();
     x.strokeStyle = "rgba(255,255,255,.3)"; x.lineWidth = 4; rr(2, 2, W - 4, H - 4, R - 2); x.stroke();
     return toTexture(c, aniso);

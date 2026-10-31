@@ -348,6 +348,7 @@ export class World {
 
     // Локации строятся при первом выборе; перед переключением восстанавливаем скрытые объекты предыдущей.
     setLocation(name) {
+        this.loadTruckModel(name);
         if ((this.location || "street") === name) return;
         this.winter?.set(false);
         this.vietnam?.set(false);
@@ -1563,7 +1564,26 @@ export class World {
             this.warmQueue.push(g.clone());
         }, () => {});
         const T = TRUCKS;
-        loadModel(T.url, (gltf) => {
+        loadModel(T.rampUrl, (gltf) => { // низкий край — к герою; размер точно по пандусу, по которому считается высота (truckTop)
+            const m = gltf.scene, box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+            m.position.set(-c.x, -box.min.y, -c.z);
+            const g = new THREE.Group().add(m);
+            g.scale.set(T.width / size.x, T.roof / size.y, T.ramp / size.z);
+            this.rampModel = g;
+            this.warmQueue.push(g.clone());
+        }, () => {});
+    }
+
+    // фура этого биома (TRUCKS.models): грузится, только когда игрок попал в биом
+    truckCfg(name = this.location || "street") {
+        return TRUCKS.models[name] || TRUCKS.models.default;
+    }
+
+    loadTruckModel(name) {
+        const T = TRUCKS, cfg = this.truckCfg(name), all = (this.truckModels ||= {});
+        if (all[cfg.url] !== undefined) return;
+        all[cfg.url] = null;
+        loadModel(cfg.url, (gltf) => {
             const m = gltf.scene;
             m.rotation.y = T.yaw;
             m.updateMatrixWorld(true);
@@ -1571,15 +1591,7 @@ export class World {
             m.position.set(-c.x, -box.min.y, -c.z); // середина кузова на оси, колёса на асфальте
             const g = new THREE.Group().add(m);
             g.scale.set(T.width / size.x, T.roof / size.y, T.len / size.z); // габарит фуры задаёт игра: полоса и высота крыши
-            this.truckModel = g;
-            this.warmQueue.push(g.clone());
-        }, () => {});
-        loadModel(T.rampUrl, (gltf) => { // низкий край — к герою; размер точно по пандусу, по которому считается высота (truckTop)
-            const m = gltf.scene, box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
-            m.position.set(-c.x, -box.min.y, -c.z);
-            const g = new THREE.Group().add(m);
-            g.scale.set(T.width / size.x, T.roof / size.y, T.ramp / size.z);
-            this.rampModel = g;
+            all[cfg.url] = g;
             this.warmQueue.push(g.clone());
         }, () => {});
     }
@@ -2406,7 +2418,8 @@ export class World {
         })());
         const g = new THREE.Group(), half = (L + R) / 2, near = half - R, mid = near - L / 2; // near — торец кузова
         const box = (mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(this.geo.box, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); g.add(m); return m; };
-        if (this.truckModel) { const c = this.truckModel.clone(); c.position.z = mid; if (lane === 2) c.rotation.y = Math.PI; g.add(c); } // надпись — к дороге (TRUCKS)
+        const cfg = this.truckCfg(), model = this.truckModels?.[cfg.url];
+        if (model) { const c = model.clone(); c.position.z = mid; if (cfg.logo && lane === 2) c.rotation.y = Math.PI; g.add(c); } // надпись — к дороге (TRUCKS)
         else {
             box(p.body, W, H - 0.55, L, 0, 0.55 + (H - 0.55) / 2, mid);
             box(p.roof, W - 0.06, 0.05, L - 0.06, 0, H + 0.02, mid); // крыша — дорожка, по которой бегут
@@ -2444,6 +2457,7 @@ export class World {
     }
 
     addTruck(lane, z, ramp) {
+        this.loadTruckModel(this.location || "street"); // на случай, если биом ещё ни разу не переключали
         const o = this.makeTruck(ramp, lane), d = o.userData;
         o.position.set(this.lanes[lane], 0, z - d.halfZ); // торец — на линии ряда: фура тянется вдаль, в уже поставленные ряды не залезает
         d.lane = lane;
@@ -2657,8 +2671,8 @@ export class World {
         // монета или баночка не должна оказаться внутри препятствия соседнего ряда в той же полосе
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
-        // фура вместо обычного препятствия: только на крайних полосах (иначе надпись не видна, см. TRUCKS), иногда сразу на двух
-        const T = TRUCKS, trucks = new Set(), sides = blocked.filter((l) => l !== 1);
+        // фура вместо обычного препятствия: с надписью — только на крайних полосах (иначе её не видно, см. TRUCKS), иногда сразу две
+        const T = TRUCKS, trucks = new Set(), sides = this.truckCfg().logo ? blocked.filter((l) => l !== 1) : blocked;
         if (T.locations.includes(this.location || "street") && !this.noCars && sides.length
             && Math.random() < T.chance[0] + (T.chance[1] - T.chance[0]) * difficulty) {
             trucks.add(sides[0]);
