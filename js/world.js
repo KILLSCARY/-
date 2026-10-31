@@ -1985,6 +1985,9 @@ export class World {
         loadModel(cfg.url, (gltf) => {
             this.islam = this.fitRig(gltf, cfg.height);
             this.warmQueue.push(this.makeIslam());
+            if (cfg.clips) fetch(cfg.clips).then((r) => r.json()).then((list) => { // вдох и выдох из общей библиотеки анимаций
+                for (const c of list) { const clip = THREE.AnimationClip.parse(c); clip.uuid = THREE.MathUtils.generateUUID(); gltf.animations.push(clip); }
+            }).catch(() => {});
         }, () => {}, { deferred: true });
     }
 

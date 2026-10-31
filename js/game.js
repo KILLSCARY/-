@@ -3333,7 +3333,12 @@ class Game {
         if (w.state === "inhale") {
             w.t -= dt;
             const inh = 1 - w.t / WIND.inhale;
-            if (w.blow && w.idle) w.idle.time = WIND.npc.crouch * Math.min(1, inh * 1.4); // приседает, набирая воздух
+            if (w.blowA) { // плавно разводит руки и набирает воздух
+                const on = Math.min(1, inh * 2.5), e = on * on * (3 - 2 * on);
+                w.idle?.setEffectiveWeight(1 - e);
+                w.inhaleA.setEffectiveWeight(e);
+                w.inhaleA.time = w.inhaleA.getClip().duration * inh;
+            } else if (w.blow && w.idle) w.idle.time = WIND.npc.crouch * Math.min(1, inh * 1.4); // приседает, набирая воздух
             else this.windPose(w, -inh); // набирает воздух
             if (w.t <= 0) {
                 w.state = "gust";
@@ -3350,7 +3355,13 @@ class Game {
         if (w.state === "gust") {
             w.t -= dt;
             const k = Math.min(1, (WIND.gust - w.t) / 0.25); // резкий выдох
-            if (w.blow) { // клип: присел и выбросил руки вперёд, дальше держит и чуть толкает
+            if (w.blowA) { // наклонился и дует в кулак, корпус слегка толкает воздух
+                w.idle?.setEffectiveWeight(0);
+                w.inhaleA.setEffectiveWeight(1 - k);
+                w.blowA.setEffectiveWeight(k);
+                const d = w.blowA.getClip().duration;
+                w.blowA.time = d * (0.5 + 0.45 * Math.sin((WIND.gust - w.t) * 5));
+            } else if (w.blow) { // клип: присел и выбросил руки вперёд, дальше держит и чуть толкает
                 w.idle?.setEffectiveWeight(0);
                 w.blow.setEffectiveWeight(1);
                 w.blow.time = WIND.npc.hold * k - (k >= 1 ? 0.025 * (1 + Math.sin((WIND.gust - w.t) * 14)) : 0);
@@ -3489,8 +3500,11 @@ class Game {
             mixer.timeScale = 0;
             for (const a of mixer._actions) a.time = 0;
             w.idle = mixer._actions[0];
-            const clip = this.world.islam?.gltf.animations.find((c) => c.name === WIND.npc.blow);
-            if (clip) { w.blow = mixer.clipAction(clip); w.blow.play(); w.blow.setEffectiveWeight(0); }
+            // вдох и выдох из общей библиотеки анимаций (models/anim/islam_wind.json); нет файла — старый клип
+            const clips = this.world.islam?.gltf.animations || [], act = (name) => { const clip = clips.find((c) => c.name === name); if (!clip) return null; const a = mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); return a; };
+            w.inhaleA = act("wind_inhale");
+            w.blowA = w.inhaleA && act("wind_blow");
+            if (!w.blowA) { const clip = clips.find((c) => c.name === WIND.npc.blow); if (clip) { w.blow = mixer.clipAction(clip); w.blow.play(); w.blow.setEffectiveWeight(0); } }
         }
         const bone = (name) => { let b = null; w.npc.traverse((o) => { if (!b && o.isBone && o.name.endsWith(name)) b = o; }); return b; };
         w.bones = { spine: ["Spine", "Spine1", "Spine2"].map(bone).filter(Boolean), head: bone("Head"), neck: bone("Neck"), l: bone("LeftArm"), r: bone("RightArm") };

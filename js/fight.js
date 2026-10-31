@@ -575,7 +575,7 @@ export class Fight {
         const armor = def.act === "super" || def.act === "superFin" || (kind === "jab" || kind === "cross") && (def.act === "heavyWind" || def.act === "heavy" || (def.act === "punch" && def.t > def.dur * 0.2));
         if (armor) { def.flash = 0.6; this.popText(def, `−${dmg}`, ""); this.spark(contact, 0.5, 0xffffff); this.g.audio?.play("hit"); return dmg; }
         this.act(def, "hit", FIGHT.stun[kind]);
-        def.kb = kind === "jab" ? 0.1 : kind === "cross" ? 0.16 : kind === "super" ? 0.6 : 0.32;
+        def.kb = kind === "jab" ? 0.1 : kind === "cross" ? 0.16 : kind === "super" ? 1.1 : 0.32;
         def.flash = 1;
         def.hitSide = att.hand ? 1 : -1;
         this.spark(contact, kind === "jab" ? 0.6 : kind === "super" ? 1.4 : 0.9, kind === "super" ? 0xffd65a : 0xffffff);

@@ -3,7 +3,7 @@ import { CASE_DROPS } from "./meta-rules.mjs";
 
 export const LINKS = {
     // ссылка на бота / мини-апп (для кнопки «Поделиться»)
-    bot: "https://p2p-game-eta.vercel.app", // заменить на https://t.me/<бот>/<app>, когда будет мини-приложение
+    bot: "https://p2p-game.zabivnoy-grisha.workers.dev", // заменить на https://t.me/<бот>/<app>, когда будет мини-приложение
     // куда ведёт кнопка курса на экране проигрыша
     course: "https://t.me/your_course_channel",
     // менеджер отдела продаж: кнопка «Назвать фразу менеджеру» открывает чат с готовым сообщением (кодовые фразы)
@@ -456,12 +456,12 @@ export const ARCHES = { firstAt: 160, every: [200, 280], reward: [3, 8, 20] };
 // npc — Ислам у обочины (новая модель в чёрном): стоит в idle (первый кадр), на вдохе приседает (idle до кадра crouch),
 // дует клипом blow — до кадра hold (сек):
 // присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
-export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, minGust: 0.9, push: 2.4, taps: 5, reward: 3, startZ: -34,
-    npc: { url: "models/obj/islam_wind.glb?v=3", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
+export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.8, gust: 2, minGust: 0.9, push: 2.4, taps: 5, reward: 3, startZ: -22,
+    npc: { url: "models/obj/islam_wind.glb?v=3", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, clips: "models/anim/islam_wind.json", yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»). startZ — за сколько метров до Ислама начинается вдох:
 // было 15 — за вдох и порыв (~27 м) он уезжал за камеру, и на телефоне «Ислам дует!» шло без Ислама в кадре;
-// с 34 м порыв кончается, когда он ещё ~7 м впереди
+// с 22 м он крупно в кадре весь вдох и порыв (с 34 м был совсем мелким) и за камеру не уезжает: на вдохе герой замедляется
 
 // «Ислам вентилирует»: стоит у обочины с большим напольным вентилятором. В зоне его ветра (zone метров до и после
 // вентилятора) бег медленнее (slow) и героя ровно сносит от Ислама со скоростью drift м/с — примерно полоса в секунду;
@@ -868,7 +868,7 @@ const KICK_AIM = -1.85;
 const MESHY_MOVES = { idle: { clip: "jab", from: 0.02, to: 0.35, period: 2.8, face: 0 },
     jab: { clip: "jab", from: 0.35, to: 1.1, hit: 0.67, speed: 1, face: 0 }, cross: { clip: "cross", from: 0.4, to: 1.1, hit: 0.69, speed: 1, face: 0 },
     hook: { clip: "kick", from: 0.28, to: 1.3, hit: 0.8, speed: 1.1, face: 0, aim: KICK_AIM }, low: { clip: "kick", from: 0.28, to: 1.3, hit: 0.8, speed: 1.1, face: 0, aim: KICK_AIM },
-    super: { clip: "combo", from: 0, to: 2.25, hits: [0.27, 0.84, 1.41, 1.98], speed: 1, face: 0 }, superFin: { clip: "hkick", from: 0.55, to: 1.75, hit: 1.08, speed: 0.85, face: 0, aim: KICK_AIM },
+    super: { clip: "combo", from: 0, to: 2.25, hits: [0.27, 0.84, 1.41, 1.98], speed: 1.7, face: 0 }, superFin: { clip: "hkick", from: 0.55, to: 1.75, hit: 1.08, speed: 1.05, face: 0, aim: KICK_AIM }, // супер: быстрая серия и сильный удар ногой
     heavyWind: { clip: "hkick", from: 0.35, to: 0.9, fit: true, hold: true, face: 0, aim: KICK_AIM, step: true }, heavy: { clip: "hkick", from: 0.9, to: 1.7, hit: 1.1, speed: 1, face: 0, aim: KICK_AIM, step: true },
     knee: { clip: "kick", from: 0.4, to: 1.1, hit: 0.8, speed: 1.1, face: 0, aim: KICK_AIM },
     block: { clip: "block", from: 0.1, to: 0.9, fit: true, face: 0 }, dodge: { clip: "dodge", from: 0, to: 1.3, fit: true, face: 0 },
