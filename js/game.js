@@ -273,8 +273,9 @@ class Game {
     setupScene() {
         const canvas = $("game");
         // Высокая графика сглаживается в буферах постобработки; холст не дублирует MSAA.
-        // Прямой рендер на ПК использует сглаживание холста, на телефоне остаётся облегчённым.
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.mobile && !!this.tier.direct, powerPreference: "high-performance" });
+        // Прямой рендер (телефон по умолчанию) сглаживается самим холстом: для мобильных видеочипов это почти бесплатно.
+        // Включается только при создании, поэтому выключен лишь там, где с самого старта слабая графика.
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality !== "low", powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         // плоскость отсечения для боя: камера боя стоит сбоку за бордюром, и тротуар, сугробы, ограда на её стороне
         // закрывали бойцов (Fight.camera ставит плоскость по краю дороги). Включена всегда, в забеге отнесена далеко —
