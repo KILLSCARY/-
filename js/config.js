@@ -252,7 +252,7 @@ export const MODELS = {
 
 // Инспектор ДПС (Meshy biped с анимациями): на постах и на полосе кричит или объясняет руками (idle — случайный),
 // за героем после первого удара — бежит (run). Пока модель грузится, вместо него спрайт.
-export const POLICE_OFFICER = { url: "models/cop_fight.glb?v=75", height: 1.6, idle: ["shout", "talk"], run: "run" }; // ?v — версия, как у героев
+export const POLICE_OFFICER = { url: "models/cop_fight.glb?v=76", height: 1.6, idle: ["shout", "talk"], run: "run" }; // ?v — версия, как у героев
 
 // Кто бежит за героем после первого удара (BALANCE.stumbleTime секунд); hud — надпись в забеге.
 // Пока модель грузится — инспектор ДПС, а без него спрайт.
@@ -317,9 +317,9 @@ export const CHARACTERS = [
     { id: "gorilla", name: "Горилла", url: "models/gorilla_hero.glb?v=6", hd: "models/hd/gorilla_v2", height: 1.9, portrait: "img/heroes/gorilla.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // Дима Мент и Саша Товарус — герои по фото. Без сюжета: эксклюзив за 250 Карт (HERO_UNLOCKS).
     // free — только свободный бег: без глав, табличек, боссов и Мизулины (за ними гонится Малахов)
-    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=86", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=87", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
-    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=86", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=87", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -907,7 +907,7 @@ export const FIGHTERS = {
             blockIn: "Не положено!", blockHold: ["Жду документы…", "Я подожду", "Всё фиксирую"], blockOut: "Так, продолжим проверку!",
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", rage: "Блокирую! Всё блокирую!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=75", height: 1.6, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
+    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=76", height: 1.6, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
         // клипы — тот же набор Meshy, что у Павла (jab, combo5, kick, hkick, knee, g_block/g_dodge/g_hit…, victory). Было null —
         // с моделью 28.10 клипов не было, позы собирались поворотами костей, и на новой модели (29.10) руки выкручивало
         moves: MESHY_MOVES,
