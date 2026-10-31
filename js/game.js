@@ -4020,30 +4020,31 @@ class Game {
     // кортеж Саши: машины обгоняют героя по его полосе и сносят всё на пути. Без модели — просто расчищает
     loadBrigade() {
         const q = this.quirk;
-        if (!q.car || this.brigadeModel || this.brigadeLoading) return;
-        this.brigadeLoading = true;
-        loadModel(q.car, (gltf) => {
+        if (!q.cars || this.brigadeModels) return;
+        this.brigadeModels = q.cars.map(() => null);
+        q.cars.forEach((url, i) => loadModel(url, (gltf) => {
             const m = gltf.scene, box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
             m.position.set(-c.x, -box.min.y, -c.z);
             const g = new THREE.Group().add(m), k = q.carLen / (size.z || 1);
             g.scale.set(q.carWidth / (size.x || 1), k, k);
-            this.brigadeModel = g;
+            this.brigadeModels[i] = g;
             this.world.warmQueue.push(g.clone());
-        }, () => { this.brigadeLoading = false; });
+        }, () => {}));
     }
 
     // кортеж едет впереди по полосе героя и сносит всё, что до него дошло; пока он в деле, герой неуязвим
     sendBrigade() {
         const q = this.quirk, x = this.world.lanes[this.lane], cars = [];
-        for (let i = 0; i < (this.brigadeModel ? q.cars : 0); i++) {
-            const c = this.brigadeModel.clone();
+        for (const [i, model] of (this.brigadeModels || []).entries()) {
+            if (!model) continue;
+            const c = model.clone();
             c.position.set(x, 0, 7 + i * (q.carLen + 1.5));
             c.rotation.y = Math.PI; // нос модели смотрит на камеру, а едут вперёд
             this.scene.add(c);
             cars.push(c);
         }
         this.fx.safe = Math.max(this.fx.safe, q.time + 0.3);
-        this.brigadeRun = { cars, t: q.time };
+        this.brigadeRun = { cars, t: q.time, clock: 0, lanes: [{ t: 0, x }], vx: cars.map(() => 0) };
     }
 
     brigadeStep(dt) {
@@ -4051,13 +4052,22 @@ class Game {
         if (!r) return;
         const q = HERO_QUIRKS.sasha, x = this.world.lanes[this.lane];
         r.t -= dt;
+        r.clock += dt;
+        if (r.lanes.at(-1).x !== x) r.lanes.push({ t: r.clock, x }); // куда и когда перешёл герой
         r.cars.forEach((c, i) => {
             const z = r.t > 0 ? -9 - i * (q.carLen + 2) : -120; // время вышло — кортеж уходит вперёд
             c.position.z += (z - c.position.z) * Math.min(1, dt * (r.t > 0 ? 3.5 : 1.6));
-            c.position.x += (x - c.position.x) * Math.min(1, dt * 7);
+            // перестроение друг за другом: каждая машина узнаёт о новой полосе со своей задержкой и съезжает плавно, поворачивая нос
+            let goal = r.lanes[0].x;
+            for (const l of r.lanes) if (l.t <= r.clock - q.carDelay[i]) goal = l.x;
+            const w = q.carSpring, d = c.position.x - goal, e = Math.exp(-w * dt), k = (r.vx[i] + w * d) * dt;
+            c.position.x = goal + (d + k) * e;
+            r.vx[i] = (r.vx[i] - w * k) * e;
+            c.rotation.y = Math.PI - r.vx[i] * q.carYaw;
+            c.rotation.z = r.vx[i] * q.carLean;
         });
         if (r.t > 0) { // без моделей сносим по полосе героя у самого кортежа
-            const line = r.cars.length ? r.cars : [{ position: { x, z: -9 } }];
+            const line = [...r.cars, { position: { x, z: -3 } }]; // пока машины перестраиваются, полосу героя страхует бригада: сквозь препятствия он не пробежит
             for (const o of this.world.obstacles) {
                 const d = o.userData;
                 if (d.type === "decor" || d.type === "answer" || d.blown) continue;

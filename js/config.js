@@ -229,6 +229,7 @@ export const ATMS = [
 const R = Math.PI / 2;
 export const MODELS = {
     car: [
+        { url: "models/obj/car_merc.glb?v=1", axis: "z", size: 4.4 },
         { url: "models/obj/car1.glb?v=5", axis: "z", size: 4.4 }, // новая модель 30.10: нос уже к +Z
         { url: "models/obj/car2.glb?v=2", axis: "z", size: 4.4, rotateY: R, noLite: true }], // noLite: упростить без каши на текстуре не вышло (29 тыс.), на лёгкой графике только car1
     police: [ // патрульные машины постов ДПС (инспектор рядом — живой, POLICE_OFFICER)
@@ -650,7 +651,7 @@ export const HERO_QUIRKS = {
     pavel: { dealEvery: 5, deal: 150 }, // закрытие сделки: столько верных табличек подряд — бонус USDT
     dima: { badge: 10, check: 0.15 }, // удостоверение: инспектор пропускает и даёт USDT, но с шансом check проверяет — герой притормаживает
     islam: { btn: "Воздуханство", emoji: "🌪️", charges: 1, time: 8.5, reach: 32 }, // time секунд сдувает на reach м вперёд препятствия, людей и погоню, сам неуязвим
-    sasha: { btn: "Братва", emoji: "🚘", charges: 1, cost: 50, time: 8.5, car: "models/obj/brigade_car.glb?v=1", carLen: 4.6, carWidth: 1.5, cars: 2 }, // time секунд кортеж едет впереди по полосе героя и сносит всё на пути, за cost USDT забега
+    sasha: { btn: "Братва", emoji: "🚘", charges: 1, cost: 50, time: 8.5, cars: ["models/obj/brigade_car.glb?v=1", "models/obj/car_merc.glb?v=1"], carLen: 4.6, carWidth: 1.5, carDelay: [0.15, 0.55], carSpring: 5.5, carYaw: 0.07, carLean: 0.012 }, // time секунд кортеж едет впереди по полосе героя и сносит всё на пути, за cost USDT забега
     gorilla: { btn: "Ярость", emoji: "🦍", coins: 40, time: 4, smash: 5, chase: 1.25 }, // coins монет копят заряд: time секунд сносит всё на пути, smash USDT за препятствие
     tovarus: { btn: "Вложить", emoji: "📈", charges: 3, share: 0.3, max: 100, min: 10, wait: 10, win: 0.6, up: 1.5, down: 0.5 }, // вложил долю USDT забега: через wait с вернётся ×up с шансом win, иначе ×down
 };
