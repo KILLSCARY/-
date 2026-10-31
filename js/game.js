@@ -298,7 +298,7 @@ class Game {
         this.look2 = /[?&]look=2/.test(location.search) || (tg.startParam || "").toLowerCase() === "look" || !!this.settings?.look2;
         this.scene.fog = this.look2 ? new THREE.Fog(SKY.color, LOOK2.fog[0], LOOK2.fog[1]) : new THREE.Fog(SKY.color, 30, 85);
         this.paintSky();
-        this.scene.environment = buildEnvironment(this.renderer);
+        this.scene.environment = this.envCurrent = buildEnvironment(this.renderer);
 
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100); // дальше 100 м всё равно туман
 
@@ -345,9 +345,9 @@ class Game {
         const w = window.innerWidth, h = window.innerHeight;
         if (!w || !h) return; // окно ещё не развернулось (Telegram, фоновая вкладка): буферы нулевого размера — ошибки WebGL
         // адаптация и тепловой ограничитель перемножаются (было 0,85 × 0,68 = 0,58: 450 пикселей в ширину — мыло, а кадров почти не прибавляло),
-        // поэтому на телефоне вместе они не опускают разрешение ниже 0,75
-        const scale = (this.resScale || 1) * (this.heatScale || 1);
-        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.mobile ? Math.max(0.75, scale) : scale);
+        // поэтому на телефоне вместе они не опускают плотность ниже ×1,3 (на слабой графике — её собственной)
+        const scale = (this.resScale || 1) * (this.heatScale || 1), full = Math.min(window.devicePixelRatio, this.tier.ratio);
+        const ratio = this.mobile ? Math.min(full, Math.max(1.3, full * scale)) : full * scale;
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
         this.composer.setPixelRatio(this.direct ? 1 : ratio);
@@ -1431,6 +1431,8 @@ class Game {
         const fx = this.tier.fx === false ? 0 : k; // телефон: без зерна и хроматики — на маленьком экране это шум и мыло
         u.grade.value = k * CINE.grade * (this.location === "vietnam" ? VIETNAM.post?.grade ?? 1 : 1); u.ca.value = CINE.ca * fx;
         u.grain.value = this.fxaa.enabled ? 0 : CINE.grain * fx; this.fxaa.uniforms.grain.value = this.fxaa.enabled ? CINE.grain * fx : 0;
+        const env = this.tier.noEnv ? null : this.envCurrent;
+        if (this.scene.environment !== env) { this.scene.environment = env; this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
         this.world.setTier(this.tier); // дождь и лишние живые NPC — по новому уровню
         const direct = !!this.tier.direct && !this.look2;
         if (direct !== !!this.direct) this.setDirect(direct);
@@ -1656,9 +1658,10 @@ class Game {
             this.hemi.intensity = vn ? vn.hemiI : this.look2 ? LOOK2.hemi : SKY.light;
             this.moon.color.set(vn ? vn.sun : SKY.moon); this.moon.intensity = vn ? vn.sunI : 1.5;
         }
-        this.envs ||= { street: this.scene.environment };
+        this.envs ||= { street: this.envCurrent };
         if (vn && !this.envs.vietnam) this.envs.vietnam = buildEnvironment(this.renderer, VIETNAM.env);
-        this.scene.environment = this.envs[vn ? "vietnam" : "street"] || this.scene.environment;
+        this.envCurrent = this.envs[vn ? "vietnam" : "street"] || this.envCurrent || this.envs.street;
+        this.scene.environment = this.tier.noEnv ? null : this.envCurrent;
         this.world.dayGlow(vn ? VIETNAM.glow : 1); // днём фонари и окна не горят по-ночному
         this.scene.fog.near = vn ? VIETNAM.fogNear : this.look2 ? LOOK2.fog[0] : 30; // днём воздух прозрачнее — дымка дальше
         this.applyLook();
