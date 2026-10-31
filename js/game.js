@@ -122,6 +122,7 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
 const RES_MIN = 0.6; // ниже этой доли разрешения автоподстройка не опускает (шаги по 0,1: 1 → 0,9 → … → 0,6)
 const TALK_CALM = 4.5; // сколько секунд после начала реплики дорога впереди пустая — её успевают прочитать
@@ -1266,7 +1267,7 @@ class Game {
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
-            : this.state === "menu" ? "dance"
+            : this.state === "menu" ? "idle" // спокойная стойка: быстрый танец при 30 кадрах в меню выглядел рвано
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
@@ -1292,10 +1293,10 @@ class Game {
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
         const back = v.back.set(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
-        // на узком экране герой слева, Никита у бака справа: кадр не перекрывается ни логотипом, ни кнопками
-        const front = v.front.set(portrait ? 0.2 : 0.7, portrait ? 1.3 : 1.5, portrait ? -3.9 : -3.0);
+        // на узком экране герой слева, Никита с баком справа: кадр не перекрывается ни логотипом, ни кнопками
+        const front = v.front.set(portrait ? 0.3 : 0.7, portrait ? 0.8 : 1.5, portrait ? -4.6 : -3.0);
         const target = v.target.set(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
-            .lerp(v.menu.set(portrait ? -0.55 : 0, portrait ? 0.3 : 1.0, 0), 1 - k);
+            .lerp(v.menu.set(portrait ? -0.28 : 0, portrait ? 0.3 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
         if (this.camFocus > 0.01 && this.wind) { // Ислам дует: камера поворачивается к нему и сдвигается в его сторону
@@ -1320,10 +1321,11 @@ class Game {
             cam.position.x += (Math.random() - 0.5) * 2 * a;
             cam.position.y += (Math.random() - 0.5) * 2 * a;
         }
-        if (kick.fov > 0.01 || cam.fov !== this.baseFov) {
+        const fovNow = portrait ? MENU_FOV + (this.baseFov - MENU_FOV) * k : this.baseFov; // в меню объектив уже: герой крупнее, улица не растянута
+        if (kick.fov > 0.01 || cam.fov !== fovNow) {
             kick.fov += (0 - kick.fov) * Math.min(1, dt * 6);
             if (kick.fov <= 0.01) kick.fov = 0;
-            cam.fov = this.baseFov + kick.fov * calm;
+            cam.fov = fovNow + kick.fov * calm;
             cam.updateProjectionMatrix();
         }
         if (this.camFocus > 0.01 && this.wind) { // приближение на Ислама

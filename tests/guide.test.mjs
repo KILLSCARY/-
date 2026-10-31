@@ -34,11 +34,18 @@ test('частично обрезанная кнопка не создаёт п�
 });
 
 test('комикс объясняет каждый основной раздел и заканчивается управлением у кнопки забега', () => {
-    assert.equal(GUIDE_STEPS.length, 7);
-    for (const tab of ['heroes', 'cases', 'shop', 'chapters', 'rating']) {
-        assert.ok(GUIDE_STEPS.some(step => step.target.includes(`data-go="${tab}"`)));
+    for (const tab of ['heroes', 'cases', 'shop', 'chapters', 'rating', 'map']) {
+        assert.ok(GUIDE_STEPS.some(step => step.target?.includes(`data-go="${tab}"`)));
     }
     const last = GUIDE_STEPS.at(-1);
     assert.equal(last.target, '#btn-play');
     assert.equal(last.controls, true);
+});
+
+test('обучение начинается с предупреждения: игровые валюты, добавки и что настоящее', () => {
+    const first = GUIDE_STEPS[0], text = first.items.flat().join(' ');
+    assert.equal(first.notice, true);
+    assert.equal(first.target, undefined);
+    for (const word of ['USDT', 'NSS', 'Карты', 'БАДы', 'нельзя вывести', 'промокоды']) assert.ok(text.includes(word), word);
+    assert.equal(GUIDE_STEPS.filter(step => step.notice).length, 1);
 });

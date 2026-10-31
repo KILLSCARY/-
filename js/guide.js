@@ -1,14 +1,23 @@
 // Короткий комикс поверх настоящего меню. Без отдельной сцены, библиотек и цикла анимации.
-export const GUIDE_VERSION = 1;
+export const GUIDE_VERSION = 2; // выросла — обучение и предупреждение увидят все ещё раз
+// Первый кадр — предупреждение: без цели на экране и без «Пропустить», закрывается только кнопкой
 export const GUIDE_STEPS = [
-    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла, покажу район! Сверху — твои игровые USDT и Карты. USDT идут на бусты и кейсы, Карты — на усиления забега и эксклюзивных героев.' },
+    { notice: true, title: 'Сначала важное', text: 'Это игра. Прочитай, что здесь игровое, а что настоящее.', items: [
+        ['USDT, NSS и Карты', 'игровые валюты. Это не криптовалюта и не деньги: их нельзя вывести, продать или обменять на деньги.'],
+        ['Добавки, БАДы и бусты', 'игровой ресурс: работают только в забеге. Это не описание настоящих товаров и не совет, что принимать.'],
+        ['Настоящее', 'только промокоды на скидку в магазине и приз первой сотне. Условия написаны на их экранах.'],
+    ] },
+    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла, покажу район! Сверху кошелёк. USDT идут на бусты и кейсы, NSS — на промокоды и гонку недели, Карты — на усиления забега и героев.' },
+    { target: '#btn-play', title: 'Главное — забег', text: 'Отсюда начинается всё: беги, собирай монеты и отвечай на вопросы. За забег получаешь USDT и NSS.' },
     { target: '#tiles [data-go="heroes"]', title: 'Собери свою команду', text: 'Здесь выбираешь героя. У каждого свой навык, а условия открытия написаны на его карточке.' },
-    { target: '#tiles [data-go="cases"]', title: 'Забирай лут', text: 'В кейсах — награды за USDT. Тут же бусты на следующий забег и наборы.' },
-    { target: '#tiles [data-go="shop"]', title: 'Забирай смену', text: 'Никита копит USDT и NSS, пока тебя нет: заходи и забирай. Здесь же промокоды на настоящие товары.' },
+    { target: '#tiles [data-go="cases"]', title: 'Забирай лут', text: 'В кейсах — награды за игровые USDT. Тут же бусты на следующий забег и наборы.' },
+    { target: '#tiles [data-go="shop"]', title: 'Забирай смену', text: 'Никита копит USDT и NSS, пока тебя нет: заходи и забирай. Здесь же промокоды: они дают настоящую скидку в магазине.' },
     { target: '#tiles [data-go="chapters"]', title: 'Двигай сюжет', text: 'Пройди три главы: отвечай на вопросы в забеге и побеждай боссов. С боссом бьёшь тапом по экрану, слева — «Блок», «Уклон» и «Супер».' },
-    { target: '#tiles [data-go="rating"]', title: 'Покажи свой результат', text: 'Тут рейтинг и задания. В забеге собирай USDT и беги дальше: очки = USDT × 10 + метры.' },
+    { target: '#tiles [data-go="rating"]', title: 'Покажи свой результат', text: 'Тут рейтинг и задания. Очки = USDT × 10 + метры.' },
+    { target: '#tiles [data-go="map"]', title: 'Смени район', text: 'На карте районы города: выбирай, где бежать.' },
     { target: '#btn-play', title: 'Погнали!', text: 'Жми «Забег». Свайпай по экрану, собирай USDT и беги в табличку с верным ответом.', controls: true },
 ];
+const FRAMES = GUIDE_STEPS.filter((s) => !s.notice).length; // предупреждение — не кадр комикса
 
 // Координаты в пределах доступной области, включая узкие телефоны и системные отступы Telegram.
 export function guidePlacement(target, panel, viewport) {
@@ -36,6 +45,8 @@ export class GorillaGuide {
         this.next = document.getElementById('guide-next');
         this.prev = document.getElementById('guide-prev');
         this.skip = document.getElementById('guide-skip');
+        this.list = document.getElementById('guide-list');
+        this.root.querySelector('.guide-progress').innerHTML = '<i></i>'.repeat(FRAMES);
         this.active = false;
         this.next.onclick = () => this.index < GUIDE_STEPS.length - 1 ? this.show(this.index + 1) : this.finish();
         this.prev.onclick = () => this.show(this.index - 1);
@@ -61,6 +72,7 @@ export class GorillaGuide {
         if (!this.active || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12) return; // прокрутка текста карточки — не тап
         const on = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6; };
         this.tapAt = performance.now();
+        if (GUIDE_STEPS[this.index].notice) { if (on(this.next)) this.next.onclick(); return; } // предупреждение случайным тапом не закрыть
         if (on(this.skip)) this.finish();
         else if (on(this.prev)) this.prev.onclick();
         else this.next.onclick();
@@ -95,16 +107,21 @@ export class GorillaGuide {
     show(index) {
         this.index = Math.max(0, Math.min(GUIDE_STEPS.length - 1, index));
         const step = GUIDE_STEPS[this.index];
-        document.getElementById('guide-count').textContent = `КАДР ${String(this.index + 1).padStart(2, '0')} / ${String(GUIDE_STEPS.length).padStart(2, '0')}`;
+        const frame = GUIDE_STEPS.slice(0, this.index + 1).filter((x) => !x.notice).length;
+        document.getElementById('guide-count').textContent = step.notice ? 'ВАЖНО' : `КАДР ${String(frame).padStart(2, '0')} / ${String(FRAMES).padStart(2, '0')}`;
         document.getElementById('guide-title').textContent = step.title;
         document.getElementById('guide-text').textContent = step.text;
+        this.list.hidden = !step.notice;
+        this.list.replaceChildren(...(step.items || []).map(([name, about]) => { const li = document.createElement('li'), b = document.createElement('b'); b.textContent = name; li.append(b, ` — ${about}`); return li; }));
+        this.skip.hidden = !!step.notice;
+        this.focus.classList.toggle('none', !step.target);
         document.getElementById('guide-controls').hidden = !step.controls;
         document.getElementById('guide-keyboard').hidden = !step.controls || !matchMedia('(pointer: fine)').matches;
         this.root.setAttribute('aria-describedby', ['guide-text', ...(!document.getElementById('guide-controls').hidden ? ['guide-controls'] : []), ...(!document.getElementById('guide-keyboard').hidden ? ['guide-keyboard'] : [])].join(' '));
-        for (const [i, dot] of [...this.root.querySelectorAll('.guide-progress i')].entries()) dot.classList.toggle('on', i <= this.index);
+        for (const [i, dot] of [...this.root.querySelectorAll('.guide-progress i')].entries()) dot.classList.toggle('on', i < frame);
         this.prev.hidden = this.index === 0;
-        this.next.textContent = this.index === GUIDE_STEPS.length - 1 ? 'Всё понятно!' : 'Дальше →';
-        this.target = document.querySelector(step.target);
+        this.next.textContent = step.notice ? 'Понятно' : this.index === GUIDE_STEPS.length - 1 ? 'Всё понятно!' : 'Дальше →';
+        this.target = step.target ? document.querySelector(step.target) : null;
         // меню не дёргаем: прокручиваем, только если кнопка не видна целиком (на маленьких экранах), и плавно;
         // облачко само встаёт над кнопкой или под ней (guidePlacement)
         const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -122,11 +139,17 @@ export class GorillaGuide {
     }
 
     place() {
-        if (!this.active || !this.target) return;
+        if (!this.active) return;
         const style = getComputedStyle(this.root);
         // размер карточки — без трансформации: во время «выскакивания» (scale .88) getBoundingClientRect меньше настоящего,
         // и облачко вставало ниже, наезжая на кнопку
         const panel = { width: this.card.offsetWidth, height: this.card.offsetHeight };
+        if (!this.target) { // предупреждение — по центру экрана, всё вокруг затемнено
+            const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+            Object.assign(this.focus.style, { left: `${cx}px`, top: `${cy}px`, width: '0px', height: '0px' });
+            Object.assign(this.card.style, { left: `${Math.max(8, cx - panel.width / 2)}px`, top: `${Math.max(parseFloat(style.paddingTop) || 12, cy - panel.height / 2)}px` });
+            return;
+        }
         const p = guidePlacement(this.target.getBoundingClientRect(), panel, {
             width: window.innerWidth, height: window.innerHeight,
             top: parseFloat(style.paddingTop) || 12, bottom: parseFloat(style.paddingBottom) || 12,
@@ -138,12 +161,12 @@ export class GorillaGuide {
     keydown(e) {
         if (!this.active) return;
         e.stopImmediatePropagation(); // Enter и стрелки не запускают забег под обучением
-        if (e.key === 'Escape') { e.preventDefault(); this.finish(); }
+        if (e.key === 'Escape') { e.preventDefault(); if (!GUIDE_STEPS[this.index].notice) this.finish(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); this.next.click(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); if (this.index) this.prev.click(); }
         else if (e.key === 'Tab') {
             e.preventDefault();
-            const buttons = [this.skip, ...(!this.prev.hidden ? [this.prev] : []), this.next];
+            const buttons = [...(!this.skip.hidden ? [this.skip] : []), ...(!this.prev.hidden ? [this.prev] : []), this.next];
             const index = buttons.indexOf(document.activeElement);
             buttons[(index + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus({ preventScroll: true });
         }
