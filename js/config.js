@@ -48,8 +48,10 @@ export const DEATH_TEXT = {
 // Фуры — прицеп на всю полосу. У части сзади пандус (rampShare): забегаешь по нему на крышу (roof, м) и бежишь поверху,
 // с крыши — прыжок на соседнюю фуру или вниз. Без пандуса фура только объезжается: врезался в торец — забег окончен.
 // len — длина кузова, ramp — длина пандуса (м), width — ширина; chance — доля рядов с фурой (от начала забега до
-// сложного), twin — вторая фура рядом (бег по крышам), coins — монеты на крыше; locations — где ездят
-export const TRUCKS = { chance: [0.07, 0.18], rampShare: 0.6, len: 8, ramp: 3, roof: 2.1, width: 1.5, twin: 0.3, coins: 0.8, locations: ["street", "winter"], url: "models/obj/truck.glb?v=1", yaw: Math.PI / 2, rampUrl: "models/obj/truck_ramp.glb?v=1" };
+// сложного), twin — вторая фура через полосу, coins — монеты на крыше; locations — где ездят.
+// Надпись на модели только на одном борту (+x), поэтому фуры стоят лишь на крайних полосах и бортом с надписью к дороге:
+// на левой — кабиной к герою, на правой — развёрнута кабиной вдаль
+export const TRUCKS = { chance: [0.07, 0.18], rampShare: 0.6, len: 8, ramp: 3, roof: 2.1, width: 1.5, twin: 0.3, coins: 0.8, locations: ["street", "winter"], url: "models/obj/truck.glb?v=2", yaw: Math.PI / 2, rampUrl: "models/obj/truck_ramp.glb?v=1" };
 
 // Буквы на дороге: за забег одна буква (на метре из at). Слова идут по очереди, потом снова первое; собрал слово — reward USDT сразу в кошелёк
 export const LETTERS = { words: ["NSS", "P2P"], at: [250, 650], reward: 600, height: 0.95, models: { N: "models/obj/letter_n.glb?v=1", S: "models/obj/letter_s.glb?v=1", P: "models/obj/letter_p.glb?v=1", 2: "models/obj/letter_2.glb?v=1" } };

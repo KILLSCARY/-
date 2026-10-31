@@ -2388,7 +2388,7 @@ export class World {
 
     // Фура (TRUCKS): прицеп-контейнер, торцом к герою. ramp — сзади пандус до крыши: по нему забегают наверх.
     // Детали общие на все фуры (геометрии и материалы создаются один раз), поэтому новая фура почти ничего не стоит
-    makeTruck(ramp) {
+    makeTruck(ramp, lane) {
         const T = TRUCKS, W = T.width, H = T.roof, L = T.len, R = ramp ? T.ramp : 0;
         const p = (this.truckParts ||= (() => {
             const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(T.ramp, H), new THREE.Vector2(T.ramp, 0)]);
@@ -2406,7 +2406,7 @@ export class World {
         })());
         const g = new THREE.Group(), half = (L + R) / 2, near = half - R, mid = near - L / 2; // near — торец кузова
         const box = (mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(this.geo.box, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); g.add(m); return m; };
-        if (this.truckModel) { const c = this.truckModel.clone(); c.position.z = mid; g.add(c); }
+        if (this.truckModel) { const c = this.truckModel.clone(); c.position.z = mid; if (lane === 2) c.rotation.y = Math.PI; g.add(c); } // надпись — к дороге (TRUCKS)
         else {
             box(p.body, W, H - 0.55, L, 0, 0.55 + (H - 0.55) / 2, mid);
             box(p.roof, W - 0.06, 0.05, L - 0.06, 0, H + 0.02, mid); // крыша — дорожка, по которой бегут
@@ -2444,7 +2444,7 @@ export class World {
     }
 
     addTruck(lane, z, ramp) {
-        const o = this.makeTruck(ramp), d = o.userData;
+        const o = this.makeTruck(ramp, lane), d = o.userData;
         o.position.set(this.lanes[lane], 0, z - d.halfZ); // торец — на линии ряда: фура тянется вдаль, в уже поставленные ряды не залезает
         d.lane = lane;
         o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
@@ -2657,12 +2657,12 @@ export class World {
         // монета или баночка не должна оказаться внутри препятствия соседнего ряда в той же полосе
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
-        // фура вместо обычного препятствия: одна, иногда две рядом — тогда можно бежать по крышам
-        const T = TRUCKS, trucks = new Set();
-        if (T.locations.includes(this.location || "street") && !this.noCars && blocked.length
+        // фура вместо обычного препятствия: только на крайних полосах (иначе надпись не видна, см. TRUCKS), иногда сразу на двух
+        const T = TRUCKS, trucks = new Set(), sides = blocked.filter((l) => l !== 1);
+        if (T.locations.includes(this.location || "street") && !this.noCars && sides.length
             && Math.random() < T.chance[0] + (T.chance[1] - T.chance[0]) * difficulty) {
-            trucks.add(blocked[0]);
-            if (blocked[1] !== undefined && Math.random() < T.twin) trucks.add(blocked[1]);
+            trucks.add(sides[0]);
+            if (sides[1] !== undefined && Math.random() < T.twin) trucks.add(sides[1]);
         }
         const truckLane = (lane) => this.obstacles.some((o) => o.userData.type === "truck" && o.userData.lane === lane);
         for (const lane of blocked) {
