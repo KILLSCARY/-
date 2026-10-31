@@ -264,7 +264,8 @@ export const CHASER = { url: "models/obj/inspector.glb?v=5", height: 1.72, run: 
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
 // Никита Енот: мешок мусора. every — сколько предметов до находки, loot — USDT за неё, rotten — шанс, что вместо находки тухлятина
 export const NIKITA_ITEMS = { banana: { url: "models/obj/item_banana.glb?v=2", width: 0.62 }, tomato: { url: "models/obj/item_tomato.glb?v=2", width: 0.46 } };
-export const NIKITA_PEEL = { start: 1, max: 3, throwTime: 0.45, flight: 0.45 }; // кожура: сколько в начале забега, потолок запаса, поворот на бросок и полёт (с)
+// кожура: сколько в начале забега, потолок запаса, бросок через плечо и полёт (с); release — доля броска, когда уходит из руки
+export const NIKITA_PEEL = { start: 1, max: 3, throwTime: 0.6, release: 0.5, flight: 0.45 };
 export const NIKITA_BAG = { every: 15, loot: 40, rotten: 0.25, chance: 0.5, items: ["banana", "tomato", "can"] };
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
@@ -324,7 +325,7 @@ export const CHARACTERS = [
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=87", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
     { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=87", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=2", clips: { ...HERO_CLIPS, throw: "cross" }, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -451,11 +452,10 @@ export const ARCHES = { firstAt: 160, every: [200, 280], reward: [3, 8, 20] };
 
 // «Ислам дует»: стоит у обочины, порыв ветра сносит героя на полосу в сторону от него. Удержаться — тапать
 // (taps раз за gust секунд), увернуться — подкатом или в прыжке. Выкуплен Ислам — не дует: «Своих не сдуваю».
-// npc — Ислам у обочины (новая модель в чёрном): стоит в idle (первый кадр), на вдохе приседает (idle до кадра crouch),
-// дует клипом blow — до кадра hold (сек):
-// присел и выбросил руки вперёд; yaw — доворот модели, чтобы в этом кадре смотрел поперёк дороги
+// npc — Ислам у обочины (новая модель в чёрном): idle — спокойная стойка героя (тот же скелет, что у models/islam.glb;
+// прежний stand был прыжком и крутился целиком), вдох и порыв руками — windMotion; yaw — доворот, чтобы дул поперёк дороги
 export const WIND = { firstAt: 420, every: [420, 620], inhale: 1.6, gust: 2.4, minGust: 0.9, push: 2.4, taps: 4, reward: 3, startZ: -10, curbX: 3.2,
-    npc: { url: "models/obj/islam_wind.glb?v=3", height: 1.8, idle: "stand", crouch: 0.3, blow: "blow", hold: 0.12, yaw: -0.9 } };
+    npc: { url: "models/obj/islam_wind.glb?v=4", height: 1.8, idle: "stand", yaw: -0.9 } };
 // inhale — вдох (камера на Исламе, замедление), gust — порыв, push — с какой скоростью сносит (м/с) без тапов;
 // не натапал taps за порыв — проигрыш («Сдуло Исламом»). startZ — за сколько метров до Ислама начинается вдох:
 // было 15 — за вдох и порыв (~27 м) он уезжал за камеру, и на телефоне «Ислам дует!» шло без Ислама в кадре;
@@ -597,17 +597,18 @@ export const GORILLA_BONUS = [
 ];
 export const HERO_PRICES = {}; // совместимость: выкупа за USDT больше нет
 
-// Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
+// Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше.
+// На обороте карточки героя: title — прозвище, pros и cons — плюсы и минусы списком
 export const HERO_PERKS = {
-    mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее, +4% USDT", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
-    pavel: { text: "Знает связки: смена полосы на 15% быстрее, +10% USDT, подкат длиннее", lane: 1.15, coinBonus: 10, slide: 1.25 },
-    islam: { text: "Вечно задыхается и спотыкается: смена полосы на 20% медленнее. Одна ошибка на стене прощается", lane: 0.8, wallForgive: 1, winded: 22, windedLines: ["Дыхалка… погодите…", "Зачем я столько дул?", "Ой, нога… Кто тут бордюр поставил?", "Я устал. Можно без погони?"] }, // winded — раз в столько секунд выдыхается и спотыкается
-    denchik: { text: "Больной: только ковыляет — бегать не может, на середине пути его догоняет Мизулина. Смена полосы на 15% медленнее. Мозг команды: +10% USDT", lane: 0.85, coinBonus: 10 },
-    sasha: { text: "+1 жизнь за забег, смена полосы на 15% быстрее и +20% USDT", lane: 1.15, extraLife: 1, coinBonus: 5 },
-    gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
-    dima: { text: "Свой среди постов: +15% USDT", coinBonus: 7 },
-    tovarus: { text: "Стабильный: +12% USDT", coinBonus: 8 },
-    nikita: { text: "Король мусорок: NSS ×1,5, мусор в мешок, бананы дают кожуру — кинь её в погоню. Но от него пахнет: девушки дают Карты вдвое реже, смена полосы на 15% медленнее", lane: 0.85, trash: true, stink: true },
+    mouse: { title: "Быстрые лапы", pros: ["Смена полосы на 15% быстрее", "+4% USDT"], lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
+    pavel: { title: "Знает связки", pros: ["Смена полосы на 15% быстрее", "+10% USDT", "Подкат длиннее"], lane: 1.15, coinBonus: 10, slide: 1.25 },
+    islam: { title: "Вечно задыхается", pros: ["Одна ошибка на стене прощается"], cons: ["Спотыкается на бегу", "Смена полосы на 20% медленнее"], lane: 0.8, wallForgive: 1, winded: 22, windedLines: ["Дыхалка… погодите…", "Зачем я столько дул?", "Ой, нога… Кто тут бордюр поставил?", "Я устал. Можно без погони?"] }, // winded — раз в столько секунд выдыхается и спотыкается
+    denchik: { title: "Больной", pros: ["Мозг команды: +10% USDT"], cons: ["Только ковыляет — бегать не может", "На середине пути его догоняет Мизулина", "Смена полосы на 15% медленнее"], lane: 0.85, coinBonus: 10 },
+    sasha: { pros: ["+1 жизнь за забег", "Смена полосы на 15% быстрее", "+20% USDT"], lane: 1.15, extraLife: 1, coinBonus: 5 },
+    gorilla: { title: "Бонусный герой", pros: ["+1 жизнь за забег", "+25% USDT"], extraLife: 1, coinBonus: 4 },
+    dima: { title: "Свой среди постов", pros: ["+15% USDT"], coinBonus: 7 },
+    tovarus: { title: "Стабильный", pros: ["+12% USDT"], coinBonus: 8 },
+    nikita: { title: "Король мусорок", pros: ["NSS ×1,5", "Мусор в мешок", "Бананы дают кожуру — кинь её в погоню"], cons: ["От него пахнет: девушки дают Карты вдвое реже", "Смена полосы на 15% медленнее"], lane: 0.85, trash: true, stink: true },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты

@@ -222,9 +222,26 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 /* поля по краям, чтобы первую и последнюю карточку можно было поставить в центр */
 .carousel::before, .carousel::after { content: ""; flex: 0 0 20%; }
 .hcard {
-    position: relative; flex: 0 0 60%; margin: 0 -1%; scroll-snap-align: center; border-radius: 22px; overflow: hidden;
-    background: var(--card-solid); border: 1px solid var(--line); cursor: pointer;
-    transition: border-color .3s, box-shadow .3s; will-change: transform;
+    position: relative; flex: 0 0 60%; margin: 0 -1%; scroll-snap-align: center; border-radius: 22px; cursor: pointer;
+    perspective: 1400px; transition: box-shadow .3s;
+}
+/* отдельный слой — только пока карусель едет: со слоем браузер не перерисовывает текст при смене масштаба
+   и растягивает картинку, снятой с уменьшенной (боковой) карточки, — у центральной текст был мыльным */
+.carousel.moving .hcard { will-change: transform; }
+/* способности — на обороте: карточка переворачивается снизу вверх целиком, у сторон изнанка скрыта.
+   Только разовые переходы transform (видеочип, без перерисовки), в покое ничего не анимируется */
+.hflip { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3, 1.25, .45, 1); }
+.hcard.open { z-index: 2; }
+.hcard.open .hflip { transform: rotateX(180deg); }
+/* перевернулась — оборот становится обычным плоским: 3D-слой с перспективой браузер рисует грубо, текст мылится.
+   snap — мгновенно вернуть 3D-положение перед обратным переворотом (hub.toggleSheet) */
+.hcard.open.flat .hflip { transform: none; transform-style: flat; transition: none; }
+.hcard.open.flat .hback { transform: none; -webkit-backface-visibility: visible; backface-visibility: visible; }
+.hcard.open.flat .hface { visibility: hidden; }
+.hcard.snap .hflip { transition: none; }
+.hface, .hback {
+    position: absolute; inset: 0; border-radius: 22px; overflow: hidden; background: var(--card-solid); border: 1px solid var(--line);
+    -webkit-backface-visibility: hidden; backface-visibility: hidden; transition: border-color .3s;
 }
 .hcard .ph { position: absolute; inset: 0 0 26% 0; background-size: cover; background-position: center 22%; }
 .hcard .ph::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 50%, var(--card-solid) 100%); }
@@ -232,19 +249,59 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .hcard .tag { align-self: flex-start; white-space: nowrap; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
 .hcard.active .tag { color: var(--red); }
 .hcard h3 { margin: 0; font-size: 17px; line-height: 1.05; }
-.hcard p { display: none; }
-.hcard.active { border-color: rgba(255, 255, 255, .16); box-shadow: 0 14px 44px -8px rgba(227, 52, 58, .5), 0 0 70px -10px rgba(227, 52, 58, .35); }
+.hcard.active { box-shadow: 0 14px 44px -8px rgba(227, 52, 58, .5), 0 0 70px -10px rgba(227, 52, 58, .35); }
+.hcard.active .hface, .hcard.active .hback { border-color: rgba(255, 255, 255, .16); }
 .hcard.st-soon .ph, .hcard.st-locked .ph { filter: grayscale(.7) brightness(.75); }
-/* способности: нажатие на фото или свайп вверх поднимают оборот карточки */
+/* способности: нажатие на фото или свайп вверх переворачивают карточку */
 .hcard .hhint { position: absolute; right: 10px; top: 10px; padding: 5px 9px; border-radius: 99px; background: rgba(0, 0, 0, .6); font-size: 11px; font-weight: 600; color: #fff; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .hcard.active .hhint { opacity: 1; }
 .hcard.open .hhint { opacity: 0; }
-.hsheet {
-    position: absolute; inset: 0; z-index: 2; padding: 16px 14px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
-    background: var(--card-solid); transform: translateY(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2, .8, .2, 1), visibility .28s;
+/* оборот — досье героя. --acc — цвет карточки: обычные красные, эксклюзивы за Карты золотые */
+.hback {
+    --acc: var(--red); --acc-hi: #ff7a7e; --acc-rgb: 227, 52, 58;
+    transform: rotateX(180deg); cursor: default;
+    background: radial-gradient(130% 55% at 50% 0%, rgba(var(--acc-rgb), .2), transparent 70%), var(--card-solid);
 }
-.hcard.open .hsheet { transform: none; visibility: visible; }
-.hsheet p { display: block; margin: 0 0 8px; font-size: 13px; line-height: 1.35; color: var(--text, #fff); }
+.hback.gold { --acc: var(--gold); --acc-hi: #ffe7a3; --acc-rgb: 233, 194, 90; }
+/* прокручивается только содержимое: знак и блик остаются на месте */
+.hb-in {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 11px; padding: 14px 12px 12px;
+    overflow: hidden auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+}
+.hb-in::-webkit-scrollbar { display: none; }
+/* водяной знак внизу оборота — у героев с короткими способностями низ карточки не пустой */
+.hback::before {
+    content: "P2P"; position: absolute; right: -6px; bottom: -14px; pointer-events: none;
+    font: 800 84px/1 var(--font-display); letter-spacing: -.04em; color: transparent; -webkit-text-stroke: 1.5px rgba(var(--acc-rgb), .16);
+}
+/* блик один раз проходит по обороту, когда карточка перевернулась */
+.hback::after {
+    content: ""; position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .09) 50%, transparent 65%); transform: translateX(-110%);
+}
+.hcard.open .hback::after { transform: translateX(110%); transition: transform .9s ease .35s; }
+.hb-head { display: flex; align-items: center; gap: 10px; }
+.hb-ava { flex: none; width: 46px; height: 46px; border-radius: 50%; background: center 22% / cover; border: 2px solid var(--acc); box-shadow: 0 0 0 3px rgba(var(--acc-rgb), .18); }
+.hb-head div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.hcard .hb-head .tag { padding: 2px 7px; font-size: 8.5px; color: var(--acc); border-color: rgba(var(--acc-rgb), .5); background: rgba(var(--acc-rgb), .1); }
+.hb-head h4 { margin: 0; font: 700 14px/1.1 var(--font-display); text-transform: uppercase; overflow-wrap: break-word; }
+.hb-head small { font-size: 11px; color: var(--muted); }
+.hb-stats, .hb-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hb-stats li { display: flex; align-items: center; gap: 8px; }
+.hb-stats span { flex: 0 0 64px; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #d2d2d2; }
+.hb-stats b { position: relative; flex: 1; height: 7px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+/* пять делений — неподвижная сетка поверх заливки; заливка растёт один раз при перевороте и сбрасывается, когда карточка закрыта */
+.hb-stats b::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 2px), var(--card-solid) calc(20% - 2px) 20%); }
+.hb-stats i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--acc), var(--acc-hi)); transition: transform 0s .6s; }
+.hcard.open .hb-stats i { transform: scaleX(var(--v)); transition: transform .6s cubic-bezier(.2, .8, .2, 1) var(--d); }
+.hb-perks li { position: relative; padding-left: 15px; font-size: 12px; line-height: 1.3; }
+.hb-perks li::before { content: "▲"; position: absolute; left: 0; top: 2px; font-size: 8px; color: #35e39b; }
+.hb-perks li.minus { color: #cfcfcf; }
+.hb-perks li.minus::before { content: "▼"; color: var(--red); }
+.hb-skill { margin-top: auto; padding: 9px 10px; border-radius: 14px; border: 1px solid rgba(53, 227, 155, .45); background: rgba(53, 227, 155, .08); display: flex; flex-direction: column; gap: 3px; }
+.hb-skill span { font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #35e39b; }
+.hb-skill b { font: 700 13px/1.15 var(--font-display); text-transform: uppercase; }
+.hb-skill p { margin: 0; font-size: 12px; line-height: 1.3; color: #cfcfcf; }
 /* высота панели не зависит от героя (текст разной длины): кнопка «Выбрать» не прыгает вверх-вниз при листании */
 .hero-detail { position: relative; z-index: 1; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; min-height: 150px; }
 .hero-detail .btn-main { margin-top: auto !important; }
@@ -257,6 +314,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 @media (max-height: 700px) {
     .carousel { min-height: 170px; padding: 36px 0; margin-top: -30px; margin-bottom: -30px; }
     .hero-detail { padding: 12px 14px; } .hero-detail .btn-main { padding: 13px; margin-top: 4px; }
+    .hb-in { gap: 8px; padding: 11px 10px 10px; }
 }
 .hero-detail .btn-main:disabled { background: none; border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: default; opacity: 1; }
 
@@ -572,6 +630,7 @@ body.hurt #hud::after {
 @media (prefers-reduced-motion: reduce) {
     #countdown.pop, #toast.show, body.hurt #hud::after, .fx-danger, .tile, .tile-run .arr, .tile-run::after, .hcard.active,
     #over, #over *, #over *::before, #over *::after { animation: none !important; }
+    .hflip, .hb-stats i, .hback::after { transition: none !important; }
 }
 
 /* Telegram во весь экран: сверху у Telegram свои кнопки («Закрыть», «…») — их высота в --tg-content-safe-area-inset-top */

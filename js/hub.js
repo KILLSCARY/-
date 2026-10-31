@@ -7,9 +7,10 @@ import { META, weekOf, weekEnd } from "./meta-rules.mjs";
 import { metaApi } from "./meta-client.js";
 import { renderShift, renderPromos } from "./city.js";
 import { CityMap } from "./map.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, BETA_TEST_BUTTONS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, BETA_TEST_BUTTONS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP, HERO_FIGHT, FIGHT } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
+const SKILL_ICONS = { turbo: "⚡", magnet: "🧲", x2: "×2", ram: "🛡", dive: "🗑" }; // значок умения на обороте карточки героя
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
 // в шапке места мало: от 100 тысяч — «123 тыс», от миллиона — «1,2 млн» (точные суммы — в магазине и на экране забега)
 // коротко для шапки меню: до 10 000 — целиком, дальше «98,7к», «123к», «1,2 млн» (было «123 тыс» — не влезало
@@ -545,10 +546,10 @@ export class Hub {
                 const tag = st === "play" ? (c.id === this.game.heroId ? "В забеге" : "В команде")
                     : st === "buy" ? (HERO_UNLOCKS[c.id]?.act === "cards" ? `Эксклюзив · ${fmt(HERO_UNLOCKS[c.id].cards)} Карт` : HERO_UNLOCKS[c.id]?.btn || "Закрыт")
                     : st === "locked" ? "На связи" : "Скоро";
-                const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
-                return `<div class="hcard st-${st}" data-id="${c.id}">
-                    <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
-                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div>${this.heroSheet(c)}</div>`;
+                const back = this.heroBack(c);
+                return `<div class="hcard st-${st}" data-id="${c.id}"><div class="hflip">
+                    <div class="hface"><div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
+                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3></div>${back ? `<span class="hhint">↻ Способности</span>` : ""}</div>${back}</div></div>`;
             }).join("");
             for (const el of box.querySelectorAll('.hcard')) {
                 el.onclick = () => {
@@ -561,8 +562,8 @@ export class Hub {
                 el.ontouchend = (e) => {
                     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
                     if (Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx) * 1.5 || !el.classList.contains("active")) return;
-                    const sheet = el.querySelector(".hsheet");
-                    if (dy > 0 && sheet?.scrollTop > 0) return; // внутри длинного текста свайп вниз листает его
+                    const back = el.querySelector(".hb-in");
+                    if (dy > 0 && back?.scrollTop > 0) return; // внутри длинного текста свайп вниз листает его
                     this.sheetSwiped = true;
                     setTimeout(() => { this.sheetSwiped = false; }, 400);
                     this.toggleSheet(el, dy < 0);
@@ -581,7 +582,13 @@ export class Hub {
                 const next = ids[Math.max(0, Math.min(ids.length - 1, i + Math.sign(dy)))];
                 if (next) this.goTo(next);
             };
-            box.onscroll = () => { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); }); };
+            box.onscroll = () => {
+                if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.layoutCarousel(); });
+                // пока едет — карточки на отдельных слоях (плавно); встала — слои снимаются, и текст перерисовывается чётко
+                box.classList.add("moving");
+                clearTimeout(this.movingT);
+                this.movingT = setTimeout(() => box.classList.remove("moving"), 160);
+            };
             // прокрутка встала (щелчок к карточке) — герой под каруселью сразу, без ожидания последнего scroll
             box.onscrollend = () => { this.scrollLock = null; this.layoutCarousel(); clearTimeout(this.snapTimer); this.setFocus(box.querySelector(".hcard.active")?.dataset.id); };
             requestAnimationFrame(() => this.scrollTo(this.focus ?? this.game.heroId, false));
@@ -596,18 +603,42 @@ export class Hub {
         this.renderDetail();
     }
 
-    // способности героя на обороте фото: пассивные и умение в забеге
-    heroSheet(c) {
-        const perk = HERO_PERKS[c.id]?.text;
+    // оборот карточки — досье героя: прозвище, шкалы из настроек забега и боя, плюсы и минусы, умение в забеге.
+    // Эксклюзивы за Карты — в золоте. Анимации только разовые (переворот, шкалы, блик) — в покое ничего не рисуется
+    heroBack(c) {
+        const perk = HERO_PERKS[c.id];
         if (c.soon || c.locked || !perk) return "";
-        const skill = HERO_SKILLS[c.id];
-        return `<span class="hhint">⌃ Способности</span><div class="hsheet"><span class="tag">Способности</span><p>${perk}</p>
-            ${skill ? `<span class="tag">Умение · ${skill.name}</span><p>${skill.text}. Раз за забег</p>` : ""}</div>`;
+        const skill = HERO_SKILLS[c.id], gold = HERO_UNLOCKS[c.id]?.act === "cards";
+        const stats = this.heroStats(c).map(([name, v], i) => `<li><span>${name}</span><b><i style="--v:${v.toFixed(2)};--d:${(0.3 + i * 0.07).toFixed(2)}s"></i></b></li>`).join("");
+        const list = [...(perk.pros || []).map((t) => `<li>${t}</li>`), ...(perk.cons || []).map((t) => `<li class="minus">${t}</li>`)].join("");
+        return `<div class="hback${gold ? " gold" : ""}"><div class="hb-in">
+            <div class="hb-head"><i class="hb-ava" style="background-image:url('${c.portrait ?? ""}')"></i>
+                <div><span class="tag">Способности</span><h4>${perk.title || c.name}</h4>${perk.title ? `<small>${c.name}</small>` : ""}</div></div>
+            <ul class="hb-stats">${stats}</ul>
+            <ul class="hb-perks">${list}</ul>
+            ${skill ? `<div class="hb-skill"><span>Умение · раз за забег</span><b>${SKILL_ICONS[skill.kind] || "⚡"} ${skill.name}</b><p>${skill.text}</p></div>` : ""}</div></div>`;
+    }
+
+    // шкалы 0…1 — из тех же чисел, по которым играет игра: доход (каждая N-я монета), смена полосы, сила, здоровье и скорость в бою
+    heroStats(c) {
+        const p = HERO_PERKS[c.id] || {}, f = HERO_FIGHT[c.id] || {}, k = (v) => Math.max(0.06, Math.min(1, v));
+        const agility = ((FIGHT.punchTime / (f.punchTime || FIGHT.punchTime)) + (FIGHT.dodgeCd / (f.dodgeCd || FIGHT.dodgeCd))) / 2;
+        return [
+            ["Доход", k(p.coinBonus ? 4 / p.coinBonus : 0)], // +25% (каждая 4-я) — полная шкала
+            ["Манёвр", k(c.sick ? 0 : ((p.lane || 1) - 0.75) / 0.4)],
+            ["Удар", k(((f.dmg ?? 1) - 0.5) / 0.5)],
+            ["Здоровье", k(((f.hp ?? 100) - 60) / 40)],
+            ["Ловкость", k((agility - 0.5) / 0.5)],
+        ];
     }
 
     toggleSheet(el, open = !el.classList.contains("open")) {
-        if (!el.querySelector(".hsheet") || open === el.classList.contains("open")) return;
+        if (!el.querySelector(".hback") || open === el.classList.contains("open")) return;
+        // в покое оборот плоский (flat) — текст чёткий; обратно переворачиваем из 3D с того же положения, без скачка
+        clearTimeout(this.flatT);
+        if (el.classList.contains("flat")) { el.classList.add("snap"); el.classList.remove("flat"); void el.offsetWidth; el.classList.remove("snap"); }
         el.classList.toggle("open", open);
+        if (open) this.flatT = setTimeout(() => { if (el.classList.contains("open")) el.classList.add("flat"); }, 1300); // после шкал и блика
         this.game.audio.play("swipe");
     }
 
@@ -652,7 +683,7 @@ export class Hub {
     setFocus(id, quiet) {
         if (!id || id === this.focus) return;
         this.focus = id;
-        for (const el of $("carousel").querySelectorAll(".hcard.open")) el.classList.remove("open"); // пролистали — оборот закрылся
+        for (const el of $("carousel").querySelectorAll(".hcard.open")) el.classList.remove("open", "flat"); // пролистали — оборот закрылся
         if (!quiet) this.game.audio.play("swipe");
         this.renderDetail();
     }

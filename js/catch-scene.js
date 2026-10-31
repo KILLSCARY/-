@@ -7,7 +7,7 @@ const AX = new THREE.Vector3(1, 0, 0), AZ = new THREE.Vector3(0, 0, 1);
 const STAGGER = 0.3, LAND = 0.68, ARRIVE = 0.9, GRAB = 1.2, YANK = 0.42, WHIP = 0.62, GAP = 0.2;
 const WHIPS = [GRAB + YANK + 0.25, GRAB + YANK + 0.25 + WHIP + GAP];
 const FOOT_Z = 1.9, CHASER_Z = FOOT_Z + 0.55, HOLD_Y = 1.86, HOLD_Z = CHASER_Z - 0.36;
-const STEP = 1 / 120, COINS = 14;
+const STEP = 1 / 120, COINS = 14, HEAD_CLEAR = 0.25; // HEAD_CLEAR — ниже этого макушка висящего героя не опускается
 export const CATCH_END = WHIPS[1] + WHIP + 0.45;
 
 const ss = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
@@ -276,6 +276,7 @@ export class CatchScene {
             aimMix(hb("LeftLeg"), hb("LeftFoot"), up, 1);
             aimMix(hb("RightUpLeg"), hb("RightLeg"), F.clone().multiplyScalar(-0.25).add(S.clone().multiplyScalar(0.75)).add(U.clone().multiplyScalar(-0.55)).add(new THREE.Vector3(0, lag * 0.06, 0)), hang);
             aimMix(hb("RightLeg"), hb("RightFoot"), down.clone().add(S.clone().multiplyScalar(0.45)).add(new THREE.Vector3(0, lag * 0.14, 0)), hang);
+            this.curl(hand.y - wp(hb("LeftFoot")).y, S, hang * free); // до рук: они висят уже от согнутого корпуса
             for (const [sd, sg, ph] of [["Left", -1, 0], ["Right", 1, 1.7]]) {
                 const fl = Math.sin(t * 11 + ph) * 0.28 * (1 - 0.4 * Math.min(1, Math.abs(lag)));
                 aimMix(hb(sd + "Arm"), hb(sd + "ForeArm"), down.clone().add(S.clone().multiplyScalar(sg * 1.05 + fl)).add(F.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, lag * 0.3, 0)), hang);
@@ -291,6 +292,20 @@ export class CatchScene {
             this.foot.copy(wp(hb("LeftFoot")));
         }
         rat.updateMatrixWorld(true);
+    }
+
+    // висит вниз головой, а макушка у асфальта (Никита сутулый: прямым он длиннее, чем в позе покоя, и кисть его не
+    // поднимает) — сгибается в поясе, как человек, которого держат за ногу. lift — на сколько тело поднимется, когда
+    // стопу поставят в кисть (сгиб корпуса стопу не двигает: ноги и позвоночник растут из бёдер)
+    curl(lift, side, k) {
+        if (k <= 0) return;
+        const spine = ["Spine", "Spine1", "Spine2"].map((n) => this.heroBone(n)), top = this.heroBone("HeadTop_End") || this.heroBone("Head");
+        for (let i = 0; i < 2; i++) { // вторым проходом добираем: позвонки гнутся каждый вокруг себя, а не вокруг пояса
+            const base = wp(spine[0]), tip = wp(top), len = base.distanceTo(tip);
+            if (tip.y + lift >= HEAD_CLEAR || len < 0.05) return;
+            const now = Math.acos(Math.min(1, (base.y - tip.y) / len)), want = Math.acos(Math.min(1, Math.max(-1, (base.y + lift - HEAD_CLEAR) / len)));
+            for (const b of spine) rotW(b, side, (want - now) * k / spine.length);
+        }
     }
 
     // камера: сбоку и низко, оба силуэта рядом и не закрывают друг друга

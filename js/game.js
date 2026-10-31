@@ -149,6 +149,14 @@ material.specularF90 = 0.0;
 }
 
 const LANE_SPRING = 26, LANE_LEAN = 0.02, LANE_YAW = 0.018; // перестроение: жёсткость пружины, наклон и доворот от скорости
+// бросок кожуры (Никита): по доле броска — куда смотрят плечо и предплечье правой руки в осях героя (x вправо, y вверх,
+// z назад): снизу спереди рука уходит вверх и за плечо. PEEL_TWIST — поворот корпуса к погоне, PEEL_LOOK — голова сверх него
+const PEEL_ARM = [
+    [0.25, [0.35, -0.6, -0.72], [0.2, -0.15, -0.97]],
+    [0.5, [0.3, 0.8, 0.52], [0.2, 0.35, 0.92]],
+    [0.7, [0.4, 0.35, 0.85], [0.3, -0.15, 0.94]],
+];
+const PEEL_TWIST = -1.05, PEEL_LOOK = -0.5;
 const FLY_COUNT = 3, FLY_SIZE = 0.09; // мухи вокруг Никиты: сколько и какого размера
 const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
@@ -1316,6 +1324,8 @@ class Game {
         else if (this.state === "bossintro" && this.runout) this.runoutStep(dt);
         else if (this.state === "over" && this.arrest) this.arrestStep(dt);
         else if (this.state === "menu") this.world.update(dt, 0, this.t); // в меню улица стоит: герой танцует на месте
+        // забег встал посреди броска (проигрыш, заставка босса): кожура не висит в воздухе, Никита не остаётся развёрнутым назад
+        if ((this.peelFly || this.peelTurn) && (this.state === "over" || this.state === "bossintro" || this.state === "fight")) this.stopPeel();
         if (this.state === "playing" || (this.state === "menu" && this.frameBudget() < 50)) this.measureFps();
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
@@ -1323,7 +1333,6 @@ class Game {
             : this.state === "menu" ? "idle" // спокойная стойка: быстрый танец при 30 кадрах в меню выглядел рвано
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
-            : this.throwT > 0 && this.state === "playing" ? "throw"
             : this.trip > 0 && this.state === "playing" ? "stumble"
             : this.wind?.state === "inhale" || this.wind?.state === "gust" ? "idle" // ждёт порыв и упирается, а не бежит на месте
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
@@ -1332,6 +1341,7 @@ class Game {
         if (this.trip > 0) this.trip -= dt;
         this.phoneScene?.restorePose();
         if (!this.arrest?.scene) animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
+        this.throwPose();
         this.updateStars(dt);
         this.updateFlies();
         this.moon.position.set(this.x - 4, 12, -14);
@@ -3489,15 +3499,21 @@ class Game {
         el.querySelector("b").textContent = `${this.bag || 0}/${NIKITA_BAG.every}`;
     }
 
-    // бросок кожуры назад: Никита оборачивается, кожура летит дугой, преследователь поскальзывается и отстаёт
+    // бросок кожуры назад: Никита на бегу оборачивается и кидает её через плечо, кожура летит дугой, преследователь поскальзывается
     throwPeel() {
         if (!this.perk.trash || this.state !== "playing" || this.peelFly || this.diving || !(this.peels > 0)) return;
         if (this.stumble <= 0) return void this.hub.toast("Погони нет — кожуру лучше приберечь");
         this.peels--;
-        this.peelFly = { t: 0, x: this.x, y: this.y + 1.1 };
+        this.peelFly = { t: 0, held: true }; // до замаха в руке (peelHand ставит throwPose)
+        this.peelHand = null;
         this.throwT = NIKITA_PEEL.throwTime;
         const m = this.world.trashModels?.banana;
-        if (m) { this.peelMesh = m.clone(); this.scene.add(this.peelMesh); this.peelMesh.position.set(this.x, this.y + 1.1, 0); }
+        if (m) { // в руке банан с дороги великоват — чуть меньше
+            this.peelMesh = m.clone();
+            this.peelMesh.scale.multiplyScalar(0.7);
+            this.scene.add(this.peelMesh);
+            this.peelMesh.position.set(this.x, this.y + 1.1, 0);
+        }
         this.audio.play("swipe");
         tg.haptic("medium");
         this.renderPeel();
@@ -3506,13 +3522,21 @@ class Game {
     peelStep(dt) {
         const T = NIKITA_PEEL.throwTime;
         if (this.throwT > 0) this.throwT -= dt;
-        this.peelTurn = this.throwT > 0 ? Math.sin(Math.PI * (1 - this.throwT / T)) * 2.6 : 0;
+        // ноги бегут вперёд — всё тело доворачивается чуть-чуть, к погоне оборачивается корпус (throwPose)
+        this.peelTurn = this.throwT > 0 ? -Math.sin(Math.PI * (1 - this.throwT / T)) * 0.3 : 0;
         const f = this.peelFly;
         if (!f) return;
+        const hand = this.peelHand;
+        if (f.held) {
+            if (this.peelMesh && hand) this.peelMesh.position.copy(hand);
+            if (this.throwT > 0 && 1 - this.throwT / T < NIKITA_PEEL.release) return;
+            f.held = false; // отпустил: дальше дуга от руки к преследователю
+            f.x = hand ? hand.x : this.x; f.y = hand ? hand.y : this.y + 1.1; f.z = hand ? hand.z : 0;
+        }
         f.t += dt;
         const k = Math.min(1, f.t / NIKITA_PEEL.flight), c = this.chaser, to = c?.visible ? c.position : null;
         if (this.peelMesh) {
-            this.peelMesh.position.set(f.x + ((to?.x ?? f.x) - f.x) * k, f.y * (1 - k) + Math.sin(Math.PI * k) * 1.2, (to?.z ?? 2) * k);
+            this.peelMesh.position.set(f.x + ((to?.x ?? f.x) - f.x) * k, f.y * (1 - k) + Math.sin(Math.PI * k) * 1.2, f.z + ((to?.z ?? 2) - f.z) * k);
             this.peelMesh.rotation.set(this.t * 12, this.t * 9, 0);
         }
         if (k < 1) return;
@@ -3529,6 +3553,54 @@ class Game {
     dropPeel() {
         this.peelFly = null;
         if (this.peelMesh) { this.scene.remove(this.peelMesh); this.peelMesh = null; }
+    }
+
+    stopPeel() {
+        this.dropPeel();
+        this.rat.rotation.y -= this.peelTurn || 0;
+        this.throwT = this.peelTurn = 0;
+    }
+
+    // поза броска поверх клипа бега (своего клипа броска у Никиты нет): после микшера доворачиваем корпус и голову
+    // к погоне, а правую руку ставим по направлениям PEEL_ARM — ноги при этом продолжают бежать
+    throwPose() {
+        const u = this.rat.userData, T = NIKITA_PEEL.throwTime, p = 1 - this.throwT / T;
+        if (!(this.throwT > 0) || this.state !== "playing" || !u.mixer || this.slideLeft > 0) return;
+        if (u.throwBones?.mixer !== u.mixer) { // модель героя сменилась — кости заново
+            const by = {};
+            this.rat.traverse((o) => { if (o.isBone) by[o.name.replace(/^mixamorig:?/, "")] = o; });
+            u.throwBones = { mixer: u.mixer, spine: ["Spine", "Spine1", "Spine2"].map((n) => by[n]).filter(Boolean), head: by.Head, arm: by.RightArm, fore: by.RightForeArm, hand: by.RightHand };
+        }
+        const b = u.throwBones;
+        if (!b.arm || !b.fore || !b.hand) return;
+        const v = (this.throwTmp ||= { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), up: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), p: new THREE.Quaternion(), t: new THREE.Quaternion() });
+        const ease = (from, to, x) => { const k = Math.min(1, Math.max(0, (x - from) / (to - from))); return k * k * (3 - 2 * k); };
+        const w = ease(0, 0.25, p) * (1 - ease(0.7, 1, p)); // вход в позу и обратно в бег — без рывка
+        this.rat.updateMatrixWorld(true);
+        const rq = this.rat.getWorldQuaternion(v.r);
+        const turn = (bone, q) => { // мировой поворот q вокруг основания кости: локальный = P⁻¹·q·P·локальный
+            bone.parent.getWorldQuaternion(v.p);
+            bone.quaternion.premultiply(v.t.copy(v.p).invert().multiply(q).multiply(v.p));
+            bone.updateMatrixWorld(true);
+        };
+        v.up.set(0, 1, 0).applyQuaternion(rq);
+        for (const s of b.spine) turn(s, v.q.setFromAxisAngle(v.up, PEEL_TWIST * w / b.spine.length));
+        if (b.head) turn(b.head, v.q.setFromAxisAngle(v.up, PEEL_LOOK * w));
+        // направление руки по ключам PEEL_ARM (между ключами — плавно), с весом w от позы бега
+        let i = 0;
+        while (i < PEEL_ARM.length - 2 && p > PEEL_ARM[i + 1][0]) i++;
+        const [p0, u0, f0] = PEEL_ARM[i], [p1, u1, f1] = PEEL_ARM[i + 1], k = ease(p0, p1, p);
+        const aim = (bone, child, d0, d1) => {
+            const from = child.getWorldPosition(v.a).sub(bone.getWorldPosition(v.b)).normalize();
+            const to = v.c.fromArray(d0).lerp(v.d.fromArray(d1), k).normalize().applyQuaternion(rq).multiplyScalar(w).addScaledVector(from, 1 - w).normalize();
+            turn(bone, v.q.setFromUnitVectors(from, to));
+        };
+        aim(b.arm, b.fore, u0, u1);
+        aim(b.fore, b.hand, f0, f1);
+        // кожура в ладони: чуть дальше запястья по предплечью; ставим сразу, иначе на замахе отстаёт от руки на кадр
+        const hand = b.hand.getWorldPosition(this.peelHand ||= new THREE.Vector3());
+        hand.addScaledVector(b.fore.getWorldPosition(v.a).sub(hand).normalize(), -0.08);
+        if (this.peelFly?.held && this.peelMesh) this.peelMesh.position.copy(hand);
     }
 
     renderPeel() {
