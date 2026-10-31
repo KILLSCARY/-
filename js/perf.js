@@ -68,14 +68,14 @@ export class PerfHud {
             calls: Math.round(avg("calls")), tris: Math.round(avg("tris")),
             geo: r.info.memory.geometries, tex: r.info.memory.textures, progs: r.info.programs?.length || 0,
             quality: g.quality, ratio: +r.getPixelRatio().toFixed(2), canvas: `${cv.width}×${cv.height}`,
-            res: +((g.resScale || 1) * (g.heatScale || 1)).toFixed(2), state: g.state, budget: Math.round(1000 / g.frameBudget()), cap: g.performanceFpsCap || 0,
+            res: +((g.resScale || 1) * (g.heatScale || 1)).toFixed(2), state: g.state, budget: Math.round(1000 / g.frameBudget()), cap: g.performanceFpsCap || 0, raf: Math.round(1000 / g.pacer.interval),
             longN: this.long.n, longMax: Math.round(this.long.max), heap: m ? Math.round(m.usedJSHeapSize / 1048576) : null,
         };
     }
 
     draw() {
         const s = this.stats(), f1 = (x) => x.toFixed(1);
-        this.el.textContent = `FPS ${Math.round(s.fps)} / ${s.budget}  кадр ${f1(s.frame)} мс  p95 ${f1(s.p95)}\n`
+        this.el.textContent = `FPS ${Math.round(s.fps)} / ${s.budget}  экран ${s.raf} Гц  кадр ${f1(s.frame)} мс  p95 ${f1(s.p95)}\n`
             + `JS ${f1(s.js)}  отрисовка ${f1(s.render)} мс\n`
             + `вызовов ${s.calls}  треуг. ${Math.round(s.tris / 1000)}k\n`
             + `геом ${s.geo}  текст ${s.tex}  шейдер ${s.progs}\n`

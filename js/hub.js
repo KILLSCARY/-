@@ -181,7 +181,7 @@ export class Hub {
             else this.renderSettings();
         };
         if ($("btn-high-120")) $("btn-high-120").onclick = () => applyQuality("high", 120);
-        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Частота кадров</h3><p>До 120 FPS в забеге и бою, если экран и Telegram поддерживают. При нехватке мощности — 60. Режим 60 FPS экономит заряд.</p>
+        box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Частота кадров</h3><p>${/iPhone|iPad|iPod/.test(navigator.userAgent) ? "На iPhone Telegram пока отдаёт игре не больше 60 FPS, даже на экране 120 Гц." : "До 120 FPS в забеге и бою, если экран и Telegram поддерживают. При нехватке мощности — 60."} Режим 60 FPS экономит заряд.</p>
             <div class="seg">${[[60, "60 FPS"], [120, "До 120 FPS"]].map(([v, n]) => `<button data-rate="${v}" class="${rate === v ? "on" : ""}">${n}</button>`).join("")}</div></div></div>`);
         box.insertAdjacentHTML("beforeend", `<div class="card set-row set-q"><div class="card-main"><h3>Советы Гориллы</h3><p>Короткий комикс: где герои, награды и как играть.</p>
             <button id="btn-replay-guide" class="btn-small btn-ghost">Показать обучение</button></div></div>`);
