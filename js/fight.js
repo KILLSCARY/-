@@ -8,7 +8,7 @@
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { loadModel, upgradeTextures } from "./models.js";
-import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE } from "./config.js";
+import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE, NIKITA_ITEMS } from "./config.js";
 import { MaskScene } from "./maskscene.js";
 import { tg } from "./tg.js";
 import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
@@ -606,8 +606,16 @@ export class Fight {
 
     // супер Никиты: помидор летит в соперника и лопается
     tomato(att, def, contact) {
-        const m = (this.tomatoItems ||= makeItems()).tomato();
-        m.scale.setScalar(1.5);
+        if (!this.tomatoModel && !this.tomatoLoading) { // своя модель; пока грузится — простая фигура
+            this.tomatoLoading = true;
+            loadModel(NIKITA_ITEMS.tomato.url, (gltf) => {
+                const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+                gltf.scene.scale.setScalar(0.42 / (Math.max(size.x, size.z) || 1));
+                this.tomatoModel = gltf.scene;
+            }, () => {});
+        }
+        const m = this.tomatoModel ? this.tomatoModel.clone() : (this.tomatoItems ||= makeItems()).tomato();
+        if (!this.tomatoModel) m.scale.setScalar(1.5);
         const from = contact.clone(), to = contact.clone();
         from.z += (att.z ?? 0) - (def.z ?? 0); from.y += 0.3;
         m.position.copy(from);

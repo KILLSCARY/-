@@ -1,6 +1,6 @@
 import { CoinBatch } from "./coin-batch.js";
 import { makeItems } from "./hecklers.js";
-import { NIKITA_BAG } from "./config.js";
+import { NIKITA_BAG, NIKITA_ITEMS } from "./config.js";
 import { updateAmbientAnimation } from "./frame-timing.js";
 // Ночной район: мокрый асфальт, хрущёвки с окнами, рольставни, красные лампы у подъездов,
 // оранжевые фонари, дождь. Плюс препятствия и монеты, которые едут навстречу крысу.
@@ -1474,11 +1474,24 @@ export class World {
     }
 
     // мусор для Никиты: подбирается как монета (game.js, userData.trash)
+    // банан и помидор из моделей; пока грузятся — простые фигуры из активисток. Модели общие на все копии
+    loadTrashModels() {
+        if (this.trashModels) return;
+        this.trashModels = {};
+        for (const [kind, cfg] of Object.entries(NIKITA_ITEMS)) loadModel(cfg.url, (gltf) => {
+            const m = gltf.scene, size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+            m.scale.setScalar(cfg.width / (Math.max(size.x, size.z) || 1));
+            this.trashModels[kind] = m;
+        }, () => {});
+    }
+
     addTrash(kind, lane, z) {
-        const make = (this.trashItems ||= makeItems())[kind];
-        if (!make) return;
-        const c = make();
-        c.scale.setScalar(1.7);
+        this.loadTrashModels();
+        const model = this.trashModels[kind], make = (this.trashItems ||= makeItems())[kind];
+        if (!model && !make) return;
+        const c = model ? model.clone() : make();
+        if (!model) c.scale.setScalar(1.7);
+        c.userData.model = true;
         c.userData.trash = kind;
         c.userData.baseY = 0.7;
         c.position.set(this.lanes[lane], 0.7, z);
