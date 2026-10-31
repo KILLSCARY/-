@@ -46,3 +46,18 @@ test("урон в голову сильнее, в корпус как есть",
     assert.equal(zoneDamage(10, "head"), Math.round(10 * FIGHT.zones.head));
     assert.equal(zoneDamage(10, "нет такой"), 10);
 });
+
+test("сила героев: сильнейшие как Спиди, дальше Горилла, Дима и Товарус, слабее всех Ислам", () => {
+    const power = (id) => FIGHTERS[id === "mouse" ? "mouse" : `hero_${id}`];
+    for (const id of ["pavel", "sasha"]) {
+        assert.deepEqual(power(id).dmg, FIGHTERS.mouse.dmg);
+        assert.equal(power(id).hp, FIGHTERS.mouse.hp);
+    }
+    const heavy = (id) => power(id).dmg.heavy;
+    assert.ok(heavy("mouse") > heavy("gorilla") && heavy("gorilla") > heavy("dima") && heavy("dima") > heavy("islam"));
+    assert.equal(heavy("denchik"), heavy("gorilla"), "Денчик бьёт как Горилла");
+    assert.ok(power("denchik").punchTime > power("gorilla").punchTime, "но медленнее");
+    assert.equal(power("dima").dmg.heavy, power("tovarus").dmg.heavy);
+    assert.ok(power("islam").hp < FIGHTERS.mouse.hp);
+    for (const f of Object.values(FIGHTERS)) for (const n of Object.values(f.dmg)) assert.ok(n >= 1);
+});

@@ -541,6 +541,7 @@ class Game {
         this.dropStage?.();
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
         this.trip = 0;     // клип «споткнулся» (TRIP)
+        this.windedAt = 0; // когда герой снова выдохнется (perk.winded)
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
         this.sickCatch = null; this.sickDone = false; // больной герой: Мизулина ещё не догоняла
         this.slowLeft = 0;
@@ -1760,6 +1761,13 @@ class Game {
 
     step(dt) {
         this.runTime += dt;
+        const winded = this.perk.winded; // Ислам: выдыхается и спотыкается, пара шагов медленнее
+        if (winded && this.runTime >= (this.windedAt ||= winded) && !this.jumping && !this.flight && !this.bossFight) {
+            this.windedAt += winded;
+            this.trip = TRIP;
+            this.slowLeft = Math.max(this.slowLeft, BALANCE.stumbleSlow);
+            if (!this.storyOn) this.speech(this.heroCfg?.name, pick(this.perk.windedLines), 2200);
+        }
         const sick = this.heroCfg?.sick; // больной герой (Денчик) — ковыляет весь забег с одной скоростью, без разгона
         this.speed = sick ? sick.speed : Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         // раз за забег; после апелляции забег идёт дальше без повторного ареста — так главу за Денчика можно пройти

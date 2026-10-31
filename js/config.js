@@ -601,13 +601,13 @@ export const HERO_PRICES = {}; // совместимость: выкупа за 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше
 export const HERO_PERKS = {
     mouse: { text: "Быстрые лапы: смена полосы на 15% быстрее, +4% USDT", lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
-    pavel: { text: "Знает связки: +10% USDT, подкат длиннее", coinBonus: 10, slide: 1.25 },
-    islam: { text: "Одна ошибка на стене прощается, перекат длиннее", wallForgive: 1, slide: 1.3 },
-    denchik: { text: "Больной: только ковыляет — бегать не может, на середине пути его догоняет Мизулина. Мозг команды: +10% USDT", coinBonus: 10 },
-    sasha: { text: "+1 жизнь за забег и +20% USDT", extraLife: 1, coinBonus: 5 },
+    pavel: { text: "Знает связки: смена полосы на 15% быстрее, +10% USDT, подкат длиннее", lane: 1.15, coinBonus: 10, slide: 1.25 },
+    islam: { text: "Вечно задыхается и спотыкается: смена полосы на 20% медленнее. Одна ошибка на стене прощается", lane: 0.8, wallForgive: 1, winded: 22, windedLines: ["Дыхалка… погодите…", "Зачем я столько дул?", "Ой, нога… Кто тут бордюр поставил?", "Я устал. Можно без погони?"] }, // winded — раз в столько секунд выдыхается и спотыкается
+    denchik: { text: "Больной: только ковыляет — бегать не может, на середине пути его догоняет Мизулина. Смена полосы на 15% медленнее. Мозг команды: +10% USDT", lane: 0.85, coinBonus: 10 },
+    sasha: { text: "+1 жизнь за забег, смена полосы на 15% быстрее и +20% USDT", lane: 1.15, extraLife: 1, coinBonus: 5 },
     gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
     dima: { text: "Свой среди постов: +15% USDT", coinBonus: 7 },
-    tovarus: { text: "Быстрые ноги: смена полосы на 10% быстрее, +12% USDT", lane: 1.1, coinBonus: 8 },
+    tovarus: { text: "Стабильный: +12% USDT", coinBonus: 8 },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
@@ -922,9 +922,23 @@ export const FIGHTERS = {
             heavy: ["Стоять!", "Пройдёмте!", "Нарушаем?", "Руки!"],
             roundWon: "Вот так-то.", roundLost: "Крепкий… Ещё раунд.", lose: "Задержан. Приходи, когда разберёшься.", spam: "Сопротивление при задержании!", rage: "Ну всё, ты доигрался." } },
 };
-// В бой выходит тот герой, за кого бежишь: модель та же, что в забеге, приёмы, урон и HP — как у Спиди
-for (const c of CHARACTERS) if (c.id !== "mouse") FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
-    model: c.url, height: c.height, portrait: c.portrait, hd: c.hd, capWhite: 0 }; // capWhite — только шляпа Спиди
+// Сила героев в бою. Сильнейшие (Спиди, Павел, Саша Белый) — без отличий; dmg — доля урона, hp — здоровье,
+// punchTime — длина удара (с, больше — медленнее), dodgeCd — пауза после уклона (с, больше — менее ловкий)
+export const HERO_FIGHT = {
+    gorilla: { dmg: 0.9, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
+    dima: { dmg: 0.8, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
+    tovarus: { dmg: 0.8, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
+    denchik: { dmg: 0.9, hp: 100, punchTime: 0.46, dodgeCd: 0.6 }, // бьёт как Горилла, но самый медленный
+    islam: { dmg: 0.6, hp: 85, punchTime: 0.44, dodgeCd: 0.6 }, // самый слабый: победить босса за него очень тяжело
+};
+const scaled = (dmg, k) => Object.fromEntries(Object.entries(dmg).map(([kind, n]) => [kind, Math.max(1, Math.round(n * k))]));
+// В бой выходит тот герой, за кого бежишь: модель та же, что в забеге, приёмы как у Спиди, сила — HERO_FIGHT
+for (const c of CHARACTERS) if (c.id !== "mouse") {
+    const p = HERO_FIGHT[c.id];
+    FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
+        model: c.url, height: c.height, portrait: c.portrait, hd: c.hd, capWhite: 0, // capWhite — только шляпа Спиди
+        ...(p && { hp: p.hp, dmg: scaled(FIGHTERS.mouse.dmg, p.dmg), punchTime: p.punchTime, dodgeCd: p.dodgeCd }) };
+}
 FIGHTERS.hero_dima.short = "Дима";
 FIGHTERS.hero_tovarus.short = "Товарус"; // «Саша» — уже Саша Белый
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");

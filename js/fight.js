@@ -421,7 +421,7 @@ export class Fight {
         } else if (cmd === "dodge") {
             if (!free || h.cd > 0) return;
             this.act(h, "dodge", FIGHT.dodgeTime);
-            h.cd = FIGHT.dodgeCd;
+            h.cd = h.cfg.dodgeCd ?? FIGHT.dodgeCd;
         } else if (cmd === "super") {
             if (this.superV < FIGHT.superMax) { this.flashHint("Супер копится от ударов и верных ответов"); return; }
             if (!free) return;
