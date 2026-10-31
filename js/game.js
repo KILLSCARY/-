@@ -1260,6 +1260,8 @@ class Game {
         curveUniform.value = CURVE.strength * this.curveMix * this.curveMix * (3 - 2 * this.curveMix);
         // скруглённый мир: дальше runFar даже верхушки домов уже за горизонтом, рисовать их незачем (без скругления, в меню — вся улица)
         const far = Math.round(Math.min(this.baseFar, this.baseFar + ((this.tier.runFar || this.baseFar) - this.baseFar) * this.curveMix));
+        const lightMenu = this.mobile && this.state === "menu"; // дождь в меню на телефоне: лишняя запись в видеопамять каждый кадр
+        if (this.world.rain && this.world.rain.visible === lightMenu) this.world.rain.visible = !lightMenu;
         if (far !== this.camera.far) {
             this.camera.far = far;
             this.scene.fog.far = Math.min(this.baseFog, far - 4);
@@ -1277,6 +1279,7 @@ class Game {
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
             : this.trip > 0 && this.state === "playing" ? "stumble"
+            : this.wind?.state === "inhale" || this.wind?.state === "gust" ? "idle" // ждёт порыв и упирается, а не бежит на месте
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
             : this.state === "countdown" || this.state === "paused" || this.state === "storyintro" || (this.state === "bossintro" && !this.runout) ? "idle" : "run";
         if (this.state === "menu") this.phase += dt * 6;
@@ -1311,9 +1314,9 @@ class Game {
             // на вдохе — почти на Ислама и с приближением, в порыв — между ним и героем
             const inh = this.wind.state === "inhale" ? 1 : 0;
             this.camInhale = (this.camInhale || 0) + (inh - (this.camInhale || 0)) * Math.min(1, dt * 3);
-            target.lerp((v.focus ||= new THREE.Vector3()).set((n.x + this.x) / 2, 1.3, n.z * 0.6), 0.35 * this.camFocus)
-                .lerp(v.focus.set(n.x, 1.5, n.z), 0.45 * this.camInhale);
-            cam.position.x += -this.wind.side * 0.9 * this.camFocus;
+            target.lerp((v.focus ||= new THREE.Vector3()).set((n.x + this.x) / 2, 1.2, n.z * 0.8), 0.75 * this.camFocus)
+                .lerp(v.focus.set(n.x, 1.25, n.z), 0.8 * this.camInhale);
+            cam.position.x += -this.wind.side * 1.3 * this.camFocus;
             cam.position.z += 0.6 * this.camFocus;
         }
         cam.position.x += Math.sin(k * Math.PI) * 4;
@@ -1335,7 +1338,7 @@ class Game {
             cam.updateProjectionMatrix();
         }
         if (this.camFocus > 0.01 && this.wind) { // приближение на Ислама
-            cam.fov -= 14 * (this.camInhale || 0) * this.camFocus;
+            cam.fov -= (8 + 12 * (this.camInhale || 0)) * this.camFocus;
             cam.updateProjectionMatrix();
             this.zoomed = true;
         } else if (this.zoomed) { this.zoomed = false; cam.fov = this.baseFov; cam.updateProjectionMatrix(); }
@@ -1797,7 +1800,7 @@ class Game {
             if (near.waited > 8 && !(near.answers.length === 2 && this.lane === 1)) this.chooseAnswer(near, this.lane); // посередине при двух табличках выбирать нечего
         }
         // Ислам вдыхает — почти стоим (камера на нём), дует — вполовину скорости
-        const windSlow = this.wind?.state === "inhale" ? 0.25 : this.wind?.state === "gust" ? 0.45 : 1;
+        const windSlow = this.wind?.state === "inhale" ? 0.08 : this.wind?.state === "gust" ? 0.1 : 1; // почти стоим: Ислам остаётся в кадре крупно
         const ventSlow = this.vent?.state === "blow" ? VENT.slow : 1; // в ветре вентилятора — тяжелее бежать
         // у стены больной герой не замедляется: он и так идёт со скоростью «у таблички» (×0,08 — почти стоял бы на месте)
         const slowTo = slow && !sick ? 0.08 : Math.min(windSlow, ventSlow);
@@ -1847,6 +1850,7 @@ class Game {
         this.watchBoss(dt, move);
         this.watchFreeBoss();
         this.world.update(dt, move, this.t);
+        this.windMotion();
         this.cards.update(dt, move);
         this.hecklers.update(dt, move);
         this.watchWall();
@@ -3389,7 +3393,7 @@ class Game {
         if (!free.length) { this.nextWindAt += 60; this.world.dropObstacle(npc); return; }
         this.nextWindAt += a + Math.random() * (b - a);
         const side = free[Math.floor(Math.random() * free.length)];
-        npc.position.set(side * 3.7, 0.18, z);
+        npc.position.set(side * WIND.curbX, 0.18, z);
         npc.rotation.y = (side < 0 ? Math.PI / 2 : -Math.PI / 2) - side * (WIND.npc.yaw || 0); // лицом к дороге — дует поперёк
         npc.userData.type = "decor";
         this.world.scene.add(npc);
@@ -3407,7 +3411,7 @@ class Game {
         $("wind-hint").hidden = !(w?.state === "gust" && !w.proof);
         if (!w) { this.camFocus = Math.max(0, (this.camFocus || 0) - dt * 2); return; }
         const z = w.npc.position.z;
-        if (!w.bones) this.windRig(w);
+        if (!w.bones) { this.windRig(w); this.brightIslam(w.npc); }
         if (w.state === "near" && z > WIND.startZ) { // вдох дольше и раньше — видно, что это Ислам набирает воздух
             if (!w.npc.visible || !w.npc.parent) w.state = "done"; // Ислама не видно (спрятан, убран) — порыва без него нет
             else if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
@@ -3425,13 +3429,6 @@ class Game {
         if (w.state === "inhale") {
             w.t -= dt;
             const inh = 1 - w.t / WIND.inhale;
-            if (w.blowA) { // плавно разводит руки и набирает воздух
-                const on = Math.min(1, inh * 2.5), e = on * on * (3 - 2 * on);
-                w.idle?.setEffectiveWeight(1 - e);
-                w.inhaleA.setEffectiveWeight(e);
-                w.inhaleA.time = w.inhaleA.getClip().duration * inh;
-            } else if (w.blow && w.idle) w.idle.time = WIND.npc.crouch * Math.min(1, inh * 1.4); // приседает, набирая воздух
-            else this.windPose(w, -inh); // набирает воздух
             if (w.t <= 0) {
                 w.state = "gust";
                 w.t = WIND.gust;
@@ -3447,17 +3444,6 @@ class Game {
         if (w.state === "gust") {
             w.t -= dt;
             const k = Math.min(1, (WIND.gust - w.t) / 0.25); // резкий выдох
-            if (w.blowA) { // наклонился и дует в кулак, корпус слегка толкает воздух
-                w.idle?.setEffectiveWeight(0);
-                w.inhaleA.setEffectiveWeight(1 - k);
-                w.blowA.setEffectiveWeight(k);
-                const d = w.blowA.getClip().duration;
-                w.blowA.time = d * (0.5 + 0.45 * Math.sin((WIND.gust - w.t) * 5));
-            } else if (w.blow) { // клип: присел и выбросил руки вперёд, дальше держит и чуть толкает
-                w.idle?.setEffectiveWeight(0);
-                w.blow.setEffectiveWeight(1);
-                w.blow.time = WIND.npc.hold * k - (k >= 1 ? 0.025 * (1 + Math.sin((WIND.gust - w.t) * 14)) : 0);
-            } else this.windPose(w, k);
             const mouth = w.head.getWorldPosition(this.windMouth ||= new THREE.Vector3());
             this.world.blowWind(mouth, -w.side, dt, k);
             if (w.proof) w.taps = WIND.taps; // «Устойчивость»: ветер не сносит
@@ -3476,16 +3462,19 @@ class Game {
                     this.usdt += WIND.reward;
                     this.hub.toast(`Удержался! +${WIND.reward} USDT`);
                     tg.haptic("success");
-                } else if (!this.spareLife(null)) { // не натапал — сдуло
+                } else if (!this.spareLife(null)) { // не натапал — споткнулся, как от первого удара; второй раз подряд — конец забега
                     this.windSlide = 0;
-                    this.gameOver("wind");
-                    return;
+                    if (this.stumble > 0) { this.gameOver("wind"); return; }
+                    this.hitOnce({ position: { x: 1e3 }, userData: {} });
+                    this.hub.toast("Сдуло! Не попадись теперь");
                 }
             }
         }
-        if (w.state === "done") {
-            if (w.blow && w.blow.getEffectiveWeight() > 0) { w.blow.setEffectiveWeight(0); w.idle?.setEffectiveWeight(1); }
-            this.windPose(w, 0);
+        if (w.state === "done" && !w.rested) { // выдохнул: снова стоит живой, а не застывает в позе порыва
+            w.rested = true;
+            w.bones?.head?.scale.setScalar(1);
+            const base = w.armBase, b = w.bones;
+            if (base) [b.l, b.r, b.lf, b.rf].forEach((x, i) => x?.rotation.copy(base[i]));
         }
         // камера: на вдохе и порыве — к Исламу, потом обратно
         const focus = w.state === "inhale" || w.state === "gust" ? 1 : 0;
@@ -3586,34 +3575,43 @@ class Game {
     }
 
     // кости Ислама для позы «дует»: клип стоит на первом кадре (стойка), поверх — наклоны позвоночника, головы, рук
+    // на вечерней улице тёмная одежда сливается: подсветка своей текстурой; материалы общие на все порывы
+    brightIslam(npc) {
+        const lit = (this.islamLit ||= new Map());
+        npc.traverse((o) => {
+            if (!o.isMesh || !o.material?.map) return;
+            let m = lit.get(o.material);
+            if (!m) { m = o.material.clone(); m.emissive?.set(0xffffff); m.emissiveMap = m.map; m.emissiveIntensity = 0.45; lit.set(o.material, m); lit.set(m, m); }
+            o.material = m;
+        });
+    }
+
     windRig(w) {
         const mixer = w.npc.userData.mixer;
         if (mixer) {
-            mixer.timeScale = 0;
-            for (const a of mixer._actions) a.time = 0;
-            w.idle = mixer._actions[0];
-            // вдох и выдох из общей библиотеки анимаций (models/anim/islam_wind.json); нет файла — старый клип
-            const clips = this.world.islam?.gltf.animations || [], act = (name) => { const clip = clips.find((c) => c.name === name); if (!clip) return null; const a = mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); return a; };
-            w.inhaleA = act("wind_inhale");
-            w.blowA = w.inhaleA && act("wind_blow");
-            if (!w.blowA) { const clip = clips.find((c) => c.name === WIND.npc.blow); if (clip) { w.blow = mixer.clipAction(clip); w.blow.play(); w.blow.setEffectiveWeight(0); } }
+            w.idle = mixer._actions[0]; // стойка идёт сама: корпус не трогаем, поверх неё двигаются только руки (windMotion)
         }
         const bone = (name) => { let b = null; w.npc.traverse((o) => { if (!b && o.isBone && o.name.endsWith(name)) b = o; }); return b; };
-        w.bones = { spine: ["Spine", "Spine1", "Spine2"].map(bone).filter(Boolean), head: bone("Head"), neck: bone("Neck"), l: bone("LeftArm"), r: bone("RightArm") };
+        w.bones = { spine: ["Spine", "Spine1", "Spine2"].map(bone).filter(Boolean), head: bone("Head"), neck: bone("Neck"), l: bone("LeftArm"), r: bone("RightArm"), lf: bone("LeftForeArm"), rf: bone("RightForeArm") };
         w.head = w.bones.head || w.npc;
-        w.pose = 0;
     }
 
-    // p: −1 — вдох (откинулся назад, грудь вперёд), 0 — стоит, 1 — дует (наклон вперёд, руки назад)
-    windPose(w, p) {
-        if (!w.bones) return;
-        w.pose += (p - w.pose) * 0.35;
-        const q = w.pose, b = w.bones;
-        for (const s of b.spine) s.rotation.x += q * (q > 0 ? 0.16 : 0.1);
-        if (b.neck) b.neck.rotation.x += q * 0.15;
-        if (b.head) { b.head.rotation.x += q * (q > 0 ? 0.25 : 0.35); b.head.scale.setScalar(1 + Math.max(0, -q) * 0.06); }
-        if (b.l) b.l.rotation.z += Math.max(0, q) * 0.6;
-        if (b.r) b.r.rotation.z -= Math.max(0, q) * 0.6;
+    // поверх клипа, после обновления мира: на вдохе поднимает руки и откидывается, на порыве машет руками и дует всем телом
+    windMotion() {
+        const w = this.wind, b = w?.bones;
+        if (!b || (w.state !== "inhale" && w.state !== "gust")) return;
+        const inh = w.state === "inhale" ? 1 - w.t / WIND.inhale : 0, on = inh * inh * (3 - 2 * inh);
+        const g = w.state === "gust" ? Math.min(1, (WIND.gust - w.t) / 0.2) : 0, T = this.t;
+        // корпус стоит: на вдохе руки поднимаются, на порыве крутятся кругами от плеча
+        if (b.head) b.head.scale.setScalar(1 + on * 0.1 + g * (0.08 + Math.sin(T * 14) * 0.03)); // щёки надуваются
+        // от снимка стойки, а не добавкой: микшер не переписывает кость, если клип не изменился, и добавка копилась бы
+        const base = (w.armBase ||= [b.l, b.r, b.lf, b.rf].map((x) => x && x.rotation.clone()));
+        const spin = T * 10, cx = Math.sin(spin) * g, cz = Math.cos(spin) * g, up = on * 0.9 + g * 0.5 + cz * 0.7;
+        const set = (x, i, dx, dz) => { if (x) x.rotation.set(base[i].x + dx, base[i].y, base[i].z + dz); };
+        set(b.l, 0, cx * 0.9, up);
+        set(b.r, 1, -cx * 0.9, -up);
+        set(b.lf, 2, 0, on * 0.4 + g * 0.3);
+        set(b.rf, 3, 0, -on * 0.4 - g * 0.3);
     }
 
     // выбор ответа в замедлении: герой встаёт на полосу ответа, скорость возвращается

@@ -2101,18 +2101,18 @@ export class World {
         this.windSeed.forEach((s, i) => {
             s.t += dt * s.v;
             if (s.t > 1) Object.assign(s, this.windSeedFn(), { t: 0 });
-            const d = s.t * 9 * power, [x, y, z] = at(s, d);
+            const d = s.t * 12 * power, [x, y, z] = at(s, d);
             pos.set([x, y, z, x - dir * s.l * (0.3 + s.t), y, z], i * 6);
         });
         this.windLines.geometry.attributes.position.needsUpdate = true;
-        this.windLines.material.opacity = 0.55 * power;
+        this.windLines.material.opacity = 0.9 * power;
         this.puffSeed.forEach((s, i) => {
             s.t += dt * s.v * 0.8;
             if (s.t > 1) Object.assign(s, this.windSeedFn(), { t: 0 });
-            const p = this.windPuffs[i], d = s.t * 8 * power;
+            const p = this.windPuffs[i], d = s.t * 11 * power;
             p.position.set(...at(s, d));
-            p.scale.setScalar(0.25 + s.t * 1.1);
-            p.material.opacity = Math.sin(s.t * Math.PI) * 0.35 * power;
+            p.scale.setScalar(0.35 + s.t * 1.6);
+            p.material.opacity = Math.sin(s.t * Math.PI) * 0.6 * power;
         });
     }
 

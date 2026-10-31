@@ -10,7 +10,7 @@ const PROPS = {
     2: [
         { url: 'models/story/cordon.glb?v=2', x: 3.5, z: 0, height: 1.7, rotation: -.25 }, // у бордюра: мимо них пробегают, полоса свободна
         { url: 'models/obj/lite/patrol1.glb', x: 4.3, z: -3.6, height: 1.65, rotation: Math.PI / 2 },
-        { url: 'models/obj/lite/cop.glb', x: 3.1, z: .9, height: 1.85, clip: 'talk' },
+        { url: 'models/obj/lite/cop.glb', x: 3.1, z: .9, height: 1.6, clip: 'talk' },
     ],
     3: [
         { url: 'models/story/headquarters.glb?v=2', x: -6.3, z: 0, height: 5.4, rotation: Math.PI / 2, sidewalk: true, glow: .55 },

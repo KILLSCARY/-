@@ -182,7 +182,10 @@ export function redisStore(url, token, fetchImpl = fetch) {
             if (v == null) return { nss: 0, rank: 0 };
             return { nss: Number(v), rank: Number(await cmd("ZREVRANK", `p2p:race:${w}`, String(id))) + 1 };
         },
-        async raceScores(w, ids) { return Promise.all(ids.map(async (id) => Number((await cmd("ZSCORE", `p2p:race:${w}`, id)) || 0))); },
+        async raceScores(w, ids) { // одной командой: иначе по запросу в базу на каждую строку таблицы
+            if (!ids.length) return [];
+            return ((await cmd("ZMSCORE", `p2p:race:${w}`, ...ids)) || []).map((v) => Number(v || 0));
+        },
         async metaGet(id) { return (await cmd("GET", `p2p:meta:${id}`)) || null; },
         async metaCas(id, was, next) { return Number(await cmd("EVAL", META_CAS_LUA, "1", `p2p:meta:${id}`, was || "", next)) === 1; },
         async shiftDue(id, at) { await cmd("ZADD", "p2p:shiftdue", String(at), String(id)); },

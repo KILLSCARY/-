@@ -66,3 +66,10 @@ test("счётчик мест не читает базу на каждый за�
     for (let i = 0; i < 20; i++) await worker.fetch(new Request("https://x.test/api/prize", { headers: { "CF-Connecting-IP": "7.7.7.7" } }), env);
     assert.ok(reads <= 1, `чтений: ${reads}`);
 });
+
+test("аватары: чужие адреса не проксируются", async () => {
+    for (const u of ["http://t.me/a.jpg", "https://evil.test/a.jpg", "https://t.me.evil.test/a.jpg", "https://evilt.me/a.jpg", "нет"]) {
+        const r = await worker.fetch(new Request(`https://x.test/api/ava?u=${encodeURIComponent(u)}`), env);
+        assert.equal(r.status, 400, u);
+    }
+});

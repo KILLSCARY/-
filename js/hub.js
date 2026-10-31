@@ -20,6 +20,21 @@ const short = (n) => {
     return n < 1e4 ? fmt(n) : n < 1e5 ? `${d1(n / 1e3)}к` : n < 1e6 ? `${Math.floor(n / 1e3)}к` : `${d1(n / 1e6)} млн`;
 };
 // фото профиля Telegram — только https с доменов Telegram (как проверяет сервер, api/_lib/rating.mjs photoOf)
+// аватар: через наш сервер (кэш на неделю, Telegram может быть недоступен), не вышло — напрямую, потом буква. Один и тот же
+// снимок не качается заново при обновлении таблицы
+const avatars = new Map();
+function avatarImg(url) {
+    let img = avatars.get(url);
+    if (img === null) return null;
+    if (!img) {
+        img = new Image();
+        img.alt = ""; img.decoding = "async"; img.referrerPolicy = "no-referrer";
+        img.onerror = () => { if (img.dataset.direct) { avatars.set(url, null); img.remove(); return; } img.dataset.direct = "1"; img.src = url; };
+        img.src = `/api/ava?u=${encodeURIComponent(url)}`;
+        avatars.set(url, img);
+    }
+    return img;
+}
 const TG_PHOTO = /^https:\/\/([a-z0-9-]+\.)*(t\.me|telegram\.org|telesco\.pe)\/[^\s"'<>]{1,400}$/i;
 const ICON = { usdt: '<svg class="ico-usdt"><use href="#ico-usdt"/></svg>', gem: '<svg class="ico-usdt"><use href="#ico-gem"/></svg>' };
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -358,9 +373,10 @@ export class Hub {
             // задания, отмеченные на телефоне без связи, — дослать: сервер засчитает один раз.
             // Разбор, друг и подписка так не засчитываются — их проверяет сервер (заявка, ссылка, бот)
             const done = this.p.data.tasksDone || {};
-            await Promise.all(Object.keys(done).filter((id) => !["razbor", "invite", "store"].includes(id)).map((id) => prize.task(id)));
-            await this.autoCheck();
+            // таблица не ждёт проверок: подписку и друзей бот спрашивает долго
+            const checks = Promise.all(Object.keys(done).filter((id) => !["razbor", "invite", "store"].includes(id)).map((id) => prize.task(id))).then(() => this.autoCheck()).then(() => this.renderRateTasks()).catch(() => {});
             const r = await prize.top(50);
+            void checks;
             if (!r || r.status !== 200) {
                 // код причины — чтобы по скрину было понятно: 401 — сервер не узнал Telegram (другой бот/нет BOT_TOKEN), 0 — нет сети
                 const why = r?.status === 401 ? "сервер не узнал Telegram-аккаунт" : r?.status === 404 ? "сервер рейтинга не найден" : r?.status ? `ошибка ${r.status}` : "нет связи с сервером";
@@ -398,10 +414,8 @@ export class Hub {
         const name = [u.first_name, u.last_name ? `${u.last_name[0]}.` : ""].filter(Boolean).join(" ").trim() || "Ты";
         $("rate-name").textContent = name;
         $("rate-ini").textContent = name[0].toUpperCase();
-        let img = ava.querySelector("img");
-        if (!TG_PHOTO.test(u.photo_url || "")) return void img?.remove();
-        if (!img) { img = new Image(); img.alt = ""; img.referrerPolicy = "no-referrer"; img.onerror = () => img.remove(); ava.prepend(img); }
-        if (img.src !== u.photo_url) img.src = u.photo_url;
+        const img = TG_PHOTO.test(u.photo_url || "") ? avatarImg(u.photo_url) : null;
+        if (img) { if (img.parentNode !== ava) ava.prepend(img); } else ava.querySelector("img")?.remove();
     }
 
     renderRating(r) {
@@ -428,6 +442,9 @@ export class Hub {
         const base = racing ? race.top : top, rows = [...base];
         if (racing) { if (race.me.rank && !base.some((x) => x.id === me.id)) rows.push({ id: me.id, ...race.me, name: "Ты" }); }
         else if (me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
+        const sig = JSON.stringify([racing, rows]); // таблица та же — не перестраиваем, аватары не мигают
+        if (sig === this.rateSig && list.querySelector(".rate-row")) return;
+        this.rateSig = sig;
         list.innerHTML = rows.length ? rows.map((x, i) => (i === base.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : `<p class="rate-empty">Пока никого — будь первым!</p>`;
         [...list.querySelectorAll(".rate-row")].forEach((el, i) => {
             const nm = rows[i].name || "Игрок";
@@ -436,7 +453,8 @@ export class Hub {
             av.textContent = nm.trim()[0]?.toUpperCase() || "?";
             // фото профиля Telegram (сервер хранит photo_url из подписанного initData); не загрузилось — остаётся буква
             const ph = rows[i].id === me.id ? rows[i].photo || tg.user?.photo_url : rows[i].photo;
-            if (TG_PHOTO.test(ph || "")) { const img = new Image(); img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer"; img.onerror = () => img.remove(); img.src = ph; av.append(img); }
+            const img = TG_PHOTO.test(ph || "") ? avatarImg(ph) : null;
+            if (img) av.append(img);
             if (rows[i].id === me.id) el.querySelector(".nm b").insertAdjacentHTML("beforeend", ` <i>ты</i>`);
         });
         // «За что очки»: только забег

@@ -43,9 +43,30 @@ async function prize(request, env) {
     }
 }
 
+// аватары Telegram через наш адрес: кэш на неделю. Только домены Telegram и только картинки
+const AVA_HOST = /^([a-z0-9-]+\.)*(t\.me|telegram\.org|telesco\.pe)$/i;
+async function avatar(request) {
+    const raw = new URL(request.url).searchParams.get("u") || "";
+    let src;
+    try { src = new URL(raw); } catch { return new Response("bad", { status: 400 }); }
+    if (src.protocol !== "https:" || !AVA_HOST.test(src.hostname)) return new Response("bad", { status: 400 });
+    const cache = globalThis.caches?.default, key = new Request(request.url);
+    const hit = await cache?.match(key);
+    if (hit) return hit;
+    if (tooMany(`ava:${request.headers.get("CF-Connecting-IP") || "?"}`)) return new Response("busy", { status: 429 });
+    const r = await fetch(src, { redirect: "follow" }).catch(() => null);
+    const type = r?.headers.get("Content-Type") || "", final = r?.url ? new URL(r.url).hostname : src.hostname;
+    if (!r?.ok || !type.startsWith("image/") || !AVA_HOST.test(final)) return new Response("no", { status: 404 });
+    const res = new Response(r.body, { headers: { "Content-Type": type, "Cache-Control": "public, max-age=604800", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" } });
+    await cache?.put(key, res.clone());
+    return res;
+}
+
 export default {
     async fetch(request, env) {
-        if (new URL(request.url).pathname === "/api/prize") return prize(request, env);
+        const path = new URL(request.url).pathname;
+        if (path === "/api/prize") return prize(request, env);
+        if (path === "/api/ava") return avatar(request);
         return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found", { status: 404 });
     },
     async scheduled(event, env) {

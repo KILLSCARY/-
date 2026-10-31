@@ -32,6 +32,7 @@ function fakeRedis() {
             case "GET": return s.get(a[0]) ?? null;
             case "ZADD": { const gt = a[1] === "GT", sc = Number(a[gt ? 2 : 1]), id = a[gt ? 3 : 2], m = Z(a[0]); if (!gt || !(m.get(id) >= sc)) m.set(id, sc); return 1; }
             case "ZINCRBY": { const m = Z(a[0]); m.set(a[2], (m.get(a[2]) || 0) + Number(a[1])); return String(m.get(a[2])); }
+            case "ZMSCORE": return a.slice(1).map((id) => (Z(a[0]).has(id) ? String(Z(a[0]).get(id)) : null));
             case "ZSCORE": return Z(a[0]).has(a[1]) ? String(Z(a[0]).get(a[1])) : null;
             case "ZREVRANK": { const i = sorted(a[0]).findIndex(([id]) => id === a[1]); return i < 0 ? null : i; }
             case "ZREVRANGE": return sorted(a[0]).slice(Number(a[1]), Number(a[2]) + 1).flatMap(([id, sc]) => [id, String(sc)]);
