@@ -1992,7 +1992,8 @@ export class World {
 
     loadOfficer() {
         const cfg = POLICE_OFFICER;
-        loadModel(this.lite(cfg.url), (gltf) => {
+        // на телефоне — своя лёгкая модель (7 тыс. треугольников вместо 20): бой ей не нужен, клипы run, talk, shout есть
+        loadModel(this.tier.lite ? "models/obj/lite/cop.glb?v=1" : cfg.url, (gltf) => {
             this.officer = this.fitRig(gltf, cfg.height);
             this.warmQueue.push(this.makeOfficer(POLICE_OFFICER.run));
             for (const { car, side } of this.officerPosts) { // у постов на обочине — лицом к бегущему, вполоборота к дороге

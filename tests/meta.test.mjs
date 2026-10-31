@@ -8,7 +8,7 @@ import { META, CASE_DROPS, emptyMeta, rollDrop, openCase, collectShift, upgradeS
 
 const env = { BOT_TOKEN: "t" };
 const T0 = 1800000000000;
-const call = (store, action, body = {}, now = T0) => handle(action, { ...body, initData: signInitData({ user: JSON.stringify({ id: 7, first_name: "A" }), auth_date: String(Math.floor(now / 1000)) }, "t"), action }, { store, env, now });
+const call = (store, action, body = {}, now = T0, rng) => handle(action, { ...body, initData: signInitData({ user: JSON.stringify({ id: 7, first_name: "A" }), auth_date: String(Math.floor(now / 1000)) }, "t"), action }, { store, env, now, rng });
 const low = () => 0.5;
 
 test("шкала удачи: эпическое на 10-м, легендарное на 30-м открытии, даже при худшем везении", () => {
@@ -44,7 +44,7 @@ test("API: кейс, плохие данные, состояние пережи�
     const store = memoryStore();
     assert.equal((await call(store, "caseopen", { caseId: "nope", openId: "aaaaaa" })).status, 400);
     assert.equal((await call(store, "caseopen", { caseId: "merchant", openId: "!" })).status, 400);
-    const r = await call(store, "caseopen", { caseId: "merchant", openId: "aaaaaa" });
+    const r = await call(store, "caseopen", { caseId: "merchant", openId: "aaaaaa" }, T0, () => 0); // обычный приз: легендарный сбросил бы счётчик
     assert.equal(r.status, 200);
     assert.ok(CASE_DROPS.merchant[r.json.index]);
     assert.equal((await call(store, "meta")).json.pity.merchant.legend, 1);

@@ -24,7 +24,7 @@ export function checkChain(events, cfg) {
     return { ok: true };
 }
 
-export async function handle(action, body, { store, env = process.env, now = Date.now(), fetchImpl = fetch, takenOf = (st) => st.taken() }) {
+export async function handle(action, body, { store, env = process.env, now = Date.now(), rng, fetchImpl = fetch, takenOf = (st) => st.taken() }) {
     const cfg = prizeConfig(env);
     const counter = async () => { const taken = Math.min(cfg.total, await takenOf(store)); return { total: cfg.total, taken, left: cfg.total - taken }; };
     if (action === "counter") {
@@ -68,7 +68,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id), ...story } };
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
-    if (META_ACTIONS.includes(action)) return handleMeta(action, body, who, { store, env, now, fetchImpl });
+    if (META_ACTIONS.includes(action)) return handleMeta(action, body, who, { store, env, now, rng, fetchImpl });
     if (action === "apply") {
         const r = await handleLead(body, who, { store, env, now, fetchImpl });
         if (r.status === 200) await leadNss(who, { store });

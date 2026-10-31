@@ -212,7 +212,7 @@ export const ATMS = [
 const R = Math.PI / 2;
 export const MODELS = {
     car: [
-        { url: "models/obj/car1.glb?v=4", axis: "z", size: 4.4 }, // новая модель 30.10: нос уже к +Z
+        { url: "models/obj/car1.glb?v=5", axis: "z", size: 4.4 }, // новая модель 30.10: нос уже к +Z
         { url: "models/obj/car2.glb?v=2", axis: "z", size: 4.4, rotateY: R, noLite: true }], // noLite: упростить без каши на текстуре не вышло (29 тыс.), на лёгкой графике только car1
     police: [ // патрульные машины постов ДПС (инспектор рядом — живой, POLICE_OFFICER)
         { url: "models/obj/patrol1.glb", axis: "z", size: 4.6, rotateY: R },
@@ -284,7 +284,7 @@ export const NPCS = {
     cat: { url: "models/obj/cat.glb", length: 0.55, walk: "walk", count: 3, speed: 0.6 },
     pigeon: { url: "models/obj/pigeon.glb", height: 0.55, flocks: 3, flock: [3, 5], flee: 9 }, // height — с поднятыми крыльями, как в модели
     // Никита Енот: у каждого бака своя сценка. binRim — высота края бака в модели; sitY, insideY, diveY — высота Никиты в сценке
-    nikita: { url: "models/obj/nikita.glb?v=2", bin: "models/obj/trash_bin.glb?v=1", binRim: 0.513, panties: "models/obj/panties.glb?v=1", height: 1.78, spots: ["sit", "dig", "inside", "dig"], sitY: 0.67, insideY: 0.1, diveY: -0.75 },
+    nikita: { url: "models/obj/nikita.glb?v=3", bin: "models/obj/trash_bin.glb?v=2", binRim: 0.513, panties: "models/obj/panties.glb?v=2", height: 1.78, spots: ["sit", "dig", "inside", "dig"], sitY: 0.67, insideY: 0.1, diveY: -0.75 },
 };
 
 // Персонажи (Meshy biped с анимациями): Спиди Гонзалес — мышь, стартовый; Павел Инаков — человек с бородой
