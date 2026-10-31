@@ -225,8 +225,8 @@ export const MODELS = {
     starbox: [{ url: "models/obj/starbox.glb", axis: "y", size: 1.45 }],
     hood: [{ url: "models/obj/hood.glb", axis: "x", size: 1.6 }],
     block: [
-        { url: "models/obj/blockset_a1.glb?v=2", axis: "x", size: 1.4 },
-        { url: "models/obj/blockset_b1.glb?v=2", axis: "x", size: 1.6 },
+        { url: "models/obj/blockset_a1.glb?v=2", axis: "x", size: 1.4, clean: true },
+        { url: "models/obj/blockset_b1.glb?v=2", axis: "x", size: 1.6, clean: true },
         { url: "models/obj/barricade.glb?v=2", axis: "x", size: 1.6, rotateY: R }],
     roadblock: [
         { url: "models/obj/blockset_a0.glb?v=2", axis: "x", size: 1.6, rotateY: R },

@@ -7,7 +7,7 @@ import { updateAmbientAnimation } from "./frame-timing.js";
 
 import * as THREE from "./vendor/three.module.js";
 import { cartoonRoad } from "./road-art.js";
-import { cartoonModel } from "./toon-tex.js";
+import { cartoonModel, paintImage } from "./toon-tex.js";
 
 const KEEP_PHOTO = ["coin", "testo", "choline", "ezhovik", "atm", "bank", "starbox"];
 import { Reflector } from "./vendor/jsm/Reflector.js";
@@ -61,13 +61,13 @@ const loader = new THREE.TextureLoader();
 // одна загрузка на файл; копии (свой repeat у каждой) обновляются, когда картинка пришла —
 // раньше needsUpdate без картинки заставлял three.js ругаться в консоль каждый кадр
 const texCache = {};
-function loadTex(file, repeat, srgb) {
+function loadTex(file, repeat, srgb, opts) {
     let entry = texCache[file];
     if (!entry) {
         entry = texCache[file] = { copies: [], ready: false };
         entry.tex = new THREE.Texture();
         const load = () => loader.load(`textures/${file}`, (img) => {
-            entry.tex.image = img.image; // источник общий у всех копий
+            entry.tex.image = opts ? paintImage(img.image, opts) : img.image; // источник общий у всех копий
             entry.ready = true;
             for (const c of entry.copies) c.needsUpdate = true;
         });
@@ -156,8 +156,9 @@ function pickFacade() {
 }
 
 // maps: какие карты есть у текстуры, кроме diff: "nor", "rough", "glow"
-function pbr(name, repeat, maps = ["nor", "rough"]) {
-    const out = { map: loadTex(`${name}_diff.jpg`, repeat, true) };
+// paint — перекрасить цвет под мультяшный стиль (см. paintImage)
+function pbr(name, repeat, maps = ["nor", "rough"], paint) {
+    const out = { map: loadTex(`${name}_diff.jpg`, repeat, true, paint) };
     if (maps.includes("nor")) out.normalMap = loadTex(`${name}_nor.jpg`, repeat);
     if (maps.includes("rough")) out.roughnessMap = loadTex(`${name}_rough.jpg`, repeat);
     if (maps.includes("glow")) out.emissiveMap = loadTex(`${name}_glow.jpg`, repeat, true);
@@ -562,10 +563,10 @@ export class World {
         }
 
         // тротуары и бордюр
-        const walkTex = pbr(TEXTURES.sidewalk, [1.5, STREET_LEN / 3]);
+        const walkTex = pbr(TEXTURES.sidewalk, [1.5, STREET_LEN / 3], [], { size: 1024, smooth: 2, sat: 0.9, gain: 0.62 });
         this.walkMap = walkTex.map;
         this.walkRepeat = STREET_LEN / 3;
-        const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, color: 0x9a9084, roughness: 0.9, envMapIntensity: 0.6 });
+        const walkMat = new THREE.MeshStandardMaterial({ ...walkTex, roughness: 0.9, envMapIntensity: 0.3 });
         for (const side of [-1, 1]) {
             const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, STREET_LEN, 1, 1, 40), walkMat);
             w.position.set(side * 5, 0.09, centerZ);
@@ -816,11 +817,12 @@ export class World {
         const f = TEXTURES.facades[index];
         const h = f.floors * FLOOR_H + 0.8;
         const share = Math.min(1, len / (h * f.aspect)); // какая доля ширины картинки помещается на дом
-        const maps = pbr(f.name, [share, 1], ["nor", "glow"]);
-        maps.map.offset.x = maps.normalMap.offset.x = maps.emissiveMap.offset.x = (1 - share) * variant / 2;
+        // мультяшные дома: темнота поднята в сиреневый, стены читаются; окна светятся своей картой
+        const maps = pbr(f.name, [share, 1], ["glow"], { size: 2048, smooth: 1.5, sat: 1, gain: 1.15, lift: [14, 12, 24] });
+        maps.map.offset.x = maps.emissiveMap.offset.x = (1 - share) * variant / 2;
         const m = new THREE.MeshStandardMaterial({
             ...maps, color: 0xffffff, roughness: 0.92, emissive: 0xffffff, emissiveIntensity: 2.2,
-            normalScale: new THREE.Vector2(1.4, 1.4), envMapIntensity: 0.5,
+            envMapIntensity: 0.3,
         });
         this.mat.facades[key] = m;
         return m;
@@ -1498,7 +1500,7 @@ export class World {
                     const c = box.getCenter(new THREE.Vector3());
                     m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
                     // вывески и банкоматы с текстом и логотипами не трогаем: читаемость важнее стиля
-                    if (!cfg.glow && !KEEP_PHOTO.includes(kind)) cartoonModel(m);
+                    if (!cfg.glow && !KEEP_PHOTO.includes(kind)) cartoonModel(m, cfg.clean ? { smooth: 24, sat: 0.08, gain: 1.05, lift: [14, 16, 24] } : undefined); // clean — смыть грязь и граффити
                     if (!cfg.glow && kind !== "coin") liftDark(m, LIFT.object);
                     m.traverse((o) => {
                         if (!o.isMesh) return;
