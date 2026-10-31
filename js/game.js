@@ -2393,7 +2393,7 @@ class Game {
         let m = null;
         if (cfg.id === "inspector") m = this.world.makeChaser();
         else if (this.bossModels?.[cfg.id]) m = this.world.rig(this.bossModels[cfg.id], cfg.clip || "run", { boss: true });
-        if (!m) { // модели нет (Юрец) или не загрузилась — плашка с портретом
+        if (!m) { // модели нет или не загрузилась — плашка с портретом
             const tex = new THREE.TextureLoader().load(cfg.portrait || BOSS.portrait);
             tex.encoding = THREE.sRGBEncoding; // three.js r149: colorSpace появился только в r152 — иначе портрет блёклый
             m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, fog: false }));

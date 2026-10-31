@@ -323,12 +323,11 @@ export const CHARACTERS = [
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=87", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
     { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=87", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=1", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
 export const SOON_HEROES = [
-    { name: "Юрец", portrait: "img/heroes/yurets.webp" },
 ];
 
 // Объекты-спрайты, вырезанные из концептов (textures/sprites/*.webp, tools/cutout.py).
@@ -435,12 +434,6 @@ export const CHAPTER_BOSSES = [
         mid: "Крыши — это наш спортзал. Держись!",
         win: "Устоял. Ветер теперь за тобой, не против тебя.",
         lose: "Сдуло. Сейчас — тоже время, приходи ещё." },
-    { id: "yurets", name: "Юрец", model: null, height: 1.8, clip: null, portrait: "img/heroes/yurets.webp",
-        throw: "block", need: 12, every: [1.1, 0.9, 0.75], speed: 21, vary: ["double", "fake"],
-        intro: "Меня забанили, но совет дам: сам ты будешь разбираться годами.",
-        mid: "Лабиринт курсов — без системы не выйдешь.",
-        win: "Ладно, система у тебя есть. Дальше — к Инакову.",
-        lose: "Заблудился в курсах? Вот и я так же." },
     { id: "pavel", name: "Павел Инаков", model: "models/pavel.glb?v=83", height: 1.8, clip: "run", portrait: "img/heroes/pavel.jpg",
         throw: "cop", need: 12, every: [1.1, 0.9, 0.75], speed: 21, vary: ["double", "exam"], final: true,
         intro: "Возражения слышал все. Покажи, что ты их прошёл.",
