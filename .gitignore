@@ -3,3 +3,5 @@ node_modules/
 .vercel/
 models/_src.fbx
 models/_ref.png
+
+.wrangler/

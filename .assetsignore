@@ -1,0 +1,17 @@
+.*
+--main/
+api/
+worker/
+tests/
+tools/
+docs/
+node_modules/
+models/_*
+*.md
+*.pdf
+*.ps1
+commit-message.txt
+vercel.json
+wrangler.jsonc
+package.json
+package-lock.json

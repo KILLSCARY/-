@@ -1,0 +1,24 @@
+/models/*.glb
+  Content-Type: model/gltf-binary
+  Cache-Control: public, max-age=604800
+
+/audio/*.m4a
+  Content-Type: audio/mp4
+
+/textures/*
+  Cache-Control: public, max-age=604800
+
+/img/*
+  Cache-Control: public, max-age=604800
+
+/fonts/*
+  Cache-Control: public, max-age=604800
+
+/audio/*
+  Cache-Control: public, max-age=604800
+
+/js/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/css/*
+  Cache-Control: public, max-age=0, must-revalidate
