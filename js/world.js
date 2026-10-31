@@ -7,6 +7,9 @@ import { updateAmbientAnimation } from "./frame-timing.js";
 
 import * as THREE from "./vendor/three.module.js";
 import { cartoonRoad } from "./road-art.js";
+import { cartoonModel } from "./toon-tex.js";
+
+const KEEP_PHOTO = ["coin", "testo", "choline", "ezhovik", "atm", "bank", "starbox"];
 import { Reflector } from "./vendor/jsm/Reflector.js";
 import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES, LAMP_GLOW, CHASERS } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
@@ -1494,6 +1497,8 @@ export class World {
                     box.setFromObject(m);
                     const c = box.getCenter(new THREE.Vector3());
                     m.position.set(m.position.x - c.x, m.position.y - box.min.y, m.position.z - c.z);
+                    // вывески и банкоматы с текстом и логотипами не трогаем: читаемость важнее стиля
+                    if (!cfg.glow && !KEEP_PHOTO.includes(kind)) cartoonModel(m);
                     if (!cfg.glow && kind !== "coin") liftDark(m, LIFT.object);
                     m.traverse((o) => {
                         if (!o.isMesh) return;

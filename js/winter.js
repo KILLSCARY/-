@@ -5,6 +5,7 @@ import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { curveShader } from './curve.js';
 import { cartoonRoad } from './road-art.js';
+import { cartoonModel } from './toon-tex.js';
 import { loadModel } from './models.js';
 import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
@@ -756,6 +757,7 @@ export class Winter {
 
     async loadParkedCars(snow) {
         const gltf = await new Promise((resolve, reject) => loadModel(PARKED_CAR, resolve, reject));
+        cartoonModel(gltf.scene);
         const model = gltf.scene.clone(true), box = new THREE.Box3().setFromObject(model);
         let size = box.getSize(new THREE.Vector3());
         if (size.x > size.z) model.rotation.y += Math.PI / 2;
