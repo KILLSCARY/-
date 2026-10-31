@@ -339,7 +339,10 @@ class Game {
     onResize() {
         const w = window.innerWidth, h = window.innerHeight;
         if (!w || !h) return; // окно ещё не развернулось (Telegram, фоновая вкладка): буферы нулевого размера — ошибки WebGL
-        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.resScale || 1) * (this.heatScale || 1);
+        // адаптация и тепловой ограничитель перемножаются (было 0,85 × 0,68 = 0,58: 450 пикселей в ширину — мыло, а кадров почти не прибавляло),
+        // поэтому на телефоне вместе они не опускают разрешение ниже 0,75
+        const scale = (this.resScale || 1) * (this.heatScale || 1);
+        const ratio = Math.min(window.devicePixelRatio, this.tier.ratio) * (this.mobile ? Math.max(0.75, scale) : scale);
         this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h, false);
         this.composer.setPixelRatio(this.direct ? 1 : ratio);
