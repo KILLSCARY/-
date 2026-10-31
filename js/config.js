@@ -94,9 +94,11 @@ export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon
 export const VIETNAM = {
     heroes: ["dima", "tovarus"],
     sky: { zenith: "#536e99", mid: "#d28c87", horizon: "#f4c38a", sun: { x: .43, y: .22, r: .036, color: "#ffe3a2" } },
-    skyImage: "textures/vietnam/sky-v1.webp", skyFill: "#d8e6f4", // небо-картинка, ниже неё — цвет её нижнего края
-    fog: 0xcfe0f0, near: 65, far: 275, viewFar: 320,
-    hemi: [0xf4f7ff, 0x7d8088], light: 1.35, moon: 0xfff2dd,
+    skyImage: "textures/vietnam/sky-v1.webp", skyFill: "#f6a86a", // небо-картинка, ниже неё — цвет заката у горизонта
+    // дневные облака перекрашиваются в закат прямо в игре: сверху вниз (умножение) и тёплое солнце у горизонта
+    dusk: { top: "#4a3f8f", mid: "#c96f8c", low: "#ffb46a", sun: { x: .5, y: .56, r: .5, color: "255,190,110" } },
+    fog: 0xdc9a86, near: 65, far: 275, viewFar: 320,
+    hemi: [0xffdcc8, 0x6c5c94], light: 1.05, moon: 0xffb27a,
     // постобработка на хорошей графике (Game.applyLook / applyLocationLook): на закате свечение слабое, экспозиция ниже —
     // иначе солнце, небо и стекло сливались в жёлто-белое «мега-свечение»
     post: { bloom: 0.12, exposure: 0.6, grade: 0.35 },

@@ -417,6 +417,13 @@ class Game {
                 const img = this.dubaiSky, visibleH = H * .6, sourceW = Math.min(img.width, img.height * W / visibleH);
                 g.fillStyle = VIETNAM.skyFill; g.fillRect(0, 0, W, H);
                 g.drawImage(img, (img.width - sourceW) / 2, 0, sourceW, img.height, 0, 0, W, visibleH);
+                const d = VIETNAM.dusk, dusk = g.createLinearGradient(0, 0, 0, visibleH);
+                dusk.addColorStop(0, d.top); dusk.addColorStop(.6, d.mid); dusk.addColorStop(1, d.low);
+                g.globalCompositeOperation = "multiply"; g.fillStyle = dusk; g.fillRect(0, 0, W, visibleH);
+                const sun = g.createRadialGradient(d.sun.x * W, d.sun.y * H, 0, d.sun.x * W, d.sun.y * H, d.sun.r * W);
+                sun.addColorStop(0, `rgba(${d.sun.color},.85)`); sun.addColorStop(1, `rgba(${d.sun.color},0)`);
+                g.globalCompositeOperation = "lighter"; g.fillStyle = sun; g.fillRect(0, 0, W, H);
+                g.globalCompositeOperation = "source-over";
                 return this.setSkyCanvas(c);
             }
             return this.paintSunset(g, W, H, vn, c);
@@ -1689,7 +1696,7 @@ class Game {
         const sky = winter ? WINTER : VIETNAM; // свет, дымка и дальность зимы и Дубая (у Дубая — VIETNAM в config.js)
         this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
         this.hemi.intensity = sky.light;
-        this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.25 : 1.5;
+        this.moon.color.set(sky.moon); this.moon.intensity = 1.5;
         this.scene.fog.color.set(sky.fog);
         this.scene.fog.near = sky.near;
         this.scene.fog.far = this.baseFog = sky.far;
