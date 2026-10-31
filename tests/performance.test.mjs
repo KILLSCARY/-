@@ -119,19 +119,24 @@ function gameMethod(name, prizeStub = {}) {
 const measureFps = gameMethod('measureFps');
 const sustainedSlow = g => { for (let i = 0; i < 3; i++) measureFps.call(g); };
 
-test('устойчивые 28 FPS не застревают на средней графике телефона; затем включается лимит 30', () => {
+test('телефон при нехватке кадров сначала переходит на ровные 30, и только потом снижает графику', () => {
+    let fps = 36;
     const g = {
         state: 'playing', runTime: 10, measuredState: 'playing', mobile: true,
-        settings: {}, quality: 'medium', resScale: 0.7, perfStep: 3,
-        frameMeter: { sample: () => 28, reset() {} }, frameBudget: () => 1000 / 60,
+        settings: {}, quality: 'medium', resScale: 1, perfStep: 0,
+        frameMeter: { sample: () => fps, reset() {} }, frameBudget: () => 1000 / 60,
         setQuality(level) { this.quality = level; }, onResize() {},
     };
     sustainedSlow(g);
-    assert.equal(g.quality, 'low');
-    g.resScale = 0.7;
-    sustainedSlow(g);
     assert.equal(g.performanceFpsCap, 30);
+    assert.equal(g.quality, 'medium', 'графика на месте');
+    assert.equal(g.resScale, 1, 'разрешение на месте');
+    g.frameBudget = () => 1000 / 30;
+    fps = 20; // не тянет и 30: только теперь разрешение
+    sustainedSlow(g);
+    assert.ok(g.resScale < 1 || g.perfStep > 0);
     g.performanceFpsCap = 60;
+    g.frameBudget = () => 1000 / 60;
     sustainedSlow(g);
     assert.equal(g.performanceFpsCap, 30, 'после возврата со 120 к 60 можно снизить лимит дальше');
 });

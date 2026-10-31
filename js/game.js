@@ -1252,6 +1252,7 @@ class Game {
         if (this.state === "fight") { // бой на той же улице: дождь и NPC живут, улица стоит; камерой правит бой
             this.world.update(dt, 0, this.t);
             this.fight?.update(dt);
+            this.updateFlies();
             this.render();
             if (this.fight?.phase === "fight") this.measureFps(); // тормозит бой — меньше пикселей (загрузку и заставки не меряем)
             return;
@@ -1541,6 +1542,12 @@ class Game {
         // Теперь только возврат к 60 и новый замер: качество трогаем, лишь если не тянет и 60
         if (this.frameBudget() < 1000 / 60 && fps < 85) {
             this.performanceFpsCap = 60;
+            this.frameMeter.reset();
+            return;
+        }
+        // телефон: не тянет 60 — сразу ровные 30, а не мыло на пределе видеочипа. Вдвое меньше кадров заметно снижает нагрев
+        if (this.mobile && fps < 50 && (this.performanceFpsCap || 60) > 30) {
+            this.performanceFpsCap = 30;
             this.frameMeter.reset();
             return;
         }
@@ -3446,9 +3453,34 @@ class Game {
         this.renderBag();
     }
 
+    // телефон: муха один раз рисуется в картинку, дальше летают плоские спрайты (несколько треугольников вместо 37 тысяч)
+    bakeFlies(mesh) {
+        const rt = new THREE.WebGLRenderTarget(256, 256, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+        const sc = new THREE.Scene(), m = new THREE.Mesh(mesh.geometry, mesh.material), cam = new THREE.PerspectiveCamera(24, 1, 0.1, 10);
+        sc.add(m, new THREE.AmbientLight(0xffffff, 1.4));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+        sun.position.set(1, 2, 2);
+        sc.add(sun);
+        m.rotation.y = 0.5;
+        cam.position.set(0, 0.65, 2.4);
+        cam.lookAt(0, 0.22, 0);
+        const r = this.renderer, was = r.getRenderTarget(), clear = r.getClearColor(new THREE.Color()), alpha = r.getClearAlpha();
+        r.setRenderTarget(rt);
+        r.setClearColor(0x000000, 0);
+        r.clear();
+        r.render(sc, cam);
+        r.setRenderTarget(was);
+        r.setClearColor(clear, alpha);
+        const mat = new THREE.SpriteMaterial({ map: rt.texture, transparent: true, depthWrite: false, fog: false });
+        const g = new THREE.Group();
+        for (let i = 0; i < FLY_COUNT; i++) { const sp = new THREE.Sprite(mat); sp.scale.setScalar(FLY_SIZE * 1.5); sp.frustumCulled = false; g.add(sp); }
+        return g;
+    }
+
     // мухи вокруг Никиты: одна сетка на всех (один вызов отрисовки)
     updateFlies() {
-        const on = !!this.perk.stink && this.rat?.visible && this.state !== "fight";
+        const fighter = this.state === "fight" ? this.fight?.f?.[0]?.root : null; // в бою кружат вокруг бойца
+        const on = !!this.perk.stink && (this.state === "fight" ? !!fighter : this.rat?.visible);
         if (!this.flies) {
             if (!on) this.audio.buzz(false);
             if (!on || this.fliesLoading) return;
@@ -3457,25 +3489,27 @@ class Game {
                 let mesh = null;
                 gltf.scene.traverse((o) => { if (!mesh && o.isMesh) mesh = o; });
                 if (!mesh) return;
-                this.flies = new THREE.InstancedMesh(mesh.geometry, mesh.material, FLY_COUNT);
+                this.flies = this.mobile ? this.bakeFlies(mesh) : new THREE.InstancedMesh(mesh.geometry, mesh.material, FLY_COUNT);
                 this.flies.frustumCulled = false;
                 this.scene.add(this.flies);
             }, () => {});
             return;
         }
         this.flies.visible = !!on;
-        this.audio.buzz(on && (this.state === "menu" || this.state === "playing") && !this.menuModal());
+        this.audio.buzz(on && (this.state === "menu" || this.state === "playing" || this.state === "fight") && !this.menuModal());
         if (!on) return;
-        const T = this.t, p = this.rat.position, m = (this.flyM ||= new THREE.Object3D());
+        const T = this.t, p = fighter ? fighter.position : this.rat.position, m = (this.flyM ||= new THREE.Object3D());
         for (let i = 0; i < FLY_COUNT; i++) {
             const k = T * (2.6 + i * 0.5) + i * 2.1, r = 0.42 + i * 0.05;
+            const spr = this.flies.isGroup && this.flies.children[i];
+            if (spr) { spr.position.set(p.x + Math.sin(k) * r, p.y + 1.25 + Math.sin(k * 1.7) * 0.35 + Math.sin(T * 40 + i) * 0.012, p.z + Math.cos(k * 0.9) * r); continue; }
             m.position.set(p.x + Math.sin(k) * r, p.y + 1.25 + Math.sin(k * 1.7) * 0.35 + Math.sin(T * 40 + i) * 0.012, p.z + Math.cos(k * 0.9) * r);
             m.rotation.set(Math.sin(T * 30 + i) * 0.12, Math.atan2(Math.cos(k) , -Math.sin(k * 0.9)), Math.sin(T * 34 + i) * 0.12); // летит по кругу и дрожит, как в полёте
             m.scale.setScalar(FLY_SIZE);
             m.updateMatrix();
             this.flies.setMatrixAt(i, m.matrix);
         }
-        this.flies.instanceMatrix.needsUpdate = true;
+        if (!this.flies.isGroup) this.flies.instanceMatrix.needsUpdate = true;
     }
 
     // запасная жизнь (Саша Белый): второй удар не заканчивает забег, погоня сбрасывается

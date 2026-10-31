@@ -548,9 +548,26 @@ export class Hub {
                 const text = c.soon ? "Появится в следующих главах" : st === "locked" ? c.locked : HERO_PERKS[c.id]?.text ?? "";
                 return `<div class="hcard st-${st}" data-id="${c.id}">
                     <div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
-                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div></div>`;
+                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3><p>${text}</p></div>${this.heroSheet(c)}</div>`;
             }).join("");
-            for (const el of box.querySelectorAll('.hcard')) el.onclick = () => this.goTo(el.dataset.id);
+            for (const el of box.querySelectorAll('.hcard')) {
+                el.onclick = () => {
+                    if (this.sheetSwiped) { this.sheetSwiped = false; return; } // свайп уже открыл или закрыл способности
+                    if (el.classList.contains("active")) this.toggleSheet(el);
+                    else this.goTo(el.dataset.id);
+                };
+                let sx = 0, sy = 0;
+                el.ontouchstart = (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; this.sheetSwiped = false; };
+                el.ontouchend = (e) => {
+                    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+                    if (Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx) * 1.5 || !el.classList.contains("active")) return;
+                    const sheet = el.querySelector(".hsheet");
+                    if (dy > 0 && sheet?.scrollTop > 0) return; // внутри длинного текста свайп вниз листает его
+                    this.sheetSwiped = true;
+                    setTimeout(() => { this.sheetSwiped = false; }, 400);
+                    this.toggleSheet(el, dy < 0);
+                };
+            }
             // колесо мыши на компьютере: один щелчок колеса — ровно одна карточка. Раньше колесо сдвигало на сколько
             // придётся, а прилипание (scroll-snap) дотягивало к соседней — карусель прыгала туда-обратно
             box.onwheel = (e) => {
@@ -577,6 +594,21 @@ export class Hub {
             }
         }
         this.renderDetail();
+    }
+
+    // способности героя на обороте фото: пассивные и умение в забеге
+    heroSheet(c) {
+        const perk = HERO_PERKS[c.id]?.text;
+        if (c.soon || c.locked || !perk) return "";
+        const skill = HERO_SKILLS[c.id];
+        return `<span class="hhint">⌃ Способности</span><div class="hsheet"><span class="tag">Способности</span><p>${perk}</p>
+            ${skill ? `<span class="tag">Умение · ${skill.name}</span><p>${skill.text}. Раз за забег</p>` : ""}</div>`;
+    }
+
+    toggleSheet(el, open = !el.classList.contains("open")) {
+        if (!el.querySelector(".hsheet") || open === el.classList.contains("open")) return;
+        el.classList.toggle("open", open);
+        this.game.audio.play("swipe");
     }
 
     // перейти к герою (нажали карточку или колесо): панель под каруселью сразу показывает его и не перебирает
@@ -620,6 +652,7 @@ export class Hub {
     setFocus(id, quiet) {
         if (!id || id === this.focus) return;
         this.focus = id;
+        for (const el of $("carousel").querySelectorAll(".hcard.open")) el.classList.remove("open"); // пролистали — оборот закрылся
         if (!quiet) this.game.audio.play("swipe");
         this.renderDetail();
     }
@@ -632,12 +665,10 @@ export class Hub {
         const st = this.heroState(c);
         const on = st === "play" && c.id === this.game.heroId;
         const u = HERO_UNLOCKS[c.id];
-        const skill = HERO_SKILLS[c.id];
-        const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя`
-            : `${HERO_PERKS[c.id]?.text ?? ""}${skill ? `. Умение «${skill.name}»: ${skill.text.toLowerCase()} (раз за забег)` : ""}`;
+        const text = c.soon ? "Появится в следующих главах" : st === "locked" ? `${c.locked}. Сыграть за него нельзя` : ""; // способности — на обороте фото
         const trial = this.p.trialHero() === c.id ? Math.ceil((this.p.data.trial.until - Date.now()) / 36e5) : 0;
         box.innerHTML = `<p class="label">${trial ? `На пробу · ещё ${trial} ч` : on ? "В забеге" : st === "play" ? "В команде" : st === "buy" ? (u?.act === "cards" ? "Эксклюзив" : "Открывается действием") : st === "locked" ? "На связи" : "Скоро"}</p>
-            <h3>${c.name}</h3><p class="perk">${text}</p>
+            <h3>${c.name}</h3>${text ? `<p class="perk">${text}</p>` : ""}
             ${st === "buy" && u ? `<div class="lock-row"><span>${u.text}</span>${u.act === "boss" ? `<b>${Math.min(this.p.data.beaten || 0, u.chapter)}/${u.chapter}</b>` : u.act === "all" ? `<b>${this.p.bonusSteps().filter((x) => x.done).length}/${this.p.bonusSteps().length}</b>` : ""}</div>` : ""}
             ${st === "buy" && u?.act === "all" ? `<ul class="bonus-list">${this.p.bonusSteps().map((x) => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${x.text}</li>`).join("")}</ul>` : ""}`;
         const b = document.createElement("button");

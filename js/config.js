@@ -263,7 +263,7 @@ export const CHASER = { url: "models/obj/inspector.glb?v=5", height: 1.72, run: 
 // главы 1 (ролик) — Мизулина: дальше бой с ней.
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
 // Никита Енот: мешок мусора. every — сколько предметов до находки, loot — USDT за неё, rotten — шанс, что вместо находки тухлятина
-export const NIKITA_ITEMS = { banana: { url: "models/obj/item_banana.glb?v=1", width: 0.62 }, tomato: { url: "models/obj/item_tomato.glb?v=1", width: 0.46 } };
+export const NIKITA_ITEMS = { banana: { url: "models/obj/item_banana.glb?v=2", width: 0.62 }, tomato: { url: "models/obj/item_tomato.glb?v=2", width: 0.46 } };
 export const NIKITA_BAG = { every: 10, loot: 50, rotten: 0.2, chance: 0.6, items: ["banana", "tomato", "can"] };
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",

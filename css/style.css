@@ -235,8 +235,18 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .hcard p { display: none; }
 .hcard.active { border-color: rgba(255, 255, 255, .16); box-shadow: 0 14px 44px -8px rgba(227, 52, 58, .5), 0 0 70px -10px rgba(227, 52, 58, .35); }
 .hcard.st-soon .ph, .hcard.st-locked .ph { filter: grayscale(.7) brightness(.75); }
+/* способности: нажатие на фото или свайп вверх поднимают оборот карточки */
+.hcard .hhint { position: absolute; right: 10px; top: 10px; padding: 5px 9px; border-radius: 99px; background: rgba(0, 0, 0, .6); font-size: 11px; font-weight: 600; color: #fff; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.hcard.active .hhint { opacity: 1; }
+.hcard.open .hhint { opacity: 0; }
+.hsheet {
+    position: absolute; inset: 0; z-index: 2; padding: 16px 14px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+    background: var(--card-solid); transform: translateY(100%); visibility: hidden; transition: transform .28s cubic-bezier(.2, .8, .2, 1), visibility .28s;
+}
+.hcard.open .hsheet { transform: none; visibility: visible; }
+.hsheet p { display: block; margin: 0 0 8px; font-size: 13px; line-height: 1.35; color: var(--text, #fff); }
 /* высота панели не зависит от героя (текст разной длины): кнопка «Выбрать» не прыгает вверх-вниз при листании */
-.hero-detail { position: relative; z-index: 1; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; min-height: 214px; }
+.hero-detail { position: relative; z-index: 1; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; min-height: 150px; }
 .hero-detail .btn-main { margin-top: auto !important; }
 .hero-detail h3 { margin: 0; font-size: 20px; }
 .hero-detail .perk { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.4; }
