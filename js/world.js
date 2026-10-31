@@ -1760,7 +1760,7 @@ export class World {
                 if (kind === "cat") for (let i = 0; i < this.npcLimit(cfg.count); i++) this.makeCat(m, cfg);
                 if (kind === "pigeon") for (let i = 0; i < this.npcLimit(cfg.flocks); i++) this.makeFlock(m, cfg, i);
                 if (kind === "nikita") { // ночью текстура почти чёрная и он теряется на фоне бака: подсвечиваем её саму, без лишнего источника света
-                    m.gltf.scene.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.42; o.material.needsUpdate = true; } });
+                    m.gltf.scene.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.2; o.material.needsUpdate = true; } });
                     loadModel(this.lite(cfg.bin), (bin) => { // сцены ставим, когда загрузились и бак, и Никита
                         const b = bin.scene;
                         b.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.3; o.material.needsUpdate = true; } });
