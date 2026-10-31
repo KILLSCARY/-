@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { STORY_HERO_LINES, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { STORY_HERO_LINES, FREE_BOSS, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -15,6 +15,7 @@ import { CardGirls } from "./cards.js";
 import { Hecklers } from "./hecklers.js";
 import { prize } from "./prize.js";
 import { metaApi } from "./meta-client.js";
+import { META } from "./meta-rules.mjs";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -542,6 +543,9 @@ class Game {
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
         this.trip = 0;     // клип «споткнулся» (TRIP)
         this.windedAt = 0; // когда герой снова выдохнется (perk.winded)
+        this.freeBoss = null; // бой свободного забега (startFreeBoss)
+        this.freeBossAt = FREE_BOSS.at[0] + Math.random() * (FREE_BOSS.at[1] - FREE_BOSS.at[0]);
+        this.freeBossAsked = false;
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
         this.sickCatch = null; this.sickDone = false; // больной герой: Мизулина ещё не догоняла
         this.slowLeft = 0;
@@ -1772,9 +1776,10 @@ class Game {
         this.speed = sick ? sick.speed : Math.min(BALANCE.speedMax, BALANCE.speedStart + this.runTime * BALANCE.speedRamp);
         // раз за забег; после апелляции забег идёт дальше без повторного ареста — так главу за Денчика можно пройти
         if (sick && !this.sickDone && this.runTime >= sick.catchAt && this.state === "playing" && !this.bossFight && !this.storyOn && !this.flight) this.sickCatchStart(sick);
-        if (this.slowLeft > 0) { // споткнулся — пару шагов медленнее
-            this.slowLeft -= dt;
-            this.speed *= 0.55 + 0.45 * (1 - this.slowLeft / BALANCE.stumbleSlow);
+        if (this.slowLeft > 0) { // споткнулся — улица почти встаёт и плавно разгоняется: иначе герой будто скользит
+            this.slowLeft = Math.max(0, this.slowLeft - dt);
+            const k = 1 - this.slowLeft / BALANCE.stumbleSlow;
+            this.speed *= 0.18 + 0.82 * k * k;
         }
         if (this.fx.turbo > 0) this.speed *= 1.3; // «Напор» / «Попутный ветер»
         if (this.fx.honey > 0) this.speed *= 1.15; // «Рывок»
@@ -1839,6 +1844,7 @@ class Game {
         if (!quiet && this.distance - SPAWN_Z >= this.nextWindAt) this.spawnWind();
         if (!quiet && this.distance - SPAWN_Z >= this.nextVentAt) this.spawnVent();
         this.watchBoss(dt, move);
+        this.watchFreeBoss();
         this.world.update(dt, move, this.t);
         this.cards.update(dt, move);
         this.hecklers.update(dt, move);
@@ -2583,6 +2589,7 @@ class Game {
 
     // сюжет босса идёт, когда игрок дошёл до его главы; до тех пор — обычные забеги
     get story() {
+        if (this.freeBoss) return this.freeBoss; // бой свободного забега идёт по рельсам сюжетного, но прогресс сюжета не трогает
         if (!this.questions) return null; // свободный забег — без глав, боссов и драк: только результат на рейтинг
         const s = STORIES[this.profile.data.story || 0];
         return s && this.profile.chapter().index >= (s.chapter || 1) - 1 ? s : null;
@@ -2902,6 +2909,53 @@ class Game {
         }
     }
 
+    // Свободный забег: раз за забег всплывает предложение боя со случайным усиленным боссом
+    watchFreeBoss() {
+        if (this.questions || this.freeBossAsked || this.runTime < this.freeBossAt || this.state !== "playing") return;
+        if (this.flight || this.jumping || this.slideLeft > 0 || this.stumble > 0 || this.wind || this.heroCfg?.sick && !this.sickDone) return;
+        this.freeBossAsked = true;
+        const pool = FREE_BOSS.pool.filter((id) => id !== this.heroId), id = `free_${pick(pool)}`, opp = FIGHTERS[id];
+        preloadModel(opp.model);
+        this.state = "paused";
+        tg.haptic("heavy");
+        this.freeBossModal(opp, `${opp.name} вызывает на бой`, "Бой за NSS",
+            `Босс сильнее обычного. Победа — ${META.freeBoss.win} NSS (до ${META.freeBoss.perDay} наград в день). После боя забег закончится, собранные USDT останутся.`,
+            "В бой", () => { this.freeBoss = { name: "Свободный забег", fear: "Бой за NSS", opponent: id, free: true }; this.startStoryFight(); },
+            "Бежать дальше", () => { this.state = "playing"; this.fx.safe = Math.max(this.fx.safe, 1.5); this.clock.getDelta(); });
+    }
+
+    freeBossModal(opp, title, label, text, yes, onYes, no, onNo) {
+        $("fb-ph").style.backgroundImage = `url(${opp.portrait})`;
+        $("fb-label").textContent = label;
+        $("fb-title").textContent = title;
+        $("fb-text").textContent = text;
+        const close = (fn) => () => { $("free-boss").hidden = true; fn(); };
+        $("btn-fb-yes").textContent = yes;
+        $("btn-fb-no").textContent = no;
+        $("btn-fb-yes").onclick = close(onYes);
+        $("btn-fb-no").onclick = close(onNo);
+        $("free-boss").hidden = false;
+    }
+
+    // Итог боя свободного забега: забег окончен, глава и награды сюжета не меняются
+    endFreeBoss(win, s) {
+        const opp = FIGHTERS[s.opponent], runId = this.cardRunId || (this.localRunId ||= Date.now().toString(36));
+        tg.haptic(win ? "success" : "error");
+        if (win) this.audio.play("boost");
+        this.state = "menu";
+        this.audio.music("menu");
+        this.resetRun();
+        this.renderMenu();
+        this.show("menu");
+        const show = (text) => this.freeBossModal(opp, win ? `${opp.name} ${opp.she ? "повержена" : "повержен"}!` : `${opp.name} ${opp.she ? "победила" : "победил"}`,
+            win ? "Победа" : "Поражение", text, "Новый забег", () => this.start(), "В меню", () => {});
+        if (!win) return show(`«${opp.lines.lose}» Собранные USDT остались у тебя.`);
+        metaApi.bossWin(runId).then((r) => {
+            if (r?.meta) { this.hub.meta = r.meta; this.hub.render(); }
+            show(r?.nss ? `+${r.nss} NSS за победу.` : "Победа засчитана, но NSS на сегодня уже не начисляются: дневной лимит исчерпан.");
+        }).catch(() => show("Победа есть, но сервер не ответил: NSS не начислены."));
+    }
+
     async startStoryFight(afterCatch) {
         const s = this.story, opp = FIGHTERS[s.opponent], run = this.runId;
         // ушли в меню (или начали новый забег), пока шла заставка, — бой не начинаем
@@ -3014,6 +3068,7 @@ class Game {
         this.credited = { usdt: this.usdt };
         if (du) this.profile.earn(du);
         tg.guardClose(false);
+        if (s.free) return this.endFreeBoss(win, s);
         this.profile.data.storyBoss = null; // бой окончен: дальше либо глава заново, либо следующая
         this.profile.save();
         if (!win) { // проиграл — сюжет с начала: снова забег и возражения
@@ -3286,6 +3341,7 @@ class Game {
         if (this.chaser) this.chaser.visible = false;
         this.fx.safe = Math.max(this.fx.safe, 2);
         this.trip = TRIP;
+        this.slowLeft = BALANCE.stumbleSlow;
         if (o) { o.visible = false; o.userData.type = "decor"; }
         this.hub.toast("Запасная жизнь!");
         tg.haptic("success");
@@ -3708,6 +3764,7 @@ class Game {
                 if (this.grudge && this.stumble > 0) this.grudgeSay("shield");
                 this.fx.safe = 1;
                 this.trip = TRIP;
+                this.slowLeft = BALANCE.stumbleSlow;
                 o.visible = false;
                 d.type = "decor";
                 this.audio.play("boost");

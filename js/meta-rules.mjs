@@ -31,6 +31,7 @@ export const META = {
     paidDaily: 30,             // платных открытий в сутки: цену в USDT сервер не видит (кошелёк на клиенте), это его предел
     pity: { epic: 10, legend: 30 }, // шкала удачи: эпическое и лучше — на 10-м открытии без него, легендарное — на 30-м
     runNss: { perM: 200, run: 20 }, // за забег: 1 NSS за 200 м, не больше 20 за забег
+    freeBoss: { win: 40, perDay: 3, minSec: 30 }, // свободный забег: NSS за победу над боссом, наград в сутки; бой не раньше minSec от старта забега
     dayNss: 200, // всего за сутки: забеги, смена и Кейс недели вместе (разовые бонусы — сверх)
     promos: [{ id: "p5", off: 5, nss: 3000 }, { id: "p10", off: 10, nss: 6000 }, { id: "p15", off: 15, nss: 10000 }], // скидка в NS Store, %
     promosOpen: false, // пока false: цены видны, покупки в игре нет, коды скрыты звёздочками («Скоро недельные промокоды»)
@@ -39,7 +40,7 @@ export const META = {
         levels: [{ name: "Зима", mult: 1, price: 0 }, { name: "Дубай", mult: 1.5, price: 50, art: "img/shift-dubai.webp?v=1" }, { name: "Вьетнам", mult: 2, price: 150 }] }, // баки: покупаются за Карты
 };
 
-export const emptyMeta = () => ({ pity: {}, nss: 0, day: { d: "", n: 0 }, shift: { at: 0, lvl: 0 }, notify: true, last: null, promos: [], earnDay: { d: "", n: 0 }, lastRun: { id: "", n: 0 }, once: {}, weekly: { w: -1, n: 0 } });
+export const emptyMeta = () => ({ pity: {}, nss: 0, day: { d: "", n: 0 }, shift: { at: 0, lvl: 0 }, notify: true, last: null, promos: [], earnDay: { d: "", n: 0 }, bossDay: { d: "", n: 0, run: "" }, lastRun: { id: "", n: 0 }, once: {}, weekly: { w: -1, n: 0 } });
 
 // что видит клиент
 export const metaView = (s, now) => ({ nss: s.nss, pity: s.pity, notify: s.notify, promos: s.promos.map((p) => (p.race || !META.promosOpen ? { ...p, code: "NSS-******" } : p)) /* скрытый код в телефон не уходит */, weekly: s.weekly.w === weekOf(now) ? s.weekly.n : 0, shift: { at: s.shift.at, lvl: s.shift.lvl || 0, fill: shiftFill(s, now) } });
@@ -124,6 +125,16 @@ export function runReward(state, { runId, distance, now }) {
     const nss = earn(state, earned - before, now);
     state.lastRun = { id: runId, n: before + nss };
     return { ok: true, result: { nss } };
+}
+
+// NSS за победу над боссом в свободном забеге: одна на забег, в пределах лимита боёв и суточного лимита NSS
+export function bossReward(state, { runId, now }) {
+    const d = dayOf(now);
+    if (state.bossDay.d !== d) state.bossDay = { d, n: 0, run: "" };
+    if (state.bossDay.run === runId || state.bossDay.n >= META.freeBoss.perDay) return { ok: true, result: { nss: 0 } };
+    state.bossDay.n++;
+    state.bossDay.run = runId;
+    return { ok: true, result: { nss: earn(state, META.freeBoss.win, now) } };
 }
 
 const newCode = (rng) => {

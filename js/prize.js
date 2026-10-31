@@ -27,6 +27,7 @@ export const prize = {
     caseOpen(caseId, openId) { return tg.initData ? post({ action: "caseopen", caseId, openId }) : Promise.resolve(null); },
     promoBuy(promo) { return tg.initData ? post({ action: "promobuy", promo }) : Promise.resolve(null); },
     shift() { return tg.initData ? post({ action: "shift" }) : Promise.resolve(null); },
+    bossWin(runId) { return tg.initData && runId ? post({ action: "bosswin", runId }) : Promise.resolve(null); },
     shiftUp() { return tg.initData ? post({ action: "shiftup" }) : Promise.resolve(null); },
     shiftNotify(on) { return tg.initData ? post({ action: "shiftnotify", on }) : Promise.resolve(null); },
     // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)

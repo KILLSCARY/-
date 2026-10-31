@@ -61,3 +61,14 @@ test("сила героев: сильнейшие как Спиди, дальш�
     assert.ok(power("islam").hp < FIGHTERS.mouse.hp);
     for (const f of Object.values(FIGHTERS)) for (const n of Object.values(f.dmg)) assert.ok(n >= 1);
 });
+
+test("боссы свободного забега сильнее обычных, Павла среди них нет, Горилла есть", async () => {
+    const { FREE_BOSS } = await import("../js/config.js");
+    assert.deepEqual([...FREE_BOSS.pool].sort(), ["cop", "gorilla", "mizulina"]);
+    for (const id of FREE_BOSS.pool) {
+        const base = FIGHTERS[id], free = FIGHTERS[`free_${id}`];
+        assert.ok(free.hp > base.hp && free.dmg.heavy > base.dmg.heavy, id);
+        assert.ok(free.ai.every[0][0] < base.ai.every[0][0], id);
+        assert.ok(free.lines.lose && free.portrait && free.moves, id);
+    }
+});

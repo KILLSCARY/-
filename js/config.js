@@ -24,7 +24,7 @@ export const BALANCE = {
     rowTimeMin: 0.42,       // и не чаще раза в столько секунд: в Дубае на скорости 30 ряд шёл каждые 0,23 с — вдвое больше объектов и лаги
     boostTime: 8,           // сек действия бонуса ×2
     stumbleTime: 8,         // как в сабвее: первый удар прощается, но столько секунд ДПС на хвосте — второй удар = поймали
-    stumbleSlow: 0.9,       // сек замедления после удара
+    stumbleSlow: 1.1,       // сек замедления после удара
 };
 
 // Почему проиграл — шутки по поводу причины
@@ -938,6 +938,21 @@ for (const c of CHARACTERS) if (c.id !== "mouse") {
     FIGHTERS[`hero_${c.id}`] = { ...FIGHTERS.mouse, name: c.name, short: c.name.split(" ")[0],
         model: c.url, height: c.height, portrait: c.portrait, hd: c.hd, capWhite: 0, // capWhite — только шляпа Спиди
         ...(p && { hp: p.hp, dmg: scaled(FIGHTERS.mouse.dmg, p.dmg), punchTime: p.punchTime, dodgeCd: p.dodgeCd }) };
+}
+// Босс свободных забегов (Павла там нет): Горилла как соперник
+FIGHTERS.gorilla = { ...FIGHTERS.hero_gorilla, hp: 95, dmg: { jab: 4, cross: 4, hook: 6, heavy: 11, super: 26 }, punchTime: 0.5, dodgeCd: undefined,
+    ai: { every: [[1.4, 2.3], [1.2, 2.0], [1.0, 1.8]], block: [0.12, 0.16, 0.2], heavy: [0.16, 0.18, 0.22], combo: [0.12, 0.16, 0.2], third: [0.06, 0.1, 0.14] },
+    telegraph: [0.8, 0.72, 0.62],
+    lines: { intro: "На районе проверяю всех. Покажи, чему научился.", final: "Последний раунд. Без поблажек.",
+        heavy: ["Лови!", "Следи за замахом!", "Не спи!", "По-горильи!"],
+        roundWon: "Слабовато.", roundLost: "Неплохо, малой. Ещё раунд.", lose: "Иди побегай ещё и возвращайся.", spam: "Тыкаешь без плана!", rage: "Ну всё, разозлил." } };
+// Свободный забег: раз за забег предложение боя с усиленным случайным боссом (at — на какой секунде забега, с).
+// buff: hp и dmg — множители, every и telegraph — паузы между атаками и замах короче. Горилле не выпадает Горилла
+export const FREE_BOSS = { at: [40, 70], buff: { hp: 1.2, dmg: 1.15, every: 0.9, telegraph: 0.95 }, pool: ["mizulina", "cop", "gorilla"] };
+for (const id of FREE_BOSS.pool) {
+    const f = FIGHTERS[id], b = FREE_BOSS.buff;
+    FIGHTERS[`free_${id}`] = { ...f, hp: Math.round(f.hp * b.hp), dmg: scaled(f.dmg, b.dmg), telegraph: f.telegraph.map((t) => t * b.telegraph),
+        ai: { ...f.ai, every: f.ai.every.map((r) => r.map((t) => t * b.every)) } };
 }
 FIGHTERS.hero_dima.short = "Дима";
 FIGHTERS.hero_tovarus.short = "Товарус"; // «Саша» — уже Саша Белый

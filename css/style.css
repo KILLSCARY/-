@@ -1569,6 +1569,7 @@ body.direct #vig { display: block; }
     background: #fff; border-left: 2px solid #151116; border-bottom: 2px solid #151116; transform: rotate(45deg); }
 .guide-bubble h2 { margin: 0 0 5px; font: 700 18px/1.15 var(--font-ui); text-transform: uppercase; }
 .guide-bubble p { margin: 0; font: 500 14px/1.35 var(--font-body); }
+#free-boss { z-index: 95; } /* поверх кнопки навыка и HUD забега */
 .guide-focus.none { border: 0; }
 .guide-focus.none::after { display: none; }
 .guide-list { display: grid; gap: 7px; margin: 10px 0 0; padding: 0; list-style: none; font: 500 13px/1.3 var(--font-body); }

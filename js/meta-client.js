@@ -1,7 +1,7 @@
 // Кейсы, NSS и смена со стороны клиента: в Telegram всё решает сервер, вне его (разработка) — те же правила
 // на месте, состояние в localStorage. Ответ одинаковой формы: { status, ...результат, meta }.
 import { prize } from "./prize.js";
-import { emptyMeta, metaView, openCase, collectShift, upgradeShift, runReward, buyPromo, awardOnce, META } from "./meta-rules.mjs";
+import { emptyMeta, metaView, openCase, collectShift, upgradeShift, runReward, bossReward, buyPromo, awardOnce, META } from "./meta-rules.mjs";
 
 const KEY = "p2p_meta_local";
 const load = () => { try { return { ...emptyMeta(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return emptyMeta(); } };
@@ -19,6 +19,7 @@ export const metaApi = {
     // вне Telegram: в сети NSS за забег начисляет сервер при проверке результата (prize.runScore)
     localStory() { return local((s) => awardOnce(s, "story", META.bonus.story)); },
     localRun(runId, distance) { return local((s) => runReward(s, { runId, distance, now: Date.now() })); },
+    bossWin(runId) { return prize.online ? prize.bossWin(runId) : Promise.resolve(local((s) => bossReward(s, { runId, now: Date.now() }))); },
     shift() { return prize.online ? prize.shift() : Promise.resolve(local((s) => collectShift(s, Date.now()))); },
     shiftUp() { return prize.online ? prize.shiftUp() : Promise.resolve(local((s) => upgradeShift(s))); }, // вне Telegram Карты списывает city.js
 };

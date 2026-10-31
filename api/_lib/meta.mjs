@@ -2,11 +2,11 @@
 // один JSON (p2p:meta:<id>), запись — «сравни и замени», поэтому две вкладки или двойной тап не выдадут награду дважды.
 // USDT по-прежнему в кошельке клиента: сервер решает приз и шкалу удачи, но не видит, заплачено ли (см. META.paidDaily).
 // env: SHIFT_NOTIFY=1 — включить сообщения бота (иначе cron ничего не шлёт), CRON_SECRET — защита api/cron-shift.
-import { emptyMeta, metaView as view, openCase, collectShift, upgradeShift, nextShift, runReward, buyPromo, racePromo, awardOnce, awardFriend, weekOf, weekEnd, META } from "../../js/meta-rules.mjs";
+import { emptyMeta, metaView as view, openCase, collectShift, upgradeShift, nextShift, runReward, bossReward, buyPromo, racePromo, awardOnce, awardFriend, weekOf, weekEnd, META } from "../../js/meta-rules.mjs";
 import { cardsConfig } from "./cards.mjs";
 import { nameOf, photoOf, visibleRows, HIDDEN_NAMES } from "./rating.mjs";
 
-export const META_ACTIONS = ["meta", "caseopen", "shift", "shiftup", "shiftnotify", "promobuy"];
+export const META_ACTIONS = ["meta", "caseopen", "shift", "shiftup", "shiftnotify", "promobuy", "bosswin"];
 const ID_RE = /^[a-z0-9]{6,24}$/;
 
 // изменение состояния: читаем, считаем, пишем, если за это время никто не успел записать раньше
@@ -131,6 +131,14 @@ export async function handleMeta(action, body, who, { store, env = process.env, 
         if (!out.ok) return fail(out);
         await store.promoIndex(out.result.promo.code, who.id);
         await tellManagers(out.result.promo, who, { env, fetchImpl });
+        return { status: 200, json: { ...out.result, meta: view(state, now) } };
+    }
+    if (action === "bosswin") { // исход боя решает клиент, поэтому проверяем настоящий забег; потолок — bossReward
+        const runId = String(body.runId || "");
+        if (!/^[a-z0-9]{6,24}$/.test(runId)) return { status: 400, json: { error: "bad_run" } };
+        const start = await store.runStart(who.id, runId);
+        if (!start || (now - start) / 1000 < META.freeBoss.minSec) return { status: 403, json: { error: "no_run" } };
+        const { out, state } = await changeMeta(store, who.id, (s) => bossReward(s, { runId, now }));
         return { status: 200, json: { ...out.result, meta: view(state, now) } };
     }
     if (action === "shiftnotify") {

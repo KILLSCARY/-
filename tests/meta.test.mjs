@@ -237,3 +237,23 @@ test("скрытый участник: нет в таблице и гонке, �
     assert.equal((await settleRace({ store, env, now: T0 + 7 * 864e5, fetchImpl: async () => ({}) })).settled, 1);
     assert.equal(await store.metaGet("1"), null);
 });
+
+test("босс свободного забега: награда одна на забег, не больше лимита в день и только за настоящий забег", async () => {
+    const { bossReward, emptyMeta, META } = await import("../js/meta-rules.mjs");
+    const { handleMeta } = await import("../api/_lib/meta.mjs");
+    const day = Date.UTC(2026, 9, 31, 12), state = emptyMeta();
+    assert.equal(bossReward(state, { runId: "aaaaaa", now: day }).result.nss, META.freeBoss.win);
+    assert.equal(bossReward(state, { runId: "aaaaaa", now: day }).result.nss, 0, "тот же забег");
+    assert.equal(bossReward(state, { runId: "bbbbbb", now: day }).result.nss, META.freeBoss.win);
+    assert.equal(bossReward(state, { runId: "cccccc", now: day }).result.nss, META.freeBoss.win);
+    assert.equal(bossReward(state, { runId: "dddddd", now: day }).result.nss, 0, "лимит дня");
+    assert.equal(bossReward(state, { runId: "eeeeee", now: day + 864e5 }).result.nss, META.freeBoss.win, "новый день");
+    const store = memoryStore(), who = { id: "7", user: {} }, opts = (now) => ({ store, env: {}, now });
+    assert.equal((await handleMeta("bosswin", { runId: "ffffff" }, who, opts(day))).status, 403, "забега не было");
+    await store.cardRunStart("7", "ffffff", day, 3600);
+    assert.equal((await handleMeta("bosswin", { runId: "ffffff" }, who, opts(day + 5000))).status, 403, "слишком рано");
+    const ok = await handleMeta("bosswin", { runId: "ffffff" }, who, opts(day + 60000));
+    assert.equal(ok.status, 200);
+    assert.equal(ok.json.nss, META.freeBoss.win);
+    assert.equal(ok.json.meta.nss, META.freeBoss.win);
+});
