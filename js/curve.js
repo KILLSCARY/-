@@ -32,10 +32,23 @@ export function curveShader(shader) {
 export const TOON = { bands: 2.2, min: 0.45, spec: 0.35, sat: 1.25, rim: 0.55 };
 // персонажи (модели со скелетом): свой цвет шкуры и одежды не перекрашиваем и не затемняем — только лёгкая кромка, тёплый свет приглушён
 const TOON_SKIN = { min: 0.8, sat: 1.0, rim: 0.2, neutral: 0.55 };
+// Телефон: простой рассеянный свет вместо полного расчёта бликов на каждый источник (GGX): в мульте блики и так слабые,
+// а чип считает их на каждом пикселе. ?fulllight в адресе — полный расчёт, для сравнения
+const CHEAP_LIGHT = /Android|iPhone|iPad|iPod/i.test(globalThis.navigator?.userAgent || "") && !/[?&]fulllight/.test(globalThis.location?.search || "");
+const CHEAP_DIRECT = `
+void RE_Direct_Toon(const in IncidentLight directLight, const in GeometricContext geometry, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
+    reflectedLight.directDiffuse += saturate(dot(geometry.normal, directLight.direction)) * directLight.color * BRDF_Lambert(material.diffuseColor);
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_Toon
+`;
+
 // В фрагментном шейдере USE_SKINNING не определён, поэтому признак персонажа передаём из вершинного
 function toonShader(shader) {
     if (!shader.fragmentShader.includes("#include <lights_fragment_end>")) return;
     const n = (v) => v.toFixed(2);
+    if (CHEAP_LIGHT && shader.fragmentShader.includes("#include <lights_physical_pars_fragment>"))
+        shader.fragmentShader = shader.fragmentShader.replace("#include <lights_physical_pars_fragment>", "#include <lights_physical_pars_fragment>\n" + CHEAP_DIRECT);
     shader.vertexShader = "varying float vToonSkin;\n" + shader.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
     #ifdef USE_SKINNING
     vToonSkin = 1.0;

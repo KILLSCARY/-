@@ -33,8 +33,9 @@ export class FrameMeter {
 export function updateAmbientAnimation(object, dt, tier) {
     const u = object.userData, z = object.position.z;
     if (!u.mixer) return;
-    if (!object.visible || z < -Math.min(70, tier.far - 12) || z > 8) { u.animationTime = 0; return; }
-    const hz = z > -18 ? 60 : (tier.animationHz || 30);
+    if (!object.visible || z < -Math.min(tier.animationFar || 70, tier.far - 12) || z > 8) { u.animationTime = 0; return; }
+    // телефон (animationFarHz): вблизи плавно, дальше кадр анимации всё реже — вдали разницы не видно, а телефон греет меньше
+    const hz = z > -18 ? 60 : tier.animationFarHz && z < -35 ? tier.animationFarHz : (tier.animationHz || 30);
     u.animationTime = (u.animationTime || 0) + dt;
     if (u.animationTime + 1e-6 < 1 / hz) return;
     u.mixer.update(u.animationTime);

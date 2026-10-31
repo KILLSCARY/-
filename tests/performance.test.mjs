@@ -227,3 +227,17 @@ test('награды ждут облако и записываются в акт
     assert.equal(current.bossPaid.one, 1);
     assert.equal(saves, 1);
 });
+
+test("телефон: дальние NPC анимируются реже, совсем дальние стоят; вблизи — плавно", () => {
+    const tier = { far: 130, animationHz: 30, animationFarHz: 12, animationFar: 55 };
+    const steps = (z, frames = 60) => {
+        let n = 0;
+        const o = { visible: true, position: { z }, userData: { mixer: { update: () => { n++; } } } };
+        for (let i = 0; i < frames; i++) updateAmbientAnimation(o, 1 / 60, tier);
+        return n;
+    };
+    assert.equal(steps(-5), 60);
+    assert.equal(steps(-25), 30);
+    assert.equal(steps(-45), 12);
+    assert.equal(steps(-60), 0);
+});
