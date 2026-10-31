@@ -7,7 +7,7 @@ import { handleCards } from "./cards.mjs";
 import { handleRating, score, rewardPoints, RATING, backfill } from "./rating.mjs";
 import { handleLead } from "./leads.mjs";
 import { checkSub, refStatus, trackRef } from "./verify.mjs";
-import { handleMeta, runNss, leadNss, raceData, META_ACTIONS } from "./meta.mjs";
+import { handleMeta, runNss, leadNss, storyNss, raceData, META_ACTIONS } from "./meta.mjs";
 
 const SIGN_MIN_RUN_SEC = 3; // первая табличка встаёт не раньше, чем через несколько секунд забега
 
@@ -62,7 +62,8 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         }
         const fresh = await store.grant(who.id, key, amount, now);
         if (fresh) { const r = rewardPoints(key); await score(store, who, r.pts, r.stat); } // рейтинг — только за первую выдачу
-        return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
+        const story = key === "boss:3" ? await storyNss(who, { store, now }) : {}; // финальный босс: сюжет пройден
+        return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id), ...story } };
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
     if (META_ACTIONS.includes(action)) return handleMeta(action, body, who, { store, env, now, fetchImpl });

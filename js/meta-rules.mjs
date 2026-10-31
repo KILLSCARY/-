@@ -25,7 +25,7 @@ export const CASE_DROPS = {
 };
 
 export const META = {
-    bonus: { lead: 100, friendRun: 50, friendRunM: 1000, friendMax: 20 }, // заявка — один раз; за друга — один раз на друга и не больше friendMax друзей
+    bonus: { story: 2500, lead: 100, friendRun: 50, friendRunM: 1000, friendMax: 20 }, // заявка — один раз; за друга — один раз на друга и не больше friendMax друзей
     race: { top: 10, off: 10 },  // гонка недели: первые 10 по NSS из забегов и смены получают код на 10% на БАДы
     weeklyLimit: 3,              // Кейс недели — столько раз в неделю: в нём NSS, а цену в USDT сервер не видит
     paidDaily: 30,             // платных открытий в сутки: цену в USDT сервер не видит (кошелёк на клиенте), это его предел

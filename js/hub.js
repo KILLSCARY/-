@@ -7,7 +7,7 @@ import { META, weekOf, weekEnd } from "./meta-rules.mjs";
 import { metaApi } from "./meta-client.js";
 import { renderShift, renderPromos } from "./city.js";
 import { CityMap } from "./map.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
+import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, BETA_TEST_BUTTONS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString("ru-RU").replace(/\s/g, " "); // разряды — неразрывным пробелом (узкого в шрифте Unbounded нет): «1 234» не переносится
@@ -173,8 +173,8 @@ export class Hub {
         $("btn-replay-guide").onclick = () => this.guide.start({ replay: true });
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
-        // боссы и сброс сюжета — только в тестовом запуске (?test=1 или startapp=test): игроку сюжет не пропустить и не повторить
-        const testing = /[?&]test=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "test";
+        // боссы и сброс сюжета: на бета-тесте у всех (BETA_TEST_BUTTONS), иначе — только в тестовом запуске (?test=1 или startapp=test)
+        const testing = BETA_TEST_BUTTONS || /[?&]test=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "test";
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
         box.insertAdjacentHTML("beforeend", `${testing ? `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];

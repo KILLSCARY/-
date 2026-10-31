@@ -3031,8 +3031,8 @@ class Game {
         if (!paid) {
             d.bossPaid[s.id] = 1;
             if (prize.online) { // сумму и «уже выдано» решает сервер: переустановка/чистка профиля не даст второй раз
-                prize.reward(`boss:${s.id}`).then((r) => { if (r.granted) this.profile.gift(r.amount); else if (r.status !== 200) this.profile.gift(s.reward.usdt); }); // сервер не ответил — начисляем сами
-            } else this.profile.gift(s.reward.usdt);
+                prize.reward(`boss:${s.id}`).then((r) => { if (r.granted) this.profile.gift(r.amount); else if (r.status !== 200) this.profile.gift(s.reward.usdt); this.storyReward(r); }); // сервер не ответил — начисляем сами
+            } else { this.profile.gift(s.reward.usdt); if (s.final) this.storyReward(metaApi.localStory()); }
         }
         if (s.badge) (d.badges ||= {})[s.badge] = 1;
         if (s.chase) d.mizBeaten = true;
@@ -3102,6 +3102,14 @@ class Game {
     }
 
     // Горилла перед финалом: любой ответ ведёт к финальному экрану
+    // сюжет пройден: NSS начисляет сервер, один раз
+    storyReward(r) {
+        if (!r?.meta) return;
+        this.hub.meta = r.meta;
+        if (r.nss) this.hub.toast(`Сюжет пройден: +${r.nss} NSS`);
+        this.hub.render();
+    }
+
     showPrefinal() {
         const pf = GORILLA.prefinal;
         this.showAnketa([{ id: "reward", ...pf }], () => this.showFinal(), "Финал");

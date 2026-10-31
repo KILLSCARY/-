@@ -54,6 +54,12 @@ async function friendRan(store, id) {
     await changeMeta(store, inviter, (s) => awardFriend(s, id));
 }
 
+// сюжет пройден (сервер выдал награду за финального босса): NSS один раз
+export async function storyNss(who, { store, now = Date.now() }) {
+    const { out, state } = await changeMeta(store, who.id, (s) => awardOnce(s, "story", META.bonus.story));
+    return out.ok ? { nss: out.result.nss, meta: view(state, now) } : {};
+}
+
 // заявка на разбор дошла до менеджеров
 export async function leadNss(who, { store }) {
     await changeMeta(store, who.id, (s) => awardOnce(s, "lead", META.bonus.lead));
@@ -89,6 +95,7 @@ export async function settleRace({ store, env = process.env, now = Date.now(), r
 export async function handleMeta(action, body, who, { store, env = process.env, now = Date.now(), rng = Math.random, fetchImpl = fetch }) {
     const fail = (o) => ({ status: o.status, json: { error: o.error, ...(o.at ? { at: o.at } : {}) } });
     if (action === "meta") {
+        if ((await store.rewards(who.id))["boss:3"]) await storyNss(who, { store, now }); // прошёл сюжет раньше, чем появилась награда
         const raw = await store.metaGet(who.id);
         return { status: 200, json: view(raw ? { ...emptyMeta(), ...JSON.parse(raw) } : emptyMeta(), now) };
     }

@@ -208,3 +208,19 @@ test("суточный лимит 200 NSS общий: забеги, смена �
     assert.equal(c.result.nssN, 0);
     assert.equal(s.nss, 200);
 });
+
+test("сюжет: 2500 NSS один раз за финального босса, вне суточного лимита; кто прошёл раньше — получит при входе", async () => {
+    const store = memoryStore(), init = signInitData({ user: JSON.stringify({ id: 7, first_name: "A" }), auth_date: String(Math.floor(T0 / 1000)) }, "t");
+    const ctx = { store, env, now: T0 };
+    assert.equal((await handle("reward", { initData: init, key: "boss:3" }, ctx)).status, 403); // без забега главы не выдаётся
+    await handle("event", { initData: init, event: "run:3" }, { ...ctx, now: T0 - 60000 });
+    const r = await handle("reward", { initData: init, key: "boss:3" }, ctx);
+    assert.equal(r.json.nss, META.bonus.story);
+    assert.equal(r.json.meta.nss, 2500);
+    assert.equal((await handle("reward", { initData: init, key: "boss:3" }, ctx)).json.nss, 0);
+    assert.equal((await call(store, "meta")).json.nss, 2500);
+    const old = memoryStore();
+    await old.grant("7", "boss:3", 12000, T0 - 1);
+    assert.equal((await call(old, "meta")).json.nss, 2500);
+    assert.equal((await call(old, "meta")).json.nss, 2500);
+});
