@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -575,6 +575,7 @@ class Game {
         this.bag = 0; // Никита: мусор в мешке
         this.endDive(false);
         if (this.world) this.world.trashOn = !!this.perk.trash;
+        if (this.world && this.perk.trash) this.loadDiveBin();
         this.renderBag();
         this.freeBossAt = FREE_BOSS.at[0] + Math.random() * (FREE_BOSS.at[1] - FREE_BOSS.at[0]);
         this.freeBossAsked = false;
@@ -3406,7 +3407,7 @@ class Game {
         if (s.kind === "magnet") this.fx.magnet = Math.max(this.fx.magnet, s.time);
         if (s.kind === "x2") this.boostLeft = Math.max(this.boostLeft, s.time);
         if (s.kind === "ram") this.ram = s.charges;
-        if (s.kind === "dive") { this.diving = s.time; this.fx.safe = Math.max(this.fx.safe, s.time + 0.3); this.rat.visible = false; this.showDiveBin(); }
+        if (s.kind === "dive") { this.diving = s.time; this.fx.safe = Math.max(this.fx.safe, s.time + 0.3); this.showDiveBin(); }
         this.hub.toast(`${s.name}: ${s.text}`);
         this.audio.play("boost");
         tg.haptic("heavy");
@@ -3417,15 +3418,26 @@ class Game {
     }
 
     // ---- Никита Енот ---------------------------------------------------------------------
-    showDiveBin() {
-        if (this.diveBin) { this.diveBin.visible = true; return; }
-        loadModel("models/obj/trash_bin.glb?v=1", (gltf) => {
+    // бак грузим и собираем заранее: загрузка прямо в момент нажатия подвешивала кадр на пару секунд, а герой уже был скрыт
+    loadDiveBin() {
+        if (this.diveBin || this.diveBinLoading) return;
+        this.diveBinLoading = true;
+        loadModel(this.world.lite(NPCS.nikita.bin), (gltf) => {
             const m = gltf.scene, k = 1.25 / (new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y || 1);
             m.scale.setScalar(k);
             this.diveBin = new THREE.Group().add(m);
+            this.diveBin.visible = false;
             this.scene.add(this.diveBin);
-            this.diveBin.visible = !!this.diving;
-        }, () => {});
+            this.world.warmQueue.push(this.diveBin.clone());
+            if (this.diving) this.showDiveBin();
+        }, () => { this.diveBinLoading = false; });
+    }
+
+    showDiveBin() {
+        if (!this.diveBin) return this.loadDiveBin(); // ещё не готов: герой виден, пока бак не появится
+        this.diveBin.position.set(this.x, 0, 0);
+        this.diveBin.visible = true;
+        this.rat.visible = false;
     }
 
     endDive(reward) {
