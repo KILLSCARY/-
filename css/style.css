@@ -266,8 +266,15 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 /* прокручивается только содержимое: знак и блик остаются на месте */
 .hb-in {
     position: absolute; inset: 0; display: flex; flex-direction: column; gap: 11px; padding: 14px 12px 12px;
-    overflow: hidden auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+    overflow: hidden; overscroll-behavior: contain; touch-action: pan-x pan-y; scrollbar-width: none;
 }
+/* Закрытая карточка: касания — только лицу, оборот не прокручивается. На iPhone скрытый изнанкой оборот всё равно
+   ловил касание (а прокручиваемый блок под лицом — ещё и сам жест), и с его touch-action: pan-y карусель не листалась.
+   В обороте по вертикали листается текст, по горизонтали — карусель */
+.hback { pointer-events: none; }
+.hcard.open .hback { pointer-events: auto; }
+.hcard.open .hface { pointer-events: none; }
+.hcard.open .hb-in { overflow: hidden auto; }
 .hb-in::-webkit-scrollbar { display: none; }
 /* водяной знак внизу оборота — у героев с короткими способностями низ карточки не пустой */
 .hback::before {
