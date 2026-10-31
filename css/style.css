@@ -1725,6 +1725,18 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
     #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
     #view-run .tiles-note { display: none; }
 }
+/* обычный телефон: кнопки крупнее. На низких и узких экранах остаются компактными: иначе закроют героя и текст не влезет */
+@media (max-aspect-ratio: 4/5) and (min-height: 720px) and (min-width: 360px) {
+    #view-run .tiles { gap: 7px; }
+    #view-run .tile { min-height: 60px; padding: 9px 12px; }
+    #view-run .tile-name { font-size: 15px; }
+    #view-run .tile-sub { font-size: 10.5px; }
+    #view-run .tile-run { min-height: 68px; }
+    #view-run .tile-run .tile-name { font-size: 20px; }
+    #view-run .tile-run .arr { width: 40px; height: 40px; font-size: 19px; }
+    #view-run .tile-heroes .thumb { width: 54px; height: 54px; }
+    #view-run .tile-rate { min-height: 48px; }
+}
 
 /* ---- кейсы: шкала удачи, ×5, «Ночная смена», промокоды ---- */
 .cases-head { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
