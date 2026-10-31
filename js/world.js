@@ -310,6 +310,49 @@ export function buildEnvironment(renderer, colors = SKY.env) {
     return tex;
 }
 
+// Арка профита: щит с названием золотыми буквами и «ворота» на полосах. Читать на скорости надо одно — где больше,
+// поэтому сумма во всю ширину, а золотые ворота залиты цветом; остальные — тёмное стекло
+function drawArchSign(g, w, h, title, glass, neon) {
+    const m = 30, x = m, y = m + 10, bw = w - 2 * m, bh = h - 2 * m - 20;
+    glass(g, x, y, bw, bh, 40);
+    neon(g, x, y, bw, bh, 40, 8);
+    const gold = g.createLinearGradient(0, y + 50, 0, y + bh - 50);
+    gold.addColorStop(0, "#fff0b0"); gold.addColorStop(0.55, "#f2c04a"); gold.addColorStop(1, "#c98a1c");
+    g.save(); g.shadowColor = "rgba(242,192,74,.65)"; g.shadowBlur = 26; g.fillStyle = gold; g.textAlign = "center";
+    fitText(g, title.toUpperCase(), bw - 90, 92, '900 {s}px "Unbounded", "Arial Black", sans-serif');
+    g.fillText(g.__line, w / 2, y + bh / 2 + 32);
+    g.restore();
+}
+function drawArchGate(c, w, h, text, best, label) {
+    const [sum, unit = ""] = text.split(" ");
+    const m = 26, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m, r = 48;
+    if (best) {
+        const f = c.createLinearGradient(0, y, 0, y + bh);
+        f.addColorStop(0, "#ffe68f"); f.addColorStop(0.5, "#f4bd3c"); f.addColorStop(1, "#c8841a");
+        c.save(); c.shadowColor = "#ffc94d"; c.shadowBlur = 26; c.fillStyle = f; roundRect(c, x, y, bw, bh, r); c.fill(); c.restore();
+        c.save(); roundRect(c, x, y, bw, bh, r); c.clip(); // косой блик
+        c.fillStyle = "rgba(255,255,255,.28)"; c.beginPath(); c.moveTo(x + bw * 0.55, y); c.lineTo(x + bw * 0.85, y); c.lineTo(x + bw * 0.35, y + bh); c.lineTo(x + bw * 0.05, y + bh); c.closePath(); c.fill();
+        c.restore();
+        c.strokeStyle = "#fff4c8"; c.lineWidth = 7; roundRect(c, x, y, bw, bh, r); c.stroke();
+    } else {
+        const f = c.createLinearGradient(0, y, 0, y + bh);
+        f.addColorStop(0, "rgba(44,46,56,.96)"); f.addColorStop(1, "rgba(16,17,22,.96)");
+        c.fillStyle = f; roundRect(c, x, y, bw, bh, r); c.fill();
+        c.strokeStyle = "rgba(255,255,255,.34)"; c.lineWidth = 6; roundRect(c, x, y, bw, bh, r); c.stroke();
+    }
+    const ink = best ? "#2c1c02" : "#f2f2f4";
+    c.textAlign = "center"; c.fillStyle = ink;
+    c.globalAlpha = best ? 0.85 : 0.65;
+    c.font = '800 28px "Unbounded", "Arial Black", sans-serif';
+    c.fillText(label, w / 2, y + 66);
+    c.globalAlpha = 1;
+    fitText(c, sum, bw - 44, best ? 190 : 150, '900 {s}px "Unbounded", "Arial Black", sans-serif');
+    c.fillText(c.__line, w / 2, y + bh * 0.58);
+    c.font = '800 44px "Unbounded", "Arial Black", sans-serif';
+    c.fillText(unit, w / 2, y + bh * 0.58 + 72);
+    if (best) { c.font = '800 28px "Unbounded", "Arial Black", sans-serif'; c.fillText("МАКСИМУМ", w / 2, y + bh - 42); }
+}
+
 export class World {
     constructor(scene, laneWidth, tier) {
         this.scene = scene;
@@ -2549,7 +2592,9 @@ export class World {
         }
         const signGeo = new THREE.PlaneGeometry(7.2, 2.1);
         signGeo.userData.own = true;
+        const isArch = q.type === "arch";
         const sign = new THREE.Mesh(signGeo, textMat(1024, 300, (g, w, h) => {
+            if (isArch) return drawArchSign(g, w, h, q.q, glass, neon);
             const m = 34, x = m, y = m + 18, bw = w - 2 * m, bh = h - 2 * m - 18;
             glass(g, x, y, bw, bh, 30);
             neon(g, x, y, bw, bh, 30, 7);
@@ -2584,7 +2629,9 @@ export class World {
         answers.forEach((text, i) => {
             const lane = two ? i * 2 : i;
             const g = new THREE.Group();
+            const best = isArch && i === correct;
             const board = new THREE.Mesh(plateGeo, textMat(CW, CH, (c, w, h) => {
+                if (isArch) return drawArchGate(c, w, h, text, best, LANE_LABELS[lane]);
                 const m = 22, tail = 28, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m - tail;
                 const bubble = () => { // пузырь и хвостик одним контуром
                     roundRect(c, x, y, bw, bh, { tl: 46, tr: 46, br: 46, bl: 12 });
@@ -2620,11 +2667,13 @@ export class World {
             base.scale.set(0.5, 0.05, 0.3);
             base.position.set(0, 0.025, -0.04);
             g.add(base);
-            const glow = new THREE.Mesh(this.geo.glow, glowMat); // отсвет на мокром асфальте
-            glow.rotation.x = -Math.PI / 2;
-            glow.scale.set(1.9, 3.2, 1);
-            glow.position.set(0, 0.02, 0.9);
-            g.add(glow);
+            if (!isArch || best) { // отсвет на мокром асфальте; у арки — только под золотой
+                const glow = new THREE.Mesh(this.geo.glow, glowMat);
+                glow.rotation.x = -Math.PI / 2;
+                glow.scale.set(1.9, 3.2, 1);
+                glow.position.set(0, 0.02, 0.9);
+                g.add(glow);
+            }
             g.position.set(this.lanes[lane], 0, z);
             g.userData = { type: "answer", halfZ: 0.35, wall, correct: i === correct, lane, text };
             this.scene.add(g);

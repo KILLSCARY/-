@@ -890,6 +890,8 @@ class Game {
     }
 
     gameOver(cause) {
+        this.squash = null; // поймали в прыжке или на приземлении: шаг больше не идёт, и герой остался бы сжатым на всю сцену
+        this.rat.scale.set(1, 1, 1);
         this.state = "over";
         tg.guardClose(false);
         this.cause = cause;
