@@ -5,6 +5,7 @@ worker/
 tests/
 tools/
 docs/
+android/
 node_modules/
 models/_*
 *.md

@@ -5,3 +5,4 @@ models/_src.fbx
 models/_ref.png
 
 .wrangler/
+android/build/

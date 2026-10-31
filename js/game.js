@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -149,6 +149,9 @@ material.specularF90 = 0.0;
 }
 
 const LANE_SPRING = 26, LANE_LEAN = 0.02, LANE_YAW = 0.018; // перестроение: жёсткость пружины, наклон и доворот от скорости
+// фура: насколько сбоку от её оси ещё держит крыша (соседние крыши перекрываются — между ними не проваливаешься),
+// на сколько выше себя герой встаёт на крышу и на пандус за кадр (дальше — это удар в борт)
+const TRUCK_REACH = 0.9, STEP_UP = 0.45, RAMP_STEP = 1.2;
 // бросок кожуры (Никита): по доле броска — куда смотрят плечо и предплечье правой руки в осях героя (x вправо, y вверх,
 // z назад): снизу спереди рука уходит вверх и за плечо. PEEL_TWIST — поворот корпуса к погоне, PEEL_LOOK — голова сверх него
 const PEEL_ARM = [
@@ -560,8 +563,16 @@ class Game {
         this.x = 0;
         this.y = 0;
         this.vy = 0;
+        this.floor = 0; // высота опоры под героем: асфальт или пандус и крыша фуры (floorAt)
+        this.fromRoof = false;
         this.jumping = false;
         this.slideLeft = 0;
+        this.introChase = 0; // старт без отсчёта: погоня первые секунды за спиной (INTRO_CHASE)
+        this.letterAt = LETTERS.at[0] + Math.random() * (LETTERS.at[1] - LETTERS.at[0]); // на каком метре буква слова
+        this.letterSent = false;
+        this.world.letterNext = null;
+        clearInterval(this.contTick); // «Продолжить?» прошлого забега
+        $("cont").hidden = true;
         this.speed = BALANCE.speedStart;
         this.runTime = 0;
         this.distance = 0;
@@ -708,22 +719,15 @@ class Game {
             this.audio.music("run");
             return void this.startStoryFight(true);
         }
-        this.state = "countdown";
-        this.audio.music("run"); // трек забега — сразу со старта, а не после отсчёта
+        // старт без отсчёта «3-2-1», как в раннерах: сразу «ПОГНАЛИ!» и бег, погоня первые секунды дышит в спину
+        // (в главе с погоней и у больного героя своя погоня — там без этого)
         const cd = $("countdown");
-        const live = () => this.runId === run && this.state === "countdown";
         cd.hidden = false;
-        for (const n of ["3", "2", "1"]) {
-            cd.textContent = n;
-            cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop");
-            this.audio.play("count");
-            await wait(600);
-            if (!live()) { cd.hidden = true; return; }
-        }
         cd.textContent = "ПОГНАЛИ!";
         cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop");
         this.audio.play("go");
-        setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 500);
+        setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 700);
+        if (!this.story?.chase && !this.heroCfg?.sick) this.introChase = INTRO_CHASE;
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
         const st = this.story;
         const nb = this.nextBoss();
@@ -742,7 +746,7 @@ class Game {
         this.renderBoosts(); // кнопки бустов оживают со стартом
         this.audio.music("run");
         tg.guardClose(true);
-        if (document.hidden) this.pause(); // свернули приложение во время отсчёта
+        if (document.hidden) this.pause(); // свернули приложение, пока забег запускался
     }
 
     // добавки из NS Store, купленные на этот забег: по одной каждой
@@ -935,7 +939,9 @@ class Game {
             + (this.cards.got ? `<br>Карты <b>+${this.cards.got}</b> · всего ${this.profile.cards}` : "");
         $("over-cards").textContent = this.cards.got;
         const appeal = $("btn-appeal"), canAppeal = this.profile.usdt >= APPEAL_PRICE;
-        appeal.hidden = !APPEAL_ENABLED || this.appealUsed;
+        // хватает на апелляцию — сначала «Продолжить?» с таймером (offerContinue); не успел — в итогах её уже нет
+        const offer = APPEAL_ENABLED && !this.appealUsed && canAppeal;
+        appeal.hidden = !APPEAL_ENABLED || this.appealUsed || offer;
         appeal.disabled = !canAppeal;
         $("appeal-sub").textContent = canAppeal ? "Продолжить с того же места" : `Нужно ${fmt(APPEAL_PRICE)} USDT`;
         $("appeal-price").textContent = `${fmt(APPEAL_PRICE)} USDT`;
@@ -973,11 +979,44 @@ class Game {
             $("arrest").hidden = true;
             for (const [id, to, delay] of counters) countUp($(id), to, delay);
         };
-        setTimeout(() => {
+        const results = () => {
             if (this.state !== "over") return;
             if (isBest && score > 0) this.recordScreen = new RecordScreen(this, score, prevBest, showOver);
             else showOver();
+        };
+        setTimeout(() => {
+            if (this.state !== "over") return;
+            if (offer) this.offerContinue(results); else results();
         }, this.arrest?.scene ? CATCH_END * 1000 : arrest ? 2700 : 700);
+    }
+
+    // «Продолжить?» поверх замершего кадра удара: кольцо тает CONTINUE_TIME секунд (CSS, без перерисовки каждый кадр).
+    // Апелляция — забег дальше с того же места; «нет» или время вышло — итоги забега (then)
+    offerContinue(then) {
+        const box = $("cont"), run = this.runId;
+        let left = CONTINUE_TIME;
+        $("cont-n").textContent = left;
+        $("cont-price").textContent = `${fmt(APPEAL_PRICE)} USDT`;
+        box.style.setProperty("--t", `${CONTINUE_TIME}s`);
+        box.classList.remove("go");
+        box.hidden = false;
+        void box.offsetWidth;
+        box.classList.add("go");
+        const close = (next) => {
+            clearInterval(this.contTick);
+            box.hidden = true;
+            $("btn-cont").onclick = $("btn-cont-no").onclick = null;
+            if (this.runId === run && this.state === "over") next?.();
+        };
+        clearInterval(this.contTick);
+        this.contTick = setInterval(() => {
+            if (this.runId !== run || this.state !== "over") return close();
+            if (--left <= 0) close(then);
+            else $("cont-n").textContent = left;
+        }, 1000);
+        $("btn-cont").onclick = () => close(() => this.appeal());
+        $("btn-cont-no").onclick = () => close(then);
+        tg.haptic("warning");
     }
 
     // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
@@ -1356,7 +1395,8 @@ class Game {
         this.camMix += (behind - this.camMix) * Math.min(1, dt * 2.5);
         const k = this.camMix * this.camMix * (3 - 2 * this.camMix);
         // в прыжке камера чуть поднимается, в полёте — на полвысоты: видно, что герой высоко над дорогой
-        const lift = this.y * (this.flight ? 0.6 : 0.15); // в прыжке камера почти не поднимается — не «улетает» вместе с героем
+        // в прыжке камера почти не поднимается — не «улетает» вместе с героем; на крышу фуры поднимается вся
+        const floor = this.state === "menu" ? 0 : this.floor || 0, lift = floor + (this.y - floor) * (this.flight ? 0.6 : 0.15);
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
         this.camX = (this.camX || 0) + (this.x - (this.camX || 0)) * Math.min(1, dt * 9); // камера плывёт за героем и не дёргается вместе с ним
@@ -1890,8 +1930,14 @@ class Game {
         const prevStep = Math.floor(this.phase / Math.PI);
         this.phase += dt * this.speed * 0.95;
         // брызги из-под лап на каждом шаге
-        if (!this.jumping && this.slideLeft <= 0 && Math.floor(this.phase / Math.PI) !== prevStep) {
+        if (!this.jumping && this.slideLeft <= 0 && Math.floor(this.phase / Math.PI) !== prevStep && !this.floor) { // на крыше фуры луж нет
             this.world.splash(this.x + (prevStep % 2 ? 0.13 : -0.13), 0, 3, 0.5);
+        }
+        // буква слова: раз за забег, на случайном метре — мир поставит её на свободную полосу ближайшего ряда
+        if (!this.letterSent && this.distance >= this.letterAt && !this.bossFight) {
+            this.letterSent = true;
+            const { word, i } = this.letterSpot();
+            this.world.letterNext = word[i];
         }
 
         // спавн рядов: чем дальше — тем плотнее и злее
@@ -1970,21 +2016,27 @@ class Game {
             this.xv = ((this.xv || 0) - w * q) * e;
         } else this.xv = 0;
         if (this.flight) this.flyStep(dt);
+        const floor = this.floor = this.flight ? 0 : this.floorAt(); // асфальт или пандус и крыша фуры
         if (this.jumping) {
             this.vy -= BALANCE.gravity * dt;
             this.y += this.vy * dt;
-            if (this.y <= 0) {
-                this.y = 0;
+            if (this.y <= floor && this.vy > 0) this.y = floor; // взлетел над пандусом, а он круче — не проваливается в него
+            else if (this.y <= floor) {
+                this.y = floor;
                 this.jumping = false;
-                this.world.splash(this.x, 0, 16);
-                this.world.ring(this.x, 0, 1.1, 0.35);
+                this.world.splash(this.x, 0, 16, 1, floor + 0.05);
+                if (!floor) this.world.ring(this.x, 0, 1.1, 0.35);
                 this.squash = { t: 0, up: 0 };
             }
+        } else if (!this.flight) {
+            if (this.y > floor + 0.05) { this.jumping = true; this.vy = 0; } // кончилась крыша или сбежал вбок — падает
+            else this.y = floor; // по пандусу вверх, по крыше ровно
         }
+        this.fromRoof = floor > 0 || (this.fromRoof && this.jumping); // спрыгнул с фуры и ещё не приземлился на асфальт
         if (this.slideLeft > 0) {
             this.slideLeft -= dt;
             this.sprayIn = (this.sprayIn || 0) - dt;
-            if (!this.jumping && this.sprayIn <= 0) { this.world.spray(this.x, 0); this.sprayIn = 0.04; }
+            if (!this.jumping && !floor && this.sprayIn <= 0) { this.world.spray(this.x, 0); this.sprayIn = 0.04; }
         }
         this.world.playerX = this.x;
         this.rat.position.set(this.x, this.y, 0);
@@ -1998,15 +2050,17 @@ class Game {
                 if (k >= 1) this.squash = null; }
             this.rat.scale.set(sx, sy, sx);
         }
-        const blob = this.rat.userData.blob;
+        const blob = this.rat.userData.blob, air = this.y - floor;
         blob.position.x = this.x;
-        blob.scale.setScalar(1 - Math.min(0.5, this.y * 0.2));
-        blob.material.opacity = 0.3 * (1 - Math.min(0.7, this.y * 0.35)); // в прыжке и полёте пятно бледнеет — видно высоту
+        blob.position.y = (blob.userData.y0 ??= blob.position.y) + floor; // на крыше фуры пятно — на крыше
+        blob.scale.setScalar(1 - Math.min(0.5, air * 0.2));
+        blob.material.opacity = 0.3 * (1 - Math.min(0.7, air * 0.35)); // в прыжке и полёте пятно бледнеет — видно высоту
         blob.visible = this.rat.visible && !this.tier.shadows; // бой прячет героя — пятно не должно остаться на ринге; есть настоящая тень — пятно лишнее
 
         if (this.sickCatch) this.sickCatchStep(dt);
         else if (this.stumble > 0) this.chase(dt);
         else if (this.storyChasing()) this.storyChaseStep(dt);
+        else if (this.introChase > 0) this.introChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         if (this.diving) { // нырок: бак едет вместе с героем, прыгает с ним и сам спокойно проходит низкие преграды
@@ -2030,11 +2084,32 @@ class Game {
         if (hudNow - (this.hudAt || 0) >= 100) { this.hudAt = hudNow; this.updateHud(); }
     }
 
+    // врезался сбоку, перестраиваясь в полосу препятствия (а не влетел в него спереди)
+    sideHit(o) {
+        const target = this.world.lanes[this.lane];
+        return Math.abs(target - this.x) > 0.35 && Math.abs(o.position.x - target) < 0.3;
+    }
+
+    // высота опоры под героем: асфальт — 0, над фурой — пандус или крыша. На пандус забегают снизу (подъём за кадр —
+    // до RAMP_STEP), на крышу — только сверху: с пандуса, прыжком, с соседней крыши. Снизу в борт — удар (collide)
+    floorAt() {
+        let h = 0;
+        for (const o of this.world.obstacles) {
+            const d = o.userData;
+            if (d.type !== "truck" || Math.abs(o.position.x - this.x) > TRUCK_REACH) continue;
+            const top = this.world.truckTop(o);
+            if (top === null || top <= h) continue;
+            const ramp = d.ramp && o.position.z + d.halfZ < d.ramp;
+            if (top <= this.y + (ramp ? RAMP_STEP : STEP_UP)) h = top;
+        }
+        return h;
+    }
+
     // Первый удар: врезался сбоку при перестроении — отлетаешь на свою полосу, спереди — препятствие сбито.
     // Дальше BALANCE.stumbleTime секунд за спиной ДПС, и второй удар заканчивает забег.
     hitOnce(o) {
-        const target = this.world.lanes[this.lane];
-        const side = Math.abs(target - this.x) > 0.35 && Math.abs(o.position.x - target) < 0.3;
+        const side = this.sideHit(o);
+        this.introChase = 0; // погоня со старта сменяется настоящей
         if (side) this.lane = this.prevLane;
         else { o.visible = false; o.userData.type = "decor"; }
         this.stumble = BALANCE.stumbleTime; // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
@@ -2243,17 +2318,31 @@ class Game {
         // «из принципа» Мизулина бежит на CHASE_GRUDGE.speed быстрее: держится ближе и отстаёт медленнее
         // (время погони stumbleTime то же — меняется только скорость её бега)
         const k = this.grudge ? CHASE_GRUDGE.speed : 1;
-        const z = this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8 / k; // в конце отстаёт (медленнее, если «из принципа»)
+        this.runChaser(c, this.stumble > 1 ? 1.7 : 1.7 + (1 - this.stumble) * 8 / k, dt, k); // в конце отстаёт (медленнее, если «из принципа»)
+        if (this.stumble <= 0) { this.stumble = 0; c.visible = this.storyChasing(); }
+    }
+
+    // старт без отсчёта: погоня выбегает прямо за спиной и в последнюю секунду отстаёт. Удар в это время —
+    // и начинается настоящая погоня (hitOnce)
+    introChaseStep(dt) {
+        this.introChase -= dt;
+        const c = this.ensureChaser();
+        if (!c.visible) { c.visible = true; c.position.set(this.x, 0, 3); c.userData.side = this.lane === 2 ? -1 : 1; }
+        this.runChaser(c, this.introChase > 1 ? 2 : 2 + (1 - this.introChase) * 9, dt);
+        if (this.introChase <= 0) { this.introChase = 0; c.visible = false; }
+    }
+
+    // преследователь бежит за героем к отметке z за спиной; k — во сколько раз быстрее обычного
+    runChaser(c, z, dt, k = 1) {
         c.position.z += (z - c.position.z) * Math.min(1, dt * 4 * k);
         c.position.x += (this.x + c.userData.side * 0.95 - c.position.x) * Math.min(1, dt * 5);
         if (c.userData.mixer) { // бежит туда же, куда герой
             c.rotation.y = Math.PI;
-            c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14) * (this.grudge ? CHASE_GRUDGE.speed : 1));
+            c.userData.mixer.update(dt * Math.max(0.8, this.speed / 14) * k);
         } else {
             c.position.y = Math.abs(Math.sin(this.t * 11)) * 0.12;
             c.rotation.y = Math.atan2(this.camera.position.x - c.position.x, this.camera.position.z - c.position.z);
         }
-        if (this.stumble <= 0) { this.stumble = 0; c.visible = this.storyChasing(); }
     }
 
     // ---- баночки: тестобустер (полёт) и холин (магнит) ----
@@ -3643,6 +3732,39 @@ class Game {
         b.disabled = !(this.peels > 0);
     }
 
+    // какая буква следующая: data.word — сколько букв собрано подряд по всем словам LETTERS.words
+    letterSpot() {
+        let n = (this.profile.data.word || 0) % LETTERS.words.join("").length;
+        for (const word of LETTERS.words) {
+            if (n < word.length) return { word, i: n };
+            n -= word.length;
+        }
+    }
+
+    // буква слова: прогресс копится между забегами, собрал слово — награда сразу в кошелёк (не в очки забега:
+    // рейтинг считает USDT забега, и награда за слово сломала бы сравнение), дальше — следующее слово
+    pickLetter(c) {
+        const { word, i } = this.letterSpot(), n = i + 1, done = n >= word.length;
+        this.profile.data.word = ((this.profile.data.word || 0) + 1) % LETTERS.words.join("").length;
+        if (done) this.profile.gift(LETTERS.reward); // подарок, как ежедневная награда: в прогресс глав не идёт; сохраняет сам
+        else this.profile.save();
+        this.world.flash(c.position, true);
+        this.audio.play(done ? "record" : "boost");
+        tg.haptic(done ? "success" : "medium");
+        this.showWord(word, n, done);
+    }
+
+    // плашка со словом над дорогой: собранные буквы горят, новая — с подскоком; через пару секунд прячется
+    showWord(word, n, done) {
+        const el = $("word");
+        el.innerHTML = [...word].map((ch, i) => `<i class="${i < n ? "on" : ""}${i === n - 1 ? " new" : ""}">${ch}</i>`).join("")
+            + `<b>${done ? `Слово собрано · +${fmt(LETTERS.reward)} USDT` : `Буква ${n} из ${word.length}`}</b>`;
+        el.classList.toggle("done", !!done);
+        el.hidden = false;
+        clearTimeout(this.wordT);
+        this.wordT = setTimeout(() => { el.hidden = true; }, done ? 4200 : 2600);
+    }
+
     pickTrash(c) {
         this.bag++;
         this.world.flash(c.position, false);
@@ -4142,10 +4264,18 @@ class Game {
                 if (this.answer(o)) return;
                 continue;
             }
+            if (d.type === "truck") { // фура: по пандусу и крыше бегут, удар — только в торец или в борт ниже крыши
+                if (d.passed) continue; // вошёл в неё под защитой: защита кончилась внутри — это не удар
+                const top = this.world.truckTop(o), ramp = top !== null && d.ramp && o.position.z + d.halfZ < d.ramp;
+                if (top === null || this.y >= top - (ramp ? RAMP_STEP : STEP_UP)) continue;
+            }
+            if (this.fromRoof && this.jumping && d.type !== "truck") continue; // падает с крыши: то, что внизу, бьёт только на земле
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
             if (d.type === "barrier" && sliding) continue;
-            if (calm) continue;
-            if (this.fx.safe > 0) continue; // после щита и апелляции — пара секунд неуязвимости
+            if (calm || this.fx.safe > 0) { // у стены и пока Ислам дует; после щита и апелляции — пара секунд неуязвимости
+                if (d.type === "truck") d.passed = true;
+                continue;
+            }
             if (this.fx.shield) { // «Щит» прощает одно столкновение
                 this.fx.shield = false;
                 if (this.grudge && this.stumble > 0) this.grudgeSay("shield");
@@ -4158,6 +4288,8 @@ class Game {
                 tg.haptic("warning");
                 continue;
             }
+            // в торец фуры — как в поезд: сразу конец забега (запасная жизнь спасает); в борт — обычный удар сбоку
+            if (d.type === "truck" && !this.sideHit(o)) { if (this.spareLife(o)) continue; this.kick(0.6, 12); return this.gameOver("truck"); }
             // как в сабвее: второй удар, пока ДПС на хвосте, — поймали; первый — споткнулся
             if (this.stumble > 0) { if (this.spareLife(o)) continue; return this.gameOver("caught"); }
             this.hitOnce(o);
@@ -4182,6 +4314,7 @@ class Game {
             if (Math.abs(c.position.x - this.x) > 0.7 || c.position.z < -0.7 || c.position.z - move > 0.7) continue;
             if (c.position.y < this.y - 0.2 || c.position.y > this.y + ratTop) continue;
             if (c.userData.trash) this.pickTrash(c);
+            else if (c.userData.letter) this.pickLetter(c);
             else if (c.userData.trump) { // козырь в бою с боссом
                 this.bossTrump(c);
             } else if (c.userData.pickup) {

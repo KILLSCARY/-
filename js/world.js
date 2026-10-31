@@ -1,6 +1,6 @@
 import { CoinBatch } from "./coin-batch.js";
 import { makeItems } from "./hecklers.js";
-import { NIKITA_BAG, NIKITA_ITEMS } from "./config.js";
+import { NIKITA_BAG, NIKITA_ITEMS, TRUCKS, LETTERS } from "./config.js";
 import { updateAmbientAnimation } from "./frame-timing.js";
 // Ночной район: мокрый асфальт, хрущёвки с окнами, рольставни, красные лампы у подъездов,
 // оранжевые фонари, дождь. Плюс препятствия и монеты, которые едут навстречу крысу.
@@ -1473,6 +1473,44 @@ export class World {
         this.coins.push(g);
     }
 
+    // буква слова (LETTERS): золотая плашка, крутится и подбирается как монета (game.js, userData.letter).
+    // Картинка и материалы — одни на букву, плашка — общая геометрия
+    addLetter(ch, lane, z) {
+        const model = this.letterModels?.[ch];
+        if (model) {
+            const c = model.clone();
+            c.position.set(this.lanes[lane], 1.0, z);
+            c.userData = { letter: ch, model: true, baseY: 1.0 };
+            this.scene.add(c);
+            this.coins.push(c);
+            return;
+        }
+        const mats = (this.letterMats ||= {})[ch] ||= (() => {
+            const c = document.createElement("canvas");
+            c.width = c.height = 128;
+            const x = c.getContext("2d");
+            x.fillStyle = "#e9c25a";
+            x.fillRect(0, 0, 128, 128);
+            x.strokeStyle = "#8a6a1e";
+            x.lineWidth = 8;
+            x.strokeRect(4, 4, 120, 120);
+            x.fillStyle = "#3a2a06";
+            x.font = '800 80px "Unbounded", "Arial Black", sans-serif';
+            x.textAlign = "center";
+            x.textBaseline = "middle";
+            x.fillText(ch, 64, 70);
+            const tex = new THREE.CanvasTexture(c);
+            tex.encoding = THREE.sRGBEncoding; // three.js r149: colorSpace появился только в r152
+            const face = new THREE.MeshBasicMaterial({ map: tex }), edge = new THREE.MeshBasicMaterial({ color: 0xb8892a });
+            return [edge, edge, edge, edge, face, face];
+        })();
+        const m = new THREE.Mesh(this.letterGeo ||= new THREE.BoxGeometry(0.66, 0.66, 0.1), mats);
+        m.position.set(this.lanes[lane], 1.0, z);
+        m.userData = { letter: ch, model: true, baseY: 1.0 };
+        this.scene.add(m);
+        this.coins.push(m);
+    }
+
     // мусор для Никиты: подбирается как монета (game.js, userData.trash)
     // банан и помидор из моделей; пока грузятся — простые фигуры из активисток. Модели общие на все копии
     loadTrashModels() {
@@ -1510,7 +1548,44 @@ export class World {
 
     // 3D-модели из Meshy (MODELS в config.js). Пока модель грузится или если её нет —
     // используется процедурная модель или спрайт, а загруженная подменяет их «на лету».
+    // буквы и фура: пока модель не загрузилась, addLetter и makeTruck строят простую замену. Буква светится сама — ночью не теряется
+    loadWordAndTruckModels() {
+        this.letterModels = {};
+        for (const [ch, url] of Object.entries(LETTERS.models)) loadModel(url, (gltf) => {
+            const m = gltf.scene, size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+            m.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.45; } });
+            m.scale.multiplyScalar(LETTERS.height / (size.y || 1));
+            m.updateMatrixWorld(true);
+            const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()), g = new THREE.Group();
+            m.position.sub(c);
+            g.add(m);
+            this.letterModels[ch] = g;
+            this.warmQueue.push(g.clone());
+        }, () => {});
+        const T = TRUCKS;
+        loadModel(T.url, (gltf) => {
+            const m = gltf.scene;
+            m.rotation.y = T.yaw;
+            m.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+            m.position.set(-c.x, -box.min.y, -c.z); // середина кузова на оси, колёса на асфальте
+            const g = new THREE.Group().add(m);
+            g.scale.set(T.width / size.x, T.roof / size.y, T.len / size.z); // габарит фуры задаёт игра: полоса и высота крыши
+            this.truckModel = g;
+            this.warmQueue.push(g.clone());
+        }, () => {});
+        loadModel(T.rampUrl, (gltf) => { // низкий край — к герою; размер точно по пандусу, по которому считается высота (truckTop)
+            const m = gltf.scene, box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+            m.position.set(-c.x, -box.min.y, -c.z);
+            const g = new THREE.Group().add(m);
+            g.scale.set(T.width / size.x, T.roof / size.y, T.ramp / size.z);
+            this.rampModel = g;
+            this.warmQueue.push(g.clone());
+        }, () => {});
+    }
+
     loadObstacleModels() {
+        this.loadWordAndTruckModels();
         this.templates = {};
         for (const [kind, list] of Object.entries(MODELS)) {
             for (const cfg of list) {
@@ -2311,6 +2386,79 @@ export class World {
         g.userData.glare = glare;
     }
 
+    // Фура (TRUCKS): прицеп-контейнер, торцом к герою. ramp — сзади пандус до крыши: по нему забегают наверх.
+    // Детали общие на все фуры (геометрии и материалы создаются один раз), поэтому новая фура почти ничего не стоит
+    makeTruck(ramp) {
+        const T = TRUCKS, W = T.width, H = T.roof, L = T.len, R = ramp ? T.ramp : 0;
+        const p = (this.truckParts ||= (() => {
+            const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(T.ramp, H), new THREE.Vector2(T.ramp, 0)]);
+            const wedge = new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false });
+            wedge.rotateY(Math.PI / 2); // x формы → вглубь (−z), выдавливание → поперёк (x)
+            wedge.translate(-W / 2, 0, 0);
+            const std = (o) => new THREE.MeshStandardMaterial(o);
+            return {
+                wedge, wheel: new THREE.CylinderGeometry(0.42, 0.42, 0.3, 14),
+                body: std({ color: 0xd9dbe0, roughness: 0.55 }), roof: std({ color: 0xb4b8c2, roughness: 0.7 }),
+                stripe: std({ color: 0xe3343a, roughness: 0.5 }), white: std({ color: 0xf2f2f2, roughness: 0.5 }),
+                dark: std({ color: 0x24262c, roughness: 0.8 }), ramp: std({ color: 0x4d525c, roughness: 0.55, metalness: 0.35, side: THREE.DoubleSide }),
+                lamp: new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
+            };
+        })());
+        const g = new THREE.Group(), half = (L + R) / 2, near = half - R, mid = near - L / 2; // near — торец кузова
+        const box = (mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(this.geo.box, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); g.add(m); return m; };
+        if (this.truckModel) { const c = this.truckModel.clone(); c.position.z = mid; g.add(c); }
+        else {
+            box(p.body, W, H - 0.55, L, 0, 0.55 + (H - 0.55) / 2, mid);
+            box(p.roof, W - 0.06, 0.05, L - 0.06, 0, H + 0.02, mid); // крыша — дорожка, по которой бегут
+            box(p.dark, W * 0.8, 0.25, L - 0.4, 0, 0.42, mid); // рама
+            for (const sx of [-1, 1]) box(p.stripe, 0.02, 0.22, L, sx * (W / 2 + 0.01), 1.25, mid); // красная полоса по бортам
+            for (let i = 0; i < 4; i++) box(i % 2 ? p.white : p.stripe, W / 4, 0.18, 0.04, -W / 2 + W / 8 + i * W / 4, 0.68, near + 0.02); // светоотражатель
+            for (const sx of [-1, 1]) box(p.lamp, 0.16, 0.1, 0.03, sx * (W / 2 - 0.14), 0.95, near + 0.025);
+            box(p.dark, 0.03, H - 0.75, 0.02, 0, 0.55 + (H - 0.55) / 2, near + 0.015); // щель между створками
+            for (const dz of [-1.0, -2.0]) for (const sx of [-1, 1]) {
+                const w = new THREE.Mesh(p.wheel, p.dark);
+                w.rotation.z = Math.PI / 2;
+                w.position.set(sx * (W / 2 - 0.12), 0.42, near + dz);
+                g.add(w);
+            }
+            box(p.dark, 0.12, 0.5, 0.12, 0, 0.25, near - L + 1.2); // опора прицепа спереди
+        }
+        if (ramp && this.rampModel) { const c = this.rampModel.clone(); c.position.z = half - R / 2; g.add(c); }
+        else if (ramp) {
+            const r = new THREE.Mesh(p.wedge, p.ramp);
+            r.position.z = half;
+            g.add(r);
+            const len = Math.hypot(R, H), ang = Math.atan2(H, R); // красная полоса по пандусу — видно, куда забегать
+            const line = box(p.stripe, 0.18, 0.03, len, 0, H / 2 + 0.02, half - R / 2);
+            line.rotation.x = ang;
+        }
+        g.userData = { type: "truck", halfZ: half, roof: H, ramp: R };
+        return g;
+    }
+
+    // высота опоры фуры там, где герой (z = 0): от торца растёт пандус, дальше крыша; null — герой не над фурой
+    truckTop(o) {
+        const d = o.userData, s = o.position.z + d.halfZ;
+        if (s < 0 || s > d.halfZ * 2) return null;
+        return d.ramp && s < d.ramp ? d.roof * s / d.ramp : d.roof;
+    }
+
+    addTruck(lane, z, ramp) {
+        const o = this.makeTruck(ramp), d = o.userData;
+        o.position.set(this.lanes[lane], 0, z - d.halfZ); // торец — на линии ряда: фура тянется вдаль, в уже поставленные ряды не залезает
+        d.lane = lane;
+        o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+        this.groundBlob(o);
+        this.scene.add(o);
+        this.obstacles.push(o);
+        if (ramp && Math.random() < TRUCKS.coins) { // монеты по пандусу и крыше — награда за то, что забрался
+            const top = d.roof + 0.7, near = z - d.ramp;
+            for (let s = 0.8; s < d.ramp; s += 1.1) this.addCoin(lane, z - s, d.roof * s / d.ramp + 0.7);
+            for (let cz = near - 0.6; cz > z - d.halfZ * 2 + 0.6; cz -= 1.6) this.addCoin(lane, cz, top);
+        }
+        return o;
+    }
+
     addObstacle(kind, lane, z) {
         const o = this.makeObstacle(kind);
         o.position.set(this.lanes[lane], 0, z);
@@ -2499,7 +2647,9 @@ export class World {
     // из трёх полос, которую не пройти. Пока тачка едет сзади, в её полосе новые ряды ничего не ставят.
     spawnRow(z, difficulty, speed = 13) {
         const transit = new Set(this.obstacles.filter((o) => o.userData.oncoming && o.position.z < z + 3).map((o) => o.userData.lane));
-        const open = [0, 1, 2].filter((l) => !transit.has(l));
+        // фура длиннее промежутка между рядами: пока она тянется через этот ряд, её полоса в ряду не участвует
+        const parked = new Set(this.obstacles.filter((o) => o.userData.type === "truck" && Math.abs(o.position.z - z) < o.userData.halfZ + 2).map((o) => o.userData.lane));
+        const open = [0, 1, 2].filter((l) => !transit.has(l) && !parked.has(l));
         if (!open.length) return; // по всем трём полосам едут тачки — ряд пустой
         const free = pick(open);
         const blocked = open.filter((l) => l !== free && Math.random() < 0.35 + difficulty * 0.45);
@@ -2507,9 +2657,19 @@ export class World {
         // монета или баночка не должна оказаться внутри препятствия соседнего ряда в той же полосе
         const taken = (lane, cz) => this.obstacles.some((o) => o.userData.lane === lane && o.userData.type !== "decor" && Math.abs(o.position.z - cz) < (o.userData.halfZ || 0.5) + 0.8);
 
+        // фура вместо обычного препятствия: одна, иногда две рядом — тогда можно бежать по крышам
+        const T = TRUCKS, trucks = new Set();
+        if (T.locations.includes(this.location || "street") && !this.noCars && blocked.length
+            && Math.random() < T.chance[0] + (T.chance[1] - T.chance[0]) * difficulty) {
+            trucks.add(blocked[0]);
+            if (blocked[1] !== undefined && Math.random() < T.twin) trucks.add(blocked[1]);
+        }
+        const truckLane = (lane) => this.obstacles.some((o) => o.userData.type === "truck" && o.userData.lane === lane);
         for (const lane of blocked) {
+            if (trucks.has(lane)) { this.addTruck(lane, z, Math.random() < T.rampShare); continue; }
             let kind = this.location === 'winter' ? pick(WINTER_OBSTACLES) : this.pickKind();
-            if (this.noCars && kind === "car") kind = "block"; // встречная тачка проехала бы сквозь стену-возражение
+            // встречная тачка проехала бы сквозь стену-возражение или стоящую впереди фуру
+            if ((this.noCars || truckLane(lane)) && kind === "car") kind = "block";
             const o = this.addObstacle(kind, lane, z);
             if (o.userData.oncoming) o.position.z = z * (1 + o.userData.oncoming / Math.max(1, speed));
             // пост ДПС: инспектор на полосе, патрульная машина у обочины — там, где на тротуаре свободно
@@ -2542,6 +2702,8 @@ export class World {
             }
         }
         if (this.trashOn && Math.random() < NIKITA_BAG.chance && !taken(free, z + 2.6)) this.addTrash(pick(NIKITA_BAG.items), free, z + 2.6);
+        // буква слова (game.js ставит letterNext раз за забег) — на свободной полосе, когда там нет препятствия
+        if (this.letterNext && !taken(free, z + 3.2)) { this.addLetter(this.letterNext, free, z + 3.2); this.letterNext = null; }
         // иногда — баночка из NS Store на свободной полосе
         if (!this.noPickups && !taken(free, z + 1.5) && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
             this.sincePickup = 0;
