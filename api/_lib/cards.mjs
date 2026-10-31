@@ -16,7 +16,7 @@ export const cardsConfig = (env = process.env) => ({
     testCards: num(env.TEST_CARDS, 1000),
 });
 // цены в картах — должны совпадать с CARD_SHOP в js/config.js (клиент только показывает)
-export const CARD_PRICES = { x2run: 5, mizlate: 8, magnetrun: 12, dash: 15, hero_dima: 250, hero_tovarus: 250 };
+export const CARD_PRICES = { x2run: 5, mizlate: 8, magnetrun: 12, dash: 15, hero_dima: 250, hero_tovarus: 250, hero_nikita: 650 };
 // эксклюзивные герои за карты (HERO_UNLOCKS act "cards" в js/config.js): покупка навсегда — лежит в перках игрока,
 // в забег не списывается; повторно за того же героя не берём
 const isHero = (item) => item.startsWith("hero_");

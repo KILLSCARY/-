@@ -579,6 +579,7 @@ export class Fight {
         def.flash = 1;
         def.hitSide = att.hand ? 1 : -1;
         this.spark(contact, kind === "jab" ? 0.6 : kind === "super" ? 1.4 : 0.9, kind === "super" ? 0xffd65a : 0xffffff);
+        if (att.cfg.tomatoes && (kind === "super" || att.act === "super" || att.act === "superFin")) this.tomato(att, def, contact);
         this.popText(def, counter ? `КОНТР −${dmg}` : head ? `В ГОЛОВУ −${dmg}` : `−${dmg}`, counter || head || kind === "heavy" || kind === "super" || kind === "hook" ? "crit" : "");
         if (kind === "heavy" || kind === "hook" || kind === "super" || counter) { // комикс-вспышка и волна по асфальту — сильный удар видно сразу
             this.comic(contact, kind === "super" ? "super" : kind === "heavy" ? "heavy" : "");
@@ -601,6 +602,25 @@ export class Fight {
         const p = new THREE.Vector3();
         if (b) b.getWorldPosition(p); else p.set(0, 1.3, 0);
         return p;
+    }
+
+    // супер Никиты: помидор летит в соперника и лопается
+    tomato(att, def, contact) {
+        const m = (this.tomatoItems ||= makeItems()).tomato();
+        m.scale.setScalar(1.5);
+        const from = contact.clone(), to = contact.clone();
+        from.z += (att.z ?? 0) - (def.z ?? 0); from.y += 0.3;
+        m.position.copy(from);
+        this.group.add(m);
+        const start = performance.now(), fly = () => {
+            const k = Math.min(1, (performance.now() - start) / 160);
+            m.position.lerpVectors(from, to, k);
+            m.rotation.x += 0.4;
+            if (k < 1 && !this.disposed) return void requestAnimationFrame(fly);
+            this.group.remove(m);
+            if (!this.disposed) this.spark(to, 1.5, 0xd92b1f);
+        };
+        fly();
     }
 
     spark(pos, size, color) {

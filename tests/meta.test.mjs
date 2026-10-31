@@ -262,3 +262,21 @@ test("босс свободного забега: награда одна на �
     assert.equal(ok.json.nss, META.freeBoss.win);
     assert.equal(ok.json.meta.nss, META.freeBoss.win);
 });
+
+test("Никита: NSS ×1,5 только с настоящей покупкой, свой суточный лимит, цена 650 Карт", async () => {
+    const { runNss } = await import("../api/_lib/meta.mjs");
+    const { CARD_PRICES } = await import("../api/_lib/cards.mjs");
+    const { collectShift, runReward, emptyMeta, META: M } = await import("../js/meta-rules.mjs");
+    assert.equal(CARD_PRICES.hero_nikita, 650);
+    const day = Date.UTC(2026, 9, 31, 12), store = memoryStore(), who = { id: "71", user: {} };
+    assert.equal((await runNss(who, 5000, "aaaaaa", { store, now: day, hero: "nikita" })).nss, 20, "герой не куплен: обычная награда");
+    await store.cardTestOnce("71", 700);
+    await store.cardSpend("71", 650, "hero_nikita");
+    assert.equal((await runNss(who, 5000, "bbbbbb", { store, now: day, hero: "nikita" })).nss, 30);
+    assert.equal((await runNss(who, 5000, "cccccc", { store, now: day, hero: "mouse" })).nss, 20, "бежит другим героем");
+    const s = emptyMeta();
+    for (let i = 0; i < 12; i++) runReward(s, { runId: `run${i}aa`, distance: 5000, now: day, nikita: true });
+    assert.equal(s.earnDay.n, M.nikita.dayNss);
+    const sh = emptyMeta(); sh.shift.at = day - M.shift.fullMs;
+    assert.equal(collectShift(sh, day, true).result.nss, Math.floor(M.shift.nss * 1.5));
+});

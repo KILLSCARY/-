@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { STORY_HERO_LINES, FREE_BOSS, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -544,6 +544,10 @@ class Game {
         this.trip = 0;     // клип «споткнулся» (TRIP)
         this.windedAt = 0; // когда герой снова выдохнется (perk.winded)
         this.freeBoss = null; // бой свободного забега (startFreeBoss)
+        this.bag = 0; // Никита: мусор в мешке
+        this.endDive(false);
+        if (this.world) this.world.trashOn = !!this.perk.trash;
+        this.renderBag();
         this.freeBossAt = FREE_BOSS.at[0] + Math.random() * (FREE_BOSS.at[1] - FREE_BOSS.at[0]);
         this.freeBossAsked = false;
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
@@ -942,8 +946,8 @@ class Game {
             if (r.nss) this.hub.toast(`+${r.nss} NSS за забег`);
             this.hub.render();
         };
-        if (prize.online) { if (this.cardRunId) prize.runScore(this.cardRunId, this.distance, this.usdt).then(got); }
-        else got(metaApi.localRun(this.localRunId ||= `${Date.now().toString(36)}`, this.distance));
+        if (prize.online) { if (this.cardRunId) prize.runScore(this.cardRunId, this.distance, this.usdt, this.heroId).then(got); }
+        else got(metaApi.localRun(this.localRunId ||= `${Date.now().toString(36)}`, this.distance, this.heroId));
     }
 
     // очки = профит в USDT ×10 + пройденные метры (так же считает сервер рейтинга — api/_lib/rating.mjs)
@@ -1287,6 +1291,7 @@ class Game {
         this.phoneScene?.restorePose();
         if (!this.arrest?.scene) animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
         this.updateStars(dt);
+        this.updateFlies();
         this.moon.position.set(this.x - 4, 12, -14);
         this.moon.target.position.set(this.x, 0, -3);
 
@@ -1723,6 +1728,12 @@ class Game {
     selectHero(id) {
         if (!this.storyDone && CHARACTERS.find((c) => c.id === id)?.free) id = CHARACTERS[0].id; // герои свободного бега — после сюжета
         this.heroId = id;
+        if (this.world) {
+            const was = this.world.noNikita;
+            this.world.noNikita = id === "nikita";
+            if (was && !this.world.noNikita) for (const o of this.world.nikitas || []) o.visible = true;
+            this.world.trashOn = !!this.perk.trash;
+        }
         this.setLocation(this.heroLocation(id));
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
         this.syncRunMusic();
@@ -1925,6 +1936,11 @@ class Game {
         else if (this.storyChasing()) this.storyChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        if (this.diving) { // нырок: бак едет вместе с героем и подпрыгивает
+            this.diving -= dt;
+            if (this.diveBin) { this.diveBin.position.set(this.x, Math.abs(Math.sin(this.t * 9)) * 0.12, 0); this.diveBin.rotation.z = Math.sin(this.t * 14) * 0.08; }
+            if (this.diving <= 0) this.endDive(true);
+        }
         if (this.windCalm > 0) this.windCalm -= dt;
         this.collide(dt, move);
         const hudNow = performance.now();
@@ -2092,6 +2108,7 @@ class Game {
     cardFx(line, n = 1) {
         // сервер проверяет карту (забег этого игрока, не больше 2, не быстрее лимитов) и отвечает балансом —
         // его и показываем, чтобы баланс в игре не расходился с сервером (отказ — карта не засчитана)
+        if (this.perk.stink && Math.random() < 0.5) return void this.hub.toast("Девушка зажала нос: Карты не будет");
         if (this.cardRunId) prize.card(this.cardRunId).then((r) => {
             if (typeof r?.cards === "number") this.profile.setCards(r.cards);
             else if (r?.status === 403) this.profile.addCards(-1);
@@ -3354,6 +3371,7 @@ class Game {
         if (s.kind === "magnet") this.fx.magnet = Math.max(this.fx.magnet, s.time);
         if (s.kind === "x2") this.boostLeft = Math.max(this.boostLeft, s.time);
         if (s.kind === "ram") this.ram = s.charges;
+        if (s.kind === "dive") { this.diving = s.time; this.fx.safe = Math.max(this.fx.safe, s.time + 0.3); this.rat.visible = false; this.showDiveBin(); }
         this.hub.toast(`${s.name}: ${s.text}`);
         this.audio.play("boost");
         tg.haptic("heavy");
@@ -3361,6 +3379,90 @@ class Game {
         $("btn-skill").classList.add("fire");
         setTimeout(() => $("btn-skill").classList.remove("fire"), 600);
         this.renderSkill();
+    }
+
+    // ---- Никита Енот ---------------------------------------------------------------------
+    showDiveBin() {
+        if (this.diveBin) { this.diveBin.visible = true; return; }
+        loadModel("models/obj/trash_bin.glb?v=1", (gltf) => {
+            const m = gltf.scene, k = 1.25 / (new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y || 1);
+            m.scale.setScalar(k);
+            this.diveBin = new THREE.Group().add(m);
+            this.scene.add(this.diveBin);
+            this.diveBin.visible = !!this.diving;
+        }, () => {});
+    }
+
+    endDive(reward) {
+        if (!this.diving && !reward) { if (this.diveBin) this.diveBin.visible = false; return; }
+        this.diving = 0;
+        if (this.diveBin) this.diveBin.visible = false;
+        if (this.rat) this.rat.visible = true;
+        if (!reward) return;
+        const s = HERO_SKILLS.nikita;
+        this.usdt += s.usdt;
+        this.world.splash(this.x, 0, 20, 1.2);
+        this.kick(0.25, 5);
+        this.audio.play("chest");
+        tg.haptic("success");
+        this.hub.toast(`Вылетел из бака: +${s.usdt} USDT`);
+    }
+
+    renderBag() {
+        const el = $("bag");
+        if (!el) return;
+        el.hidden = !this.perk.trash;
+        el.querySelector("i").style.transform = `scaleX(${(this.bag || 0) / NIKITA_BAG.every})`;
+        el.querySelector("b").textContent = `${this.bag || 0}/${NIKITA_BAG.every}`;
+    }
+
+    pickTrash(c) {
+        this.bag++;
+        this.world.flash(c.position, false);
+        this.audio.play("coin");
+        tg.haptic("light");
+        if (c.userData.trash === "banana" && this.stumble > 0) { // кожура назад: преследователь поскальзывается
+            this.stumble = 0;
+            if (this.chaser) this.chaser.visible = false;
+            this.world.splash(this.x, 2, 14, 1);
+            this.audio.play("crash");
+            this.hub.toast(`${this.chaserCfg().name} поскользнулась на кожуре!`);
+        }
+        if (this.bag >= NIKITA_BAG.every) {
+            this.bag = 0;
+            if (Math.random() < NIKITA_BAG.rotten) { // подвох: тухлятина на весь экран
+                this.hecklers?.splat({ id: "tomato" });
+                this.audio.play("crash");
+                tg.haptic("warning");
+                this.hub.toast("Фу! Мешок лопнул тухлятиной");
+            } else {
+                this.usdt += NIKITA_BAG.loot;
+                this.audio.play("chest");
+                tg.haptic("success");
+                this.hub.toast(`Находка в мешке: +${NIKITA_BAG.loot} USDT`);
+            }
+        }
+        this.renderBag();
+    }
+
+    // мухи вокруг Никиты: пара точек на сцене, в меню и в забеге
+    updateFlies() {
+        const on = !!this.perk.stink && this.rat?.visible && this.state !== "fight";
+        if (!this.flies) {
+            if (!on) return;
+            const g = new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+            this.flies = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x14110c, size: 0.05 }));
+            this.flies.frustumCulled = false;
+            this.scene.add(this.flies);
+        }
+        this.flies.visible = !!on;
+        if (!on) return;
+        const a = this.flies.geometry.attributes.position, T = this.t, p = this.rat.position;
+        for (let i = 0; i < 6; i++) {
+            const k = T * (3 + i * 0.7) + i * 2.1;
+            a.setXYZ(i, p.x + Math.sin(k) * (0.35 + i * 0.05), p.y + 1.35 + Math.sin(k * 1.7) * 0.3, p.z + Math.cos(k * 0.9) * (0.3 + i * 0.05));
+        }
+        a.needsUpdate = true;
     }
 
     // запасная жизнь (Саша Белый): второй удар не заканчивает забег, погоня сбрасывается
@@ -3818,7 +3920,8 @@ class Game {
             const c = coins[i];
             if (Math.abs(c.position.x - this.x) > 0.7 || c.position.z < -0.7 || c.position.z - move > 0.7) continue;
             if (c.position.y < this.y - 0.2 || c.position.y > this.y + ratTop) continue;
-            if (c.userData.trump) { // козырь в бою с боссом
+            if (c.userData.trash) this.pickTrash(c);
+            else if (c.userData.trump) { // козырь в бою с боссом
                 this.bossTrump(c);
             } else if (c.userData.pickup) {
                 this.powerUp(c.userData.pickup);

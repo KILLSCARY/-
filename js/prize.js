@@ -27,7 +27,7 @@ export const prize = {
     meta() { return tg.initData ? post({ action: "meta" }) : Promise.resolve(null); },
     caseOpen(caseId, openId) { return tg.initData ? post({ action: "caseopen", caseId, openId }) : Promise.resolve(null); },
     promoBuy(promo) { return tg.initData ? post({ action: "promobuy", promo }) : Promise.resolve(null); },
-    shift() { return tg.initData ? post({ action: "shift" }) : Promise.resolve(null); },
+    shift(hero) { return tg.initData ? post({ action: "shift", hero }) : Promise.resolve(null); },
     bossWin(runId) { return tg.initData && runId ? post({ action: "bosswin", runId }) : Promise.resolve(null); },
     shiftUp() { return tg.initData ? post({ action: "shiftup" }) : Promise.resolve(null); },
     shiftNotify(on) { return tg.initData ? post({ action: "shiftnotify", on }) : Promise.resolve(null); },
@@ -35,7 +35,7 @@ export const prize = {
     top(n = 50) { return tg.initData ? post({ action: "top", n }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     task(id) { return tg.initData ? post({ action: "task", task: id }) : Promise.resolve(null); },
     // результат забега в рейтинг: runId — от cardRun (сервер засёк старт), метры и USDT; очки и проверку считает сервер
-    runScore(runId, distance, usdt) { return tg.initData && runId ? post({ action: "runscore", runId, distance: Math.floor(distance), usdt: Math.floor(usdt) }) : Promise.resolve(null); },
+    runScore(runId, distance, usdt, hero) { return tg.initData && runId ? post({ action: "runscore", runId, hero, distance: Math.floor(distance), usdt: Math.floor(usdt) }) : Promise.resolve(null); },
     // заявка на разбор: сервер отправляет её менеджерам; очки за «разбор» — только после доставки
     apply(lead) { return tg.initData ? post({ action: "apply", ...lead }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     claim() { return tg.initData ? post({ action: "claim" }) : Promise.resolve({ status: 401, error: "no_telegram" }); },

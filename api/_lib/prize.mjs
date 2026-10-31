@@ -76,7 +76,7 @@ export async function handle(action, body, { store, env = process.env, now = Dat
     }
     if (action === "runscore") {
         const r = await handleRating(action, body, who, { store, now });
-        if (r.status === 200) Object.assign(r.json, await runNss(who, Math.floor(Number(body.distance)), String(body.runId), { store, now }));
+        if (r.status === 200) Object.assign(r.json, await runNss(who, Math.floor(Number(body.distance)), String(body.runId), { store, now, hero: String(body.hero || "") }));
         return r;
     }
     if (action === "top") {

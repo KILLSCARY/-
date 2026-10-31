@@ -32,6 +32,7 @@ export const META = {
     pity: { epic: 10, legend: 30 }, // шкала удачи: эпическое и лучше — на 10-м открытии без него, легендарное — на 30-м
     runNss: { perM: 200, run: 20 }, // за забег: 1 NSS за 200 м, не больше 20 за забег
     freeBoss: { win: 40, perDay: 3, minSec: 30 }, // свободный забег: NSS за победу над боссом, наград в сутки; бой не раньше minSec от старта забега
+    nikita: { nss: 1.5, dayNss: 250 }, // купленный Никита Енот: NSS за забег и смену в полтора раза больше, свой суточный лимит
     dayNss: 200, // всего за сутки: забеги, смена и Кейс недели вместе (разовые бонусы — сверх)
     promos: [{ id: "p5", off: 5, nss: 3000 }, { id: "p10", off: 10, nss: 6000 }, { id: "p15", off: 15, nss: 10000 }], // скидка в NS Store, %
     promosOpen: false, // пока false: цены видны, покупки в игре нет, коды скрыты звёздочками («Скоро недельные промокоды»)
@@ -72,9 +73,9 @@ export function rollDrop(caseId, state, rng) {
 const dayOf = (now) => new Date(now).toISOString().slice(0, 10);
 
 // начислить NSS в пределах суточного лимита; возвращает, сколько реально начислено
-function earn(state, n, now) {
+function earn(state, n, now, cap = META.dayNss) {
     if (state.earnDay.d !== dayOf(now)) state.earnDay = { d: dayOf(now), n: 0 };
-    const got = Math.max(0, Math.min(n, META.dayNss - state.earnDay.n));
+    const got = Math.max(0, Math.min(n, cap - state.earnDay.n));
     state.earnDay.n += got;
     state.nss += got;
     return got;
@@ -101,10 +102,10 @@ export function openCase(state, { caseId, openId, now, rng }) {
 export const shiftFill = (state, now) => (state.shift.at ? Math.min(1, (now - state.shift.at) / META.shift.fullMs) : 0);
 
 // Ночная смена: первый вызов — Никита вышел на смену; дальше — забрать накопленное и начать заново
-export function collectShift(state, now) {
+export function collectShift(state, now, nikita = false) {
     if (!state.shift.at) { state.shift.at = now; return { ok: true, result: { started: true, usdt: 0, nss: 0 } }; }
     if (now - state.shift.at < META.shift.minMs) return { ok: false, status: 403, error: "too_early", at: state.shift.at + META.shift.minMs };
-    const k = shiftFill(state, now) * shiftLevel(state.shift.lvl).mult, usdt = Math.floor(META.shift.usdt * k), nss = earn(state, Math.floor(META.shift.nss * k), now);
+    const k = shiftFill(state, now) * shiftLevel(state.shift.lvl).mult, usdt = Math.floor(META.shift.usdt * k), nss = nikita ? earn(state, Math.floor(META.shift.nss * k * META.nikita.nss), now, META.nikita.dayNss) : earn(state, Math.floor(META.shift.nss * k), now);
     state.shift.at = now;
     return { ok: true, result: { started: false, usdt, nss } };
 }
@@ -118,11 +119,11 @@ export function upgradeShift(state) {
 }
 
 // NSS за забег. Один забег присылается не раз (апелляция) — начисляем только прибавку
-export function runReward(state, { runId, distance, now }) {
+export function runReward(state, { runId, distance, now, nikita = false }) {
     const R = META.runNss;
-    const earned = Math.min(R.run, Math.floor(distance / R.perM));
+    const mult = nikita ? META.nikita.nss : 1, earned = Math.min(R.run * mult, Math.floor(distance / R.perM * mult));
     const before = state.lastRun.id === runId ? state.lastRun.n : 0;
-    const nss = earn(state, earned - before, now);
+    const nss = earn(state, earned - before, now, nikita ? META.nikita.dayNss : META.dayNss);
     state.lastRun = { id: runId, n: before + nss };
     return { ok: true, result: { nss } };
 }

@@ -28,7 +28,7 @@ export function renderShift(hub, box) {
     go.disabled = !!early;
     go.onclick = async () => {
         go.disabled = true;
-        const r = await metaApi.shift();
+        const r = await metaApi.shift(hub.game.heroId);
         if (r.status !== 200) { go.disabled = false; return hub.toast("Не получилось, попробуй ещё раз"); }
         hub.meta = r.meta;
         if (r.usdt) hub.p.gift(r.usdt);

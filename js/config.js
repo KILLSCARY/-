@@ -262,6 +262,8 @@ export const CHASER = { url: "models/obj/inspector.glb?v=5", height: 1.72, run: 
 // бегает Малахов — и в обычной погоне, и «из принципа» (CHASE_GRUDGE), и в погоне главы 1. Только сам захват перед боем
 // главы 1 (ролик) — Мизулина: дальше бой с ней.
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
+// Никита Енот: мешок мусора. every — сколько предметов до находки, loot — USDT за неё, rotten — шанс, что вместо находки тухлятина
+export const NIKITA_BAG = { every: 10, loot: 50, rotten: 0.2, chance: 0.6, items: ["banana", "tomato", "can"] };
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
         portrait: "img/heroes/malakhov.jpg?v=2", faceY: "36%", // лицо в репликах (рисованный портрет); faceY — где лицо по высоте
@@ -320,6 +322,7 @@ export const CHARACTERS = [
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=87", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
     { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=87", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=1", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -581,6 +584,7 @@ export const HERO_UNLOCKS = {
     // act "cards" — эксклюзив за Карты (cards; srv — id покупки на сервере, цена там же — api/_lib/cards.mjs CARD_PRICES).
     // exclusive — не открываются бетой (BETA_ALL_HEROES); за ними бегает свой преследователь (CHASERS)
     dima: { act: "cards", cards: 250, srv: "hero_dima", exclusive: true, text: "Эксклюзив · 250 Карт (их дают девушки на обочине)", btn: "Купить" },
+    nikita: { act: "cards", cards: 650, srv: "hero_nikita", exclusive: true, text: "Эксклюзив · 650 Карт (их дают девушки на обочине)", btn: "Купить" },
     tovarus: { act: "cards", cards: 250, srv: "hero_tovarus", exclusive: true, text: "Эксклюзив · 250 Карт (их дают девушки на обочине)", btn: "Купить" },
 };
 // Бета-тест: все герои открыты сразу, без заданий (подписка, друг, глава 3, разбор, бонус Гориллы). Задания и их
@@ -608,6 +612,7 @@ export const HERO_PERKS = {
     gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
     dima: { text: "Свой среди постов: +15% USDT", coinBonus: 7 },
     tovarus: { text: "Стабильный: +12% USDT", coinBonus: 8 },
+    nikita: { text: "Король мусорок: NSS ×1,5, мусор в мешок, кожура сбрасывает погоню. Но от него пахнет: девушки дают Карты вдвое реже", trash: true, stink: true },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты
@@ -618,6 +623,7 @@ export const HERO_SKILLS = {
     islam: { name: "Попутный ветер", text: "5 с ускорение и защита", kind: "turbo", time: 5 },
     sasha: { name: "Таран", text: "3 стены подряд — без ответа", kind: "ram", charges: 3 },
     pavel: { name: "Напор", text: "4 с быстрее и неуязвим", kind: "turbo", time: 4 },
+    nikita: { name: "Нырок в бак", text: "3 с неуязвим в баке и куча монет", kind: "dive", time: 3, usdt: 30 },
 };
 
 // «НЕ СУЩИЙ STORE» (каталог shop_v4_bady): бусты на один забег — только за монеты (price, игровой кошелёк),
@@ -829,6 +835,7 @@ export const STORY_HERO_LINES = {
     sasha: ["Первый миллион начинается с первого шага.", "Проверяйте. У меня всё чисто.", "В Тюмени и не такое сдавали."],
     gorilla: ["Что-то знакомая станция.", "Костюм есть, документы в нём.", "Мне кажется, с этим Павлом мы встречались."],
     dima: ["Свои, начальник. Почти.", "Коллеги, удостоверение показать?", "Экзамен? Я думал, это я принимаю."],
+    nikita: ["С мусорки — и сразу на обмен.", "Документы? Где-то в баке были.", "Экзамен сдам. Шпаргалка в мусорке."],
     tovarus: ["Товарищ, это обмен или очередь?", "Спокойно. Костюм глаженый, совесть тоже.", "Галстук поправил. Я готов."],
 };
 export const GORILLA_HINT_CH2 = "Знаешь, кто мне это объяснил? Один экзаменатор. Строгий.";
@@ -924,6 +931,7 @@ export const HERO_FIGHT = {
     gorilla: { dmg: 0.9, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
     dima: { dmg: 0.8, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
     tovarus: { dmg: 0.8, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
+    nikita: { dmg: 0.85, hp: 100, punchTime: 0.38, dodgeCd: 0.4 },
     denchik: { dmg: 0.9, hp: 100, punchTime: 0.46, dodgeCd: 0.6 }, // бьёт как Горилла, но самый медленный
     islam: { dmg: 0.6, hp: 85, punchTime: 0.44, dodgeCd: 0.6 }, // самый слабый: победить босса за него очень тяжело
 };
@@ -951,6 +959,8 @@ for (const id of FREE_BOSS.pool) {
         ai: { ...f.ai, every: f.ai.every.map((r) => r.map((t) => t * b.every)) } };
 }
 FIGHTERS.hero_dima.short = "Дима";
+FIGHTERS.hero_nikita.short = "Никита";
+FIGHTERS.hero_nikita.tomatoes = true; // супер: летят помидоры
 FIGHTERS.hero_tovarus.short = "Товарус"; // «Саша» — уже Саша Белый
 export const heroFighter = (id) => (FIGHTERS[`hero_${id}`] ? `hero_${id}` : "mouse");
 // Бой: раунды (до winRounds побед из rounds), roundTime — секунд в раунде; gap — расстояние между бойцами (м);

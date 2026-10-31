@@ -34,8 +34,12 @@ async function tellManagers(p, who, { env, fetchImpl }) {
 }
 
 // NSS за проверенный сервером забег
-export async function runNss(who, distance, runId, { store, now = Date.now() }) {
-    const { out, state } = await changeMeta(store, who.id, (s) => runReward(s, { runId, distance, now }));
+// герой-Никита: только если сервер видит покупку, название героя от телефона само по себе ничего не даёт
+export const isNikita = async (store, id, hero) => hero === "nikita" && (await store.perks(id)).hero_nikita > 0;
+
+export async function runNss(who, distance, runId, { store, now = Date.now(), hero = "" }) {
+    const nikita = await isNikita(store, who.id, hero);
+    const { out, state } = await changeMeta(store, who.id, (s) => runReward(s, { runId, distance, now, nikita }));
     if (!out.ok) return {};
     await raceAdd(store, who, out.result.nss, now);
     if (distance >= META.bonus.friendRunM) await friendRan(store, who.id);
@@ -113,7 +117,8 @@ export async function handleMeta(action, body, who, { store, env = process.env, 
         return { status: 200, json };
     }
     if (action === "shift") {
-        const { out, state } = await changeMeta(store, who.id, (s) => collectShift(s, now));
+        const nikita = await isNikita(store, who.id, body.hero);
+        const { out, state } = await changeMeta(store, who.id, (s) => collectShift(s, now, nikita));
         if (!out.ok) return fail(out);
         await store.shiftDue(who.id, now + META.shift.fullMs);
         await raceAdd(store, who, out.result.nss, now);

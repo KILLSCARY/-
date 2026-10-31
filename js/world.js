@@ -1,4 +1,6 @@
 import { CoinBatch } from "./coin-batch.js";
+import { makeItems } from "./hecklers.js";
+import { NIKITA_BAG } from "./config.js";
 import { updateAmbientAnimation } from "./frame-timing.js";
 // Ночной район: мокрый асфальт, хрущёвки с окнами, рольставни, красные лампы у подъездов,
 // оранжевые фонари, дождь. Плюс препятствия и монеты, которые едут навстречу крысу.
@@ -1471,6 +1473,19 @@ export class World {
         this.coins.push(g);
     }
 
+    // мусор для Никиты: подбирается как монета (game.js, userData.trash)
+    addTrash(kind, lane, z) {
+        const make = (this.trashItems ||= makeItems())[kind];
+        if (!make) return;
+        const c = make();
+        c.scale.setScalar(1.7);
+        c.userData.trash = kind;
+        c.userData.baseY = 0.7;
+        c.position.set(this.lanes[lane], 0.7, z);
+        this.scene.add(c);
+        this.coins.push(c);
+    }
+
     addCoin(lane, z, y = 0.7, boost = false) {
         const c = this.makeCoin(boost);
         c.position.set(this.lanes[lane], y, z);
@@ -1850,6 +1865,7 @@ export class World {
             o.position.z += move;
             if (o.position.z > BEHIND_Z) o.position.z -= STREET_LEN;
             o.position.y = y0;
+            if (this.noNikita) { o.visible = false; continue; } // за него играют: двойник у бака не нужен
             o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
             const u = o.userData, z = o.position.z;
             o.visible = i < active && z > -85; // дальше всё равно дымка и горизонт
@@ -2510,6 +2526,7 @@ export class World {
                 this.addCoin(free, cz, 0.7, i === boostAt);
             }
         }
+        if (this.trashOn && Math.random() < NIKITA_BAG.chance && !taken(free, z + 2.6)) this.addTrash(pick(NIKITA_BAG.items), free, z + 2.6);
         // иногда — баночка из NS Store на свободной полосе
         if (!this.noPickups && !taken(free, z + 1.5) && ++this.sincePickup > POWERUP_SPAWN.gap && Math.random() < POWERUP_SPAWN.chance) {
             this.sincePickup = 0;

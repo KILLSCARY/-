@@ -18,8 +18,8 @@ export const metaApi = {
     promo(id) { return prize.online ? prize.promoBuy(id) : Promise.resolve(local((s) => buyPromo(s, { promoId: id, now: Date.now(), rng: Math.random }))); },
     // вне Telegram: в сети NSS за забег начисляет сервер при проверке результата (prize.runScore)
     localStory() { return local((s) => awardOnce(s, "story", META.bonus.story)); },
-    localRun(runId, distance) { return local((s) => runReward(s, { runId, distance, now: Date.now() })); },
+    localRun(runId, distance, hero) { return local((s) => runReward(s, { runId, distance, now: Date.now(), nikita: hero === "nikita" })); },
     bossWin(runId) { return prize.online ? prize.bossWin(runId) : Promise.resolve(local((s) => bossReward(s, { runId, now: Date.now() }))); },
-    shift() { return prize.online ? prize.shift() : Promise.resolve(local((s) => collectShift(s, Date.now()))); },
+    shift(hero) { return prize.online ? prize.shift(hero) : Promise.resolve(local((s) => collectShift(s, Date.now(), hero === "nikita"))); },
     shiftUp() { return prize.online ? prize.shiftUp() : Promise.resolve(local((s) => upgradeShift(s))); }, // вне Telegram Карты списывает city.js
 };

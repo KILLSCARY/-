@@ -1574,6 +1574,10 @@ body.direct #vig { display: block; }
 .wind-hint { bottom: calc(150px + var(--tg-safe-area-inset-bottom, 0px)); }
 .wind-hint b { font-size: 28px; }
 .rate-row { content-visibility: auto; contain-intrinsic-size: auto 56px; }
+.bag { position: absolute; right: 16px; top: calc(128px + var(--tg-safe-top, 0px)); display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 12px; background: rgba(10, 10, 18, .72); font: 700 11px var(--font-display); color: #fff; pointer-events: none; }
+.bag[hidden] { display: none; }
+.bag em { display: block; width: 60px; height: 6px; overflow: hidden; border-radius: 3px; background: rgba(255, 255, 255, .18); }
+.bag i { display: block; height: 100%; background: #9ad14b; transform-origin: 0 50%; transform: scaleX(0); transition: transform .15s; }
 #lead { z-index: 31; } /* заявка открывается и поверх окна «Воронка пройдена» */
 #free-boss { z-index: 95; } /* поверх кнопки навыка и HUD забега */
 .guide-focus.none { border: 0; }

@@ -93,7 +93,7 @@ function splatImage(id, variant) {
 }
 
 // предметы: узнаваемые силуэты из простых фигур, геометрии общие на все броски. Лёгкая подсветка — ночью и в тени не чёрные
-function makeItems() {
+export function makeItems() {
     const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, emissive: color, emissiveIntensity: 0.22, ...o });
     const out = {};
     out.tomato = () => {
