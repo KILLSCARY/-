@@ -48,12 +48,32 @@ redis.call('SADD', KEYS[1], ARGV[1])
 redis.call('INCR', KEYS[2]); redis.call('EXPIRE', KEYS[2], 172800)
 return {1, redis.call('HINCRBY', KEYS[3], ARGV[2], tonumber(ARGV[3])), 'ok'}`;
 
+// p2p:meta:<id> — состояние игрока (api/_lib/meta.mjs): записать, только если значение не менялось с момента чтения
+const META_CAS_LUA = `local v = redis.call('GET', KEYS[1])
+if (v or '') ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2])
+return 1`;
+
 export function memoryStore() {
     const ev = new Map(), claims = new Map(), rw = new Map(), cr = new Map(), cards = new Map(), seenOpen = new Set(), caseDay = new Map(), pk = new Map();
     let taken = 0;
+    const meta = new Map(), due = new Map(), promoIdx = new Map(), race = new Map();
     const lb = new Map(), lbr = new Map(), lbn = new Map(), lbp = new Map(), lbs = new Map(), tk = new Set(), leads = new Map(), refBy = new Map(), refs = new Map();
     return {
         kind: "memory",
+        async once(key) { if (seenOpen.has(`o:${key}`)) return false; seenOpen.add(`o:${key}`); return true; },
+        async promoIndex(code, id) { promoIdx.set(code, String(id)); },
+        async promoOwner(code) { return promoIdx.get(code) || null; },
+        // гонка недели: неделя → (игрок → NSS)
+        async raceAdd(w, id, n, name, photo = "") { const m = race.get(w) || new Map(); race.set(w, m); m.set(String(id), (m.get(String(id)) || 0) + n); lbn.set(id, name); if (photo) lbp.set(id, photo); },
+        async raceTop(w, n) { return [...(race.get(w) || [])].sort((a, b) => b[1] - a[1]).slice(0, n).map(([id, nss], i) => ({ id, rank: i + 1, nss, name: lbn.get(id) || "Игрок", photo: lbp.get(id) || "" })); },
+        async raceMe(w, id) { const m = race.get(w), nss = m?.get(String(id)); return nss ? { nss, rank: [...m.values()].filter((v) => v > nss).length + 1 } : { nss: 0, rank: 0 }; },
+        async raceScores(w, ids) { return ids.map((id) => race.get(w)?.get(String(id)) || 0); },
+        async metaGet(id) { return meta.get(String(id)) || null; },
+        async metaCas(id, was, next) { if ((meta.get(String(id)) || null) !== was) return false; meta.set(String(id), next); return true; },
+        async shiftDue(id, at) { due.set(String(id), at); },
+        async shiftDueList(now, n) { return [...due].filter(([, at]) => at <= now).slice(0, n).map(([id]) => id); },
+        async shiftDueDel(id) { due.delete(String(id)); },
         // рейтинг (api/_lib/rating.mjs)
         async lbAdd(id, pts, name, stat, n = 1, photo = "") { lb.set(id, (lb.get(id) || 0) + pts); lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); if (stat) lbs.set(`${id}:${stat}`, (lbs.get(`${id}:${stat}`) || 0) + n); },
         async lbName(id, name, photo = "") { if (!lbr.has(id)) return; lbn.set(id, name); if (photo) lbp.set(id, photo); else lbp.delete(id); },
@@ -135,6 +155,35 @@ export function redisStore(url, token, fetchImpl = fetch) {
     };
     return {
         kind: "redis",
+        async once(key, ttl) { return (await cmd("SET", `p2p:once:${key}`, "1", "NX", "EX", String(ttl))) === "OK"; },
+        async promoIndex(code, id) { await cmd("HSET", "p2p:promo", code, String(id)); },
+        async promoOwner(code) { return (await cmd("HGET", "p2p:promo", code)) || null; },
+        // гонка недели: p2p:race:<неделя> — sorted set tgId → NSS (живёт 60 дней); имена и фото — общие с рейтингом
+        async raceAdd(w, id, n, name, photo = "") {
+            await cmd("ZINCRBY", `p2p:race:${w}`, String(n), String(id));
+            await cmd("EXPIRE", `p2p:race:${w}`, String(60 * 86400));
+            await cmd("HSET", "p2p:lbn", String(id), name);
+            if (photo) await cmd("HSET", "p2p:lbp", String(id), photo);
+        },
+        async raceTop(w, n) {
+            const a = (await cmd("ZREVRANGE", `p2p:race:${w}`, "0", String(n - 1), "WITHSCORES")) || [];
+            const ids = [], vals = [];
+            for (let i = 0; i < a.length; i += 2) { ids.push(a[i]); vals.push(Number(a[i + 1])); }
+            if (!ids.length) return [];
+            const names = (await cmd("HMGET", "p2p:lbn", ...ids)) || [], photos = (await cmd("HMGET", "p2p:lbp", ...ids)) || [];
+            return ids.map((id, i) => ({ id, rank: i + 1, nss: vals[i], name: names[i] || "Игрок", photo: photos[i] || "" }));
+        },
+        async raceMe(w, id) {
+            const v = await cmd("ZSCORE", `p2p:race:${w}`, String(id));
+            if (v == null) return { nss: 0, rank: 0 };
+            return { nss: Number(v), rank: Number(await cmd("ZREVRANK", `p2p:race:${w}`, String(id))) + 1 };
+        },
+        async raceScores(w, ids) { return Promise.all(ids.map(async (id) => Number((await cmd("ZSCORE", `p2p:race:${w}`, id)) || 0))); },
+        async metaGet(id) { return (await cmd("GET", `p2p:meta:${id}`)) || null; },
+        async metaCas(id, was, next) { return Number(await cmd("EVAL", META_CAS_LUA, "1", `p2p:meta:${id}`, was || "", next)) === 1; },
+        async shiftDue(id, at) { await cmd("ZADD", "p2p:shiftdue", String(at), String(id)); },
+        async shiftDueList(now, n) { return (await cmd("ZRANGEBYSCORE", "p2p:shiftdue", "0", String(now), "LIMIT", "0", String(n))) || []; },
+        async shiftDueDel(id) { await cmd("ZREM", "p2p:shiftdue", String(id)); },
         async lbAdd(id, pts, name, stat, n = 1, photo = "") {
             await cmd("ZINCRBY", "p2p:lb", String(pts), String(id));
             await cmd("HSET", "p2p:lbn", String(id), name);

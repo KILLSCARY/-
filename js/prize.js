@@ -22,6 +22,13 @@ export const prize = {
     cards() { return tg.initData ? post({ action: "cards" }) : Promise.resolve(null); }, // баланс и купленные эксклюзивные герои
     // карты из кейса: openId — один раз, сколько и как часто — проверяет сервер
     caseCard(caseId, openId, n) { return tg.initData ? post({ action: "casecard", caseId, openId, n }) : Promise.resolve(null); },
+    // кейсы, NSS и «Ночная смена» (api/_lib/meta.mjs): приз, шкалу удачи и баланс NSS решает сервер
+    meta() { return tg.initData ? post({ action: "meta" }) : Promise.resolve(null); },
+    caseOpen(caseId, openId) { return tg.initData ? post({ action: "caseopen", caseId, openId }) : Promise.resolve(null); },
+    promoBuy(promo) { return tg.initData ? post({ action: "promobuy", promo }) : Promise.resolve(null); },
+    shift() { return tg.initData ? post({ action: "shift" }) : Promise.resolve(null); },
+    shiftUp() { return tg.initData ? post({ action: "shiftup" }) : Promise.resolve(null); },
+    shiftNotify(on) { return tg.initData ? post({ action: "shiftnotify", on }) : Promise.resolve(null); },
     // рейтинг: таблица и место игрока; разовые задания (очки за них даёт сервер один раз)
     top(n = 50) { return tg.initData ? post({ action: "top", n }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     task(id) { return tg.initData ? post({ action: "task", task: id }) : Promise.resolve(null); },

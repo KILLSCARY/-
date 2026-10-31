@@ -14,6 +14,7 @@ import { FramePacer, FrameMeter } from "./frame-timing.js";
 import { CardGirls } from "./cards.js";
 import { Hecklers } from "./hecklers.js";
 import { prize } from "./prize.js";
+import { metaApi } from "./meta-client.js";
 import { Profile } from "./profile.js";
 import { Hub } from "./hub.js";
 import { createRat, animateRat, attachModel } from "./rat.js";
@@ -509,6 +510,7 @@ class Game {
         this.runTime = 0;
         this.distance = 0;
         this.hudScore = 0;
+        this.localRunId = null;
         this.usdt = 0;
         this.coinCount = 0;
         this.cards?.reset();
@@ -830,7 +832,7 @@ class Game {
 
         const score = this.score();
         this.submitRun();
-        const isBest = score > this.best;
+        const isBest = score > this.best, prevBest = this.best;
         if (isBest) {
             this.best = score;
             tg.saveBest(score);
@@ -902,7 +904,7 @@ class Game {
         };
         setTimeout(() => {
             if (this.state !== "over") return;
-            if (isBest && score > 0) this.recordScreen = new RecordScreen(this, score, showOver);
+            if (isBest && score > 0) this.recordScreen = new RecordScreen(this, score, prevBest, showOver);
             else showOver();
         }, this.arrest?.scene ? CATCH_END * 1000 : arrest ? 2700 : 700);
     }
@@ -910,7 +912,15 @@ class Game {
     // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
     // Один забег можно прислать несколько раз (после апелляции очков больше) — в таблице всё равно максимум
     submitRun() {
-        if (this.cardRunId && this.distance > 0) prize.runScore(this.cardRunId, this.distance, this.usdt);
+        if (!(this.distance > 0)) return;
+        const got = (r) => { // NSS за забег: 1 за 200 м, начисляет сервер после проверки результата
+            if (!r?.meta) return;
+            this.hub.meta = r.meta;
+            if (r.nss) this.hub.toast(`+${r.nss} NSS за забег`);
+            this.hub.render();
+        };
+        if (prize.online) { if (this.cardRunId) prize.runScore(this.cardRunId, this.distance, this.usdt).then(got); }
+        else got(metaApi.localRun(this.localRunId ||= `${Date.now().toString(36)}`, this.distance));
     }
 
     // очки = профит в USDT ×10 + пройденные метры (так же считает сервер рейтинга — api/_lib/rating.mjs)
@@ -1355,7 +1365,7 @@ class Game {
         this.direct = on;
         const R = this.renderer;
         R.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-        R.toneMappingExposure = (this.look2 ? LOOK2.exposure : SKY.exposure) * 0.55; // ACES в Three.js делит на 0,6; чуть ниже — нет прохода контраста/сочности
+        R.toneMappingExposure = (this.look2 ? LOOK2.exposure : SKY.exposure) * 0.78; // без постобработки (телефон): светлее, чтобы вечер не темнел
         document.body.classList.toggle("direct", on);
         this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
     }
@@ -1613,6 +1623,7 @@ class Game {
     setLocation(name, force = false) {
         if (this.location === name && !force) return;
         this.location = name;
+        this.syncRunMusic();
         if (!this.world) return;
         this.world.setLocation(name);
         this.scene.fog.color.set(name === "vietnam" ? VIETNAM.fog : SKY.color);
@@ -1622,7 +1633,7 @@ class Game {
         if (this.hemi) {
             this.hemi.color.set(vn ? vn.hemi[0] : SKY.hemi[0]); this.hemi.groundColor.set(vn ? vn.hemi[1] : SKY.hemi[1]);
             this.hemi.intensity = vn ? vn.hemiI : this.look2 ? LOOK2.hemi : SKY.light;
-            this.moon.color.set(vn ? vn.sun : SKY.moon); this.moon.intensity = vn ? vn.sunI : 0.9;
+            this.moon.color.set(vn ? vn.sun : SKY.moon); this.moon.intensity = vn ? vn.sunI : 1.5;
         }
         this.envs ||= { street: this.scene.environment };
         if (vn && !this.envs.vietnam) this.envs.vietnam = buildEnvironment(this.renderer, VIETNAM.env);
@@ -1635,6 +1646,13 @@ class Game {
         this.setQuality(this.quality);
     }
 
+    // музыка забега: своя у героя (Саша, Ислам), иначе — биома, иначе — общая
+    syncRunMusic() {
+        const hero = SOUNDS.heroMusic[this.heroId];
+        if (hero) return this.audio.setRunTracks(hero, SOUNDS.heroMusicGain[this.heroId] || 1);
+        this.audio.setRunTracks(SOUNDS.biomeMusic[this.location] || SOUNDS.music.run, SOUNDS.biomeMusicGain[this.location] || 1);
+    }
+
     heroLocation(id) {
         // зимний район — начальный; ночной район — на карте (location "street"); у Димы и Саши — свой Нячанг
         if (VIETNAM.heroes.includes(id)) return "vietnam";
@@ -1645,11 +1663,11 @@ class Game {
     // applyLook — здесь им возвращаем только то, что зима меняет сверх них (сочность, контраст, виньетка, тонмаппинг)
     applyLocationLook() {
         const winter = this.location === "winter", dubai = this.location === "vietnam", u = this.output.uniforms;
-        u.sat.value = dubai ? 1.08 : winter ? 1.06 : this.look2 ? LOOK2.sat : CINE.sat;
-        u.contrast.value = dubai ? 1.05 : winter ? 1.12 : this.look2 ? LOOK2.contrast : CINE.contrast;
+        u.sat.value = dubai ? 1.08 : winter ? .92 : this.look2 ? LOOK2.sat : CINE.sat;
+        u.contrast.value = dubai ? 1.05 : winter ? 1.04 : this.look2 ? LOOK2.contrast : CINE.contrast;
         u.vig.value = dubai ? .3 : winter ? .64 : this.look2 ? LOOK2.vignette : SKY.vignette;
         // Дубай: экспозиция 1,35 (в тесте 1,6 — пересвет и «мега-свечение»)
-        this.renderer.toneMappingExposure = (dubai ? 1.35 : winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure) * .55;
+        this.renderer.toneMappingExposure = (dubai ? 1.35 : winter ? 1.35 : this.look2 ? LOOK2.exposure : SKY.exposure) * (dubai ? .55 : .78);
         document.body.classList.toggle("winter", winter);
         this.world.winter?.sync();
         if (this.world.vietnam?.on) this.world.vietnam.sync();
@@ -1657,13 +1675,14 @@ class Game {
         const sky = winter ? WINTER : VIETNAM; // свет, дымка и дальность зимы и Дубая (у Дубая — VIETNAM в config.js)
         this.hemi.color.set(sky.hemi[0]); this.hemi.groundColor.set(sky.hemi[1]);
         this.hemi.intensity = sky.light;
-        this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.25 : .8;
+        this.moon.color.set(sky.moon); this.moon.intensity = dubai ? 1.25 : 1.5;
         this.scene.fog.color.set(sky.fog);
         this.scene.fog.near = sky.near;
         this.scene.fog.far = this.baseFog = sky.far;
         this.camera.far = this.baseFar = sky.viewFar;
         this.camera.updateProjectionMatrix();
-        u.exposure.value = winter ? 1.35 : (this.look2 ? LOOK2.exposure : SKY.exposure) * VIETNAM.post.exposure;
+        if (winter) { u.grade.value *= .5; if (this.tier.bloom) this.bloom.strength = .45; } // зима: приглушённый вечер, фонари светят сами
+        u.exposure.value = winter ? .92 : (this.look2 ? LOOK2.exposure : SKY.exposure) * VIETNAM.post.exposure;
     }
 
     selectHero(id) {
@@ -1671,7 +1690,7 @@ class Game {
         this.heroId = id;
         this.setLocation(this.heroLocation(id));
         this.world?.loadHeroChaser(CHARACTERS.find((c) => c.id === id)?.chaser); // Малахов за эксклюзивными героями
-        this.audio.setRunTracks(SOUNDS.heroMusic[id] || SOUNDS.music.run, SOUNDS.heroMusicGain[id] || 1); // у Саши и Ислама — своя музыка забега
+        this.syncRunMusic();
         try { localStorage.setItem("p2p_hero", id); } catch {}
         for (const b of document.querySelectorAll(".hero")) b.classList.toggle("active", b.dataset.id === id);
         const cfg = CHARACTERS.find((c) => c.id === id);

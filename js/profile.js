@@ -1,5 +1,5 @@
 // Профиль игрока: кошелёк (USDT; старые TRX пересчитаны ×300 при загрузке), всё заработанное (по нему идут главы), купленные герои,
-// добавки на следующий забег, прокачка, когда открывался бесплатный конверт. Хранится через tg.js.
+// добавки на следующий забег, прокачка. Хранится через tg.js.
 
 import { CHAPTERS, HERO_UNLOCKS, SETS, BOOSTS, BOOST_LIMIT, UPGRADES, GRANTS, GORILLA_BONUS, BETA_ALL_HEROES } from "./config.js";
 // TRX, выданные бесплатно прежними начислениями (строки из GRANTS уже убраны): при пересчёте TRX → USDT не считаем
@@ -11,7 +11,6 @@ const EMPTY = () => ({
     heroes: [],                                   // выкупленные (бесплатные в список не пишутся)
     next: Object.fromEntries(BOOSTS.map((b) => [b.id, 0])), // добавки, купленные на следующие забеги
     up: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 1])), // уровни прокачки
-    freeAt: 0,                                    // когда последний раз открыт бесплатный кейс
     chests: 0,                                    // сундуки за боссов (бесплатное открытие кейса)
     story: 0,                                     // сколько сюжетов пройдено (бой 1 на 1)
     beaten: null,                                 // сколько боссов глав побеждено (null — старый профиль, см. load)
@@ -103,7 +102,6 @@ export class Profile {
         }
         for (const id of Object.keys(d.up)) d.up[id] = Math.max(d.up[id] || 1, now.up?.[id] || 1);
         d.heroes = [...new Set([...(d.heroes || []), ...(now.heroes || [])])];
-        d.freeAt = Math.max(d.freeAt || 0, now.freeAt || 0);
         for (const k of ["tasksDone", "checked", "tried"]) {
             d[k] = { ...(d[k] || {}) };
             for (const [id, value] of Object.entries(now[k] || {})) if (value) d[k][id] = value;

@@ -11,7 +11,7 @@ import { getStore } from "./_lib/store.mjs";
 
 // Действия, которые пропускаем в handle(). Новое действие в handle() — добавить и сюда (tests/redis.test.mjs это проверяет):
 // без «runscore» здесь результаты забегов не доходили до рейтинга
-export const ACTIONS = ["claim", "event", "reward", "rewards", "cards", "cardrun", "card", "cardbuy", "casecard", "task", "top", "runscore", "apply", "subcheck", "refs"];
+export const ACTIONS = ["claim", "event", "reward", "rewards", "cards", "cardrun", "card", "cardbuy", "casecard", "task", "top", "runscore", "apply", "subcheck", "refs", "meta", "caseopen", "shift", "shiftup", "shiftnotify", "promobuy"];
 
 async function readBody(req) {
     if (req.body && typeof req.body === "object") return req.body;

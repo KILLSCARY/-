@@ -3,6 +3,9 @@
 import { tg } from "./tg.js";
 import { GorillaGuide } from "./guide.js";
 import { prize } from "./prize.js";
+import { META, weekOf, weekEnd } from "./meta-rules.mjs";
+import { metaApi } from "./meta-client.js";
+import { renderShift, renderPromos } from "./city.js";
 import { CityMap } from "./map.js";
 import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP } from "./config.js";
 
@@ -27,7 +30,7 @@ export class Hub {
         this.game = game;
         this.p = profile;
         this.current = "run";
-        this.seg = "boosts";
+        this.seg = "shift"; // вкладка NS Store
         this.guide = new GorillaGuide(this);
         for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => this.back();
         $("btn-settings").onclick = () => this.tab("settings");
@@ -43,15 +46,17 @@ export class Hub {
             v.pause();
             v.removeAttribute("src");
             v.load();
+            $("co").classList.remove("s-many");
             this.game.show("menu");
             this.render();
         };
-        setInterval(() => { if (this.current === "cases") this.renderCases(); }, 30000); // таймер бесплатного конверта
+        setInterval(() => { if (this.current === "shop" && this.seg === "shift") this.renderShop(); }, 30000); // заполнение копилки смены
     }
 
     tab(name) {
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
+        if (name === "cases" || name === "rating" || name === "shop") this.loadMeta();
         if (name === "heroes") this.autoCheck(); // начатые подписка и приглашение — проверить молча, герой откроется сам
         // эксклюзивы за Карты хранит сервер: купленные на другом устройстве — открыть
         if (name === "heroes") prize.cards().then((r) => {
@@ -90,22 +95,24 @@ export class Hub {
         // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
         if (p.bonusCheck() && !BETA_ALL_HEROES) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
+        $("w-nss").textContent = short(this.meta?.nss || 0);
         $("w-cards").textContent = short(p.cards || 0); // карты от девушек на обочине (в Telegram баланс — с сервера)
         $("menu-best").textContent = short(this.game.best);
         const ch = p.chapter();
         $("chap-name").textContent = ch.done ? "Сезон 1 пройден" : `Глава ${ch.index + 1} · ${ch.name}`;
         $("chap-num").textContent = `${Math.min(ch.index, CHAPTERS.length)} / ${CHAPTERS.length} глав`;
         $("chap-bar").style.width = `${Math.min(100, ch.index / CHAPTERS.length * 100)}%`;
-        const free = this.freeReady();
         // плитки главной
         // плитка карты: в каком районе сейчас забег
         const loc = { winter: "Зимняя сказка", street: "Ночной район", vietnam: "Дубайский отдых" }[this.game.location];
         if (loc) $("tile-map-sub").textContent = `Сейчас: ${loc}`;
         if (this.current === "map") (this.cityMap ||= new CityMap(this)).render();
-        $("tile-cases-badge").hidden = !free;
-        $("tile-cases-sub").textContent = free ? "Конверт готов" : "Мерчант, Покоритель";
+        if (!this.metaAsked) { this.metaAsked = true; this.loadMeta(); }
+        const shiftFull = this.meta?.shift?.at && Date.now() - this.meta.shift.at >= META.shift.fullMs;
+        $("tile-shop-badge").hidden = !shiftFull;
+        $("tile-shop-sub").textContent = shiftFull ? "Копилка полная" : "Смена и промокоды";
         const next = Object.values(p.data.next || {}).reduce((a, b) => a + b, 0);
-        $("tile-shop-sub").textContent = next ? `Добавок в запасе: ${next}` : "Фокус, Рывок, Щит";
+        $("tile-cases-sub").textContent = next ? `Добавок в запасе: ${next}` : "Лут, бусты, наборы";
         const hero = CHARACTERS.find((c) => c.id === this.game.heroId);
         $("tile-heroes-sub").textContent = hero?.name ?? "";
         $("tile-heroes-thumb").style.backgroundImage = hero?.portrait ? `url('${hero.portrait}')` : "none";
@@ -408,14 +415,20 @@ export class Hub {
         $("rate-gap").textContent = !me.rank ? "Пробеги забег — лучший результат попадёт в таблицу"
             : me.rank === 1 ? (top[1] ? `Ты лидер · отрыв ${n(me.score - top[1].score)} очков` : "Ты лидер")
             : above ? `До №${me.rank - 1} — ${n(above.score - me.score + 1)} очков` : `Ты №${me.rank}`;
-        $("rate-chips").innerHTML = `<span><b>${n(this.game.best)}</b>Рекорд на телефоне</span><span><b>${n(me.score)}</b>В таблице</span>`;
+        $("rate-chips").innerHTML = `<span><b>${n(this.game.best)}</b>Рекорд на телефоне</span><span><b>${n(me.score)}</b>В таблице</span><span><b class="nss">${n(this.meta?.nss)}</b>NSS</span>`;
         $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Лучший забег";
         const list = $("rate-list");
+        const race = r.race, racing = this.rateTab === "race" && !!race;
+        $("rate-tabs").innerHTML = race ? [["best", "Рекорды"], ["race", "Гонка NSS"]].map(([k, t]) => `<button data-rt="${k}" class="${(racing ? "race" : "best") === k ? "on" : ""}">${t}</button>`).join("") : "";
+        for (const b of $("rate-tabs").querySelectorAll("button")) b.onclick = () => { this.rateTab = b.dataset.rt; this.renderRating(r); };
+        $("rate-race").hidden = !racing;
+        if (racing) $("rate-race").innerHTML = `<b>Гонка недели</b><span>Топ-${race.prizes} по NSS из забегов и смены получают промокод −${race.off}% на БАДы. До итогов: ${Math.max(1, Math.ceil((race.end - Date.now()) / 864e5))} дн.</span><span>Ты: ${race.me.rank ? `№${race.me.rank} · ` : ""}${n(race.me.nss)} NSS</span>`;
         const row = (x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="av"></span>`
-            + `<span class="nm"><b></b><span>${stats(x)}</span></span><span class="sc">${n(x.score)}</span></div>`;
-        const rows = [...top];
-        if (me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
-        list.innerHTML = rows.length ? rows.map((x, i) => (i === top.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : `<p class="rate-empty">Пока никого — будь первым!</p>`;
+            + `<span class="nm"><b></b><span>${racing ? "NSS за неделю" : stats(x)}</span></span><span class="sc">${racing ? `<em class="nss">${n(x.nss)} NSS</em>` : `${n(x.score)}<em class="nss">${n(x.nss)} NSS</em>`}</span></div>`;
+        const base = racing ? race.top : top, rows = [...base];
+        if (racing) { if (race.me.rank && !base.some((x) => x.id === me.id)) rows.push({ id: me.id, ...race.me, name: "Ты" }); }
+        else if (me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
+        list.innerHTML = rows.length ? rows.map((x, i) => (i === base.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : `<p class="rate-empty">Пока никого — будь первым!</p>`;
         [...list.querySelectorAll(".rate-row")].forEach((el, i) => {
             const nm = rows[i].name || "Игрок";
             el.querySelector(".nm b").textContent = nm; // имя — текстом, не HTML
@@ -687,106 +700,95 @@ export class Hub {
     }
 
     // ---- магазин ----
+    // NS Store: «Ночная смена» и промокоды за NSS
     renderShop() {
-        for (const b of document.querySelectorAll(".seg button")) b.classList.toggle("on", b.dataset.seg === this.seg);
+        for (const b of document.querySelectorAll("#view-shop .seg button")) b.classList.toggle("on", b.dataset.seg === this.seg);
         const box = $("shop-list");
+        if (!this.meta) { box.innerHTML = '<p class="sheet-sub">Загружаем…</p>'; return; }
+        return this.seg === "promo" ? renderPromos(this, box) : renderShift(this, box);
+    }
+
+    // предупреждение: всё здесь игровое, настоящее — только через кнопку заказа в @Nesuschiystore
+    shopWarn(box, t, p) {
+        const n = document.createElement("div");
+        n.className = "card card-note card-warn";
+        n.innerHTML = `<span class="warn-ico">!</span><div class="card-main"><span class="card-tag">Важно</span><h3>${t}</h3><p>${p}</p></div>`;
+        box.append(n);
+    }
+
+    // вкладка «Бусты» раздела «Кейсы»
+    renderBoosts(box) {
         box.innerHTML = "";
-        // предупреждение: в магазине всё игровое, настоящее — только через кнопку заказа в @Nesuschiystore
-        const warn = (t, p) => {
-            const n = document.createElement("div");
-            n.className = "card card-note card-warn";
-            n.innerHTML = `<span class="warn-ico">!</span><div class="card-main"><span class="card-tag">Важно</span><h3>${t}</h3><p>${p}</p></div>`;
-            box.append(n);
-        };
-        if (this.seg === "boosts") {
-            this.spinShelves();
-            warn("Бусты — игровые", "Покупаются за игровую валюту и работают только в игре. Настоящие добавки можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящие»</b>.");
-            const head = (t, p) => {
-                const n = document.createElement("div");
-                n.className = "card card-note";
-                n.innerHTML = `<div class="card-main"><h3>${t}</h3><p>${p}</p></div>`;
-                box.append(n);
-            };
-            head("Горилла-кладовщик", `«Бегать на голодный организм — это к Мизулиной. Затарься.» Бусты — за монеты. В забеге они справа кнопками: нажал — сработал, до ${BOOST_LIMIT} за забег.`);
-            for (const it of BOOSTS) {
-                const have = this.p.data.next[it.id] || 0;
-                box.append(this.storeCard(it, have ? `На следующие забеги: ${have}` : "", this.priceButton({ coins: it.price }, () => {
-                    this.p.addBoost(it.id);
-                    this.toast("Взял! В забеге нажми на буст справа.");
-                })));
-            }
-            // «За Карты» (economy_v7): редкая валюта с девушек у края дороги, срабатывает сама в следующем забеге
-            head(`<img class="ico-card" src="img/card.svg?v=2" alt=""> За Карты · у тебя ${this.p.cards}`, this.p.cards ? "Покупка срабатывает сама в следующем забеге. Обмена на USDT нет."
-                : "Карты выдают девушки на обочине. Пробегай рядом — и забирай");
-            const perks = (this.p.data.cardPerks ||= {});
-            for (const c of CARD_SHOP) {
-                const b = document.createElement("button");
-                b.className = "btn-small btn-card";
-                b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> ${c.cards}`;
-                b.onclick = async () => {
-                    if (this.p.cards < c.cards) return this.toast(`Нужно ещё ${c.cards - this.p.cards} Карт`);
-                    if (b.disabled) return;
-                    b.disabled = true;
-                    const r = await prize.cardBuy(c.srv); // цену и баланс решает сервер; не ответил — покупка локально
-                    b.disabled = false;
-                    if (r?.status === 402) return this.toast(`Нужно ещё ${c.cards - (r.cards || 0)} Карт`);
-                    if (r?.status === 200) { this.p.setCards(r.cards); this.p.data.cardPerksSrv = r.perks || {}; } // перк хранит сервер
-                    else { this.p.payCards(c.cards); perks[c.id] = (perks[c.id] || 0) + 1; }
-                    this.p.save();
-                    this.game.audio.play("buy");
-                    this.toast(`${c.name} — в следующем забеге`);
-                    this.render();
-                };
-                const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card_art.svg?v=2" }, (prize.online ? this.p.data.cardPerksSrv?.[c.srv] : perks[c.id]) ? `На следующие забеги: ${prize.online ? this.p.data.cardPerksSrv[c.srv] : perks[c.id]}` : "", b);
-                sc.querySelector(".btn-real")?.remove(); // настоящих «Карт» в магазине нет
-                box.append(sc);
-            }
-        } else if (this.seg === "sets") {
-            warn("Наборы — игровые", "Только для игры: открываются за игровую валюту и действия в игре, а не за настоящие деньги. Настоящий набор можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящий набор»</b>.");
+        this.spinShelves();
+        this.shopWarn(box, "Бусты — игровые", "Покупаются за игровую валюту и работают только в игре. Настоящие добавки можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящие»</b>.");
+        const head = (t, p) => {
             const n = document.createElement("div");
             n.className = "card card-note";
-            n.innerHTML = `<div class="card-main"><h3>Как открыть</h3><p>Экзамен у Инакова, кодовое слово от менеджера, 7 дней входа подряд. Набор — бусты на ${SET_RUNS} забега.</p></div>`;
+            n.innerHTML = `<div class="card-main"><h3>${t}</h3><p>${p}</p></div>`;
             box.append(n);
-            for (const st of SETS) {
-                const owned = this.p.hasSet(st.id);
-                const card = this.storeCard({ ...st, text: `${st.text}. ${owned ? "Открыт" : st.how}` }, "", Object.assign(document.createElement("button"), { className: "btn-small" + (owned ? " is-on" : ""), textContent: owned ? "Есть" : "Закрыт", disabled: true }), "Заказать настоящий набор");
-                if (!owned && st.unlock === "code") {
-                    const row = document.createElement("div");
-                    row.className = "set-code";
-                    row.innerHTML = `<input placeholder="Кодовое слово" maxlength="32"><button class="btn-small">Ввести</button>`;
-                    row.querySelector("button").onclick = () => {
-                        const v = row.querySelector("input").value.trim().toUpperCase().replace(/Ё/g, "Е");
-                        if (!(st.codes || []).includes(v)) return this.toast("Не то слово. Спроси у менеджера");
-                        this.p.unlockSet(st.id);
-                        this.game.audio.play("buy");
-                        this.toast(`${st.name} — открыт!`);
-                        this.render();
-                    };
-                    card.append(row);
-                }
-                box.append(card);
+        };
+        head("Горилла-кладовщик", `«Бегать на голодный организм — это к Мизулиной. Затарься.» Бусты — за монеты. В забеге они справа кнопками: нажал — сработал, до ${BOOST_LIMIT} за забег.`);
+        for (const it of BOOSTS) {
+            const have = this.p.data.next[it.id] || 0;
+            box.append(this.storeCard(it, have ? `На следующие забеги: ${have}` : "", this.priceButton({ coins: it.price }, () => {
+                this.p.addBoost(it.id);
+                this.toast("Взял! В забеге нажми на буст справа.");
+            })));
+        }
+        // «За Карты» (economy_v7): редкая валюта с девушек у края дороги, срабатывает сама в следующем забеге
+        head(`<img class="ico-card" src="img/card.svg?v=2" alt=""> За Карты · у тебя ${this.p.cards}`, this.p.cards ? "Покупка срабатывает сама в следующем забеге. Обмена на USDT нет."
+            : "Карты выдают девушки на обочине. Пробегай рядом — и забирай");
+        const perks = (this.p.data.cardPerks ||= {});
+        for (const c of CARD_SHOP) {
+            const b = document.createElement("button");
+            b.className = "btn-small btn-card";
+            b.innerHTML = `<img class="ico-card" src="img/card.svg?v=2" alt=""> ${c.cards}`;
+            b.onclick = async () => {
+                if (this.p.cards < c.cards) return this.toast(`Нужно ещё ${c.cards - this.p.cards} Карт`);
+                if (b.disabled) return;
+                b.disabled = true;
+                const r = await prize.cardBuy(c.srv); // цену и баланс решает сервер; не ответил — покупка локально
+                b.disabled = false;
+                if (r?.status === 402) return this.toast(`Нужно ещё ${c.cards - (r.cards || 0)} Карт`);
+                if (r?.status === 200) { this.p.setCards(r.cards); this.p.data.cardPerksSrv = r.perks || {}; } // перк хранит сервер
+                else { this.p.payCards(c.cards); perks[c.id] = (perks[c.id] || 0) + 1; }
+                this.p.save();
+                this.game.audio.play("buy");
+                this.toast(`${c.name} — в следующем забеге`);
+                this.render();
+            };
+            const sc = this.storeCard({ name: c.name, text: c.text, art: "img/card_art.svg?v=2" }, (prize.online ? this.p.data.cardPerksSrv?.[c.srv] : perks[c.id]) ? `На следующие забеги: ${prize.online ? this.p.data.cardPerksSrv[c.srv] : perks[c.id]}` : "", b);
+            sc.querySelector(".btn-real")?.remove(); // настоящих «Карт» в магазине нет
+            box.append(sc);
+        }
+    }
+
+    // вкладка «Наборы» раздела «Кейсы»
+    renderSets(box) {
+        box.innerHTML = "";
+        this.shopWarn(box, "Наборы — игровые", "Только для игры: открываются за игровую валюту и действия в игре, а не за настоящие деньги. Настоящий набор можно купить в @Nesuschiystore — кнопка <b>«Заказать настоящий набор»</b>.");
+        const n = document.createElement("div");
+        n.className = "card card-note";
+        n.innerHTML = `<div class="card-main"><h3>Как открыть</h3><p>Экзамен у Инакова, кодовое слово от менеджера, 7 дней входа подряд. Набор — бусты на ${SET_RUNS} забега.</p></div>`;
+        box.append(n);
+        for (const st of SETS) {
+            const owned = this.p.hasSet(st.id);
+            const card = this.storeCard({ ...st, text: `${st.text}. ${owned ? "Открыт" : st.how}` }, "", Object.assign(document.createElement("button"), { className: "btn-small" + (owned ? " is-on" : ""), textContent: owned ? "Есть" : "Закрыт", disabled: true }), "Заказать настоящий набор");
+            if (!owned && st.unlock === "code") {
+                const row = document.createElement("div");
+                row.className = "set-code";
+                row.innerHTML = `<input placeholder="Кодовое слово" maxlength="32"><button class="btn-small">Ввести</button>`;
+                row.querySelector("button").onclick = () => {
+                    const v = row.querySelector("input").value.trim().toUpperCase().replace(/Ё/g, "Е");
+                    if (!(st.codes || []).includes(v)) return this.toast("Не то слово. Спроси у менеджера");
+                    this.p.unlockSet(st.id);
+                    this.game.audio.play("buy");
+                    this.toast(`${st.name} — открыт!`);
+                    this.render();
+                };
+                card.append(row);
             }
-        } else {
-            for (const [id, u] of Object.entries(UPGRADES)) {
-                const lvl = this.p.level(id);
-                const card = document.createElement("div");
-                card.className = "card";
-                const pips = u.times.map((_, i) => `<i class="${i < lvl ? "f" : ""}"></i>`).join("");
-                card.innerHTML = `<div class="card-main"><h3>${u.name}</h3><p>${u.text}: сейчас ${u.times[lvl - 1]} с${lvl < u.times.length ? `, дальше ${u.times[lvl]} с` : ""}</p><div class="pips">${pips}</div></div>`;
-                if (lvl < u.times.length) {
-                    card.append(this.priceButton({ usdt: u.prices[lvl - 1] }, () => {
-                        this.p.levelUp(id);
-                        this.toast(`${u.name}: уровень ${lvl + 1}`);
-                    }));
-                } else {
-                    const b = document.createElement("button");
-                    b.className = "btn-small is-on";
-                    b.textContent = "Максимум";
-                    b.disabled = true;
-                    card.append(b);
-                }
-                box.append(card);
-            }
+            box.append(card);
         }
     }
 
@@ -836,7 +838,7 @@ export class Hub {
         clearInterval(this.shelfTimer);
         this.shelfTimer = setInterval(() => {
             if (this.current !== "shop" || document.hidden) return;
-            for (const b of document.querySelectorAll("#shop-list .shelf")) if (b.querySelectorAll("img").length > 1) this.turnShelf(b, 1);
+            for (const b of document.querySelectorAll("#cases-list .shelf")) if (b.querySelectorAll("img").length > 1) this.turnShelf(b, 1);
         }, 2600);
     }
 
@@ -878,56 +880,82 @@ export class Hub {
     }
 
     // ---- кейсы ----
-    freeReady() {
-        const env = CASES.find((c) => c.free);
-        return Date.now() - (this.p.data.freeAt || 0) >= env.free;
+    // состояние с сервера: шкала удачи, NSS, смена
+    async loadMeta() {
+        const r = await metaApi.state();
+        if (r?.status !== 200) return;
+        this.meta = r;
+        this.render();
     }
 
-    // Витрина: большая карточка на кейс — картинка на цветном свечении, полоса шансов, что внутри, цена
+    // полоска шкалы удачи на кейсе
+    pityHtml(c) {
+        const p = this.meta?.pity?.[c.id] || { epic: 0, legend: 0 };
+        const row = (name, r, left, max) => `<div class="pity"><span>${name} — ${left === 1 ? "следующим" : `через ${left}`}</span><i><u style="width:${(max - left) / max * 100}%;background:${RARITY[r].color}"></u></i></div>`;
+        return row("Эпическое", "epic", META.pity.epic - p.epic, META.pity.epic) + row("Легендарное", "legend", META.pity.legend - p.legend, META.pity.legend);
+    }
+
+    // Раздел: вкладки «Кейсы», «Бусты» и «Наборы». Вверху — выбор кейса, ниже — выбранный целиком: картинка, шкала удачи, призы, кнопки
     renderCases() {
-        this.preloadCaseVideos();
+        const view = (this.caseTab ||= "cases");
+        const head = $("cases-head");
+        head.innerHTML = `<div class="seg ct-seg">${[["cases", "Кейсы"], ["boosts", "Бусты"], ["sets", "Наборы"]].map(([k, t]) => `<button data-ct="${k}" class="${k === view ? "on" : ""}">${t}</button>`).join("")}</div>`;
+        for (const b of head.querySelectorAll("[data-ct]")) b.onclick = () => { this.caseTab = b.dataset.ct; this.renderCases(); };
         const box = $("cases-list");
+        if (view === "boosts") return this.renderBoosts(box);
+        if (view === "sets") return this.renderSets(box);
+        this.preloadCaseVideos();
         box.innerHTML = "";
-        if (this.p.data.chests > 0) { // сундук за сданный экзамен Инакова — Кейс Мерчанта бесплатно
-            const ch = document.createElement("div");
-            ch.className = "card card-note chest-note";
-            ch.innerHTML = `<div class="card-main"><span class="card-tag on">Экзамен Инакова сдан</span><h3>Сундук ×${this.p.data.chests}</h3><p>Открой Кейс Мерчанта бесплатно</p></div>`;
-            const b = document.createElement("button");
-            b.className = "btn-small btn-gold";
-            b.textContent = "Открыть";
-            b.onclick = () => { this.p.data.chests--; this.p.save(); this.open(CASES.find((c) => c.id === "merchant")); };
-            ch.append(b);
+        if (this.p.data.chests > 0) { // сундук за сданный экзамен Инакова — кейс «Финансовый Ебобо» бесплатно
+            const merchant = CASES.find((c) => c.id === "merchant");
+            const ch = document.createElement("button");
+            ch.className = "cs-chest";
+            ch.innerHTML = `<span><b>Сундук ×${this.p.data.chests}</b>Открой «${merchant.name}» бесплатно</span><i>Открыть</i>`;
+            ch.onclick = () => { this.p.data.chests--; this.p.save(); this.open(merchant, () => { this.p.data.chests++; this.p.save(); this.renderCases(); }); };
             box.append(ch);
         }
-        for (const c of CASES) {
-            const card = document.createElement("div");
-            card.className = `case-card case-${c.id}`;
-            card.style.setProperty("--cc", c.color);
-            const kinds = [...new Set(c.drops.map((d) => this.kind(d)))];
-            card.innerHTML = `<div class="case-art">${this.caseArt(c)}</div>
-                <div class="case-info">
-                    <span class="card-tag on">${c.free ? "Бесплатно" : "За USDT"}</span>
-                    <h3>${c.name}</h3>
-                    <p>${c.text}</p>
-                    <div class="odds-bar">${this.oddsBar(c)}</div>
-                    <div class="odds">${this.odds(c)}</div>
-                    <div class="case-loot">${kinds.map((k) => `<span class="loot">${this.itemIcon(k)}</span>`).join("")}</div>
-                </div>`;
-            let btn;
-            if (c.free) {
-                const left = c.free - (Date.now() - (this.p.data.freeAt || 0));
-                btn = document.createElement("button");
-                btn.className = "btn-small btn-gold";
-                btn.disabled = left > 0;
-                btn.textContent = left > 0 ? `через ${Math.floor(left / 3600000)} ч ${Math.ceil((left % 3600000) / 60000)} мин` : "Открыть бесплатно";
-                btn.onclick = () => { this.p.data.freeAt = Date.now(); this.p.save(); this.open(c); };
-            } else {
-                btn = this.priceButton({ usdt: c.price }, () => this.open(c));
-            }
-            btn.classList.add("case-buy");
-            card.querySelector(".case-info").append(btn);
-            box.append(card);
+        const c = CASES.find((x) => x.id === this.caseSel) || CASES.find((x) => x.id === "merchant");
+        const pick = document.createElement("div");
+        pick.className = "cs-pick";
+        for (const x of CASES) {
+            const b = document.createElement("button");
+            b.className = `cs-thumb${x === c ? " on" : ""}`;
+            b.style.setProperty("--cc", x.color);
+            b.innerHTML = `${this.caseArt(x)}<b>${x.name}</b><span>${fmt(x.price)}</span>`;
+            b.onclick = () => { this.caseSel = x.id; this.renderCases(); };
+            pick.append(b);
         }
+        box.append(pick);
+
+        const stage = document.createElement("div");
+        stage.className = `cs-stage case-${c.id}`;
+        stage.style.setProperty("--cc", c.color);
+        const total = c.drops.reduce((s, d) => s + d.w, 0), order = ["legend", "epic", "rare", "common"];
+        const prizes = [...c.drops].sort((p, q) => order.indexOf(p.r) - order.indexOf(q.r)).map((d) => {
+            const [title, sub] = this.lines({ ...d, amount: d.usdt ? d.usdt[1] : 0 }), pct = d.w / total * 100;
+            return `<div class="cs-prize" style="--rc:${RARITY[d.r].color}">${this.itemIcon(this.kind(d))}<b>${title}</b><span>${sub || RARITY[d.r].name}</span><em>${pct < 10 ? pct.toFixed(1).replace(".0", "") : Math.round(pct)}%</em></div>`;
+        }).join("");
+        const weekLeft = Math.max(0, META.weeklyLimit - (this.meta?.weekly || 0));
+        stage.innerHTML = `<div class="cs-art">${this.caseArt(c)}</div>
+            <h3>${c.name}</h3>
+            <p>${c.weekly ? `Осталось ${weekLeft} из ${META.weeklyLimit} · новая неделя через ${Math.ceil((weekEnd(weekOf(Date.now())) - Date.now()) / 864e5)} дн.` : c.text}</p>
+            <div class="pity-box">${this.pityHtml(c)}</div>
+            <div class="cs-prizes">${prizes}</div>`;
+        const buy = document.createElement("div");
+        buy.className = "cs-buy";
+        const main = this.priceButton({ usdt: c.price }, () => this.open(c, () => { this.p.gift(c.price); this.render(); }));
+        main.classList.add("cs-open");
+        main.prepend("Открыть · ");
+        if (c.weekly && !weekLeft) main.disabled = true;
+        buy.append(main);
+        if (!c.weekly) { // пять сразу
+            const many = this.priceButton({ usdt: c.price * 5 }, () => this.openMany(c, 5));
+            many.classList.add("cs-x5");
+            many.prepend("×5 · ");
+            buy.append(many);
+        }
+        stage.append(buy);
+        box.append(stage);
     }
 
     // картинка кейса или нарисованная заглушка (коробка цвета кейса с ремнём)
@@ -937,6 +965,7 @@ export class Hub {
 
     // тип награды → иконка. USDT — по сумме: монета / стопка / мешок
     kind(d) {
+        if (d.nss) return "nss";
         if (d.cards) return "cards";
         if (d.level) return d.maxed ? "usdt_m" : "level";
         if (d.all) return "all";
@@ -952,6 +981,7 @@ export class Hub {
             const j = (id) => BOOSTS.find((b) => b.id === id)?.art;
             return `<span class="item-ico ico-all">${img(j("berserk"), "j j1")}${img(j("fokus"), "j j2")}${img(CASE_ITEM_ART.usdt_s, "c")}</span>`;
         }
+        if (k === "nss") return img("img/nss-coin.webp?v=2");
         if (k === "cards") return img("img/card_art.svg?v=2");
         if (k.startsWith("boost")) {
             const b = BOOSTS.find((x) => x.id === k.split(":")[1]);
@@ -993,6 +1023,7 @@ export class Hub {
     lines(d) {
         const n = (x) => `${String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0")}\u00a0USDT`;
         const sum = d.amount || (d.usdt ? d.usdt[1] : 0);
+        if (d.nss) return [`+${d.nssN ?? d.nss[1]} NSS`, d.sub || "промокодная валюта"];
         if (d.cards) { const c = d.cardsN ?? (Array.isArray(d.cards) ? d.cards[1] : d.cards); return [`+${c} ${c === 1 ? "Карта" : "Карты"}`, "редкая валюта"]; }
         if (d.level) return d.maxed ? [n(3000), "вместо уровня"] : ["+1 уровень", "прокачки"];
         if (d.all) return [n(sum), "+ все бусты"];
@@ -1010,9 +1041,21 @@ export class Hub {
     }
 
     // Открытие: кейс трясётся (1.2 с) → вспышка → лента крутится 4.2 с → выигрыш подсвечивается, всплывает приз
-    open(c) {
+    // refund — вернуть оплату, если сервер отказал. В Telegram приз решает сервер; нет связи или мы вне Telegram — считаем сами
+    async open(c, refund) {
+        if (this.opening) return;
+        this.opening = true;
+        let srv = null;
+        try { srv = await this.askCase(c); } finally { this.opening = false; }
+        if (srv.status >= 400 || (c.weekly && srv.status !== 200)) { // в Кейсе недели NSS: без сервера не открываем
+            refund?.();
+            this.toast(this.caseError(srv));
+            return;
+        }
+        if (srv.meta) this.meta = srv.meta;
         const WIN = 34, CELL = 132, W = 120; // ширина ячейки + промежуток, ширина ячейки
         const items = Array.from({ length: WIN + 6 }, () => this.roll(c));
+        if (srv.status === 200) items[WIN] = this.serverDrop(c, srv);
         const win = items[WIN];
         // приз — сразу в кошелёк: закрыли приложение посреди анимации — он уже начислен
         const text = this.give(win, c);
@@ -1041,10 +1084,14 @@ export class Hub {
             tg.haptic("medium");
             void strip.offsetWidth;
             strip.style.transition = reduce ? "none" : "transform 4.2s cubic-bezier(.12,.72,.14,1)";
-            strip.style.transform = `translate3d(${center(WIN) + (Math.random() - 0.5) * 80}px,0,0)`;
+            const stop = center(WIN) + (Math.random() - 0.5) * 80;
+            strip.style.transform = `translate3d(${stop}px,0,0)`;
             this.caseTimer = setTimeout(done, reduce ? 50 : 4300);
+            // тап — сразу к результату
+            setTimeout(() => { if (co.classList.contains("s-spin")) co.onclick = (e) => { if (e.target.closest("button")) return; clearTimeout(this.caseTimer); strip.style.transition = "none"; strip.style.transform = `translate3d(${stop}px,0,0)`; done(); }; }, 150);
         };
         const done = () => {
+            co.onclick = null;
             strip.children[WIN].classList.add("win");
             co.className = `co s-win r-${win.r}`;
             co.style.setProperty("--rc", RARITY[win.r].color);
@@ -1092,9 +1139,56 @@ export class Hub {
         for (const c of CASES) if (c.video) fetch(c.video).catch(() => {});
     }
 
+    askCase(c) { return metaApi.caseOpen(c.id, `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`); }
+    caseError(srv) { return srv.error === "week_limit" ? "На этой неделе кейс уже открыт 3 раза" : srv.error === "day_limit" ? "На сегодня кейсы закончились — приходи завтра" : "Не получилось открыть, попробуй ещё раз"; }
+
+    // Пять кейсов сразу: без ролика и ленты, все призы одним экраном. Что не открылось — возвращаем деньгами
+    async openMany(c, n) {
+        if (this.opening) return;
+        this.opening = true;
+        const wins = [];
+        let failed = null;
+        try {
+            for (let i = 0; i < n; i++) {
+                const srv = await this.askCase(c);
+                if (srv.status === 0) wins.push(this.roll(c)); // нет связи — как при обычном открытии
+                else if (srv.status !== 200) { failed = srv; this.p.gift(c.price * (n - i)); break; }
+                else { this.meta = srv.meta; wins.push(this.serverDrop(c, srv)); }
+            }
+        } finally { this.opening = false; }
+        if (failed) this.toast(this.caseError(failed));
+        if (!wins.length) return this.render();
+        for (const w of wins) this.give(w, c);
+        const order = ["common", "rare", "epic", "legend"], best = wins.reduce((a, w) => (order.indexOf(w.r) > order.indexOf(a) ? w.r : a), "common");
+        const co = $("co");
+        clearTimeout(this.caseTimer);
+        co.onclick = null;
+        co.style.setProperty("--cc", c.color);
+        co.style.setProperty("--rc", RARITY[best].color);
+        co.className = `co s-win s-many r-${best}`;
+        co.dataset.case = c.id;
+        $("case-title").textContent = c.name;
+        $("case-label").textContent = RARITY_TITLE[best];
+        $("case-strip").innerHTML = "";
+        $("co-case").innerHTML = "";
+        $("co-prize").innerHTML = `<div class="many-grid">${wins.map((w) => this.cellHtml(w)).join("")}</div>`;
+        $("case-result").textContent = "";
+        $("btn-case-ok").disabled = false;
+        this.game.show("case-open");
+        this.game.audio.play(best === "legend" || best === "epic" ? "record" : "chest");
+        tg.haptic(best === "common" ? "success" : "heavy");
+    }
+
+    // приз от сервера — в том же виде, что и roll(): какая запись списка и сколько; добавку и уровень выбираем здесь
+    serverDrop(c, srv) {
+        const d = c.drops[srv.index];
+        if (typeof srv.cards === "number") this.p.setCards(srv.cards);
+        return { ...d, r: srv.r, amount: srv.amount, nssN: srv.nssN, cardsN: srv.cardsN, srvCards: typeof srv.cards === "number", boost: d.boosts === 1 ? pick(BOOSTS).id : null, ...this.rollLevel(d) };
+    }
+
     give(d, c) {
         if (d.amount) this.p.gift(d.amount);
-        if (d.cardsN) { // карты из кейса — в Telegram начисляет сервер (openId один раз, лимит в сутки)
+        if (d.cardsN && !d.srvCards) { // карты из кейса — в Telegram начисляет сервер (openId один раз, лимит в сутки)
             if (prize.online) {
                 const openId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
                 prize.caseCard(c?.id, openId, d.cardsN).then((r) => { if (typeof r?.cards === "number") { this.p.setCards(r.cards); this.render?.(); } else if (r?.status !== 403) this.p.addCards(d.cardsN); });

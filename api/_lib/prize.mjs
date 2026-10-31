@@ -7,6 +7,7 @@ import { handleCards } from "./cards.mjs";
 import { handleRating, score, rewardPoints, RATING, backfill } from "./rating.mjs";
 import { handleLead } from "./leads.mjs";
 import { checkSub, refStatus, trackRef } from "./verify.mjs";
+import { handleMeta, runNss, leadNss, raceData, META_ACTIONS } from "./meta.mjs";
 
 const SIGN_MIN_RUN_SEC = 3; // первая табличка встаёт не раньше, чем через несколько секунд забега
 
@@ -64,8 +65,23 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         return { status: 200, json: { key, amount, granted: fresh, rewards: await store.rewards(who.id) } };
     }
     if (["cards", "cardrun", "card", "cardbuy", "casecard"].includes(action)) return handleCards(action, body, who, { store, env, now });
-    if (action === "apply") return handleLead(body, who, { store, env, now, fetchImpl });
-    if (action === "task" || action === "top" || action === "runscore") return handleRating(action, body, who, { store, now });
+    if (META_ACTIONS.includes(action)) return handleMeta(action, body, who, { store, env, now, fetchImpl });
+    if (action === "apply") {
+        const r = await handleLead(body, who, { store, env, now, fetchImpl });
+        if (r.status === 200) await leadNss(who, { store });
+        return r;
+    }
+    if (action === "runscore") {
+        const r = await handleRating(action, body, who, { store, now });
+        if (r.status === 200) Object.assign(r.json, await runNss(who, Math.floor(Number(body.distance)), String(body.runId), { store, now }));
+        return r;
+    }
+    if (action === "top") {
+        const r = await handleRating(action, body, who, { store, now });
+        if (r.status === 200) r.json.race = await raceData(who, [...r.json.top, r.json.me], { store, now });
+        return r;
+    }
+    if (action === "task") return handleRating(action, body, who, { store, now });
     if (action === "rewards") return { status: 200, json: { rewards: await store.rewards(who.id) } };
     if (action === "claim") {
         const had = await store.place(who.id);

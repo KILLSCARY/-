@@ -3,6 +3,7 @@
   "buildCommand": "",
   "outputDirectory": ".",
   "cleanUrls": true,
+  "crons": [{ "path": "/api/cron-shift", "schedule": "0 9 * * *" }],
   "headers": [
     {
       "source": "/models/(.*)\\.glb",

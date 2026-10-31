@@ -1,3 +1,4 @@
+import { CASE_DROPS } from "./meta-rules.mjs";
 // Всё, что настраивается без лезания в код игры: ссылки, баланс, тексты.
 
 export const LINKS = {
@@ -85,8 +86,8 @@ export const TEXTURES = {
 // exposure — общая яркость кадра
 // Небо — «сиреневая ночь» (выбрано на макете): градиент от почти чёрного к фиолетовому, звёзды, большая луна с ореолом.
 // color — туман у горизонта, hemi — свет неба/земли, moon — цвет «лунного» света, env — полосы для отражений
-export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon: "#56347e", light: 1.75, exposure: 1.45, vignette: 0.72, // 29.10: светлее (было 0x2a1848, свет 1.35, экспозиция 1.2, виньетка 0.55)
-    hemi: [0x8a7ac8, 0x0a0618], moon: 0xb0a0ff, stars: 320, /* мелких звёзд больше: небо в 2 раза чётче */ moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
+export const SKY = { color: 0x3e2668, zenith: "#120c30", mid: "#2c1c5c", horizon: "#56347e", light: 1.35, exposure: 1.45, vignette: 0.72, // 29.10: светлее (было 0x2a1848, свет 1.35, экспозиция 1.2, виньетка 0.55)
+    hemi: [0xe0b0ff, 0x4a3a90], moon: 0xff9ec8, /* мультяшный неоновый вечер: светлее и сочнее (было 0x8a7ac8, 0x0a0618, 0xb0a0ff) */ stars: 320, /* мелких звёзд больше: небо в 2 раза чётче */ moonDisc: { x: 0.72, y: 0.22, r: 0.09 },
     env: ["#07051a", "#2a1a50", "#6a3aa0", "#120a24", "#030208"] };
 
 // Dubai replaces the old coastal district. Keep VIETNAM and the hero IDs for compatibility.
@@ -311,7 +312,7 @@ export const CHARACTERS = [
     { id: "gorilla", name: "Горилла", url: "models/gorilla_hero.glb?v=6", hd: "models/hd/gorilla_v2", height: 1.9, portrait: "img/heroes/gorilla.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // Дима Мент и Саша Товарус — герои по фото. Без сюжета: эксклюзив за 250 Карт (HERO_UNLOCKS).
     // free — только свободный бег: без глав, табличек, боссов и Мизулины (за ними гонится Малахов)
-    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=80", hd: "models/hd/dima_v2", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=80", hd: "models/hd/dima_v2", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
     { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=80", hd: "models/hd/tovarus_v2", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
@@ -359,6 +360,9 @@ export const SOUNDS = {
     heroMusic: { sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
     // громкость своей музыки героя относительно общей: «СаняБелый» сведена на ~3,6 дБ тише «Чикаго» — ×1,8 (+5 дБ)
     heroMusicGain: { sasha: 1.8 },
+    // музыка забега по биому (своя музыка героя важнее); зима пока на общей music.run. Ночной трек на ~2 дБ тише «Чикаго»
+    biomeMusic: { vietnam: ["audio/music_dubai.mp3"], street: ["audio/music_night.mp3"] },
+    biomeMusicGain: { street: 1.3 },
     musicVolume: { menu: 0.6, run: 0.6, pause: 0.2 }, // меню 0.6: трек ENZRO на ~2,6 дБ тише прежнего (было 0.45)
     ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
     sfx: {
@@ -702,24 +706,11 @@ export const UPGRADES = {
 // color — цвет свечения кейса; art — картинка кейса (img/cases/*.webp, прозрачный фон; null — нарисованная заглушка);
 // video — ролик открытия на чёрном фоне (video/case_*.mp4, накладывается «осветлением»), burst — секунда ролика,
 // когда кейс раскрылся и бьёт свет: в этот момент вспышка и лента наград. Иконки наград — CASE_ITEM_ART ниже.
+// Что выпадает — в js/meta-rules.mjs: тот же список читает сервер
 export const CASES = [
-    { id: "envelope", name: "Конверт", text: "Бесплатно раз в 4 часа", color: "#e9c25a", art: "img/cases/envelope.webp", video: "video/case_envelope.mp4", burst: 4.4, free: 4 * 3600 * 1000, drops: [
-        { r: "common", w: 70, usdt: [50, 400] },
-        { r: "common", w: 30, boosts: 1 }] },
-    { id: "merchant", name: "Кейс Мерчанта", text: "USDT, добавки, прокачка", color: "#e3343a", art: "img/cases/merchant.webp", video: "video/case_merchant.mp4", burst: 4.4, price: 2500, drops: [
-        { r: "common", w: 35, usdt: [800, 1500] },
-        { r: "common", w: 25, boosts: 2 },
-        { r: "rare", w: 18, usdt: [3000, 3000] },
-        { r: "rare", w: 10, level: 1 },
-        { r: "epic", w: 10, usdt: [1500, 1500], all: true },
-        { r: "rare", w: 4, cards: 1 }, // редко — Карта (economy_v7)
-        { r: "legend", w: 2, usdt: [13000, 13000], sub: "джекпот" }] },
-    { id: "conqueror", name: "Кейс Покорителя", text: "Только редкое и лучше", color: "#ff8a1f", art: "img/cases/conqueror.webp", video: "video/case_conqueror.mp4", burst: 4.4, price: 9000, drops: [
-        { r: "rare", w: 35, usdt: [4000, 6000] },
-        { r: "epic", w: 8, cards: [2, 3] }, // 2–3 Карты (economy_v7)
-        { r: "rare", w: 20, level: 1 },
-        { r: "epic", w: 35, usdt: [2400, 2400], all: true },
-        { r: "legend", w: 10, usdt: [24500, 24500], sub: "сейф покорителя" }] },
+    { id: "weekly", name: "Кейс недели", text: "USDT и NSS. Только 3 раза в неделю", color: "#8d5cf0", art: "img/cases/conqueror.webp", video: "video/case_conqueror.mp4", burst: 4.4, price: 5000, weekly: true, drops: CASE_DROPS.weekly },
+    { id: "merchant", name: "Финансовый Ебобо", text: "USDT, добавки, прокачка", color: "#e3343a", art: "img/cases/merchant.webp", video: "video/case_merchant.mp4", burst: 4.4, price: 2500, drops: CASE_DROPS.merchant },
+    { id: "conqueror", name: "Покоритель Наташек", text: "Только редкое и лучше", color: "#ff8a1f", art: "img/cases/conqueror.webp", video: "video/case_conqueror.mp4", burst: 4.4, price: 9000, drops: CASE_DROPS.conqueror },
 ];
 // Иконки наград в ленте и в окне приза (img/cases/items/*.webp, прозрачный фон). null — нарисованная заглушка.
 // usdt_s — монета (< 1000), usdt_m — стопка (1000–4999), usdt_l — мешок (5000–19 999), usdt_xl — сейф (20 000+). Добавка — картинка самой добавки.

@@ -11,9 +11,9 @@ import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 const PARKED_CAR = 'models/obj/lite/car1.glb?v=3'; // красный Corvette C8 (30.10, с Диска «для кодекса»)
 
 export const WINTER = {
-    fog: 0x777fae, near: 60, far: 245, viewFar: 285,
+    fog: 0xa98ac4, near: 60, far: 245, viewFar: 285,
     sky: { zenith: '#334e87', mid: '#8c9dcb', horizon: '#efc1c9' },
-    hemi: [0x9bb6fa, 0x303c64], light: .66, moon: 0xb6c8ff,
+    hemi: [0xffdcd4, 0x6a62b4], light: 1, moon: 0xffb48a, // мультяшный вечер: тёплый закатный свет, тени в сиреневый
     rowGap: [16, 11],
 };
 export const WINTER_OBSTACLES = ['dumpster', 'dumpster', 'dumpster', 'roadblock', 'roadblock', 'barrier', 'cart', 'block', 'car', 'cop'];
@@ -602,6 +602,7 @@ export class Winter {
         this.box(c.iron, x, 4.02, z, .5, .12, .5);
         this.part('box', new THREE.Color(2.5, 1.4, .45), x, 4.34, z, .38, .53, .38, null, 'glow');
         for (const dx of [-.21, .21]) for (const dz of [-.21, .21]) this.box(c.iron, x + dx, 4.32, z + dz, .045, .62, .045);
+        this.part('plane', 0xffb050, x, 4.34, z, 3.8, 3.8, 1, null, 'halo'); // жёлтое свечение вокруг фонаря: без постобработки, поэтому и на телефоне
         this.part('cone', c.iron, x, 4.73, z, .43, .35, .43, [0, Math.PI / 4, 0]);
         this.part('cone', c.snow, x, 4.79, z, .4, .31, .4, [0, Math.PI / 4, 0]);
         this.part('ball', c.iron, x, 5, z, .07, .12, .07);
