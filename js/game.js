@@ -1593,7 +1593,7 @@ class Game {
         const active = Math.min(requested, this.performanceFpsCap || requested);
         if (this.state === "fight" || this.state === "playing" || this.state === "countdown" || this.state === "bossintro" || (this.state === "storyintro" && (this.phoneScene || this.chapterScene))) return 1000 / active;
         if (this.state === "over" && this.t - this.overAt < 0.7) return 1000 / active;
-        if (this.state === "over" && this.arrest && this.arrest.t < (this.arrest.scene ? CATCH_END + 1 : 2.8)) return 1000 / 60;
+        if (this.state === "over" && this.arrest && this.arrest.t < (this.arrest.scene ? CATCH_END + 1 : 2.8)) return 1000 / active;
         if (this.state === "menu" && this.hub?.current === "run") return 1000 / this.tier.fps[1];
         return 1000 / 12;
     }

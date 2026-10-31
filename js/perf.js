@@ -68,7 +68,7 @@ export class PerfHud {
             calls: Math.round(avg("calls")), tris: Math.round(avg("tris")),
             geo: r.info.memory.geometries, tex: r.info.memory.textures, progs: r.info.programs?.length || 0,
             quality: g.quality, ratio: +r.getPixelRatio().toFixed(2), canvas: `${cv.width}×${cv.height}`,
-            res: +((g.resScale || 1) * (g.heatScale || 1)).toFixed(2), state: g.state, budget: Math.round(1000 / g.frameBudget()),
+            res: +((g.resScale || 1) * (g.heatScale || 1)).toFixed(2), state: g.state, budget: Math.round(1000 / g.frameBudget()), cap: g.performanceFpsCap || 0,
             longN: this.long.n, longMax: Math.round(this.long.max), heap: m ? Math.round(m.usedJSHeapSize / 1048576) : null,
         };
     }
