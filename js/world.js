@@ -310,19 +310,7 @@ export function buildEnvironment(renderer, colors = SKY.env) {
     return tex;
 }
 
-// Арка профита: щит с названием золотыми буквами и «ворота» на полосах. Читать на скорости надо одно — где больше,
-// поэтому сумма во всю ширину, а золотые ворота залиты цветом; остальные — тёмное стекло
-function drawArchSign(g, w, h, title, glass, neon) {
-    const m = 30, x = m, y = m + 10, bw = w - 2 * m, bh = h - 2 * m - 20;
-    glass(g, x, y, bw, bh, 40);
-    neon(g, x, y, bw, bh, 40, 8);
-    const gold = g.createLinearGradient(0, y + 50, 0, y + bh - 50);
-    gold.addColorStop(0, "#fff0b0"); gold.addColorStop(0.55, "#f2c04a"); gold.addColorStop(1, "#c98a1c");
-    g.save(); g.shadowColor = "rgba(242,192,74,.65)"; g.shadowBlur = 26; g.fillStyle = gold; g.textAlign = "center";
-    fitText(g, title.toUpperCase(), bw - 90, 92, '900 {s}px "Unbounded", "Arial Black", sans-serif');
-    g.fillText(g.__line, w / 2, y + bh / 2 + 32);
-    g.restore();
-}
+// Таблички на полосах: тёмное стекло и крупный текст; у профита золотая — где больше
 function drawArchGate(c, w, h, text, best, label) {
     const [sum, unit = ""] = text.split(" ");
     const m = 26, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m, r = 48;
@@ -351,6 +339,19 @@ function drawArchGate(c, w, h, text, best, label) {
     c.font = '800 44px "Unbounded", "Arial Black", sans-serif';
     c.fillText(unit, w / 2, y + bh * 0.58 + 72);
     if (best) { c.font = '800 28px "Unbounded", "Arial Black", sans-serif'; c.fillText("МАКСИМУМ", w / 2, y + bh - 42); }
+}
+// табличка с ответом: как ворота профита, но без подсказки цветом — рамка цвета типа клиента у всех одинаковая
+function drawAnswerGate(c, w, h, text, col, label) {
+    const m = 26, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m, r = 48;
+    const f = c.createLinearGradient(0, y, 0, y + bh);
+    f.addColorStop(0, "rgba(44,46,56,.97)"); f.addColorStop(1, "rgba(16,17,22,.97)");
+    c.save(); c.shadowColor = col; c.shadowBlur = 24; c.fillStyle = f; roundRect(c, x, y, bw, bh, r); c.fill(); c.restore();
+    c.strokeStyle = col; c.lineWidth = 7; roundRect(c, x, y, bw, bh, r); c.stroke();
+    c.textAlign = "center"; c.fillStyle = col;
+    c.font = '800 28px "Unbounded", "Arial Black", sans-serif';
+    c.fillText(label, w / 2, y + 66);
+    c.fillStyle = "#f4f4f6";
+    wrapText(c, String(text), w / 2, y + 92, bw - 56, bh - 120, '800 {s}px "Inter Tight", Arial, sans-serif', "center", 92);
 }
 
 export class World {
@@ -1592,17 +1593,20 @@ export class World {
 
     // 3D-модели из Meshy (MODELS в config.js). Пока модель грузится или если её нет —
     // используется процедурная модель или спрайт, а загруженная подменяет их «на лету».
-    // буквы и фура: пока модель не загрузилась, addLetter и makeTruck строят простую замену. Буква светится сама — ночью не теряется
+    // буквы и фура: пока модель не загрузилась, addLetter и makeTruck строят простую замену. Буква золотая и светится сама: на телефоне нет постобработки, поэтому ореол — отдельный спрайт
     loadWordAndTruckModels() {
         this.letterModels = {};
         for (const [ch, url] of Object.entries(LETTERS.models)) loadModel(url, (gltf) => {
             const m = gltf.scene, size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
-            m.traverse((o) => { if (o.isMesh) { o.material.emissive.set(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = 0.45; } });
+            m.traverse((o) => { if (o.isMesh) o.material = (this.letterGold ||= new THREE.MeshStandardMaterial({ color: 0xffc53a, emissive: 0xff9d0a, emissiveIntensity: 0.75, roughness: 0.35 })); });
             m.scale.multiplyScalar(LETTERS.height / (size.y || 1));
             m.updateMatrixWorld(true);
             const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()), g = new THREE.Group();
             m.position.sub(c);
             g.add(m);
+            const halo = new THREE.Sprite(this.letterHalo ||= new THREE.SpriteMaterial({ map: this.glowTex, color: 0xffb52e, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+            halo.scale.setScalar(LETTERS.height * 2.1);
+            g.add(halo);
             this.letterModels[ch] = g;
             this.warmQueue.push(g.clone());
         }, () => {});
@@ -2546,28 +2550,6 @@ export class World {
             return m;
         };
         const col = type.color;
-        // неоновая рамка: свечение наружу (поэтому в текстуре есть поле m под ореол), внутри — тёмное стекло
-        const neon = (g, x, y, w, h, r, lw) => {
-            g.save();
-            g.strokeStyle = col; g.lineWidth = lw;
-            g.shadowColor = col; g.shadowBlur = lw * 5;
-            roundRect(g, x, y, w, h, r); g.stroke(); g.stroke();
-            g.shadowBlur = 0; g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = Math.max(1.5, lw * 0.28);
-            roundRect(g, x, y, w, h, r); g.stroke(); // белая сердцевина трубки
-            g.restore();
-        };
-        const glass = (g, x, y, w, h, r) => {
-            const gr = g.createLinearGradient(0, y, 0, y + h);
-            gr.addColorStop(0, "rgba(34,34,40,.97)"); gr.addColorStop(1, "rgba(10,10,13,.97)");
-            g.fillStyle = gr; roundRect(g, x, y, w, h, r); g.fill();
-            g.save(); roundRect(g, x, y, w, h, r); g.clip(); // блик по верхней кромке и тонкие полосы «экрана»
-            const hl = g.createLinearGradient(0, y, 0, y + h * 0.45);
-            hl.addColorStop(0, "rgba(255,255,255,.10)"); hl.addColorStop(1, "rgba(255,255,255,0)");
-            g.fillStyle = hl; g.fillRect(x, y, w, h * 0.45);
-            g.fillStyle = "rgba(255,255,255,.025)";
-            for (let yy = y; yy < y + h; yy += 6) g.fillRect(x, yy, w, 2);
-            g.restore();
-        };
         const lightMat = (this.wallLight ||= {})[col] ||= new THREE.MeshBasicMaterial({ color: col, toneMapped: false });
         const glowMat = (this.wallGlow ||= {})[col] ||= new THREE.MeshBasicMaterial({
             map: this.laneGlowTex ||= canvasTex(64, 128, (g, w, h) => {
@@ -2576,53 +2558,10 @@ export class World {
                 g.setTransform(1, 0, 0, h / w, 0, 0); g.fillStyle = r; g.fillRect(0, 0, w, w);
             }),
             color: col, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending });
-        // арка: две опоры с неоновыми кольцами и щит с вопросом
-        const arch = new THREE.Group();
-        for (const x of [-3.4, 3.4]) {
-            const post = new THREE.Mesh(this.geo.box, this.mat.pole);
-            post.scale.set(0.16, 5.6, 0.16);
-            post.position.set(x, 2.8, 0);
-            arch.add(post);
-            for (const y of [1.2, 2.4, 3.6]) {
-                const ring = new THREE.Mesh(this.geo.box, lightMat);
-                ring.scale.set(0.2, 0.05, 0.2);
-                ring.position.set(x, y, 0);
-                arch.add(ring);
-            }
-        }
-        const signGeo = new THREE.PlaneGeometry(7.2, 2.1);
-        signGeo.userData.own = true;
         const isArch = q.type === "arch";
-        const sign = new THREE.Mesh(signGeo, textMat(1024, 300, (g, w, h) => {
-            if (isArch) return drawArchSign(g, w, h, q.q, glass, neon);
-            const m = 34, x = m, y = m + 18, bw = w - 2 * m, bh = h - 2 * m - 18;
-            glass(g, x, y, bw, bh, 30);
-            neon(g, x, y, bw, bh, 30, 7);
-            // плашка типа клиента на верхней кромке
-            g.font = '800 30px "Inter Tight", Arial, sans-serif';
-            const label = type.name.toUpperCase(), pw = g.measureText(label).width + 56;
-            g.save(); g.shadowColor = col; g.shadowBlur = 24; g.fillStyle = col;
-            roundRect(g, (w - pw) / 2, y - 22, pw, 44, 22); g.fill(); g.restore();
-            g.fillStyle = "#0d0d10"; g.textAlign = "center";
-            g.fillText(label, w / 2, y + 10);
-            g.save(); g.shadowColor = "rgba(255,255,255,.35)"; g.shadowBlur = 14; g.fillStyle = "#f4f4f4";
-            fitText(g, q.q.length < 14 ? q.q : `«${q.q}»`, bw - 80, 72, '800 {s}px "Unbounded", "Arial Black", sans-serif');
-            g.fillText(g.__line, w / 2, y + bh / 2 + 34);
-            g.restore();
-        }));
-        sign.position.set(0, 5.1, 0);
-        arch.add(sign);
-        arch.position.z = z - 0.8;
-        arch.userData = { type: "decor" };
-        this.scene.add(arch);
-        this.obstacles.push(arch);
-        wall.parts = [arch]; // рамка стены — двигается вместе с табличками (полёт отодвигает стену)
-        // таблички на полосах — сообщения в чате, как карточка вопроса в HUD: светлый пузырь с хвостиком слева внизу,
-        // обводка и ореол цвета типа клиента, сверху тёмная плашка «куда бежать», ниже ответ тёмным крупно (по левому краю,
-        // размер подбирается). Пузырь не чисто белый: белое выше порога bloom — расплывалось бы ореолом и съедало буквы.
-        // Под табличкой светящаяся планка и пятно на асфальте. Два варианта — карточки шире (стоят на крайних полосах)
+        wall.parts = []; // только таблички: вопрос — в карточке на экране
+        // шире нельзя: полосы через 1,7 м
         const two = answers.length === 2;
-        // 30.10: выше (было 1,5 м) и буквы крупнее — издалека «+20 USDT» читалось с трудом. Шире нельзя: полосы через 1,7 м
         const PW = two ? 2.5 : 1.86, PH = 2, CW = two ? 680 : 512, CH = Math.round(CW * PH / PW);
         const plateGeo = new THREE.PlaneGeometry(PW, PH);
         plateGeo.userData.own = true;
@@ -2631,27 +2570,8 @@ export class World {
             const g = new THREE.Group();
             const best = isArch && i === correct;
             const board = new THREE.Mesh(plateGeo, textMat(CW, CH, (c, w, h) => {
-                if (isArch) return drawArchGate(c, w, h, text, best, LANE_LABELS[lane]);
-                const m = 22, tail = 28, x = m, y = m, bw = w - 2 * m, bh = h - 2 * m - tail;
-                const bubble = () => { // пузырь и хвостик одним контуром
-                    roundRect(c, x, y, bw, bh, { tl: 46, tr: 46, br: 46, bl: 12 });
-                    // в ту же сторону, что и пузырь (по часовой): иначе при заливке nonzero место наложения осталось бы пустым
-                    c.moveTo(x, y + bh - 26); c.lineTo(x + 52, y + bh - 2); c.lineTo(x - 4, y + bh + tail - 4); c.closePath();
-                };
-                c.save(); c.shadowColor = col; c.shadowBlur = 26; c.strokeStyle = col; c.lineWidth = 12; c.lineJoin = "round";
-                bubble(); c.stroke(); c.restore();
-                c.fillStyle = "#ececf0"; bubble(); c.fill();
-                // плашка «◀ ВЛЕВО»: тёмная, буквы цвета типа
-                c.font = '900 30px "Unbounded", "Arial Black", sans-serif';
-                if ("letterSpacing" in c) c.letterSpacing = "2px";
-                const label = LANE_LABELS[lane], px = x + 26, py = y + 24, ph = 52, pw = c.measureText(label).width + 40;
-                c.fillStyle = "#121216"; roundRect(c, px, py, pw, ph, ph / 2); c.fill();
-                c.fillStyle = col; c.textAlign = "left";
-                c.fillText(label, px + 20, py + 37);
-                if ("letterSpacing" in c) c.letterSpacing = "0px";
-                // ответ: тёмный, крупно, в оставшейся части пузыря
-                c.fillStyle = "#121216";
-                wrapText(c, text, x + 30, py + ph + 8, bw - 60, y + bh - py - ph - 26, '800 {s}px "Inter Tight", Arial, sans-serif', "left", 96);
+                if (isArch) drawArchGate(c, w, h, text, best, LANE_LABELS[lane]);
+                else drawAnswerGate(c, w, h, text, col, LANE_LABELS[lane]);
             }));
             board.position.y = 0.6 + PH / 2 + 0.02; // низ таблички — на светящейся планке
             g.add(board);
@@ -2908,7 +2828,8 @@ export class World {
         for (let i = this.coins.length - 1; i >= 0; i--) {
             const c = this.coins[i];
             c.position.z += move;
-            if (c.userData.model) c.rotation.y = t * 3; else c.rotation.z = t * 3;
+            if (c.userData.letter) c.rotation.y = Math.sin(t * 2) * 0.4; // покачивается лицом к игроку: сзади буква читалась бы зеркально
+            else if (c.userData.model) c.rotation.y = t * 3; else c.rotation.z = t * 3;
             c.position.y = c.userData.baseY + Math.sin(t * 4 + c.position.z) * 0.06;
             if (c.position.z > DESPAWN_Z) this.removeCoin(i);
         }

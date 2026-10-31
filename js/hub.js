@@ -807,7 +807,7 @@ export class Hub {
             n.innerHTML = `<div class="card-main"><h3>${t}</h3><p>${p}</p></div>`;
             box.append(n);
         };
-        head("Горилла-кладовщик", `«Бегать на голодный организм — это к Мизулиной. Затарься.» Бусты — за монеты. В забеге они справа кнопками: нажал — сработал, до ${BOOST_LIMIT} за забег.`);
+        head("Горилла-кладовщик", `«Бегать на голодный организм — это к Мизулиной. Затарься.» Бусты — за USDT. В забеге они справа кнопками: нажал — сработал, до ${BOOST_LIMIT} за забег.`);
         for (const it of BOOSTS) {
             const have = this.p.data.next[it.id] || 0;
             box.append(this.storeCard(it, have ? `На следующие забеги: ${have}` : "", this.priceButton({ coins: it.price }, () => {
@@ -935,10 +935,10 @@ export class Hub {
         if (price.coins) { // монеты — игровой кошелёк (в коде он p.usdt), не реальные USDT
             const b = document.createElement("button");
             b.className = "btn-small";
-            b.innerHTML = `🪙 ${fmt(price.coins)}`;
+            b.innerHTML = `${ICON.usdt} ${fmt(price.coins)}`;
             b.disabled = this.p.usdt < price.coins;
             b.onclick = () => {
-                if (!this.p.pay({ usdt: price.coins })) return this.toast("Монет маловато. Пробеги ещё главу — Горилла подождёт.");
+                if (!this.p.pay({ usdt: price.coins })) return this.toast("USDT маловато. Пробеги ещё главу — Горилла подождёт.");
                 this.game.audio.play("buy");
                 onBuy();
                 this.render();

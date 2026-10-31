@@ -25,10 +25,10 @@ function smooth(points, closed = true, k = 0.2) {
 }
 
 // пятно района: неровный эллипс из точек по кругу
-function blob(rand, [cx, cy], [rx, ry], n = 14) {
+function blob(rand, [cx, cy], [rx, ry], n = 22) {
     const pts = [];
     for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2, k = 0.82 + rand() * 0.3;
+        const a = (i / n) * Math.PI * 2, k = 0.8 + rand() * 0.34; // рваный край — самой формой, а не фильтром: на телефоне фильтр SVG считается долго
         pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
     }
     return pts;
@@ -67,6 +67,7 @@ export class CityMap {
     // плашка: чёрный прямоугольник с наклонным текстом (ширина — по длине надписи)
     plate(x, y, text, cls, size) {
         const w = text.length * size * 0.56 + size;
+        x = Math.max(w / 2 + 8, Math.min(1000 - w / 2 - 8, x)); // длинное название не обрезается краем карты
         return `<g class="map-plate ${cls}" transform="translate(${x},${y})"><rect x="${(-w / 2).toFixed(0)}" y="${(-size * 0.85).toFixed(0)}" width="${w.toFixed(0)}" height="${(size * 1.35).toFixed(0)}"/><text>${esc(text)}</text></g>`;
     }
 
@@ -101,7 +102,7 @@ export class CityMap {
             } else if (d.theme === "runway") {
                 for (const dy of [-22, 22]) inner.push(`<path class="runway" d="M${cx - rx * 0.8},${cy + dy} L${cx + rx * 0.8},${cy + dy - 20}"/>`);
             }
-            for (let i = 0; i < (d.theme === "city" ? 3 : 9); i++) {
+            for (let i = 0; i < (d.theme === "city" ? 2 : 5); i++) {
                 const pts = [];
                 let x = cx + (rand() - 0.5) * rx * 1.6, y = cy + (rand() - 0.5) * ry * 1.6;
                 for (let k = 0; k < 5; k++) { pts.push([x, y]); x += (rand() - 0.5) * rx * 0.7; y += (rand() - 0.5) * ry * 0.7; }
@@ -110,29 +111,24 @@ export class CityMap {
             areas.push(`
                 <g class="district" data-district="${d.id}" data-theme="${d.theme}" tabindex="0" role="button" aria-label="${esc(d.name)}">
                     <clipPath id="clip-${d.id}"><path d="${shape}"/></clipPath>
-                    <path class="area" d="${shape}" fill="${THEMES[d.theme]}" filter="url(#map-rough)"/>
+                    <path class="area" d="${shape}" fill="${THEMES[d.theme]}"/>
                     <g class="streets" clip-path="url(#clip-${d.id})">${inner.join("")}</g>
-                    <path class="edge" d="${shape}" filter="url(#map-rough)"/>
+                    <path class="edge" d="${shape}"/>
                 </g>`);
             // подписи — поверх всего: места (белые), название района (красное), статус
-            for (const [x, y, t] of d.pois || []) labels.push(this.plate(x, y, t.toUpperCase(), "poi", 20));
-            labels.push(`<g class="label" data-label="${d.id}">${this.plate(cx, cy, d.name.toUpperCase(), "name", 30)}
+            for (const [x, y, t] of d.pois || []) labels.push(this.plate(x, y, t.toUpperCase(), "poi", 24));
+            labels.push(`<g class="label" data-label="${d.id}">${this.plate(cx, cy, d.name.toUpperCase(), "name", 32)}
                 <g class="status" transform="translate(${cx},${cy + 40})"><rect y="-17" height="30" rx="3"/><text y="5"></text></g></g>`);
         }
         // трасса: петля через все районы и поперечина через центр
         const loop = ["port", "winter", "dubai", "street", "airport", "rublevka", "mountains"].map((id) => MAP_DISTRICTS.find((d) => d.id === id).at);
         const cross = ["winter", "industrial", "airport"].map((id) => MAP_DISTRICTS.find((d) => d.id === id).at);
         this.root.innerHTML = `
-            <svg class="map-svg" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <filter id="map-rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="4"/><feDisplacementMap in="SourceGraphic" scale="26"/></filter>
-                    <filter id="map-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="2"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 .9  0 0 0 0 .8  0 0 0 .05 0"/></filter>
-                    <radialGradient id="map-vignette" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
-                </defs>
+            <svg class="map-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                <defs><radialGradient id="map-vignette" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient></defs>
                 <rect class="ground" width="1000" height="1000"/>
-                <rect width="1000" height="1000" filter="url(#map-grain)"/>
-                <path class="water" d="M1000,0 L1000,330 C950,320 930,250 900,200 C870,150 880,90 850,40 C840,20 830,8 820,0 Z" filter="url(#map-rough)"/>
-                <path class="water" d="M0,0 L170,0 C150,40 110,60 70,70 C40,80 20,100 0,110 Z" filter="url(#map-rough)"/>
+                <path class="water" d="M1000,0 L1000,330 C950,320 930,250 900,200 C870,150 880,90 850,40 C840,20 830,8 820,0 Z"/>
+                <path class="water" d="M0,0 L170,0 C150,40 110,60 70,70 C40,80 20,100 0,110 Z"/>
                 <g class="districts">${areas.join("")}</g>
                 <path class="highway" d="${smooth(loop, true, 0.2)}"/>
                 <path class="highway minor" d="${smooth(cross, false, 0.3)}"/>

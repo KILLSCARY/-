@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
+import { BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -586,7 +586,7 @@ class Game {
         this.credited = { usdt: 0 }; // сколько из этого забега уже зачислено в кошелёк
         this.appealUsed = false;
         this.boostLeft = 0;
-        this.fx = { magnet: 0, honey: 0, shield: false, safe: 0, fly: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
+        this.fx = { magnet: 0, honey: 0, shield: 0, safe: 0, fly: 0, focus: 0, windproof: 0, forgive: 0, ram: 0 }; // добавки: секунды магнита, мёда и полёта, щит, неуязвимость
         this.runout = null;
         this.dropStage?.();
         this.stumble = 0;  // после первого удара: сколько ещё секунд ДПС на хвосте
@@ -638,6 +638,7 @@ class Game {
         // умения героя: кнопка (раз за забег), «Таран», запасная жизнь, прощённая ошибка на стене
         this.skillUsed = false;
         this.ram = 0;
+        this.ramBoost = 0; // сколько ударов тарана дал Берсерк (умение Саши не сгорает вместе с ним)
         this.lives = this.perk?.extraLife || 0;
         this.wallForgive = this.perk?.wallForgive || 0;
         this.fx.turbo = 0;
@@ -798,13 +799,18 @@ class Game {
         next[id]--;
         this.boostsUsed = (this.boostsUsed || 0) + 1;
         this.profile.save();
-        if (id === "fokus") { this.fx.magnet = Math.max(this.fx.magnet, b.time); this.fx.focus = b.walls; }
-        if (id === "ryvok") { this.fx.honey = b.time; if (this.grudge && this.stumble > 0) this.grudgeSay("dash"); }
-        if (id === "ustoychivost") this.fx.windproof = true;
-        if (id === "spokoystvie") this.wallForgive = Math.max(this.wallForgive || 0, 1);
-        if (id === "shchit") this.fx.shield = true;
-        if (id === "berserk") { this.ram = Math.max(this.ram || 0, b.charges); this.fly(b.time); }
-        if (id === "magnit") this.fx.magnet = Math.max(this.fx.magnet, b.time);
+        if (id === "fokus") { this.fx.magnet = Math.max(this.fx.magnet, BOOST_TIME); this.fx.focus = BOOST_TIME; }
+        if (id === "ryvok") { this.fx.honey = BOOST_TIME; if (this.grudge && this.stumble > 0) this.grudgeSay("dash"); }
+        if (id === "ustoychivost") this.fx.windproof = BOOST_TIME;
+        if (id === "spokoystvie") this.fx.forgive = BOOST_TIME;
+        if (id === "shchit") this.fx.shield = BOOST_TIME;
+        if (id === "berserk") { // таран отсчитывается после посадки: стены на время полёта отодвигаются, в воздухе он бы пропал
+            this.ram = (this.ram || 0) - (this.ramBoost || 0) + b.charges;
+            this.ramBoost = b.charges;
+            this.fx.ram = BOOST_TIME;
+            this.fly(BOOST_TIME);
+        }
+        if (id === "magnit") this.fx.magnet = Math.max(this.fx.magnet, BOOST_TIME);
         this.hub.toast(`${b.name}: ${b.text}`);
         this.audio.play("boost");
         tg.haptic("heavy");
@@ -1247,9 +1253,12 @@ class Game {
             { id: "magnet", name: POWERUPS.choline.hud, left: this.fx.magnet, color: hex(POWERUPS.choline.color) },
             { id: "ezhovik", name: POWERUPS.ezhovik.hud, left: this.fx.ezhovik || 0, color: hex(POWERUPS.ezhovik.color) },
             { id: "honey", name: "Рывок", left: this.fx.honey, color: "#f0a33a" },
-            { id: "shield", name: "Щит", left: this.fx.shield ? Infinity : 0, color: "#ffffff" },
+            { id: "shield", name: "Щит", left: this.fx.shield, color: "#ffffff" },
+            { id: "focus", name: "Фокус", left: this.fx.focus, color: "#8fd3ff" },
+            { id: "windproof", name: "Устойчивость", left: this.fx.windproof, color: "#a8e0c8" },
+            { id: "forgive", name: "Спокойствие", left: this.fx.forgive, color: "#c9b6ff" },
             { id: "turbo", name: HERO_SKILLS[this.heroId]?.name || "Турбо", left: this.fx.turbo, color: "#35e39b" },
-            { id: "ram", name: "Таран", left: this.ram > 0 ? Infinity : 0, color: "#ffffff" },
+            { id: "ram", name: "Таран", left: this.ram > 0 ? (this.ram > this.ramBoost ? Infinity : this.fx.ram) : 0, color: "#ffffff" },
         ]);
     }
 
@@ -2064,7 +2073,10 @@ class Game {
         else if (this.storyChasing()) this.storyChaseStep(dt);
         else if (this.introChase > 0) this.introChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
-        for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik", "shield", "windproof"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        // бусты для стен не тают, пока игрок читает вопрос: у таблички улица почти стоит, и он бы их просто прождал
+        if (!this.slowmo) for (const k of ["focus", "forgive"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        if (this.ramBoost > 0 && !this.flight && !this.slowmo && (this.fx.ram -= dt) <= 0) { this.ram = Math.max(0, this.ram - this.ramBoost); this.ramBoost = 0; }
         if (this.diving) { // нырок: бак едет вместе с героем, прыгает с ним и сам спокойно проходит низкие преграды
             this.diving -= dt;
             const next = this.jumping ? null : this.diveAhead();
@@ -2755,7 +2767,7 @@ class Game {
         const [a, b] = ARCHES.every;
         this.nextWallAt += this.wallGap(a + Math.random() * (b - a));
         const gold = Math.floor(Math.random() * 3);
-        const q = { q: "Арка профита", type: "arch", a: [] };
+        const q = { q: "Профит", type: "arch", a: [] };
         const answers = [0, 1, 2].map((l) => (l === gold ? `+${ARCHES.reward[2]} USDT` : `+${ARCHES.reward[0]} USDT`));
         const wall = this.world.addWall(q, answers, gold, z);
         wall.arch = true;
@@ -3903,7 +3915,7 @@ class Game {
             if (!w.npc.visible || !w.npc.parent) w.state = "done"; // Ислама не видно (спрятан, убран) — порыва без него нет
             else if (w.owned) { w.state = "done"; this.hub.toast("Ислам: «Своих не сдуваю»"); }
             else { // с «Устойчивостью» сцена та же (иначе Ислам просто стоял без карточки), только тапать не нужно
-                w.proof = !!this.fx.windproof;
+                w.proof = this.fx.windproof > 0;
                 w.state = "inhale"; w.t = WIND.inhale; w.lane0 = this.lane;
                 this.audio.play("swipe");
                 $("wind-title").textContent = "Ислам вдыхает…";
@@ -4016,7 +4028,7 @@ class Game {
         fu.bladeMat.opacity = 1 - blur * 0.75;
         fu.blur.material.opacity = blur * 0.8;
         if (v.state === "near" && z > -(VENT.zone + VENT.warn)) {
-            if (v.owned || this.fx.windproof) { // выкупленный Ислам своих не продувает, «Устойчивость» не сносит
+            if (v.owned || this.fx.windproof > 0) { // выкупленный Ислам своих не продувает, «Устойчивость» не сносит
                 v.state = "done"; v.calm = true;
                 this.hub.toast(v.owned ? "Ислам: «Своих не продуваю»" : "Ислам: «С „Устойчивостью“ не продуть»");
             } else {
@@ -4142,7 +4154,7 @@ class Game {
             this.wqShown = w;
             // карточка — сообщение клиента: аватар с номером типа (у экзамена — Павел), имя, возражение, время
             const t = CLIENT_TYPES[w.type];
-            $("wq-type").textContent = w.boss ? `Павел Инаков · экзамен ${w.boss}/3` : w.arch ? "Арка профита · беги в золотую"
+            $("wq-type").textContent = w.boss ? `Павел Инаков · экзамен ${w.boss}/3` : w.arch ? "Профит · беги в золотую"
                 : w.type.startsWith("fear") || w.type === "practice" ? t.name : `Клиент · ${t.name}`;
             $("wq-tag").textContent = w.boss ? "" : t.tag;
             $("wall-q").classList.toggle("boss", !!w.boss);
@@ -4153,7 +4165,7 @@ class Game {
             const lanes = w.answers.length === 2 ? [0, 2] : [0, 1, 2];
             $("wq-ans").innerHTML = lanes.map(() => "<button></button>").join("");
             $("wq-ans").classList.toggle("two", lanes.length === 2);
-            if (this.fx.focus > 0 && !w.hint) { this.fx.focus--; w.hint = true; } // «Фокус»: верный ответ подсвечен
+            if (this.fx.focus > 0) w.hint = true; // «Фокус»: верный ответ подсвечен
             [...$("wq-ans").children].forEach((el, i) => {
                 el.dataset.lane = lanes[i];
                 el.replaceChildren(Object.assign(document.createElement("i"), { textContent: LANE_LABELS[lanes[i]] }), w.answers[i]); // кнопка: куда бежать и ответ
@@ -4206,11 +4218,11 @@ class Game {
             if (this.wallStreak % WALLS.streak === 0) {
                 this.boostLeft = Math.max(this.boostLeft, WALLS.streakTime);
                 this.hub.toast(`Серия ${this.wallStreak}! ×2 USDT на ${WALLS.streakTime} с`);
-            } else this.hub.toast(`Золотая арка! +${r} USDT`);
+            } else this.hub.toast(`Золотая табличка! +${r} USDT`);
             return false;
         }
         const st = (this.wallStats[w.type] ||= { ok: 0, fail: 0 });
-        if (w.boss && this.boss) this.boss[o.userData.correct || this.ram > 0 || this.wallForgive > 0 ? "ok" : "fail"]++;
+        if (w.boss && this.boss) this.boss[o.userData.correct || this.ram > 0 || this.wallForgive > 0 || this.fx.forgive > 0 ? "ok" : "fail"]++;
         if (o.userData.correct) {
             st.ok++;
             this.storyHit();
@@ -4228,9 +4240,11 @@ class Game {
             } else this.hub.toast(WALLS.reward ? `Верно! +${WALLS.reward} USDT` : "Верно!");
             return false;
         }
-        if (this.ram > 0 || this.wallForgive > 0) { // «Таран» Саши или прощённая ошибка Ислама — как верный ответ
-            const how = this.ram > 0 ? "Таран" : "Ислам простил ошибку";
-            if (this.ram > 0) this.ram--; else this.wallForgive--;
+        if (this.ram > 0 || this.wallForgive > 0 || this.fx.forgive > 0) { // таран, прощённая ошибка Ислама или «Спокойствие» — как верный ответ
+            const how = this.ram > 0 ? "Таран" : this.fx.forgive > 0 ? "Спокойствие" : "Ислам простил ошибку";
+            if (this.ram > 0) { this.ram--; this.ramBoost = Math.min(this.ramBoost, this.ram); }
+            else if (this.fx.forgive > 0) this.fx.forgive = 0;
+            else this.wallForgive--;
             o.userData.correct = true;
             w.answered = false;
             const r = this.answer(o);
@@ -4278,8 +4292,8 @@ class Game {
                 if (d.type === "truck") d.passed = true;
                 continue;
             }
-            if (this.fx.shield) { // «Щит» прощает одно столкновение
-                this.fx.shield = false;
+            if (this.fx.shield > 0) { // «Щит» прощает одно столкновение
+                this.fx.shield = 0;
                 if (this.grudge && this.stumble > 0) this.grudgeSay("shield");
                 this.fx.safe = 1;
                 this.trip = TRIP;

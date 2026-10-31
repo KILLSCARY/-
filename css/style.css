@@ -1745,10 +1745,11 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
 
 /* ---- Карта города (js/map.js): как карта местности в гонках — тёмная земля, районы пятнами, белые дороги,
    красные названия на чёрных плашках; внизу — карточка района как карточки меню ---- */
-.map-root { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+#view-map { overflow: hidden; }
+.map-root { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 /* карта во всю ширину экрана и без ограничения высоты (30.10, «маленькая с телефона»): было max-height 58vh — в Telegram
    экран ниже, и карта сжималась с чёрными полосами по бокам. На широком экране — в рамке, не выше 70% экрана */
-.map-svg { flex: none; width: calc(100% + 32px); height: auto; margin: 0 -16px; display: block; /* flex: none — колонка не сжимает карту под низкий экран */ border-block: 1px solid var(--line); }
+.map-svg { flex: 1 1 0; min-height: 0; width: calc(100% + 32px); margin: 0 -16px; display: block; background: #241c18; /* занимает всё, что осталось над карточкой; карта вписана целиком */ border-block: 1px solid var(--line); }
 @media (min-width: 600px) { .map-svg { width: 100%; margin: 0; max-height: 70vh; border-radius: 18px; border: 1px solid var(--line); } }
 .map-svg .ground { fill: #241c18; }
 .map-svg .water { fill: #2f6b6b; }
@@ -1766,9 +1767,9 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
 .map-svg .highway.minor { stroke-width: 3.5; opacity: .7; }
 .map-svg .map-plate rect { fill: #0b0b0c; stroke: rgba(255, 255, 255, .25); stroke-width: 1.2; }
 .map-svg .map-plate text { font-family: var(--font-ui); font-style: italic; text-anchor: middle; dominant-baseline: middle; }
-.map-svg .map-plate.poi text { fill: #f2ece4; font-size: 20px; letter-spacing: .5px; }
+.map-svg .map-plate.poi text { fill: #f2ece4; font-size: 24px; letter-spacing: .5px; }
 .map-svg .map-plate.poi { opacity: .9; }
-.map-svg .map-plate.name text { fill: var(--red); font-size: 30px; font-weight: 600; letter-spacing: 1px; }
+.map-svg .map-plate.name text { fill: var(--red); font-size: 32px; font-weight: 600; letter-spacing: 1px; }
 .map-svg .label { cursor: pointer; }
 .map-svg .label .status rect { fill: #0b0b0c; stroke: rgba(255, 255, 255, .3); stroke-width: 1.2; }
 .map-svg .label .status text { fill: #fff; font: 500 18px var(--font-ui); text-anchor: middle; letter-spacing: 1.4px; }
@@ -1828,28 +1829,28 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
     #view-run .brand-plate { border-radius: 6px; }
     #view-run .brand-sub { font-size: 10px; line-height: 1.15; }
     #view-run .tiles { gap: 6px; }
-    #view-run .tile { min-height: 54px; padding: 8px 11px; border-radius: 14px; }
-    #view-run .tile-name { font-size: 13px; }
-    #view-run .tile-sub { margin-top: 2px; font-size: 10px; }
-    #view-run .tile-run { min-height: 60px; }
-    #view-run .tile-run .tile-name { font-size: 18px; }
+    #view-run .tile { min-height: 62px; padding: 9px 12px; border-radius: 14px; }
+    #view-run .tile-name { font-size: 15px; }
+    #view-run .tile-sub { margin-top: 2px; font-size: 11px; }
+    #view-run .tile-run { min-height: 70px; }
+    #view-run .tile-run .tile-name { font-size: 20px; }
     #view-run .tile-run .arr { width: 36px; height: 36px; font-size: 17px; }
     #view-run .tile-heroes .thumb { width: 48px; height: 48px; }
-    #view-run .tile-rate { grid-column: auto; min-height: 42px; gap: 6px; }
+    #view-run .tile-rate { grid-column: auto; min-height: 50px; gap: 6px; }
     #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
     #view-run .tiles-note { display: none; }
 }
 /* обычный телефон: кнопки крупнее. На низких и узких экранах остаются компактными: иначе закроют героя и текст не влезет */
 @media (max-aspect-ratio: 4/5) and (min-height: 720px) and (min-width: 360px) {
     #view-run .tiles { gap: 7px; }
-    #view-run .tile { min-height: 60px; padding: 9px 12px; }
-    #view-run .tile-name { font-size: 15px; }
-    #view-run .tile-sub { font-size: 10.5px; }
-    #view-run .tile-run { min-height: 68px; }
-    #view-run .tile-run .tile-name { font-size: 20px; }
-    #view-run .tile-run .arr { width: 40px; height: 40px; font-size: 19px; }
-    #view-run .tile-heroes .thumb { width: 54px; height: 54px; }
-    #view-run .tile-rate { min-height: 48px; }
+    #view-run .tile { min-height: 76px; padding: 11px 14px; }
+    #view-run .tile-name { font-size: 17px; }
+    #view-run .tile-sub { font-size: 12.5px; }
+    #view-run .tile-run { min-height: 88px; }
+    #view-run .tile-run .tile-name { font-size: 21px; white-space: nowrap; }
+    #view-run .tile-run .arr { width: 48px; height: 48px; font-size: 22px; }
+    #view-run .tile-heroes .thumb { width: 60px; height: 60px; }
+    #view-run .tile-rate { min-height: 60px; }
 }
 
 /* ---- кейсы: шкала удачи, ×5, «Ночная смена», промокоды ---- */
