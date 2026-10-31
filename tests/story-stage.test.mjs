@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from '../js/vendor/three.module.js';
 import { StoryStage } from '../js/story-stage.js';
 
-const fakeDocument = () => ({ createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) });
+const fakeDocument = () => ({ createElement: () => ({ getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), fillRect() {}, strokeRect() {}, fillText() {} }) }) });
 
 test('главы загружают нужные модели и удаляют их после сцены', () => {
     const old = globalThis.document; globalThis.document = fakeDocument();
@@ -49,7 +49,7 @@ test('сцена едет вместе с улицей, а камера смот
         stage.shot(p, l);
         assert.equal(l.z, -11);
         assert.ok(p.z > l.z); // камера со стороны героя
-        const sign = stage.root.children.find(c => c.material?.map?.isCanvasTexture);
+        let sign; stage.root.traverse(o => { if (o.material?.map?.isCanvasTexture) sign ||= o; });
         let textureDisposed = false;
         sign.material.map.addEventListener('dispose', () => { textureDisposed = true; });
         stage.dispose();

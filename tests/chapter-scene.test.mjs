@@ -7,7 +7,7 @@ test('вступления глав идут в игровой сцене и п�
     const old = globalThis.document;
     const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
     globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id],
-        createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
+        createElement: () => ({ getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         for (const id of [2, 3]) {
             const game = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), storyModelLoader: () => {} };
@@ -27,7 +27,7 @@ test('после заставки восстанавливаются матер�
     const old = globalThis.document;
     const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
     globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id],
-        createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
+        createElement: () => ({ getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         const map = new THREE.Texture();
         const road = new THREE.MeshStandardMaterial({ transparent: true, alphaMap: map, roughnessMap: map, roughness: .4 });
@@ -49,7 +49,7 @@ test('дом за скрытым павильоном возвращается �
     const old = globalThis.document;
     const label = {}, ui = { querySelector: () => label }, text = {}, skip = {};
     globalThis.document = { getElementById: id => ({ 'phone-cutscene': ui, 'phone-cutscene-text': text, 'phone-cutscene-skip': skip })[id],
-        createElement: () => ({ getContext: () => ({ fillRect() {}, strokeRect() {}, fillText() {} }) }) };
+        createElement: () => ({ getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), fillRect() {}, strokeRect() {}, fillText() {} }) }) };
     try {
         const house = new THREE.Group(); house.position.set(-17, 0, -14);
         const bank = new THREE.Group(); bank.userData = { house, side: -1 }; house.add(bank);

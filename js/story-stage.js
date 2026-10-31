@@ -19,7 +19,7 @@ const PROPS = {
 // вывески — поверх модели, своим шрифтом: на готовых моделях надписей нет
 const SIGNS = {
     1: { title: 'ОБМЕН', sub: 'USDT · RUB · 24/7', x: 5.0, y: 3.15, z: 0, rotation: -Math.PI / 2, width: 2.4 },
-    3: { title: 'ШТАБ', sub: 'ПОСЛЕДНИЙ ЭКЗАМЕН', x: -5.75, y: 3.7, z: 0, rotation: Math.PI / 2, width: 2.9 },
+    3: { title: 'ШТАБ', sub: 'ПОСЛЕДНИЙ ЭКЗАМЕН', x: -5.6, y: 4.05, z: .4, rotation: Math.PI / 2 - .6, width: 3.8 },
 };
 // план камеры: откуда (z — от центра сцены) и куда смотрит. Герой остаётся в кадре, сцена — рядом с ним
 const SHOTS = {
@@ -42,21 +42,57 @@ function disposeModel(model) {
     textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose()); geometries.forEach(g => g.dispose());
 }
 
+// вывеска: тёмная панель с золотой рамкой, надпись шрифтом игры и мягкое свечение вокруг
+function drawSign(ctx, { title, sub }) {
+    const W = 1024, H = 320;
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1b1f2c'); bg.addColorStop(1, '#090b12');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#ffc861'; ctx.lineWidth = 10; ctx.strokeRect(14, 14, W - 28, H - 28);
+    ctx.strokeStyle = 'rgba(255, 200, 97, .35)'; ctx.lineWidth = 3; ctx.strokeRect(30, 30, W - 60, H - 60);
+    ctx.fillStyle = '#e3343a'; ctx.fillRect(30, 228, W - 60, 62);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const gold = ctx.createLinearGradient(0, 50, 0, 200);
+    gold.addColorStop(0, '#fff3c4'); gold.addColorStop(.55, '#ffd266'); gold.addColorStop(1, '#f2a93b');
+    ctx.font = '800 118px Unbounded, sans-serif';
+    ctx.shadowColor = 'rgba(255, 190, 80, .85)'; ctx.shadowBlur = 26;
+    ctx.fillStyle = gold; ctx.fillText(title, W / 2, 128);
+    ctx.shadowBlur = 0;
+    ctx.font = '600 40px Oswald, sans-serif';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '6px';
+    ctx.fillStyle = '#fff'; ctx.fillText(sub, W / 2, 260);
+}
+
 function makeSign({ title, sub, x, y, z, rotation, width }) {
     const canvas = document.createElement('canvas');
-    canvas.width = 1024; canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#18212b'; ctx.fillRect(0, 0, 1024, 256);
-    ctx.strokeStyle = '#ffbd62'; ctx.lineWidth = 8; ctx.strokeRect(10, 10, 1004, 236);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffe0a1'; ctx.font = 'bold 118px sans-serif'; ctx.fillText(title, 512, 98);
-    ctx.fillStyle = '#d2d8df'; ctx.font = '40px sans-serif'; ctx.fillText(sub, 512, 196);
+    canvas.width = 1024; canvas.height = 320;
+    const ctx = canvas.getContext('2d'), height = width * 320 / 1024;
+    drawSign(ctx, { title, sub });
     const texture = new THREE.CanvasTexture(canvas);
     texture.encoding = THREE.sRGBEncoding;
-    // MeshBasic светится сам: новые источники света заставили бы пересобрать шейдеры всей сцены (фриз на телефоне)
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }));
+    // шрифт мог не успеть загрузиться: перерисовываем, как только он готов
+    document.fonts?.load?.('800 118px Unbounded').then(() => { if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px'; drawSign(ctx, { title, sub }); texture.needsUpdate = true; }, () => {});
+    // MeshBasic светится сам: новые источники света заставили бы пересобрать шейдеры всей сцены (фриз). Без тумана — надпись читается издалека
+    const sign = new THREE.Group();
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, fog: false }));
+    face.position.z = .06;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(width + .08, height + .08, .1), new THREE.MeshBasicMaterial({ color: 0x07080d, fog: false }));
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(width * 1.35, height * 1.9), new THREE.MeshBasicMaterial({ map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false, opacity: .55 }));
+    halo.position.z = -.06;
+    sign.add(halo, box, face);
     sign.position.set(x, y, z); sign.rotation.y = rotation;
     return sign;
+}
+
+function glowTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    const ctx = canvas.getContext('2d'), g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255, 190, 90, .9)'); g.addColorStop(1, 'rgba(255, 150, 60, 0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.encoding = THREE.sRGBEncoding;
+    return texture;
 }
 
 export class StoryStage {
@@ -65,6 +101,7 @@ export class StoryStage {
         this.scene = scene;
         this.chapter = chapter;
         this.mixers = [];
+        this.loaded = 0;
         this.root = new THREE.Group();
         this.root.position.set(0, 0, z);
         scene.add(this.root);
@@ -91,10 +128,14 @@ export class StoryStage {
             placement.position.set(prop.x - center.x * scale,
                 (prop.sidewalk ? .18 : 0) - bounds.min.y * scale, prop.z - center.z * scale);
             this.root.add(placement);
+            this.loaded++;
             const clip = prop.clip && (gltf.animations || []).find(a => a.name === prop.clip);
             if (clip) { const mixer = new THREE.AnimationMixer(model); mixer.clipAction(clip).play(); this.mixers.push(mixer); }
         }, () => {});
     }
+    // готова заранее: декорации загружены и скрыты, в нужный момент только появляются (без рывка перед боем)
+    get ready() { return (PROPS[this.chapter] || []).length === this.loaded; }
+    place(z) { this.root.position.z = z; this.root.visible = true; }
     moveBy(dz) { this.root.position.z += dz; }
     // план камеры в мировых координатах
     shot(pos, look) {

@@ -7,7 +7,7 @@ import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
-import { StoryStage, preloadStoryStage } from "./story-stage.js";
+import { StoryStage } from "./story-stage.js";
 import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
 import { FramePacer, FrameMeter } from "./frame-timing.js";
@@ -182,7 +182,7 @@ function parseAnswer(raw) {
 }
 
 const FLY_TAKEOFF = 0.75; // с: набор высоты в полёте
-const RUNOUT_TIME = 1.2; // с: герой сбегает на нет перед заставкой босса
+const RUNOUT_TIME = 2; // с: герой сбегает на нет перед заставкой босса
 
 class Game {
     constructor() {
@@ -639,7 +639,8 @@ class Game {
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
         // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
         const st0 = this.story;
-        if (st0) setTimeout(() => { preloadStoryStage(st0.id); for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if ((st0.exam || this.storyMask(st0)) && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
+        if (st0) this.prepareStage(st0.id);
+        if (st0) setTimeout(() => { for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if ((st0.exam || this.storyMask(st0)) && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
             if (this.runId !== run || !r?.runId) return;
@@ -2812,6 +2813,23 @@ class Game {
 
     // Перед боссом герой сбегает на нет прямо к декорациям главы (они едут вместе с улицей и встают чуть впереди),
     // камера плавно отъезжает на общий план, потом Мизулина ловит или затемнение к заставке босса
+    // В начале забега главы: декорации грузятся и скрыто прогреваются (шейдеры, текстуры), пока игрок на отсчёте
+    prepareStage(id) {
+        if (this.preStage?.chapter === id) return;
+        this.preStage?.dispose();
+        const stage = this.preStage = new StoryStage(this.scene, id, 0, undefined, -40);
+        stage.root.visible = false;
+        const warm = () => {
+            if (this.preStage !== stage) return;
+            if (!stage.ready) return void setTimeout(warm, 500);
+            stage.root.visible = true;
+            this.renderer.compile(this.scene, this.camera);
+            stage.root.traverse((o) => { for (const m of [].concat(o.material || [])) for (const key of ["map", "normalMap", "roughnessMap", "emissiveMap", "metalnessMap"]) if (m[key]?.image) this.renderer.initTexture(m[key]); });
+            if (this.preStage === stage) stage.root.visible = false;
+        };
+        warm();
+    }
+
     async showStoryStage(s) {
         this.profile.data.storyBoss = s.id; // дошёл до босса: вышел из игры — продолжит с него, а не с начала главы
         this.profile.save();
@@ -2820,7 +2838,11 @@ class Game {
         this.state = "bossintro";
         const z = -(this.speed * RUNOUT_TIME * 0.5 + 8);
         this.world.clear(); // на дороге пусто: монеты сквозь героя и бак перед камерой портили кадр (бой всё равно чистит улицу)
-        const stage = new StoryStage(this.scene, s.id, this.x, undefined, z);
+        // декорации готовы заранее (prepareStage) — появляются без рывка; нет — собираем сейчас
+        const stage = this.preStage?.chapter === s.id ? this.preStage : new StoryStage(this.scene, s.id, this.x, undefined, z);
+        if (stage !== this.preStage) this.preStage?.dispose();
+        this.preStage = null;
+        stage.place(z);
         this.storyStage = stage;
         this.stageT = 0;
         this.runout = { t: 0, speed: this.speed };
@@ -2873,7 +2895,11 @@ class Game {
         await wait(800);
         if (this.runId !== run) { live = false; return; }
         const cast = anims.find((x) => x.name === CHASER.arrest);
-        if (cast && mixer) { mixer.stopAllAction(); const a = mixer.clipAction(cast); a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); }
+        if (cast && mixer) { // плавно из бега в захват: мгновенная смена клипа выглядела рывком
+            const a = mixer.clipAction(cast), was = anims.find((x) => x.name === CHASER.run);
+            a.reset().setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play();
+            if (was) a.crossFadeFrom(mixer.clipAction(was), 0.2, false);
+        }
         this.audio.play("whistle");
         tg.haptic("heavy");
         this.kick(0.3, 6);
@@ -2972,7 +2998,7 @@ class Game {
         $("bs-hero").style.backgroundImage = `url(${hero.portrait})`;
         $("bs-name").textContent = opp.name;
         $("bs-hero-name").textContent = hero.name;
-        $("bs-label").textContent = `${s.name} · ${s.fear}`;
+        $("bs-label").textContent = s.name.includes(s.fear) ? s.name : `${s.name} · ${s.fear}`; // в главе 3 страх уже в названии
         $("bs-quote").textContent = `«${s.before?.boss || opp.lines.intro}»`;
         if (!afterCatch) { // после захвата Мизулиной экран уже тёмный
             this.runout = { t: 0, speed: this.speed };

@@ -8,7 +8,7 @@ test('телефон следует за кистью, падает и удал�
     els['phone-cutscene'].querySelector = () => ({});
     const previous = globalThis.document;
     const screenText = [];
-    globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, clip() {}, fillRect() {}, fillText(text) { screenText.push(text); } }) }) };
+    globalThis.document = { getElementById: id => els[id], createElement: () => ({ getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, clip() {}, fillRect() {}, fillText(text) { screenText.push(text); } }) }) };
     try {
         const scene = new THREE.Scene(), rat = new THREE.Group();
         const arm = new THREE.Bone(), forearm = new THREE.Bone(), hand = new THREE.Bone();
