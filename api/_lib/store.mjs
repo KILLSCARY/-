@@ -15,6 +15,7 @@ return {n, 1}`;
 const CARD_GRANT_LUA = `local v = redis.call('HGET', KEYS[1], ARGV[1])
 local bal = tonumber(redis.call('HGET', KEYS[2], ARGV[2]) or '0')
 if not v then return {0, bal, 'no_run'} end
+if tonumber(redis.call('GET', KEYS[3]) or '0') >= tonumber(ARGV[8]) then return {0, bal, 'day_limit'} end
 local s, c, l = string.match(v, '(%d+):(%d+):(%d+)')
 s = tonumber(s); c = tonumber(c); l = tonumber(l)
 local now = tonumber(ARGV[3])
@@ -23,6 +24,7 @@ if c >= tonumber(ARGV[4]) then return {0, bal, 'run_limit'} end
 if now - s < tonumber(ARGV[5]) * 1000 or (l > 0 and now - l < tonumber(ARGV[6]) * 1000) then return {0, bal, 'too_fast'} end
 redis.call('HSET', KEYS[1], ARGV[1], s .. ':' .. (c + 1) .. ':' .. now)
 bal = redis.call('HINCRBY', KEYS[2], ARGV[2], 1)
+redis.call('INCR', KEYS[3]); redis.call('EXPIRE', KEYS[3], 172800)
 return {1, bal, tostring(c + 1)}`;
 // списать карты и положить перк — одним скриптом (KEYS[2] = p2p:pk:<id>)
 const CARD_SPEND_LUA = `local b = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0')
@@ -106,13 +108,15 @@ export function memoryStore() {
         async taken() { return taken; },
         async grant(id, key, amount, ts) { const m = rw.get(id) || new Map(); rw.set(id, m); if (m.has(key)) return false; m.set(key, `${amount}:${ts}`); return true; },
         // «Карта»: забеги (runId → {start, count, last}) и баланс; JS однопоточный — проверка и запись атомарны
-        async cardRunStart(id, runId, ts) { const m = cr.get(id) || new Map(); cr.set(id, m); m.set(runId, { start: ts, count: 0, last: 0 }); },
+        async cardRunStart(id, runId, ts) { cr.set(id, new Map([[runId, { start: ts, count: 0, last: 0 }]])); }, // один активный забег: новый отменяет прошлые
         async cardGrant(id, runId, ts, cfg) {
             const r = cr.get(id)?.get(runId), bal = cards.get(id) || 0;
             if (!r || ts - r.start > cfg.runTtlSec * 1000) return { ok: false, reason: "no_run", cards: bal };
+            const dk = `${id}:g:${new Date(ts).toISOString().slice(0, 10)}`;
+            if ((caseDay.get(dk) || 0) >= cfg.daily) return { ok: false, reason: "day_limit", cards: bal };
             if (r.count >= cfg.perRun) return { ok: false, reason: "run_limit", cards: bal };
             if (ts - r.start < cfg.firstSec * 1000 || (r.last && ts - r.last < cfg.gapSec * 1000)) return { ok: false, reason: "too_fast", cards: bal };
-            r.count++; r.last = ts; cards.set(id, bal + 1);
+            r.count++; r.last = ts; cards.set(id, bal + 1); caseDay.set(dk, (caseDay.get(dk) || 0) + 1);
             return { ok: true, cards: bal + 1, count: r.count };
         },
         async caseCardGrant(id, openId, n, day, cap) {
@@ -237,9 +241,9 @@ export function redisStore(url, token, fetchImpl = fetch) {
         },
         async place(id) { return Number((await cmd("HGET", "p2p:claim", id)) || 0); },
         async taken() { return Number((await cmd("GET", "p2p:taken")) || 0); },
-        async cardRunStart(id, runId, ts, ttl) { await cmd("HSET", `p2p:cr:${id}`, runId, `${ts}:0:0`); await cmd("EXPIRE", `p2p:cr:${id}`, String(ttl)); },
+        async cardRunStart(id, runId, ts, ttl) { await cmd("DEL", `p2p:cr:${id}`); await cmd("HSET", `p2p:cr:${id}`, runId, `${ts}:0:0`); await cmd("EXPIRE", `p2p:cr:${id}`, String(ttl)); },
         async cardGrant(id, runId, ts, cfg) {
-            const [ok, bal, x] = await cmd("EVAL", CARD_GRANT_LUA, "2", `p2p:cr:${id}`, "p2p:cards", runId, String(id), String(ts), String(cfg.perRun), String(cfg.firstSec), String(cfg.gapSec), String(cfg.runTtlSec));
+            const [ok, bal, x] = await cmd("EVAL", CARD_GRANT_LUA, "3", `p2p:cr:${id}`, "p2p:cards", `p2p:cdg:${id}:${new Date(ts).toISOString().slice(0, 10)}`, runId, String(id), String(ts), String(cfg.perRun), String(cfg.firstSec), String(cfg.gapSec), String(cfg.runTtlSec), String(cfg.daily));
             return Number(ok) ? { ok: true, cards: Number(bal), count: Number(x) } : { ok: false, reason: x, cards: Number(bal) };
         },
         async caseCardGrant(id, openId, n, day, cap, ttl) {

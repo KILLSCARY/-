@@ -51,6 +51,7 @@ async function raceAdd(store, who, n, now) {
 async function friendRan(store, id) {
     const inviter = await store.refOf(id);
     if (!inviter || inviter === "0") return;
+    if (!(await store.rewards(id))["boss:1"]) return; // друг считается, когда прошёл первую главу: иначе фермы из пустых аккаунтов
     await changeMeta(store, inviter, (s) => awardFriend(s, id));
 }
 

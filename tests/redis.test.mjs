@@ -28,6 +28,7 @@ function fakeRedis() {
             case "HMGET": if (a.length < 2) throw new Error("ERR wrong number of arguments for 'hmget' command"); return a.slice(1).map((f) => H(a[0]).get(f) ?? null);
             case "HINCRBY": { const m = H(a[0]), v = Number(m.get(a[1]) || 0) + Number(a[2]); m.set(a[1], String(v)); return v; }
             case "EXPIRE": return 1;
+            case "DEL": return h.delete(a[0]) ? 1 : 0;
             case "GET": return s.get(a[0]) ?? null;
             case "ZADD": { const gt = a[1] === "GT", sc = Number(a[gt ? 2 : 1]), id = a[gt ? 3 : 2], m = Z(a[0]); if (!gt || !(m.get(id) >= sc)) m.set(id, sc); return 1; }
             case "ZINCRBY": { const m = Z(a[0]); m.set(a[2], (m.get(a[2]) || 0) + Number(a[1])); return String(m.get(a[2])); }

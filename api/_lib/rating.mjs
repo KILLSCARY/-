@@ -61,7 +61,7 @@ export async function handleRating(action, body, who, { store, now }) {
         const id = String(body.task || "");
         if (id === "razbor") return { status: 400, json: { error: "use_apply" } }; // разбор — только через отправленную заявку (leads.mjs)
         if (id === "invite" || id === "store") return { status: 400, json: { error: "use_check" } }; // друг и подписка — только проверкой (verify.mjs)
-        if (!(id in RATING.tasks)) return { status: 400, json: { error: "bad_task" } };
+        if (!Object.hasOwn(RATING.tasks, id)) return { status: 400, json: { error: "bad_task" } };
         const fresh = await store.taskOnce(who.id, id, now);
         return { status: 200, json: { ok: true, task: id, fresh, points: 0 } };
     }

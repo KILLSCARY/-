@@ -24,9 +24,9 @@ export function checkChain(events, cfg) {
     return { ok: true };
 }
 
-export async function handle(action, body, { store, env = process.env, now = Date.now(), fetchImpl = fetch }) {
+export async function handle(action, body, { store, env = process.env, now = Date.now(), fetchImpl = fetch, takenOf = (st) => st.taken() }) {
     const cfg = prizeConfig(env);
-    const counter = async () => { const taken = Math.min(cfg.total, await store.taken()); return { total: cfg.total, taken, left: cfg.total - taken }; };
+    const counter = async () => { const taken = Math.min(cfg.total, await takenOf(store)); return { total: cfg.total, taken, left: cfg.total - taken }; };
     if (action === "counter") {
         const out = await counter();
         const who = body?.initData ? verifyInitData(body.initData, env.BOT_TOKEN, cfg.initDataMaxAgeSec, now) : null;
@@ -53,6 +53,8 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         if (key.startsWith("boss:")) {
             const ch = key.slice(5), started = (await store.events(who.id))[`run:${ch}`];
             if (!started || now - started < BOSS_MIN_RUN_SEC(env) * 1000) return { status: 403, json: { error: "chain", reason: `missing:run:${ch}` } };
+            // главы только по порядку: иначе финал и бонус за сюжет забирались скриптом без первых двух боссов
+            if (Number(ch) > 1 && !(await store.rewards(who.id))[`boss:${Number(ch) - 1}`]) return { status: 403, json: { error: "chain", reason: `missing:boss:${Number(ch) - 1}` } };
         }
         // табличка сюжета — только если сервер видел старт забега этой главы (run:<сюжет>): без этого награды
         // за все таблички можно было забрать одним скриптом, не играя. Верность ответа сервер не знает — вопросы на клиенте
@@ -89,6 +91,9 @@ export async function handle(action, body, { store, env = process.env, now = Dat
         if (!had) {
             const chk = checkChain(await store.events(who.id), cfg);
             if (!chk.ok) return { status: 403, json: { error: "chain", reason: chk.reason } };
+            // место в сотне — только за весь сюжет: события присылает сам телефон, награды боссов проверены по порядку выше
+            const got = await store.rewards(who.id);
+            for (const key of ["boss:1", "boss:2", "boss:3"]) if (!got[key]) return { status: 403, json: { error: "chain", reason: `missing:${key}` } };
         }
         const { place, fresh } = await store.claim(who.id, cfg.total);
         if (fresh) await score(store, who, RATING.top100, "tasks");

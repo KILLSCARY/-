@@ -16,7 +16,7 @@ export function leadText(who, b) {
         `<b>Связь:</b> ${esc(clip(b.contact, 80)) || "—"}`,
     ];
     if (b.note) lines.push(`<b>Комментарий:</b> ${esc(clip(b.note, 400))}`);
-    const ak = Array.isArray(b.anketa) ? b.anketa.slice(0, 8) : [];
+    const ak = Array.isArray(b.anketa) ? b.anketa.filter(Array.isArray).slice(0, 8) : [];
     if (ak.length) lines.push("<b>Анкета:</b>", ...ak.map(([q, a]) => `• ${esc(clip(q, 80))} — ${esc(clip(a, 80))}`));
     const ph = Array.isArray(b.phrases) ? b.phrases.slice(0, 10).map((x) => clip(x, 40)).filter(Boolean) : [];
     if (ph.length) lines.push(`<b>Кодовые фразы:</b> ${esc(ph.join(", "))}`);

@@ -82,7 +82,7 @@ function earn(state, n, now) {
 
 // Открытие. Повтор с тем же openId (не дошёл ответ) вернёт тот же результат и ничего не спишет
 export function openCase(state, { caseId, openId, now, rng }) {
-    if (!CASE_DROPS[caseId]) return { ok: false, status: 400, error: "bad_case" };
+    if (!Object.hasOwn(CASE_DROPS, caseId)) return { ok: false, status: 400, error: "bad_case" };
     if (state.last?.openId === openId) return { ok: true, result: state.last.result };
     if (caseId === "weekly") {
         if (state.weekly.w !== weekOf(now)) state.weekly = { w: weekOf(now), n: 0 };

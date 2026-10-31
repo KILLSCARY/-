@@ -12,8 +12,9 @@ export const prize = {
     // { status, amount, granted } — granted:false значит уже выдано раньше
     reward(key) { return tg.initData ? post({ action: "reward", key }) : Promise.resolve({ status: 0, error: "no_telegram" }); },
     rewards() { return tg.initData ? post({ action: "rewards" }) : Promise.resolve(null); },
-    async counter() {
-        try { const r = await fetch(`${API}?initData=${encodeURIComponent(tg.initData || "")}`); return r.ok ? await r.json() : null; } catch { return null; }
+    async counter() { // POST: подпись не должна попадать в адрес запроса и журналы
+        const r = await post({ action: "counter" });
+        return r.status === 200 ? r : null;
     },
     // «Карта»: баланс и выдачу проверяет сервер. cardRun — старт забега (runId), card — +1 за девушку, cardBuy — покупка
     cardRun() { return tg.initData ? post({ action: "cardrun" }) : Promise.resolve(null); },

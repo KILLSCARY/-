@@ -187,6 +187,9 @@ test("заявка, дошедшая до менеджеров, даёт NSS о�
     await handle("cardrun", { initData: init }, ctx);
     const { runNss } = await import("../api/_lib/meta.mjs");
     await runNss({ id: "7", user: {} }, 1200, "abcdef", { store, now: T0 });
+    assert.equal(await store.metaGet("9"), null, "друг ещё не прошёл первую главу");
+    await store.grant("7", "boss:1", 3000, T0);
+    await runNss({ id: "7", user: {} }, 1200, "abcdeg", { store, now: T0 });
     assert.equal(JSON.parse(await store.metaGet("9")).nss, META.bonus.friendRun);
 });
 
@@ -214,6 +217,8 @@ test("сюжет: 2500 NSS один раз за финального босса,
     const ctx = { store, env, now: T0 };
     assert.equal((await handle("reward", { initData: init, key: "boss:3" }, ctx)).status, 403); // без забега главы не выдаётся
     await handle("event", { initData: init, event: "run:3" }, { ...ctx, now: T0 - 60000 });
+    assert.equal((await handle("reward", { initData: init, key: "boss:3" }, ctx)).status, 403, "без второго босса");
+    await store.grant("7", "boss:2", 6000, T0);
     const r = await handle("reward", { initData: init, key: "boss:3" }, ctx);
     assert.equal(r.json.nss, META.bonus.story);
     assert.equal(r.json.meta.nss, 2500);

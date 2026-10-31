@@ -10,10 +10,11 @@ const env = { BOT_TOKEN: BOT, PRIZE_MIN_STEP_SEC: "30", PRIZE_MIN_TOTAL_SEC: "12
 const T0 = 1_800_000_000_000;
 const init = (id, t = T0) => signInitData({ auth_date: String(Math.floor(t / 1000)), query_id: "q", user: JSON.stringify({ id, first_name: "Игрок" }) }, BOT);
 const run = (store, action, body, now) => handle(action, body, { store, env, now });
-async function finish(store, id, t = T0, gap = 200_000) {
+async function finish(store, id, t = T0, gap = 300_000) {
     const d = init(id, t);
     await run(store, "event", { initData: d, event: "run:1" }, t);
     await run(store, "event", { initData: d, event: "boss:pavel" }, t + gap);
+    for (const key of ["boss:1", "boss:2", "boss:3"]) await store.grant(String(id), key, 1, t + gap);
     return d;
 }
 
@@ -75,7 +76,7 @@ test("неполная цепочка и слишком быстрое прох�
 
 test("повтор события не сдвигает первую метку времени", async () => {
     const store = memoryStore();
-    const d = await finish(store, 5, T0, 200_000);
+    const d = await finish(store, 5, T0, 300_000);
     await run(store, "event", { initData: d, event: "run:1" }, T0 + 190_000); // попытка «перезапустить» старт
     assert.equal((await run(store, "claim", { initData: d }, T0 + 300_000)).json.place, 1);
 });
@@ -100,6 +101,8 @@ test("награды босса и табличек — один раз, сум�
     const b = await run(store, "reward", { initData: d, key: "boss:1" }, T0 + 70_000);
     assert.equal(b.json.granted, false);
     await run(store, "event", { initData: d, event: "run:3" }, T0);
+    assert.equal((await run(store, "reward", { initData: d, key: "boss:3" }, T0 + 60_000)).json.reason, "missing:boss:2"); // главы только по порядку
+    await store.grant("77", "boss:2", 6000, T0);
     const c = await run(store, "reward", { initData: d, key: "boss:3" }, T0 + 60_000);
     assert.deepEqual([c.json.amount, c.json.granted], [12000, true]);
     assert.equal((await run(store, "reward", { initData: d, key: "boss:3" }, T0 + 90_000)).json.granted, false);
@@ -110,7 +113,7 @@ test("награды босса и табличек — один раз, сум�
     assert.equal((await run(store, "reward", { initData: d, key: "sign:1.4" }, T0 + 20_000)).json.granted, false);
     assert.equal((await run(store, "reward", { initData: d, key: "boss:9" }, T0)).status, 400);
     assert.equal((await run(store, "reward", { initData: "x", key: "boss:1" }, T0)).status, 401);
-    assert.deepEqual((await run(store, "rewards", { initData: d }, T0)).json.rewards, { "boss:1": 3000, "boss:3": 12000, "sign:1.4": 250 });
+    assert.deepEqual((await run(store, "rewards", { initData: d }, T0)).json.rewards, { "boss:1": 3000, "boss:2": 6000, "boss:3": 12000, "sign:1.4": 250 });
 });
 
 // ---- «Карта» ----
@@ -295,4 +298,44 @@ test("тестовые Карты: каждому один раз при про�
     assert.equal((await handle("cards", { initData: d }, { store, env: t, now: T0 })).json.cards, 1000);
     assert.equal((await handle("cardrun", { initData: d }, { store, env: t, now: T0 + 1000 })).json.cards, 1000); // второй раз не даём
     assert.equal((await handle("cards", { initData: init(78) }, { store, env, now: T0 })).json.cards, 0); // TEST_CARDS=0 — выключено
+});
+
+test("приз сотни: события с телефона без пройденных боссов места не дают", async () => {
+    const store = memoryStore(), d = init(801);
+    await run(store, "event", { initData: d, event: "run:1" }, T0);
+    await run(store, "event", { initData: d, event: "boss:pavel" }, T0 + 400_000);
+    const r = await run(store, "claim", { initData: d }, T0 + 401_000);
+    assert.equal(r.status, 403);
+    assert.equal(r.json.reason, "missing:boss:1");
+    assert.equal(await store.taken(), 0);
+});
+
+test("один активный забег: новый отменяет старый, Карты не копятся параллельно", async () => {
+    const store = memoryStore(), d = init(802);
+    const a = (await run(store, "cardrun", { initData: d }, T0)).json.runId;
+    const b = (await run(store, "cardrun", { initData: d }, T0 + 1)).json.runId;
+    assert.equal((await run(store, "card", { initData: d, runId: a }, T0 + 20_000)).json.error, "no_run");
+    assert.equal((await run(store, "card", { initData: d, runId: b }, T0 + 20_000)).status, 200);
+    assert.equal((await run(store, "runscore", { initData: d, runId: a, distance: 300, usdt: 0 }, T0 + 30_000)).json.error, "no_run");
+});
+
+test("Карты за забеги: не больше суточного лимита", async () => {
+    const store = memoryStore(), d = init(803);
+    const ctx = { store, env: { ...env, TEST_CARDS: "0", CARDS_DAILY: "3", CARDS_FIRST_SEC: "0", CARDS_GAP_SEC: "0" } };
+    let got = 0;
+    for (let i = 0; i < 4; i++) {
+        const t = T0 + i * 1000, runId = (await handle("cardrun", { initData: d }, { ...ctx, now: t })).json.runId;
+        for (let k = 0; k < 2; k++) if ((await handle("card", { initData: d, runId }, { ...ctx, now: t + 1 + k })).status === 200) got++;
+    }
+    assert.equal(got, 3);
+});
+
+test("служебные имена не считаются товарами и кейсами", async () => {
+    const store = memoryStore(), d = init(804);
+    for (const bad of ["constructor", "__proto__", "toString"]) {
+        assert.equal((await run(store, "cardbuy", { initData: d, item: bad }, T0)).status, 400);
+        assert.equal((await run(store, "casecard", { initData: d, caseId: bad, openId: "abcdef1" }, T0)).status, 400);
+        assert.equal((await run(store, "caseopen", { initData: d, caseId: bad, openId: "abcdef2" }, T0)).status, 400);
+        assert.equal((await run(store, "task", { initData: d, task: bad }, T0)).status, 400);
+    }
 });

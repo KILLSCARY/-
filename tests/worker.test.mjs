@@ -46,3 +46,23 @@ test("cron: итоги гонки и сообщения о копилке зап
     await worker.scheduled({ cron: "30 9 * * *" }, e);
     assert.deepEqual(calls.slice(1), ["due"]);
 });
+
+test("поток запросов с одного адреса получает 429, другой адрес работает", async () => {
+    setStore(memoryStore());
+    const from = (ip) => worker.fetch(new Request("https://x.test/api/prize", { headers: { "CF-Connecting-IP": ip } }), env);
+    let last;
+    for (let i = 0; i < 241; i++) last = await from("9.9.9.9");
+    assert.equal(last.status, 429);
+    assert.equal((await from("8.8.8.8")).status, 200);
+});
+
+test("счётчик мест не читает базу на каждый запрос", async () => {
+    const store = memoryStore();
+    let reads = 0;
+    const taken = store.taken.bind(store);
+    store.taken = () => { reads++; return taken(); };
+    setStore(store);
+    await new Promise((r) => setTimeout(r, 0));
+    for (let i = 0; i < 20; i++) await worker.fetch(new Request("https://x.test/api/prize", { headers: { "CF-Connecting-IP": "7.7.7.7" } }), env);
+    assert.ok(reads <= 1, `чтений: ${reads}`);
+});

@@ -6,7 +6,7 @@ export function prizeConfig(env = process.env) {
         // цепочка событий, которая должна быть у игрока к моменту заявки (в этом порядке по времени)
         chain: (env.PRIZE_CHAIN || "run:1,boss:pavel").split(",").map((s) => s.trim()).filter(Boolean),
         minStepSec: num(env.PRIZE_MIN_STEP_SEC, 30), // минимум секунд между соседними событиями цепочки
-        minTotalSec: num(env.PRIZE_MIN_TOTAL_SEC, 120), // минимум секунд от первого события до последнего
+        minTotalSec: num(env.PRIZE_MIN_TOTAL_SEC, 300), // минимум секунд от первого события до последнего
         initDataMaxAgeSec: num(env.INITDATA_MAX_AGE_SEC, 86400),
     };
 }

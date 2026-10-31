@@ -7,6 +7,7 @@ const num = (v, d) => (v != null && v !== "" && !Number.isNaN(Number(v)) ? Numbe
 export const cardsConfig = (env = process.env) => ({
     perRun: num(env.CARDS_PER_RUN, 2),
     firstSec: num(env.CARDS_FIRST_SEC, 15),  // 300 м на стартовой скорости (13 м/с) — больше 20 с
+    daily: num(env.CARDS_DAILY, 20),         // Карт за забеги в сутки (забегов по 2 Карты — десять)
     gapSec: num(env.CARDS_GAP_SEC, 12),      // вторая — через 500+ м
     caseDaily: num(env.CARDS_CASE_DAILY, 5), // сколько раз в сутки кейс может дать карты
     runTtlSec: num(env.CARDS_RUN_TTL_SEC, 3 * 3600),
@@ -43,7 +44,7 @@ export async function handleCards(action, body, who, { store, env = process.env,
         return { status: 200, json: { ok: true, cards: r.cards, inRun: r.count } };
     }
     if (action === "casecard") {
-        const range = CASE_CARDS[String(body.caseId || "")];
+        const caseId = String(body.caseId || ""), range = Object.hasOwn(CASE_CARDS, caseId) ? CASE_CARDS[caseId] : null;
         if (!range) return { status: 400, json: { error: "bad_case" } };
         const openId = String(body.openId || "");
         if (!/^[a-z0-9]{6,24}$/.test(openId)) return { status: 400, json: { error: "bad_open" } };
@@ -55,7 +56,7 @@ export async function handleCards(action, body, who, { store, env = process.env,
         return { status: 200, json: { ok: true, n, cards: r.cards } };
     }
     if (action === "cardbuy") {
-        const item = String(body.item || ""), price = CARD_PRICES[item];
+        const item = String(body.item || ""), price = Object.hasOwn(CARD_PRICES, item) ? CARD_PRICES[item] : 0;
         if (!price) return { status: 400, json: { error: "bad_item" } };
         if (isHero(item) && (await store.perks(who.id))[item] > 0) // уже куплен — второй раз не списываем
             return { status: 200, json: { ok: true, item, price: 0, owned: true, cards: await store.cardBalance(who.id), perks: await store.perks(who.id) } };
