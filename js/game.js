@@ -210,6 +210,11 @@ class Game {
             this.settings.v = 2;
             try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
         }
+        // телефон: «Высокой» больше нет (iPhone на ней давал 29 FPS против 55 на средней при почти той же картинке) — сохранённую переводим на «Авто»
+        if (mobile && this.settings.quality === "high") {
+            delete this.settings.quality;
+            try { localStorage.setItem("p2p_settings", JSON.stringify(this.settings)); } catch {}
+        }
         const requestedLocation = new URLSearchParams(location.search).get("location");
         if (["winter", "street", "auto"].includes(requestedLocation)) {
             this.settings.location = requestedLocation;

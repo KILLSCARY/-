@@ -867,6 +867,7 @@ html.tg, html.tg body { background: #000; }
 .set-q { flex-direction: column; align-items: stretch; }
 .seg4 { grid-template-columns: repeat(4, 1fr); margin-top: 8px; }
 .seg4 button { padding: 9px 4px; font-size: 12px; }
+.seg4-3 { grid-template-columns: repeat(3, 1fr); }
 
 /* замедление перед стеной: ответы — кнопки, рамка вокруг экрана, выбранный ответ подсвечен */
 body.slowmo .wall-q { pointer-events: auto; }
