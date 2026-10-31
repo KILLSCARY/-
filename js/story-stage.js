@@ -84,6 +84,69 @@ function makeSign({ title, sub, x, y, z, rotation, width }) {
     return sign;
 }
 
+// Здание штаба: своё, нарисованное под ночной кадр, закрывает уличные дома за входом. Входная группа — модель перед ним
+const HQ_BLOCK = { width: 24, height: 22, depth: 2, front: -6.85, zFrom: -10 };
+
+function paintHeadquarters(ctx, w, h) {
+    const mx = w / HQ_BLOCK.width, ground = 5.8 * mx, floor = 3.2 * mx;
+    let seed = 7;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    ctx.fillStyle = '#3a2f4d'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(16, 11, 26, .22)'; // кирпичная кладка
+    for (let y = 0; y < h; y += 8) ctx.fillRect(0, y, w, 1);
+    for (let y = 0, row = 0; y < h; y += 8, row++) for (let x = row % 2 * 8; x < w; x += 16) ctx.fillRect(x, y, 1, 8);
+    for (let top = h - ground - floor, n = 0; top > -floor; top -= floor, n++) {
+        ctx.fillStyle = '#54476b'; ctx.fillRect(0, top + floor - 5, w, 5); // межэтажный пояс
+        ctx.fillStyle = 'rgba(10, 7, 16, .5)'; ctx.fillRect(0, top + floor, w, 3);
+        for (let x = 1.1 * mx; x < w - mx; x += 2.75 * mx) {
+            const ww = 1.45 * mx, wh = 1.95 * mx, wy = top + .5 * mx, lit = rnd() < .3;
+            ctx.fillStyle = '#54476b'; ctx.fillRect(x - 5, wy - 5, ww + 10, wh + 10); // наличник
+            ctx.fillStyle = '#6a5c84'; ctx.fillRect(x - 8, wy + wh + 5, ww + 16, 6); // подоконник
+            const g = ctx.createLinearGradient(0, wy, 0, wy + wh);
+            if (lit) { g.addColorStop(0, '#ffd27a'); g.addColorStop(1, '#f09a3e'); } else { g.addColorStop(0, '#2b3656'); g.addColorStop(1, '#141a2e'); }
+            ctx.fillStyle = g; ctx.fillRect(x, wy, ww, wh);
+            ctx.fillStyle = '#231b30'; // переплёт
+            ctx.fillRect(x + ww / 2 - 2, wy, 4, wh);
+            ctx.fillRect(x, wy + wh * .36 - 2, ww, 4);
+        }
+    }
+    // цоколь: тёмный камень и рольставни по обе стороны от входа
+    ctx.fillStyle = '#4a3f5e'; ctx.fillRect(0, h - ground, w, ground);
+    ctx.fillStyle = 'rgba(16, 11, 26, .35)'; // крупный руст
+    for (let y = h - ground + 28; y < h; y += 28) ctx.fillRect(0, y, w, 2);
+    ctx.fillStyle = '#6a5c84'; ctx.fillRect(0, h - ground - 7, w, 7);
+    const shutterTop = h - ground + .9 * mx, shutterH = ground - .9 * mx;
+    for (let x = .9 * mx; x < w - 2.5 * mx; x += 3.6 * mx) {
+        const center = (x + 1.3 * mx) / mx;
+        if (Math.abs(center - (HQ_BLOCK.width + HQ_BLOCK.zFrom)) < 3.6) continue; // тут вход: u растёт от ближнего к камере края
+        ctx.fillStyle = '#6a5c84'; ctx.fillRect(x - 5, shutterTop - 5, 2.6 * mx + 10, shutterH + 5); // рама
+        ctx.fillStyle = '#5c566c'; ctx.fillRect(x, shutterTop, 2.6 * mx, shutterH);
+        ctx.fillStyle = '#3b3548';
+        for (let y = shutterTop + 6; y < h; y += 9) ctx.fillRect(x, y, 2.6 * mx, 2);
+    }
+    // свет над входом: тёплые пятна на стене по бокам от двери
+    const door = (HQ_BLOCK.width + HQ_BLOCK.zFrom) * mx;
+    for (const x of [door - 2.3 * mx, door + 2.3 * mx]) {
+        const y = h - ground + 1.6 * mx, glow = ctx.createRadialGradient(x, y, 4, x, y, 1.9 * mx);
+        glow.addColorStop(0, 'rgba(255, 200, 120, .75)'); glow.addColorStop(1, 'rgba(255, 170, 90, 0)');
+        ctx.fillStyle = glow; ctx.fillRect(x - 1.9 * mx, y - 1.9 * mx, 3.8 * mx, 3.8 * mx);
+        ctx.fillStyle = '#fff0c8'; ctx.fillRect(x - 7, y - 11, 14, 22);
+    }
+}
+
+function makeHeadquartersBlock() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 938;
+    paintHeadquarters(canvas.getContext('2d'), canvas.width, canvas.height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.encoding = THREE.sRGBEncoding;
+    texture.anisotropy = 4;
+    const side = new THREE.MeshBasicMaterial({ color: 0x231d30 }), { width, height, depth, front, zFrom } = HQ_BLOCK;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(depth, height, width), [new THREE.MeshBasicMaterial({ map: texture }), side, side, side, side, side]);
+    block.position.set(front - depth / 2, height / 2, zFrom + width / 2);
+    return block;
+}
+
 function glowTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 128;
@@ -106,11 +169,7 @@ export class StoryStage {
         this.root.position.set(0, 0, z);
         scene.add(this.root);
         if (SIGNS[chapter]) this.root.add(makeSign(SIGNS[chapter]));
-        if (chapter === 3) { // фасад штаба — тонкая стенка: за ним пристройка до дома, иначе сбоку видны щели и улица насквозь
-            const annex = new THREE.Mesh(new THREE.BoxGeometry(8, 4.3, 3.5), new THREE.MeshStandardMaterial({ color: 0x2d2a33, roughness: 1 }));
-            annex.position.set(-10.75, 2.33, 0);
-            this.root.add(annex);
-        }
+        if (chapter === 3) this.root.add(makeHeadquartersBlock());
         for (const prop of PROPS[chapter] || []) loader(prop.url, gltf => {
             const model = gltf.scene;
             if (this.disposed) { disposeModel(model); return; }

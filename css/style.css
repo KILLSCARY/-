@@ -425,11 +425,10 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 
+/* ответ на действие в меню: не плашка сверху, а маленькая подпись внизу. В забеге сообщения — над героем (Game.headText) */
 #toast {
-    position: fixed; left: 50%; top: calc(18px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
-    transform: translateX(-50%); z-index: 20; width: max-content; max-width: calc(100% - 32px); /* по тексту: с left 50% ширина упиралась в пол-экрана — 3 строки */
-    padding: 13px 20px; border-radius: 999px; background: #fff; color: #000;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); font: 700 16px/1.25 var(--font-body); text-align: center; /* крупнее: читается на бегу */
+    position: fixed; left: 50%; bottom: calc(14px + var(--tg-safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; width: max-content; max-width: calc(100% - 48px);
+    padding: 5px 10px; border-radius: 8px; background: rgba(10, 10, 12, .78); color: #fff; font: 600 12px/1.25 var(--font-body); text-align: center; pointer-events: none;
 }
 #toast.show { animation: toast 0.35s ease-out; }
 /* надпись над головой героя в забеге (Game.headText): внутренняя часть всплывает, внешнюю двигает игра */
@@ -437,7 +436,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .head-text[hidden] { display: none; }
 .head-text.show { animation: head-text 2.2s ease-out both; }
 @keyframes head-text { 0% { opacity: 0; margin-top: 10px; } 10% { opacity: 1; margin-top: 0; } 75% { opacity: 1; margin-top: -8px; } 100% { opacity: 0; margin-top: -18px; } }
-@keyframes toast { from { opacity: 0; transform: translate(-50%, -10px); } }
+@keyframes toast { from { opacity: 0; transform: translate(-50%, 6px); } }
 
 /* ---- проигрыш: карточка всплывает, блоки въезжают по очереди (--i), счёт и плитки досчитываются в JS ---- */
 #over { overflow-y: auto; background: radial-gradient(120% 70% at 50% 30%, rgba(227, 52, 58, .22), rgba(0, 0, 0, .78) 60%); }

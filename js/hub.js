@@ -267,7 +267,6 @@ export class Hub {
         if (reset) reset.onclick = () => {
             if (!reset.dataset.sure) { reset.dataset.sure = "1"; reset.textContent = "Точно? Нажми ещё раз"; return; }
             g.resetStory();
-            this.toast("Начинаем заново: глава 1, Мизулина");
             this.tab("run");
         };
         for (const b of box.querySelectorAll("[data-set]")) b.onclick = () => { g.setSetting(b.dataset.set, !b.classList.contains("on")); this.renderSettings(); };
@@ -828,6 +827,7 @@ export class Hub {
 
     toast(text) {
         if (this.game.state === "playing") return this.game.headText(text); // в забеге — над головой героя
+        if (this.game.state !== "menu") return; // заставки, итоги и бой — без всплывашек
         const t = $("toast");
         t.textContent = text;
         t.hidden = false;

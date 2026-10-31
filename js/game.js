@@ -3089,7 +3089,7 @@ class Game {
         this.stageHidden = list.filter((o) => {
             if (!o?.visible || !o.getWorldPosition) return false;
             o.getWorldPosition(p);
-            return p.x * side > 3.4 && p.x * side < 9 && Math.abs(p.z - z) < 6;
+            return p.x * side > 3.4 && p.x * side < 9 && p.z - z > -10 && p.z - z < 14; // и то, что стоит между камерой и декорацией: столб перечёркивал вывеску
         });
         for (const o of this.stageHidden) o.visible = false;
     }
