@@ -123,6 +123,31 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+// Телефон: сцена упиралась в видеочип, а главный расход — физический свет на каждый пиксель. Без отражений окружения
+// (noEnv) от него остаётся почти незаметный блик, поэтому считаем только рассеянный свет, а карты нормалей и шероховатости
+// не читаем. Материалы и модели те же: подменяются куски шейдера до первой сборки
+function cheapLighting() {
+    const C = THREE.ShaderChunk;
+    const pars = C.lights_physical_pars_fragment;
+    C.lights_physical_pars_fragment = pars
+        .replace(/\treflectedLight\.directSpecular \+= irradiance \* BRDF_GGX\( directLight[^\n]*\n/, "")
+        .replace(/\tvec3 singleScattering = vec3\( 0\.0 \);[\s\S]*?reflectedLight\.indirectDiffuse \+= diffuse \* cosineWeightedIrradiance;\n/, "");
+    if (C.lights_physical_pars_fragment.length > pars.length - 500) throw new Error("cheapLighting: шейдер three.js изменился");
+    const special = "defined( USE_CLEARCOAT ) || defined( USE_SHEEN ) || defined( USE_IRIDESCENCE ) || defined( USE_TRANSMISSION ) || defined( IOR )";
+    C.lights_physical_fragment = `#if ${special}
+${C.lights_physical_fragment}
+#else
+PhysicalMaterial material;
+material.diffuseColor = diffuseColor.rgb * ( 1.0 - 0.5 * metalnessFactor );
+material.roughness = 1.0;
+material.specularColor = vec3( 0.0 );
+material.specularF90 = 0.0;
+#endif`;
+    C.normal_fragment_maps = "";
+    C.roughnessmap_fragment = "float roughnessFactor = roughness;";
+    C.metalnessmap_fragment = "float metalnessFactor = metalness;";
+}
+
 const FLY_COUNT = 3, FLY_SIZE = 0.09; // мухи вокруг Никиты: сколько и какого размера
 const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
@@ -283,6 +308,7 @@ class Game {
         // Высокая графика сглаживается в буферах постобработки; холст не дублирует MSAA.
         // Прямой рендер (телефон по умолчанию) сглаживается самим холстом: для мобильных видеочипов это почти бесплатно.
         // Включается только при создании, поэтому выключен лишь там, где с самого старта слабая графика.
+        if (this.mobile && this.quality !== "high") cheapLighting();
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality !== "low", powerPreference: "high-performance" });
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         // плоскость отсечения для боя: камера боя стоит сбоку за бордюром, и тротуар, сугробы, ограда на её стороне
@@ -319,6 +345,7 @@ class Game {
         this.moon = moon;
         // подсветка крыса, чтобы цепь «70» читалась
         this.rim = new THREE.PointLight(0xffe2d2, 1.0, 4, 2);
+        this.rim.visible = !(this.mobile && this.quality !== "high"); // точечный свет считается на каждый пиксель сцены
         this.scene.add(this.rim);
 
         // постобработка: свечение окон, фонарей, фар и монет
