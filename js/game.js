@@ -1397,7 +1397,12 @@ class Game {
         }
         this.renderer.shadowMap.enabled = this.tier.shadows;
         this.moon.castShadow = this.tier.shadows;
-        if (prevShadows !== this.tier.shadows) { // шейдеры с тенями и без — разные, пересобрать
+        const shadowType = this.tier.shadowPcf ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap, typeChanged = this.renderer.shadowMap.type !== shadowType;
+        this.renderer.shadowMap.type = shadowType;
+        // телефон: тень только в маленькой зоне вокруг героя, дальние объекты в карту теней не рисуем
+        const [bx, bz] = this.tier.shadowBox || [6, 10], sc = this.moon.shadow.camera;
+        if (sc.right !== bx || sc.top !== bz) { Object.assign(sc, { left: -bx, right: bx, top: bz, bottom: -bz }); sc.updateProjectionMatrix(); }
+        if (prevShadows !== this.tier.shadows || typeChanged) { // шейдеры с тенями и без — разные, пересобрать
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
         this.applyLook(); // сила свечения и экспозиция — под уровень графики и локацию

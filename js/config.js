@@ -169,7 +169,9 @@ export const QUALITY_TIERS = {
         // сам снизит разрешение, потом графику
         // 30.10: ×2,2 на iPhone (экран ×3) — всё ещё мыло. Рисуем в полную плотность экрана (без постобработки это по силам),
         // модели и текстуры — полные, не облегчённые (lite: 512 точек — вблизи на плотном экране размыты)
-        phone: { ratio: 1.6, animationHz: 30, aniso: 4, lite: true } },
+        // 31.10: чётче дорога и стены вдали (фильтрация ×8), плотность ×2, настоящая тень в маленькой зоне вокруг героя.
+        // Не тянет — measureFps сам снизит разрешение, затем снимет тень
+        phone: { ratio: 2, animationHz: 30, aniso: 8, lite: true, shadows: true, shadowSize: 512, shadowPcf: true, shadowBox: [4, 6] } },
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
     low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  runFar: 100, npc: 0.4, heat: true,
         phone: { ratio: 1.3, animationHz: 24, rain: 60 } }, // самый слабый телефон: важнее ровные кадры, чем чёткость
