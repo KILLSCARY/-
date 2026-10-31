@@ -11,6 +11,13 @@ export const RATING = {
 };
 export const STATS = [];
 
+// скрытые участники: не показываются в таблице и гонке, призов гонки не получают. Сравнение — по началу имени, без регистра
+export const HIDDEN_NAMES = ["софочка"];
+// убрать скрытых и пересчитать места; запрашивать с запасом, чтобы таблица не укоротилась
+export function visibleRows(rows, n) {
+    return rows.filter((x) => !HIDDEN_NAMES.some((h) => String(x.name || "").toLowerCase().startsWith(h))).slice(0, n).map((x, i) => ({ ...x, rank: i + 1 }));
+}
+
 // имя в таблице: имя и первая буква фамилии (ник не показываем)
 export function nameOf(user = {}) {
     const n = [user.first_name, user.last_name ? `${user.last_name[0]}.` : ""].filter(Boolean).join(" ").trim();
@@ -61,7 +68,8 @@ export async function handleRating(action, body, who, { store, now }) {
     if (action === "top") {
         const n = Math.min(100, Math.max(5, Number(body.n) || 50));
         await store.lbName?.(who.id, nameOf(who.user), photoOf(who.user)); // имя и фото могли поменять в Telegram
-        const [top, me, done] = await Promise.all([store.lbTop(n), store.lbMe(who.id), store.tasksDone ? store.tasksDone(who.id) : []]);
+        const [all, me, done] = await Promise.all([store.lbTop(n + HIDDEN_NAMES.length), store.lbMe(who.id), store.tasksDone ? store.tasksDone(who.id) : []]);
+        const top = visibleRows(all, n);
         return { status: 200, json: { top, me: { id: who.id, ...me, done: done.filter((t) => t in RATING.tasks) }, rules: { kind: "run" } } };
     }
     return null;

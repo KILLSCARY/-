@@ -224,3 +224,16 @@ test("сюжет: 2500 NSS один раз за финального босса,
     assert.equal((await call(old, "meta")).json.nss, 2500);
     assert.equal((await call(old, "meta")).json.nss, 2500);
 });
+
+test("скрытый участник: нет в таблице и гонке, места пересчитаны, приза нет", async () => {
+    const store = memoryStore();
+    await store.lbBest("1", 900, "Софочка К.");
+    await store.lbBest("2", 500, "Аня");
+    await store.raceAdd(weekOf(T0), "1", 90, "Софочка К.");
+    await store.raceAdd(weekOf(T0), "2", 40, "Аня");
+    const r = await call(store, "top");
+    assert.deepEqual(r.json.top.map((x) => [x.name, x.rank]), [["Аня", 1]]);
+    assert.deepEqual(r.json.race.top.map((x) => [x.name, x.rank]), [["Аня", 1]]);
+    assert.equal((await settleRace({ store, env, now: T0 + 7 * 864e5, fetchImpl: async () => ({}) })).settled, 1);
+    assert.equal(await store.metaGet("1"), null);
+});

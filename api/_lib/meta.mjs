@@ -4,7 +4,7 @@
 // env: SHIFT_NOTIFY=1 — включить сообщения бота (иначе cron ничего не шлёт), CRON_SECRET — защита api/cron-shift.
 import { emptyMeta, metaView as view, openCase, collectShift, upgradeShift, nextShift, runReward, buyPromo, racePromo, awardOnce, awardFriend, weekOf, weekEnd, META } from "../../js/meta-rules.mjs";
 import { cardsConfig } from "./cards.mjs";
-import { nameOf, photoOf } from "./rating.mjs";
+import { nameOf, photoOf, visibleRows, HIDDEN_NAMES } from "./rating.mjs";
 
 export const META_ACTIONS = ["meta", "caseopen", "shift", "shiftup", "shiftnotify", "promobuy"];
 const ID_RE = /^[a-z0-9]{6,24}$/;
@@ -68,16 +68,16 @@ export async function leadNss(who, { store }) {
 // данные гонки для таблицы рейтинга
 export async function raceData(who, rows, { store, now }) {
     const w = weekOf(now), ids = rows.map((x) => String(x.id));
-    const [nss, top, me] = await Promise.all([store.raceScores(w, ids), store.raceTop(w, 50), store.raceMe(w, who.id)]);
+    const [nss, top, me] = await Promise.all([store.raceScores(w, ids), store.raceTop(w, 50 + HIDDEN_NAMES.length), store.raceMe(w, who.id)]);
     rows.forEach((x, i) => { x.nss = nss[i]; });
-    return { end: weekEnd(w), prizes: META.race.top, off: META.race.off, top, me };
+    return { end: weekEnd(w), prizes: META.race.top, off: META.race.off, top: visibleRows(top, 50), me };
 }
 
 // итоги прошлой недели: первым в гонке — код на БАДы. Один раз, запускает cron
 export async function settleRace({ store, env = process.env, now = Date.now(), rng = Math.random, fetchImpl = fetch }) {
     const w = weekOf(now) - 1;
     if (!(await store.once(`race:${w}`, 90 * 86400))) return { settled: 0 };
-    const top = await store.raceTop(w, META.race.top);
+    const top = visibleRows(await store.raceTop(w, META.race.top + HIDDEN_NAMES.length), META.race.top);
     const token = env.LEADS_BOT_TOKEN || env.BOT_TOKEN, send = async (chat_id, text) => {
         if (!token || !chat_id) return;
         await fetchImpl(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id, text }) }).catch(() => {});
