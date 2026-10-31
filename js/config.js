@@ -264,7 +264,8 @@ export const CHASER = { url: "models/obj/inspector.glb?v=5", height: 1.72, run: 
 // arrest — клип, когда догнал (у Малахова — «Talk Passionately»: горячо говорит, как в студии); caught — текст итога
 // Никита Енот: мешок мусора. every — сколько предметов до находки, loot — USDT за неё, rotten — шанс, что вместо находки тухлятина
 export const NIKITA_ITEMS = { banana: { url: "models/obj/item_banana.glb?v=2", width: 0.62 }, tomato: { url: "models/obj/item_tomato.glb?v=2", width: 0.46 } };
-export const NIKITA_BAG = { every: 10, loot: 50, rotten: 0.2, chance: 0.6, items: ["banana", "tomato", "can"] };
+export const NIKITA_PEEL = { start: 1, max: 3, throwTime: 0.45, flight: 0.45 }; // кожура: сколько в начале забега, потолок запаса, поворот на бросок и полёт (с)
+export const NIKITA_BAG = { every: 15, loot: 40, rotten: 0.25, chance: 0.5, items: ["banana", "tomato", "can"] };
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
         portrait: "img/heroes/malakhov.jpg?v=2", faceY: "36%", // лицо в репликах (рисованный портрет); faceY — где лицо по высоте
@@ -323,7 +324,7 @@ export const CHARACTERS = [
     { id: "dima", name: "Дима Мент", url: "models/dima.glb?v=87", height: 1.82, chaser: "malakhov", free: true, portrait: "img/heroes/dima.jpg?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
     // рост 1.7: по плейтесту «длинный через чур» рядом с остальными (было 1.84)
     { id: "tovarus", name: "Саша Товарус", url: "models/tovarus.glb?v=87", height: 1.7, chaser: "malakhov", free: true, portrait: "img/heroes/tovarus.jpg", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
-    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=2", clips: HERO_CLIPS, flyClip: HERO_FLY, durations: HERO_TIMES },
+    { id: "nikita", name: "Никита Енот", url: "models/nikita_hero.glb?v=2", height: 1.72, free: true, portrait: "img/heroes/nikita.webp?v=2", clips: { ...HERO_CLIPS, throw: "cross" }, flyClip: HERO_FLY, durations: HERO_TIMES },
 ];
 
 // Герои, которых пока нельзя выбрать: в списке «Герои» с портретом и пометкой «Скоро»
@@ -606,7 +607,7 @@ export const HERO_PERKS = {
     gorilla: { text: "Бонусный герой: +1 жизнь за забег и +25% USDT", extraLife: 1, coinBonus: 4 },
     dima: { text: "Свой среди постов: +15% USDT", coinBonus: 7 },
     tovarus: { text: "Стабильный: +12% USDT", coinBonus: 8 },
-    nikita: { text: "Король мусорок: NSS ×1,5, мусор в мешок, кожура сбрасывает погоню. Но от него пахнет: девушки дают Карты вдвое реже", trash: true, stink: true },
+    nikita: { text: "Король мусорок: NSS ×1,5, мусор в мешок, бананы дают кожуру — кинь её в погоню. Но от него пахнет: девушки дают Карты вдвое реже, смена полосы на 15% медленнее", lane: 0.85, trash: true, stink: true },
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты

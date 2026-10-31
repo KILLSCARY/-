@@ -812,6 +812,7 @@ html.tg, html.tg body { background: #000; }
 .bst:disabled { opacity: .35; }
 .bst-skill { border-color: rgba(53, 227, 155, .8); box-shadow: 0 0 18px rgba(53, 227, 155, .35); }
 .bst-skill i { background: #35e39b; color: #0d0d10; }
+.bst-peel span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; }
 .bst.fire { animation: sk-fire .6s ease-out; }
 .wq-ans button.hint { border-color: #35e39b; box-shadow: 0 0 0 2px #35e39b, 0 0 18px rgba(53, 227, 155, .6); }
 .skill {

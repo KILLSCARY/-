@@ -117,7 +117,24 @@ function gameMethod(name, prizeStub = {}) {
     return Function('QUALITY', 'RES_MIN', 'prize', `return ({${gameText.slice(start, end)}\n}).${name}`)('auto', 0.6, prizeStub);
 }
 const measureFps = gameMethod('measureFps');
-const sustainedSlow = g => { for (let i = 0; i < 3; i++) measureFps.call(g); };
+const qualityLocked = gameMethod('qualityLocked');
+const sustainedSlow = g => { g.qualityLocked = qualityLocked; for (let i = 0; i < 3; i++) measureFps.call(g); };
+
+test('вручную выбранная графика не снижается: меняется только лимит кадров', () => {
+    const g = {
+        state: 'playing', runTime: 10, measuredState: 'playing', mobile: true,
+        settings: { quality: 'medium' }, quality: 'medium', resScale: 1, perfStep: 0,
+        frameMeter: { sample: () => 18, reset() {} }, frameBudget: () => 1000 / 60, hub: { toast() {} },
+        setQuality() { assert.fail('уровень графики менять нельзя'); }, onResize() { assert.fail('разрешение менять нельзя'); },
+    };
+    sustainedSlow(g);
+    assert.equal(g.performanceFpsCap, 30);
+    g.frameBudget = () => 1000 / 30;
+    for (let i = 0; i < 4; i++) sustainedSlow(g);
+    assert.equal(g.quality, 'medium');
+    assert.equal(g.resScale, 1);
+    assert.equal(g.perfStep, 0);
+});
 
 test('телефон при нехватке кадров сначала переходит на ровные 30, и только потом снижает графику', () => {
     let fps = 36;

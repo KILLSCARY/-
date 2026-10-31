@@ -1,7 +1,7 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
+import { NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -148,6 +148,7 @@ material.specularF90 = 0.0;
     C.metalnessmap_fragment = "float metalnessFactor = metalness;";
 }
 
+const LANE_SPRING = 26, LANE_LEAN = 0.02, LANE_YAW = 0.018; // перестроение: жёсткость пружины, наклон и доворот от скорости
 const FLY_COUNT = 3, FLY_SIZE = 0.09; // мухи вокруг Никиты: сколько и какого размера
 const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
@@ -573,10 +574,15 @@ class Game {
         this.windedAt = 0; // когда герой снова выдохнется (perk.winded)
         this.freeBoss = null; // бой свободного забега (startFreeBoss)
         this.bag = 0; // Никита: мусор в мешке
+        this.peels = NIKITA_PEEL.start;
+        this.throwT = 0;
+        this.xv = 0;
+        this.dropPeel();
         this.endDive(false);
         if (this.world) this.world.trashOn = !!this.perk.trash;
         if (this.world && this.perk.trash) this.loadDiveBin();
         this.renderBag();
+        this.renderPeel();
         this.freeBossAt = FREE_BOSS.at[0] + Math.random() * (FREE_BOSS.at[1] - FREE_BOSS.at[0]);
         this.freeBossAsked = false;
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
@@ -1014,7 +1020,7 @@ class Game {
         this.slideLeft = 0;
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // «Рывок» — прыжок выше
         this.camKick.dip = -0.16; // камера на миг приседает и догоняет героя
-        if (this.look2) this.squash = { t: 0, up: 1 };
+        this.squash = { t: 0, up: 1 };
         this.audio.play("swipe");
         tg.haptic("medium");
     }
@@ -1023,6 +1029,9 @@ class Game {
         if (this.state !== "playing") return;
         if (this.flight) return this.dropFlight();
         if (this.jumping) this.vy = -BALANCE.jumpPower * 1.4; // быстрое приземление, как в сабвее
+        // уже в подкате: клип доиграл и замер бы на последнем кадре, пока идёт новый отсчёт, — начинаем кувырок заново
+        const roll = this.rat.userData.actions?.slide;
+        if (this.slideLeft > 0 && this.rat.userData.current === "slide" && roll) roll.reset().play();
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
         this.world.splash(this.x, 0, 20, 1.2);
         this.world.ring(this.x, -0.2, 1.7, 0.5);
@@ -1041,6 +1050,7 @@ class Game {
             else if (k === "ArrowUp" || k === "KeyW" || k === "Space") { e.preventDefault(); this.jump(); }
             else if (k === "ArrowDown" || k === "KeyS") this.slide();
             else if (k === "KeyE" || k === "ShiftLeft" || k === "ShiftRight") this.useSkill();
+            else if (k === "KeyQ") this.throwPeel();
             else if (/^Digit[1-4]$/.test(k)) { const el = $("boost-bar").querySelectorAll(".bst:not(.bst-skill)")[+k.slice(5) - 1]; if (el) this.useBoost(el.dataset.id); }
             else if (k === "Escape" || k === "KeyP") this.state === "paused" ? this.resume() : this.pause();
             else if (k === "Enter" && (this.state === "over" || (this.state === "menu" && this.hub.current === "run" && $("case-open").hidden))) this.start();
@@ -1132,6 +1142,7 @@ class Game {
         };
         soundIcon();
         $("btn-skill").onclick = () => { if (this.boostTap()) this.useSkill(); };
+        $("btn-peel").onclick = () => { if (this.boostTap()) this.throwPeel(); };
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
             try { localStorage.setItem("p2p_sound", this.audio.enabled ? "on" : "off"); } catch {}
@@ -1266,7 +1277,7 @@ class Game {
 
         // тепловой ограничитель: телефон долго держит 60 кадров — греется и сам начинает тормозить. После HEAT_AFTER с
         // игры подряд рисуем в меньшем разрешении (почти незаметно на маленьком экране), сброс — после 2 мин в меню
-        if (this.tier.heat) {
+        if (this.tier.heat && !this.qualityLocked()) {
             if (this.state === "playing" || this.state === "fight") this.hot = (this.hot || 0) + dt;
             else if (this.state === "menu") this.hot = Math.max(0, (this.hot || 0) - dt * (HEAT_AFTER / 120));
             // Мобильный запас быстро уходит в Telegram: после 45 с понижаем площадь кадра, после 90 с — ещё раз.
@@ -1312,6 +1323,7 @@ class Game {
             : this.state === "menu" ? "idle" // спокойная стойка: быстрый танец при 30 кадрах в меню выглядел рвано
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
+            : this.throwT > 0 && this.state === "playing" ? "throw"
             : this.trip > 0 && this.state === "playing" ? "stumble"
             : this.wind?.state === "inhale" || this.wind?.state === "gust" ? "idle" // ждёт порыв и упирается, а не бежит на месте
             : this.state === "deal" ? "cheer" // победил босса — стоп-кадр с вопросом сделки
@@ -1336,10 +1348,11 @@ class Game {
         const lift = this.y * (this.flight ? 0.6 : 0.15); // в прыжке камера почти не поднимается — не «улетает» вместе с героем
         this.camY = (this.camY || 0) + (lift - (this.camY || 0)) * Math.min(1, dt * 5);
         const v = (this.camVec ||= { back: new THREE.Vector3(), front: new THREE.Vector3(), target: new THREE.Vector3(), menu: new THREE.Vector3() });
-        const back = v.back.set(this.x * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
+        this.camX = (this.camX || 0) + (this.x - (this.camX || 0)) * Math.min(1, dt * 9); // камера плывёт за героем и не дёргается вместе с ним
+        const back = v.back.set(this.camX * 0.6, (portrait ? 3.3 : 2.5) + this.camY, portrait ? 5.0 : 4.4);
         // на узком экране герой слева, Никита с баком справа: кадр не перекрывается ни логотипом, ни кнопками
         const front = v.front.set(portrait ? 0.3 : 0.7, portrait ? 0.8 : 1.5, portrait ? -4.6 : -3.0);
-        const target = v.target.set(this.x * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
+        const target = v.target.set(this.camX * 0.4, 0.9 + this.camY * (this.flight ? 1.25 : 0.85), -8)
             .lerp(v.menu.set(portrait ? -0.28 : 0, portrait ? 0.3 : 1.0, 0), 1 - k);
         // по дуге сбоку, чтобы камера не проходила сквозь крыса
         cam.position.lerpVectors(front, back, k);
@@ -1510,6 +1523,8 @@ class Game {
         }
         if (key === "quality") {
             this.resScale = 1;
+            this.heatScale = 1;
+            this.hot = 0;
             this.perfStep = 0;
             const level = value === "auto" ? this.autoQuality : value;
             this.setQuality(level); // повторный выбор тоже восстанавливает снятые адаптацией эффекты
@@ -1579,10 +1594,14 @@ class Game {
             this.frameMeter.reset();
             return;
         }
-        const tierLocked = QUALITY !== "auto" || (this.settings.quality && this.settings.quality !== "auto");
+        // графику выбрал сам игрок — её не трогаем: ни разрешение, ни эффекты, ни уровень. Меняться может только частота кадров
+        if (this.qualityLocked()) {
+            if (!this.qualityHinted) { this.qualityHinted = true; this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»"); }
+            return;
+        }
         // После снятия дорогих эффектов разрешаем ещё одну ступень разрешения и low:
         // средняя графика не должна навсегда оставаться на 24–30 FPS при цели 60.
-        const resMin = tierLocked && this.quality === "high" ? .85 : this.mobile ? 0.7 : RES_MIN;
+        const resMin = this.mobile ? 0.7 : RES_MIN;
         const floor = this.resScale <= resMin + 0.01;
         // Сначала разрешение до 0,85, затем дорогие эффекты, затем оставшийся запас разрешения.
         const effects = this.quality !== "low" && (this.perfStep || 0) < 3;
@@ -1592,7 +1611,7 @@ class Game {
         } else if (!floor) {
             this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : resMin, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
-        } else if (!tierLocked && this.quality !== "low") {
+        } else if (this.quality !== "low") {
             if (this.state === "fight") { // не пересобираем шейдеры посреди раунда
                 if (this.mobile && fps < 40) { this.performanceFpsCap = 30; this.frameMeter.reset(); }
                 return;
@@ -1604,10 +1623,11 @@ class Game {
             // Нижний уровень уже достигнут: стабильные 30 лучше постоянной попытки выжать 60.
             this.performanceFpsCap = 30;
             this.frameMeter.reset();
-        } else if (tierLocked && !this.qualityHinted) {
-            this.qualityHinted = true;
-            this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»");
         }
+    }
+
+    qualityLocked() {
+        return QUALITY !== "auto" || (!!this.settings.quality && this.settings.quality !== "auto");
     }
 
     // Выбранная частота не зависит от качества; реальный предел задают экран и браузер.
@@ -1932,7 +1952,12 @@ class Game {
             }
         } else if (this.ventOff) this.ventOff *= Math.max(0, 1 - dt * 6); // ветер стих — встаёт на полосу
         const targetX = this.world.lanes[this.lane] + (this.ventOff || 0);
-        if (!this.windSlide) this.x += (targetX - this.x) * Math.min(1, dt * 18 * (this.perk.lane || 1));
+        // перестроение — пружина без рывка на старте и хвоста в конце: скорость нарастает плавно, как в Subway Surfers
+        if (!this.windSlide) {
+            const w = LANE_SPRING * (this.perk.lane || 1), d = this.x - targetX, e = Math.exp(-w * dt), q = ((this.xv || 0) + w * d) * dt;
+            this.x = targetX + (d + q) * e;
+            this.xv = ((this.xv || 0) - w * q) * e;
+        } else this.xv = 0;
         if (this.flight) this.flyStep(dt);
         if (this.jumping) {
             this.vy -= BALANCE.gravity * dt;
@@ -1942,7 +1967,7 @@ class Game {
                 this.jumping = false;
                 this.world.splash(this.x, 0, 16);
                 this.world.ring(this.x, 0, 1.1, 0.35);
-                if (this.look2) this.squash = { t: 0, up: 0 };
+                this.squash = { t: 0, up: 0 };
             }
         }
         if (this.slideLeft > 0) {
@@ -1952,9 +1977,10 @@ class Game {
         }
         this.world.playerX = this.x;
         this.rat.position.set(this.x, this.y, 0);
-        this.rat.rotation.z = (this.x - targetX) * (this.look2 ? LOOK2.lean : 0.25) - ((this.windSlide || 0) * 0.09 + (this.ventPush || 0) * 0.14); // наклон при перестроении и против ветра
-        if (this.look2) { // доворот корпуса в сторону перестроения и сжатие/вытягивание (взлёт — 0,22 с, приземление — 0,2 с)
-            this.rat.rotation.y = (this.x - targetX) * -LOOK2.yaw;
+        this.rat.rotation.z = -(this.xv || 0) * LANE_LEAN - ((this.windSlide || 0) * 0.09 + (this.ventPush || 0) * 0.14); // наклон при перестроении и против ветра
+        this.peelStep(dt);
+        this.rat.rotation.y = (this.xv || 0) * LANE_YAW + (this.peelTurn || 0); // доворот корпуса в сторону перестроения
+        { // сжатие и вытягивание: взлёт — 0,22 с, приземление — 0,2 с
             const q = this.squash; let sy = 1, sx = 1;
             if (q) { q.t += dt; const dur = q.up ? 0.22 : 0.2, k = Math.min(1, q.t / dur), a = Math.sin(Math.PI * k);
                 if (q.up) { sy = 1 + a * LOOK2.stretch; sx = 1 - a * LOOK2.stretch * 0.5; } else { sy = 1 - a * LOOK2.squash; sx = 1 + a * LOOK2.squash * 0.6; }
@@ -3463,18 +3489,62 @@ class Game {
         el.querySelector("b").textContent = `${this.bag || 0}/${NIKITA_BAG.every}`;
     }
 
+    // бросок кожуры назад: Никита оборачивается, кожура летит дугой, преследователь поскальзывается и отстаёт
+    throwPeel() {
+        if (!this.perk.trash || this.state !== "playing" || this.peelFly || this.diving || !(this.peels > 0)) return;
+        if (this.stumble <= 0) return void this.hub.toast("Погони нет — кожуру лучше приберечь");
+        this.peels--;
+        this.peelFly = { t: 0, x: this.x, y: this.y + 1.1 };
+        this.throwT = NIKITA_PEEL.throwTime;
+        const m = this.world.trashModels?.banana;
+        if (m) { this.peelMesh = m.clone(); this.scene.add(this.peelMesh); this.peelMesh.position.set(this.x, this.y + 1.1, 0); }
+        this.audio.play("swipe");
+        tg.haptic("medium");
+        this.renderPeel();
+    }
+
+    peelStep(dt) {
+        const T = NIKITA_PEEL.throwTime;
+        if (this.throwT > 0) this.throwT -= dt;
+        this.peelTurn = this.throwT > 0 ? Math.sin(Math.PI * (1 - this.throwT / T)) * 2.6 : 0;
+        const f = this.peelFly;
+        if (!f) return;
+        f.t += dt;
+        const k = Math.min(1, f.t / NIKITA_PEEL.flight), c = this.chaser, to = c?.visible ? c.position : null;
+        if (this.peelMesh) {
+            this.peelMesh.position.set(f.x + ((to?.x ?? f.x) - f.x) * k, f.y * (1 - k) + Math.sin(Math.PI * k) * 1.2, (to?.z ?? 2) * k);
+            this.peelMesh.rotation.set(this.t * 12, this.t * 9, 0);
+        }
+        if (k < 1) return;
+        this.dropPeel();
+        if (this.stumble > 0) { // как конец погони: отстаёт за последнюю секунду отсчёта и исчезает
+            this.stumble = Math.min(this.stumble, 1);
+            if (c) this.world.splash(c.position.x, 2, 14, 1);
+            this.audio.play("crash");
+            tg.haptic("success");
+            this.hub.toast(`${this.chaserCfg().name} поскользнулась на кожуре и отстала!`);
+        }
+    }
+
+    dropPeel() {
+        this.peelFly = null;
+        if (this.peelMesh) { this.scene.remove(this.peelMesh); this.peelMesh = null; }
+    }
+
+    renderPeel() {
+        const b = $("btn-peel");
+        if (!b) return;
+        b.hidden = !this.perk.trash;
+        $("peel-left").textContent = this.peels || 0;
+        b.disabled = !(this.peels > 0);
+    }
+
     pickTrash(c) {
         this.bag++;
         this.world.flash(c.position, false);
         this.audio.play("coin");
         tg.haptic("light");
-        if (c.userData.trash === "banana" && this.stumble > 0) { // кожура назад: преследователь поскальзывается
-            this.stumble = 0;
-            if (this.chaser) this.chaser.visible = false;
-            this.world.splash(this.x, 2, 14, 1);
-            this.audio.play("crash");
-            this.hub.toast(`${this.chaserCfg().name} поскользнулась на кожуре!`);
-        }
+        if (c.userData.trash === "banana") this.peels = Math.min(NIKITA_PEEL.max, (this.peels || 0) + 1); // банан — запас кожуры для броска
         if (this.bag >= NIKITA_BAG.every) {
             this.bag = 0;
             if (Math.random() < NIKITA_BAG.rotten) { // подвох: тухлятина на весь экран
@@ -3490,6 +3560,7 @@ class Game {
             }
         }
         this.renderBag();
+        this.renderPeel();
     }
 
     // телефон: муха один раз рисуется в картинку, дальше летают плоские спрайты (несколько треугольников вместо 37 тысяч)

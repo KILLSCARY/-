@@ -1489,7 +1489,8 @@ export class World {
         this.loadTrashModels();
         const model = this.trashModels[kind], make = (this.trashItems ||= makeItems())[kind];
         if (!model && !make) return;
-        const c = model ? model.clone() : make();
+        // без модели — один образец на вид: новая сетка на каждый спавн копила геометрии и материалы в памяти видеочипа
+        const c = model ? model.clone() : ((this.trashTpl ||= {})[kind] ||= make()).clone();
         if (!model) c.scale.setScalar(1.7);
         c.userData.model = true;
         c.userData.trash = kind;
