@@ -123,6 +123,7 @@ const parseClip = (json) => { const c = THREE.AnimationClip.parse(json); if (!c.
 const $ = (id) => document.getElementById(id);
 // сколько длится «споткнулся» (с) — кусок Sliding Stumble из Meshy: запнулся, махнул руками, выровнялся
 const TRIP = 0.85;
+const FLY_COUNT = 3, FLY_SIZE = 0.09; // мухи вокруг Никиты: сколько и какого размера
 const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
 const RES_MIN = 0.6; // ниже этой доли разрешения автоподстройка не опускает (шаги по 0,1: 1 → 0,9 → … → 0,6)
@@ -3445,24 +3446,36 @@ class Game {
         this.renderBag();
     }
 
-    // мухи вокруг Никиты: пара точек на сцене, в меню и в забеге
+    // мухи вокруг Никиты: одна сетка на всех (один вызов отрисовки)
     updateFlies() {
         const on = !!this.perk.stink && this.rat?.visible && this.state !== "fight";
         if (!this.flies) {
-            if (!on) return;
-            const g = new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
-            this.flies = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x14110c, size: 0.05 }));
-            this.flies.frustumCulled = false;
-            this.scene.add(this.flies);
+            if (!on) this.audio.buzz(false);
+            if (!on || this.fliesLoading) return;
+            this.fliesLoading = true;
+            loadModel("models/obj/fly.glb?v=4", (gltf) => {
+                let mesh = null;
+                gltf.scene.traverse((o) => { if (!mesh && o.isMesh) mesh = o; });
+                if (!mesh) return;
+                this.flies = new THREE.InstancedMesh(mesh.geometry, mesh.material, FLY_COUNT);
+                this.flies.frustumCulled = false;
+                this.scene.add(this.flies);
+            }, () => {});
+            return;
         }
         this.flies.visible = !!on;
+        this.audio.buzz(on && (this.state === "menu" || this.state === "playing") && !this.menuModal());
         if (!on) return;
-        const a = this.flies.geometry.attributes.position, T = this.t, p = this.rat.position;
-        for (let i = 0; i < 6; i++) {
-            const k = T * (3 + i * 0.7) + i * 2.1;
-            a.setXYZ(i, p.x + Math.sin(k) * (0.35 + i * 0.05), p.y + 1.35 + Math.sin(k * 1.7) * 0.3, p.z + Math.cos(k * 0.9) * (0.3 + i * 0.05));
+        const T = this.t, p = this.rat.position, m = (this.flyM ||= new THREE.Object3D());
+        for (let i = 0; i < FLY_COUNT; i++) {
+            const k = T * (2.6 + i * 0.5) + i * 2.1, r = 0.42 + i * 0.05;
+            m.position.set(p.x + Math.sin(k) * r, p.y + 1.25 + Math.sin(k * 1.7) * 0.35 + Math.sin(T * 40 + i) * 0.012, p.z + Math.cos(k * 0.9) * r);
+            m.rotation.set(Math.sin(T * 30 + i) * 0.12, Math.atan2(Math.cos(k) , -Math.sin(k * 0.9)), Math.sin(T * 34 + i) * 0.12); // летит по кругу и дрожит, как в полёте
+            m.scale.setScalar(FLY_SIZE);
+            m.updateMatrix();
+            this.flies.setMatrixAt(i, m.matrix);
         }
-        a.needsUpdate = true;
+        this.flies.instanceMatrix.needsUpdate = true;
     }
 
     // запасная жизнь (Саша Белый): второй удар не заканчивает забег, погоня сбрасывается

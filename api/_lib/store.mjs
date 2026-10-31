@@ -127,7 +127,7 @@ export function memoryStore() {
             return { ok: true, cards: bal + n };
         },
         async cardBalance(id) { return cards.get(id) || 0; },
-        async cardTestOnce(id, n) { if (seenOpen.has(`test:${id}`)) return false; seenOpen.add(`test:${id}`); cards.set(id, (cards.get(id) || 0) + n); return true; },
+        async cardTestOnce(id, n) { if (seenOpen.has(`test2:${id}`)) return false; seenOpen.add(`test2:${id}`); cards.set(id, (cards.get(id) || 0) + n); return true; },
         async cardSpend(id, n, item) { const b = cards.get(id) || 0; if (b < n) return { ok: false, cards: b }; cards.set(id, b - n); if (item) { const m = pk.get(id) || {}; m[item] = (m[item] || 0) + 1; pk.set(id, m); } return { ok: true, cards: b - n }; },
         async perkTake(id, keys) { const m = pk.get(id) || {}, out = []; for (const k of keys) if (m[k] > 0) { m[k]--; out.push(k); } return out; },
         async perks(id) { return { ...(pk.get(id) || {}) }; },
@@ -254,9 +254,9 @@ export function redisStore(url, token, fetchImpl = fetch) {
             return Number(ok) ? { ok: true, cards: Number(b) } : { ok: false, reason: why, cards: Number(b) };
         },
         async cardBalance(id) { return Number((await cmd("HGET", "p2p:cards", String(id))) || 0); },
-        // тестовые Карты — один раз на игрока: p2p:cardtest — hash tgId → сколько выдали
+        // тестовые Карты — один раз на игрока за раунд: p2p:cardtest2 — hash tgId → сколько выдали (второй раунд, 31.10.2026)
         async cardTestOnce(id, n) {
-            if (Number(await cmd("HSETNX", "p2p:cardtest", String(id), String(n))) !== 1) return false;
+            if (Number(await cmd("HSETNX", "p2p:cardtest2", String(id), String(n))) !== 1) return false;
             await cmd("HINCRBY", "p2p:cards", String(id), String(n));
             return true;
         },

@@ -339,3 +339,13 @@ test("служебные имена не считаются товарами и 
         assert.equal((await run(store, "task", { initData: d, task: bad }, T0)).status, 400);
     }
 });
+
+test("второй раунд тестовых Карт: на сервере новый ключ, каждому один раз", async () => {
+    const calls = [], store = (await import("../api/_lib/store.mjs")).redisStore("https://r.test", "t", async (u, o) => { calls.push(JSON.parse(o.body)); return { json: async () => ({ result: 1 }) }; });
+    assert.equal(await store.cardTestOnce("5", 1000), true);
+    assert.deepEqual(calls[0], ["HSETNX", "p2p:cardtest2", "5", "1000"]);
+    const mem = memoryStore();
+    assert.equal(await mem.cardTestOnce("5", 1000), true);
+    assert.equal(await mem.cardTestOnce("5", 1000), false);
+    assert.equal(await mem.cardBalance("5"), 1000);
+});

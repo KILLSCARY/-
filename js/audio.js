@@ -14,6 +14,29 @@ export class Audio {
         this.players = {}; // плейлист (menu / run) → { el, gain, index }
     }
 
+    // жужжание мух вокруг Никиты: тихий синтез, волнами то ближе, то дальше
+    buzz(on) {
+        const want = !!(on && this.ctx && this.enabled && this.sfxOn);
+        if (want === !!this.buzzOn) return;
+        this.buzzOn = want;
+        if (!this.ctx) return;
+        if (!this.buzzAmp) {
+            const c = this.ctx, osc = c.createOscillator(), osc2 = c.createOscillator(), band = c.createBiquadFilter(), wave = c.createOscillator(), depth = c.createGain(), level = c.createGain();
+            osc.type = osc2.type = "sawtooth";
+            osc.frequency.value = 178; osc2.frequency.value = 187;
+            band.type = "bandpass"; band.frequency.value = 780; band.Q.value = 1.2;
+            level.gain.value = 0.035;
+            wave.frequency.value = 0.6; depth.gain.value = 0.015; // громкость плавает
+            wave.connect(depth).connect(level.gain);
+            this.buzzAmp = c.createGain();
+            this.buzzAmp.gain.value = 0;
+            osc.connect(band); osc2.connect(band);
+            band.connect(level).connect(this.buzzAmp).connect(this.master);
+            osc.start(); osc2.start(); wave.start();
+        }
+        this.buzzAmp.gain.setTargetAtTime(want ? 1 : 0, this.ctx.currentTime, 0.2);
+    }
+
     // браузеры дают включить звук только по клику
     unlock() {
         try {
