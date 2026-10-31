@@ -18,7 +18,7 @@ export function renderShift(hub, box) {
     card.className = "shift-card";
     card.innerHTML = `<img class="shift-art" src="img/night-shift.webp?v=1" alt="">
         <h3>Ночная смена</h3>
-        <p>${m.shift.at ? `Никита дежурит у мусорного бака и параллельно курьерит. Район: ${lvl.name}` : "Никита дежурит у мусорного бака и параллельно курьерит, пока тебя нет"}</p>
+        <p>${m.shift.at ? `Никита дежурит у мусорного бака в поисках секса и параллельно курьерит. Район: ${lvl.name}` : "Никита дежурит у мусорного бака в поисках секса и параллельно курьерит, пока тебя нет"}</p>
         ${m.shift.at ? `<div class="shift-row"><span>Копилка</span><span>${fill >= 1 ? "полная" : `${Math.round(fill * 100)}% · полная через ${Math.ceil(left / 3600000)} ч`}</span></div>
         <div class="shift-bar"><i style="width:${fill * 100}%"></i></div>
         <div class="shift-row shift-sum"><b>${num(META.shift.usdt * mult * fill)} USDT</b><b class="nss">${Math.floor(META.shift.nss * mult * fill)} NSS</b></div>` : ""}`;
