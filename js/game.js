@@ -157,6 +157,7 @@ const PEEL_ARM = [
     [0.7, [0.4, 0.35, 0.85], [0.3, -0.15, 0.94]],
 ];
 const PEEL_TWIST = -1.05, PEEL_LOOK = -0.5;
+const DIVE_DUCK = 0.6; // нырок в бак: во сколько раз бак ниже в подкате (под блокировку с перекладиной ~1 м)
 const FLY_COUNT = 3, FLY_SIZE = 0.09; // мухи вокруг Никиты: сколько и какого размера
 const MENU_FOV = 60; // угол камеры в меню на узком экране
 const SKY_DRIFT = { zoom: 0.12, period: 140 }; // небо: на сколько крупнее экрана (запас для движения) и цикл покачивания, с
@@ -2008,9 +2009,19 @@ class Game {
         else if (this.storyChasing()) this.storyChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
         for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
-        if (this.diving) { // нырок: бак едет вместе с героем и подпрыгивает
+        if (this.diving) { // нырок: бак едет вместе с героем, прыгает с ним и сам спокойно проходит низкие преграды
             this.diving -= dt;
-            if (this.diveBin) { this.diveBin.position.set(this.x, Math.abs(Math.sin(this.t * 9)) * 0.12, 0); this.diveBin.rotation.z = Math.sin(this.t * 14) * 0.08; }
+            const next = this.jumping ? null : this.diveAhead();
+            if (next === "top") this.hop(); // бак, капот, тележка — перескакивает
+            else if (next === "barrier" && !(this.slideLeft > 0)) this.slideLeft = BALANCE.slideTime; // блокировка — приседает под неё
+            const bin = this.diveBin;
+            if (bin) {
+                const air = this.jumping || this.y > 0.01, s = this.rat.scale; // сжатие и вытягивание прыжка — как у героя
+                this.binDuck = (this.binDuck ?? 1) + ((this.slideLeft > 0 ? DIVE_DUCK : 1) - (this.binDuck ?? 1)) * Math.min(1, dt * 20);
+                bin.position.set(this.x, this.y + (air ? 0 : Math.abs(Math.sin(this.t * 9)) * 0.12), 0);
+                bin.rotation.set(air ? -this.vy * 0.02 : 0, 0, Math.sin(this.t * 14) * 0.08);
+                bin.scale.set(s.x, s.y * this.binDuck, s.x);
+            }
             if (this.diving <= 0) this.endDive(true);
         }
         if (this.windCalm > 0) this.windCalm -= dt;
@@ -3471,9 +3482,30 @@ class Game {
 
     showDiveBin() {
         if (!this.diveBin) return this.loadDiveBin(); // ещё не готов: герой виден, пока бак не появится
-        this.diveBin.position.set(this.x, 0, 0);
+        this.diveBin.position.set(this.x, this.y, 0);
         this.diveBin.visible = true;
+        this.binDuck = 1;
         this.rat.visible = false;
+    }
+
+    // нырок: что впереди на своей полосе в ближайшие 0,2 с — низкая преграда (top: бак, капот, тележка) или блокировка
+    diveAhead() {
+        const reach = Math.max(this.speed, 1) * 0.2;
+        for (const o of this.world.obstacles) {
+            const d = o.userData, half = d.halfZ || 0, gap = -o.position.z - half;
+            if (d.type === "decor" || d.type === "answer" || Math.abs(o.position.x - this.x) > 0.8 || gap < -half || gap > reach) continue;
+            if (d.top) return "top";
+            if (d.type === "barrier") return "barrier";
+        }
+        return null;
+    }
+
+    // тихий прыжок бака через низкую преграду: без звука, вибрации и рывка камеры — игрок ничего не нажимал
+    hop() {
+        this.jumping = true;
+        this.slideLeft = 0;
+        this.vy = BALANCE.jumpPower;
+        this.squash = { t: 0, up: 1 };
     }
 
     endDive(reward) {
