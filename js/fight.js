@@ -8,7 +8,7 @@
 import * as THREE from "./vendor/three.module.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
 import { loadModel, upgradeTextures } from "./models.js";
-import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE, NIKITA_ITEMS } from "./config.js";
+import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE, NIKITA_ITEMS, NIKITA_BAG } from "./config.js";
 import { MaskScene } from "./maskscene.js";
 import { tg } from "./tg.js";
 import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
@@ -565,6 +565,10 @@ export class Fight {
             this.act(att, "recoil", kind === "heavy" ? FIGHT.recoilTime * 1.4 : FIGHT.recoilTime);
             st[key + "_blk"] = (st[key + "_blk"] || 0) + 1;
             return d;
+        }
+        if (att === this.f[0] && att.cfg.tomatoes && kind === "super" && this.g.tomatoes > 0) { // Никита: помидор из забега — супер сильнее
+            this.g.tomatoes--;
+            dmg += NIKITA_BAG.tomatoDmg;
         }
         def.hp = Math.max(0, def.hp - dmg);
         st[key] = (st[key] || 0) + dmg;

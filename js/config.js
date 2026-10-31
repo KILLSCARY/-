@@ -283,7 +283,11 @@ export const CHASER = { url: "models/obj/inspector.glb?v=5", height: 1.72, run: 
 export const NIKITA_ITEMS = { banana: { url: "models/obj/item_banana.glb?v=2", width: 0.62 }, tomato: { url: "models/obj/item_tomato.glb?v=2", width: 0.46 } };
 // кожура: сколько в начале забега, потолок запаса, бросок через плечо и полёт (с); release — доля броска, когда уходит из руки
 export const NIKITA_PEEL = { start: 1, max: 3, throwTime: 0.6, release: 0.5, flight: 0.45 };
-export const NIKITA_BAG = { every: 15, loot: 40, rotten: 0.25, chance: 0.5, items: ["banana", "tomato", "can"] };
+// Мешок Никиты: сам не открывается. От min предметов можно «Сдать»: чем больше набрал, тем выше награда и шанс, что мешок гнилой.
+// can — USDT сразу за банку, tomatoes/tomatoDmg — запас помидоров и прибавка к супер-удару в бою, bin — сколько предметов даёт бак у дороги
+export const NIKITA_BAG = { min: 5, max: 30, chance: 0.5, items: ["banana", "tomato", "can"], can: 3, tomatoes: 5, tomatoDmg: 12, bin: 3 };
+export const bagLoot = (n) => Math.round(n * 3 + n * n / 10);
+export const bagRisk = (n) => Math.min(0.6, 0.05 + Math.max(0, n - NIKITA_BAG.min) * 0.02);
 export const CHASERS = {
     malakhov: { url: "models/malakhov.glb?v=1", height: 1.8, run: "run", arrest: "talk", hud: "МАЛАХОВ", name: "Малахов",
         portrait: "img/heroes/malakhov.jpg?v=2", faceY: "36%", // лицо в репликах (рисованный портрет); faceY — где лицо по высоте
@@ -628,15 +632,27 @@ export const HERO_PRICES = {}; // совместимость: выкупа за 
 // Умения героев: lane — быстрее смена полосы, coinBonus — каждая N-я монета даёт +1, slide — подкат дольше.
 // На обороте карточки героя: title — прозвище, pros и cons — плюсы и минусы списком
 export const HERO_PERKS = {
-    mouse: { title: "Быстрые лапы", pros: ["Смена полосы на 15% быстрее", "+4% USDT"], lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
-    pavel: { title: "Знает связки", pros: ["Смена полосы на 15% быстрее", "+10% USDT", "Подкат длиннее"], lane: 1.15, coinBonus: 10, slide: 1.25 },
-    islam: { title: "Вечно задыхается", pros: ["Одна ошибка на стене прощается"], cons: ["Спотыкается на бегу", "Смена полосы на 20% медленнее"], lane: 0.8, wallForgive: 1, winded: 22, windedLines: ["Дыхалка… погодите…", "Зачем я столько дул?", "Ой, нога… Кто тут бордюр поставил?", "Я устал. Можно без погони?"] }, // winded — раз в столько секунд выдыхается и спотыкается
+    mouse: { title: "Быстрые лапы", pros: ["Смена полосы на 15% быстрее", "+4% USDT", "Перехват: сменил полосу — монеты рядом подлетают"], cons: ["Лёгкий: погоня после удара дольше"], lane: 1.15, coinBonus: 25 }, // каждая 25-я монета +1 = +4%
+    pavel: { title: "Знает связки", pros: ["Смена полосы на 15% быстрее", "+10% USDT", "Подкат длиннее", "Сделка: 5 верных табличек подряд — +150 USDT"], cons: ["Ошибка обнуляет серию"], lane: 1.15, coinBonus: 10, slide: 1.25 },
+    islam: { title: "Вечно задыхается", pros: ["Одна ошибка на стене прощается", "Воздуханство: 8,5 с сдувает всё и всех на пути, раз за забег"], cons: ["Спотыкается на бегу", "Смена полосы на 20% медленнее"], lane: 0.8, wallForgive: 1, winded: 22, windedLines: ["Дыхалка… погодите…", "Зачем я столько дул?", "Ой, нога… Кто тут бордюр поставил?", "Я устал. Можно без погони?"] }, // winded — раз в столько секунд выдыхается и спотыкается
     denchik: { title: "Больной", pros: ["Мозг команды: +10% USDT"], cons: ["Только ковыляет — бегать не может", "На середине пути его догоняет Мизулина", "Смена полосы на 15% медленнее"], lane: 0.85, coinBonus: 10 },
-    sasha: { pros: ["+1 жизнь за забег", "Смена полосы на 15% быстрее", "+20% USDT"], lane: 1.15, extraLife: 1, coinBonus: 5 },
-    gorilla: { title: "Бонусный герой", pros: ["+1 жизнь за забег", "+25% USDT"], extraLife: 1, coinBonus: 4 },
-    dima: { title: "Свой среди постов", pros: ["+15% USDT"], coinBonus: 7 },
-    tovarus: { title: "Стабильный", pros: ["+12% USDT"], coinBonus: 8 },
-    nikita: { title: "Король мусорок", pros: ["NSS ×1,5", "Мусор в мешок", "Бананы дают кожуру — кинь её в погоню"], cons: ["От него пахнет: девушки дают Карты вдвое реже", "Смена полосы на 15% медленнее"], lane: 0.85, trash: true, stink: true },
+    sasha: { pros: ["+1 жизнь за забег", "Смена полосы на 15% быстрее", "+20% USDT", "Братва: 8,5 с кортеж впереди сносит всё на полосе, раз за забег"], cons: ["Братва стоит 50 USDT забега"], lane: 1.15, extraLife: 1, coinBonus: 5 },
+    gorilla: { title: "Бонусный герой", pros: ["+1 жизнь за забег", "+25% USDT", "Ярость: 40 монет — 4 с сносит всё на пути"], cons: ["Погоня после удара дольше"], extraLife: 1, coinBonus: 4 },
+    dima: { title: "Свой среди постов", pros: ["+15% USDT", "Удостоверение: инспектор пропускает и даёт +10 USDT"], cons: ["Иногда проверка: притормозит"], coinBonus: 7 },
+    tovarus: { title: "Спекулянт", pros: ["+12% USDT", "Вложить: через 10 с USDT вернутся ×1,5"], cons: ["С шансом 40% — только половина"], coinBonus: 8 },
+    nikita: { title: "Король мусорок", pros: ["NSS ×1,5", "Мешок: сдай вовремя — или он сгниёт", "Баки у дороги дают мусор", "Банка — USDT, помидор — в бой, банан — кожура"], cons: ["От него пахнет: девушки дают Карты вдвое реже", "Смена полосы на 15% медленнее"], lane: 0.85, trash: true, stink: true },
+};
+
+// Приколы героев. btn — своя кнопка в забеге (Game.useQuirk), charges — сколько раз за забег; без btn — работает само.
+// chase — во сколько раз дольше погоня после удара (минус лёгких и злых героев)
+export const HERO_QUIRKS = {
+    mouse: { grab: 0.6, grabEvery: 3, chase: 1.25 }, // перехват: сменил полосу — монеты рядом подлетают grab секунд, не чаще раза в grabEvery с
+    pavel: { dealEvery: 5, deal: 150 }, // закрытие сделки: столько верных табличек подряд — бонус USDT
+    dima: { badge: 10, check: 0.15 }, // удостоверение: инспектор пропускает и даёт USDT, но с шансом check проверяет — герой притормаживает
+    islam: { btn: "Воздуханство", emoji: "🌪️", charges: 1, time: 8.5, reach: 32 }, // time секунд сдувает на reach м вперёд препятствия, людей и погоню, сам неуязвим
+    sasha: { btn: "Братва", emoji: "🚘", charges: 1, cost: 50, time: 8.5, car: "models/obj/brigade_car.glb?v=1", carLen: 4.6, carWidth: 1.5, cars: 2 }, // time секунд кортеж едет впереди по полосе героя и сносит всё на пути, за cost USDT забега
+    gorilla: { btn: "Ярость", emoji: "🦍", coins: 40, time: 4, smash: 5, chase: 1.25 }, // coins монет копят заряд: time секунд сносит всё на пути, smash USDT за препятствие
+    tovarus: { btn: "Вложить", emoji: "📈", charges: 3, share: 0.3, max: 100, min: 10, wait: 10, win: 0.6, up: 1.5, down: 0.5 }, // вложил долю USDT забега: через wait с вернётся ×up с шансом win, иначе ×down
 };
 
 // Активные умения героев — кнопка в забеге, один раз за забег. kind: turbo — быстрее и неуязвим, magnet — монеты

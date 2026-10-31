@@ -39,3 +39,13 @@ test("метры считаются лучшим забегом, остальн�
     assert.equal(d.quests.got.jump, 1);
     assert.equal(d.quests.got.dist, undefined);
 });
+
+test("мешок Никиты: полнее — больше награда и выше риск, ожидание растёт медленнее", async () => {
+    const { bagLoot, bagRisk, NIKITA_BAG } = await import("../js/config.js");
+    assert.ok(bagLoot(30) > bagLoot(15) && bagLoot(15) > bagLoot(5));
+    assert.ok(bagRisk(30) > bagRisk(15) && bagRisk(15) > bagRisk(NIKITA_BAG.min));
+    assert.ok(bagRisk(NIKITA_BAG.max) <= 0.6);
+    const ev = (n) => bagLoot(n) * (1 - bagRisk(n));
+    assert.ok(ev(15) > ev(5), "копить выгодно");
+    assert.ok(ev(30) - ev(15) < bagLoot(30) - bagLoot(15), "но риск съедает часть прибавки");
+});

@@ -1,19 +1,53 @@
 import * as THREE from './vendor/three.module.js';
 
+// Экран телефона — настоящий чат: шапка с фото Гориллы, сообщение пузырём, поле ввода. Цвета — как у меню игры
 function phoneScreen(hero) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512; canvas.height = 1032;
+    const W = 512, H = 1032, canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
-    // скруглённые углы — как у стекла модели, иначе экран торчит за корпус
-    ctx.beginPath(); ctx.moveTo(60, 0); ctx.arcTo(512, 0, 512, 1032, 60); ctx.arcTo(512, 1032, 0, 1032, 60); ctx.arcTo(0, 1032, 0, 0, 60); ctx.arcTo(0, 0, 512, 0, 60); ctx.closePath(); ctx.clip();
-    ctx.fillStyle = '#101d31'; ctx.fillRect(0, 0, 512, 1032);
-    ctx.fillStyle = '#395477'; ctx.fillRect(0, 0, 512, 145);
-    ctx.fillStyle = '#f1c95f'; ctx.font = 'bold 43px sans-serif'; ctx.fillText('ГОРИЛЛА', 36, 90);
-    ctx.fillStyle = '#e6eefb'; ctx.font = 'bold 38px sans-serif';
-    [hero ? `${hero},` : '', hero ? 'ты можешь бежать' : 'Ты можешь бежать', 'от жизни. А можешь', 'научиться видеть', 'возможности.', '', 'Встретимся на', 'станции «Обмен».'].forEach((line, i) => ctx.fillText(line, 36, 215 + i * 65));
-    ctx.fillStyle = '#92a9c7'; ctx.font = '28px sans-serif'; ctx.fillText('НОВОЕ СООБЩЕНИЕ', 36, 965);
+    const round = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
     const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding;
     tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+    const FONT = '"Inter Tight", Arial, sans-serif', DISPLAY = '"Unbounded", "Arial Black", sans-serif';
+    const lines = [hero ? `${hero},` : '', hero ? 'ты можешь бежать' : 'Ты можешь бежать', 'от жизни. А можешь', 'научиться видеть', 'возможности.', '', 'Встретимся на', 'станции «Обмен».'].filter((l, i) => l || i);
+    const draw = (photo) => {
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+        round(0, 0, W, H, 60); ctx.clip(); // скруглённые углы — как у стекла модели, иначе экран торчит за корпус
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#17171c'); bg.addColorStop(1, '#0a0a0c');
+        ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+        // статус-бар
+        ctx.fillStyle = '#ffffff'; ctx.font = `700 26px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText('23:47', 44, 52);
+        ctx.textAlign = 'right'; ctx.fillText('5G', 468, 52);
+        // шапка чата
+        ctx.fillStyle = '#1f1f25'; ctx.fillRect(0, 76, W, 118);
+        ctx.fillStyle = '#e3343a'; ctx.fillRect(0, 192, W, 3);
+        ctx.save(); ctx.beginPath(); ctx.arc(76, 135, 42, 0, Math.PI * 2); ctx.clip();
+        ctx.fillStyle = '#34343c'; ctx.fillRect(34, 93, 84, 84);
+        if (photo) { const k = photo.height * 0.7, sx = (photo.width - k) / 2; ctx.drawImage(photo, sx, photo.height * 0.08, k, k, 34, 93, 84, 84); }
+        ctx.restore();
+        ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff'; ctx.font = `800 31px ${DISPLAY}`; ctx.fillText('ГОРИЛЛА', 134, 130);
+        ctx.fillStyle = '#35e39b'; ctx.font = `600 24px ${FONT}`; ctx.fillText('в сети', 134, 166);
+        // сообщение — пузырём
+        const lh = 50, top = 250, bh = lines.length * lh + 70;
+        ctx.fillStyle = '#26262d'; round(28, top, 440, bh, 34); ctx.fill();
+        ctx.fillRect(28, top + bh - 34, 34, 34); // острый угол у фото, как в мессенджерах
+        ctx.fillStyle = '#f4f4f6'; ctx.font = `600 35px ${FONT}`;
+        lines.forEach((l, i) => ctx.fillText(l, 56, top + 58 + i * lh));
+        ctx.fillStyle = '#8d8d98'; ctx.font = `500 22px ${FONT}`; ctx.textAlign = 'right'; ctx.fillText('23:47', 444, top + bh - 22);
+        // поле ввода
+        ctx.textAlign = 'left'; ctx.fillStyle = '#1f1f25'; round(28, 900, 372, 76, 38); ctx.fill();
+        ctx.fillStyle = '#8d8d98'; ctx.font = `500 28px ${FONT}`; ctx.fillText('Сообщение', 60, 948);
+        ctx.fillStyle = '#e3343a'; ctx.beginPath(); ctx.arc(442, 938, 38, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(428, 916); ctx.lineTo(464, 938); ctx.lineTo(428, 960); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        tex.needsUpdate = true;
+    };
+    draw(null);
+    const photo = new Image();
+    photo.onload = () => draw(photo);
+    photo.src = 'img/heroes/gorilla.jpg';
     return tex;
 }
 

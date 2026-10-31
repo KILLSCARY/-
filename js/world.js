@@ -2013,7 +2013,13 @@ export class World {
             o.position.z += move;
             if (o.position.z > BEHIND_Z) o.position.z -= STREET_LEN;
             o.position.y = y0;
-            if (this.noNikita) { o.visible = false; continue; } // за него играют: двойник у бака не нужен
+            if (this.noNikita) { // за него играют: двойника нет, а бак стоит — из него можно набрать мусор (Game.lootBins)
+                o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
+                o.visible = i < active && o.position.z > -85;
+                o.userData.rig.visible = false;
+                if (o.userData.rub) o.userData.rub.pants.visible = false;
+                continue;
+            }
             o.position.x = o.userData.side * NIKITA_X[this.location || "street"];
             const u = o.userData, z = o.position.z;
             o.visible = i < active && z > -85; // дальше всё равно дымка и горизонт

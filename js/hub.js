@@ -56,7 +56,6 @@ export class Hub {
             if ((e.key === "Escape" || e.key === "Backspace") && this.game.state === "menu" && this.current !== "run") this.back();
         });
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
-        $("btn-tasks").onclick = () => this.tab("tasks");
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
         this.focus = null; // герой в центре карусели «Героев»
         $("btn-case-ok").onclick = () => {
@@ -828,6 +827,7 @@ export class Hub {
     }
 
     toast(text) {
+        if (this.game.state === "playing") return this.game.headText(text); // в забеге — над головой героя
         const t = $("toast");
         t.textContent = text;
         t.hidden = false;

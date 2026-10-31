@@ -2,7 +2,7 @@
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
 import { questAdd } from "./quests.mjs";
-import { TRUCKS, BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
+import { HERO_QUIRKS, TRUCKS, BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, bagLoot, bagRisk, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -149,6 +149,7 @@ material.specularF90 = 0.0;
     C.metalnessmap_fragment = "float metalnessFactor = metalness;";
 }
 
+const RAGE_RED = new THREE.Color(0xff1a00);
 const LANE_SPRING = 26, LANE_LEAN = 0.02, LANE_YAW = 0.018; // перестроение: жёсткость пружины, наклон и доворот от скорости
 // фура: насколько сбоку от её оси ещё держит крыша (соседние крыши перекрываются — между ними не проваливаешься),
 // на сколько выше себя герой встаёт на крышу и на пандус за кадр (дальше — это удар в борт)
@@ -597,6 +598,22 @@ class Game {
         this.windedAt = 0; // когда герой снова выдохнется (perk.winded)
         this.freeBoss = null; // бой свободного забега (startFreeBoss)
         this.bag = 0; // Никита: мусор в мешке
+        this.rageOff();
+        this.dropBrigade();
+        for (const b of this.blownList || []) { // прошлый забег: инспекторов и погоню — на место
+            if (!b.back) continue;
+            const o = b.o;
+            o.position.x = b.from[0]; o.position.y = b.from[1]; o.rotation.x = b.from[2]; o.rotation.z = b.from[3];
+            o.visible = true; o.userData.blown = false;
+        }
+        this.blownList = [];
+        for (const p of this.vapePuffs || []) p.visible = false;
+        this.loadBrigade();
+        this.quirkLeft = this.quirk.charges || 0;
+        this.rageCoins = 0;
+        this.invest = null;
+        this.grabAt = 0;
+        this.tomatoes = 0;
         this.peels = NIKITA_PEEL.start;
         this.throwT = 0;
         this.xv = 0;
@@ -606,6 +623,7 @@ class Game {
         if (this.world && this.perk.trash) this.loadDiveBin();
         this.renderBag();
         this.renderPeel();
+        this.renderQuirk();
         this.freeBossAt = FREE_BOSS.at[0] + Math.random() * (FREE_BOSS.at[1] - FREE_BOSS.at[0]);
         this.freeBossAsked = false;
         this.talkCalm = 0; // сколько ещё секунд дорога пустая — на экране реплика (speech)
@@ -900,6 +918,9 @@ class Game {
     }
 
     gameOver(cause) {
+        this.rageOff();
+        clearTimeout(this.headT);
+        $("head-text").hidden = true;
         this.squash = null; // поймали в прыжке или на приземлении: шаг больше не идёт, и герой остался бы сжатым на всю сцену
         this.rat.scale.set(1, 1, 1);
         this.state = "over";
@@ -1034,6 +1055,26 @@ class Game {
 
     // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
     // Один забег можно прислать несколько раз (после апелляции очков больше) — в таблице всё равно максимум
+    // надпись над головой героя вместо всплывашки сверху: следует за ним, пока не погаснет
+    headText(text) {
+        const el = $("head-text");
+        el.textContent = text;
+        el.hidden = false;
+        el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+        clearTimeout(this.headT);
+        this.headT = setTimeout(() => { el.hidden = true; }, 2200);
+        this.placeHeadText();
+    }
+
+    placeHeadText() {
+        const el = $("head-text");
+        if (el.hidden || !this.rat) return;
+        const v = (this.headV ||= new THREE.Vector3()).set(this.x, this.y + 2.05, 0).project(this.camera);
+        const y = Math.max(96, ((1 - v.y) / 2) * innerHeight), half = Math.min(el.offsetWidth / 2 + 8, innerWidth / 2);
+        const x = Math.min(innerWidth - half, Math.max(half, ((v.x + 1) / 2) * innerWidth));
+        el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
+    }
+
     // прогресс ежедневного задания; не сохраняем каждый прыжок — профиль пишется в конце забега
     quest(id, n = 1, mode) {
         questAdd(this.profile.data, id, n, mode);
@@ -1070,6 +1111,7 @@ class Game {
         if (lane === this.lane) return;
         this.prevLane = this.lane;
         this.lane = lane;
+        if (this.quirk.grab && this.t >= (this.grabAt || 0)) { this.grabAt = this.t + this.quirk.grabEvery; this.fx.magnet = Math.max(this.fx.magnet, this.quirk.grab); } // Спиди: перехват
         // две таблички: свайп к ней — это и есть ответ (раньше герой ещё секунд 8 полз на малой скорости)
         if (this.slowmo) { const w = this.walls.find((x) => !x.answered && !x.arch); if (w && !w.chosen && w.answers.length === 2 && lane !== 1) this.chooseAnswer(w, lane); }
         this.ventOff = 0; // против ветра вентилятора: свайп — снова точно на полосе
@@ -1125,6 +1167,8 @@ class Game {
             else if (k === "ArrowDown" || k === "KeyS") this.slide();
             else if (k === "KeyE" || k === "ShiftLeft" || k === "ShiftRight") this.useSkill();
             else if (k === "KeyQ") this.throwPeel();
+            else if (k === "KeyR") this.cashBag();
+            else if (k === "KeyF") this.useQuirk();
             else if (/^Digit[1-4]$/.test(k)) { const el = $("boost-bar").querySelectorAll(".bst:not(.bst-skill)")[+k.slice(5) - 1]; if (el) this.useBoost(el.dataset.id); }
             else if (k === "Escape" || k === "KeyP") this.state === "paused" ? this.resume() : this.pause();
             else if (k === "Enter" && (this.state === "over" || (this.state === "menu" && this.hub.current === "run" && $("case-open").hidden))) this.start();
@@ -1217,6 +1261,8 @@ class Game {
         soundIcon();
         $("btn-skill").onclick = () => { if (this.boostTap()) this.useSkill(); };
         $("btn-peel").onclick = () => { if (this.boostTap()) this.throwPeel(); };
+        $("btn-bag").onclick = () => { if (this.boostTap()) this.cashBag(); };
+        $("btn-quirk").onclick = () => { if (this.boostTap()) this.useQuirk(); };
         $("btn-sound").onclick = () => {
             this.audio.setEnabled(!this.audio.enabled);
             try { localStorage.setItem("p2p_sound", this.audio.enabled ? "on" : "off"); } catch {}
@@ -2080,7 +2126,8 @@ class Game {
             if (q) { q.t += dt; const dur = q.up ? 0.22 : 0.2, k = Math.min(1, q.t / dur), a = Math.sin(Math.PI * k);
                 if (q.up) { sy = 1 + a * LOOK2.stretch; sx = 1 - a * LOOK2.stretch * 0.5; } else { sy = 1 - a * LOOK2.squash; sx = 1 + a * LOOK2.squash * 0.6; }
                 if (k >= 1) this.squash = null; }
-            this.rat.scale.set(sx, sy, sx);
+            const big = 1 + 0.15 * (this.rageK || 0); // Ярость: герой крупнее
+            this.rat.scale.set(sx * big, sy * big, sx * big);
         }
         const blob = this.rat.userData.blob, air = this.y - floor;
         blob.position.x = this.x;
@@ -2094,7 +2141,7 @@ class Game {
         else if (this.storyChasing()) this.storyChaseStep(dt);
         else if (this.introChase > 0) this.introChaseStep(dt);
         if (this.boostLeft > 0) this.boostLeft -= dt;
-        for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik", "shield", "windproof"]) if (this.fx[k] > 0) this.fx[k] -= dt;
+        for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik", "shield", "windproof", "rage", "gale"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         // бусты для стен не тают, пока игрок читает вопрос: у таблички улица почти стоит, и он бы их просто прождал
         if (!this.slowmo) for (const k of ["focus", "forgive"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         if (this.ramBoost > 0 && !this.flight && !this.slowmo && (this.fx.ram -= dt) <= 0) { this.ram = Math.max(0, this.ram - this.ramBoost); this.ramBoost = 0; }
@@ -2114,6 +2161,14 @@ class Game {
             if (this.diving <= 0) this.endDive(true);
         }
         if (this.windCalm > 0) this.windCalm -= dt;
+        this.placeHeadText();
+        this.investStep(dt);
+        this.rageStep(dt);
+        this.brigadeStep(dt);
+        this.galeStep(dt);
+        this.blownStep(dt);
+        this.vapeStep(dt);
+        if (this.perk.trash) this.lootBins();
         this.collide(dt, move);
         const hudNow = performance.now();
         if (hudNow - (this.hudAt || 0) >= 100) { this.hudAt = hudNow; this.updateHud(); }
@@ -2147,7 +2202,7 @@ class Game {
         this.introChase = 0; // погоня со старта сменяется настоящей
         if (side) this.lane = this.prevLane;
         else { o.visible = false; o.userData.type = "decor"; }
-        this.stumble = BALANCE.stumbleTime; // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
+        this.stumble = BALANCE.stumbleTime * (this.quirk.chase || 1); // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
         this.starsT = 2.2; // звёздочки над головой — «оглушило»
         this.trip = TRIP; // клип «споткнулся» (у кого есть), потом снова бег
         this.slowLeft = BALANCE.stumbleSlow;
@@ -3651,8 +3706,12 @@ class Game {
         const el = $("bag");
         if (!el) return;
         el.hidden = !this.perk.trash;
-        el.querySelector("i").style.transform = `scaleX(${(this.bag || 0) / NIKITA_BAG.every})`;
-        el.querySelector("b").textContent = `${this.bag || 0}/${NIKITA_BAG.every}`;
+        const n = this.bag || 0, can = this.perk.trash && n >= NIKITA_BAG.min, btn = $("btn-bag");
+        el.querySelector("i").style.transform = `scaleX(${n / NIKITA_BAG.max})`;
+        el.querySelector("b").textContent = `${n}/${NIKITA_BAG.max}`;
+        $("bag-info").textContent = `${can ? `риск ${Math.round(bagRisk(n) * 100)}%` : ""}${this.tomatoes ? ` 🍅${this.tomatoes}` : ""}`;
+        btn.hidden = !can;
+        if (can) $("bag-loot").textContent = `+${bagLoot(n)}`;
     }
 
     // бросок кожуры назад: Никита на бегу оборачивается и кидает её через плечо, кожура летит дугой, преследователь поскальзывается
@@ -3800,28 +3859,286 @@ class Game {
         this.wordT = setTimeout(() => { el.hidden = true; }, done ? 4200 : 2600);
     }
 
+    // ---- приколы героев (HERO_QUIRKS) ----
+    dealBonus() {
+        const q = this.quirk;
+        if (!q.dealEvery || this.wallStreak % q.dealEvery) return;
+        this.usdt += q.deal;
+        this.audio.play("chest");
+        this.hub.toast(`Сделка закрыта! +${q.deal} USDT`);
+    }
+
+    get quirk() { return HERO_QUIRKS[this.heroId] || {}; }
+
+    renderQuirk() {
+        const q = this.quirk, b = $("btn-quirk");
+        b.hidden = !q.btn;
+        if (!q.btn) return;
+        $("q-emoji").textContent = q.emoji;
+        $("q-name").textContent = q.btn;
+        b.classList.toggle("long", q.btn.length > 9);
+        $("q-left").textContent = q.coins && !this.quirkLeft ? `${this.rageCoins || 0}/${q.coins}` : this.quirkLeft || 0;
+        b.disabled = !(this.quirkLeft > 0) || !!this.invest;
+    }
+
+    useQuirk() {
+        const q = this.quirk;
+        if (!q.btn || this.state !== "playing" || !(this.quirkLeft > 0) || this.invest) return;
+        if (this.heroId === "islam") {
+            this.fx.gale = q.time;
+            this.fx.safe = Math.max(this.fx.safe, q.time + 0.3);
+            this.kick(0.3, 7);
+            this.hub.toast("ВОЗДУХАНСТВО!");
+        } else if (this.heroId === "sasha") {
+            if (this.usdt < q.cost) return this.hub.toast(`На братву нужно ${q.cost} USDT`);
+            this.usdt -= q.cost;
+            this.sendBrigade();
+            this.hub.toast("Братва едет!");
+        } else if (this.heroId === "gorilla") {
+            this.fx.rage = q.time;
+            this.fx.safe = Math.max(this.fx.safe, q.time + 0.3);
+            this.hub.toast("ЯРОСТЬ!");
+        } else if (this.heroId === "tovarus") {
+            const sum = Math.min(q.max, Math.floor(this.usdt * q.share));
+            if (sum < q.min) return this.hub.toast(`Вложить можно от ${Math.ceil(q.min / q.share)} USDT`);
+            this.usdt -= sum;
+            this.invest = { sum, t: q.wait };
+            this.hub.toast(`Вложил ${sum} USDT. Ждём ${q.wait} с`);
+        }
+        this.quirkLeft--;
+        this.audio.play("boost");
+        tg.haptic("heavy");
+        this.renderQuirk();
+    }
+
+    // сдутое и снесённое улетает в сторону и вверх, кувыркаясь. back — вернуть после (инспекторы у дороги стоят на кольце улицы)
+    blow(o, { back = false, done = null, power = 1 } = {}) {
+        if (o.userData.blown) return;
+        o.userData.blown = true;
+        const side = o.position.x >= this.x ? 1 : -1;
+        (this.blownList ||= []).push({ o, t: 0, back, done, vx: side * (8 + Math.random() * 5) * power, vy: (6 + Math.random() * 4) * power, sx: 4 + Math.random() * 6, sz: side * (4 + Math.random() * 6),
+            from: [o.position.x, o.position.y, o.rotation.x, o.rotation.z] });
+        if (o.userData.type && !back && !done) o.userData.type = "decor";
+    }
+
+    blownStep(dt) {
+        const list = this.blownList;
+        for (let i = (list?.length || 0) - 1; i >= 0; i--) {
+            const b = list[i], o = b.o;
+            if (b.t > 1.1) { // улетело: инспектор ждёт, пока улица унесёт его за спину, и встаёт на место
+                if (o.position.z < 10) continue;
+                o.position.x = b.from[0]; o.position.y = b.from[1]; o.rotation.x = b.from[2]; o.rotation.z = b.from[3];
+                o.visible = true; o.userData.blown = false;
+                list.splice(i, 1);
+                continue;
+            }
+            b.t += dt;
+            b.vy -= 14 * dt;
+            o.position.x += b.vx * dt;
+            o.position.y += b.vy * dt;
+            o.rotation.x += b.sx * dt;
+            o.rotation.z += b.sz * dt;
+            if (b.t <= 1.1) continue;
+            o.visible = false;
+            b.done?.();
+            if (!b.back) { o.userData.blown = false; list.splice(i, 1); }
+        }
+    }
+
+    // Воздуханство Ислама: всё и все впереди и у дороги улетают, в лицо дороге бьёт поток воздуха
+    galeStep(dt) {
+        if (!(this.fx.gale > 0)) return;
+        const reach = this.quirk.reach, inReach = (z) => z > -reach && z < 3;
+        for (const o of this.world.obstacles) {
+            const t = o.userData.type;
+            if (t !== "decor" && t !== "answer" && !o.userData.blown && inReach(o.position.z)) this.blow(o);
+        }
+        for (const o of this.world.officers || []) if (o.visible && inReach(o.position.z)) this.blow(o, { back: true });
+        for (const p of this.hecklers?.pool || []) if (p.userData.active && !p.userData.blown && inReach(p.position.z)) this.blow(p, { done: () => { p.userData.blown = false; this.hecklers.hide(p); } });
+        if ((this.stumble > 0 || this.introChase > 0) && this.chaser?.visible) { // Мизулина улетает последней: погоня окончена
+            const c = this.chaser;
+            this.stumble = 0;
+            this.introChase = 0;
+            this.blow(c, { done: () => { c.userData.blown = false; c.visible = false; c.position.y = 0; c.rotation.set(0, Math.PI, 0); } });
+            this.hub.toast(`${this.chaserCfg().name} сдуло!`);
+        }
+        if (!this.vapePuffs) {
+            const mat = new THREE.SpriteMaterial({ map: this.world.glowTex, color: 0xd9dcef, transparent: true, depthWrite: false, opacity: 0 });
+            this.vapePuffs = Array.from({ length: 14 }, () => { const p = new THREE.Sprite(mat.clone()); p.visible = false; p.renderOrder = 5; this.scene.add(p); return p; });
+        }
+        if ((this.galeEmit = (this.galeEmit || 0) - dt) <= 0) { // поток: клубы вылетают от героя вперёд
+            this.galeEmit = 0.09;
+            const p = this.vapePuffs.find((x) => !x.visible);
+            if (p) { p.visible = true; p.position.set(this.x + (Math.random() - 0.5) * 2, this.y + 0.6 + Math.random() * 1.2, -0.5); p.userData.t = 0; p.userData.life = 0.8; }
+        }
+    }
+
+    vapeStep(dt) {
+        for (const p of this.vapePuffs || []) {
+            if (!p.visible) continue;
+            const u = p.userData;
+            u.t += dt;
+            p.position.z -= 22 * dt;
+            p.position.x += (p.position.x - this.x) * dt;
+            const k = u.t / u.life;
+            p.scale.setScalar(0.8 + k * 3.2);
+            p.material.opacity = 0.7 * (1 - k) * Math.min(1, u.t * 10);
+            if (k >= 1) p.visible = false;
+        }
+    }
+
+    // Ярость Гориллы: крупнее, красное свечение, шаги трясут камеру. Материалы не пересобираются — меняется только цвет
+    rageStep(dt) {
+        const on = this.fx.rage > 0;
+        this.rageK = THREE.MathUtils.clamp((this.rageK || 0) + (on ? dt * 6 : -dt * 4), 0, 1);
+        if (!this.rageK && !this.rageMats) return;
+        if (!this.rageMats) {
+            this.rageMats = [];
+            this.rat.traverse((o) => { if (o.isMesh && o.material?.emissive) for (const m of [].concat(o.material)) this.rageMats.push({ m, color: m.emissive.clone(), k: m.emissiveIntensity }); });
+            this.rageGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.world.glowTex, color: 0xff2a10, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+            this.rageGlow.position.y = 1;
+            this.rat.add(this.rageGlow);
+        }
+        const pulse = 0.75 + Math.sin(this.t * 14) * 0.25;
+        for (const { m, color, k } of this.rageMats) {
+            m.emissive.copy(color).lerp(RAGE_RED, this.rageK);
+            m.emissiveIntensity = k + (0.55 * pulse - k) * this.rageK;
+        }
+        this.rageGlow.scale.setScalar(3.2);
+        this.rageGlow.material.opacity = 0.55 * pulse * this.rageK;
+        if (on && (this.rageStepT = (this.rageStepT || 0) - dt) <= 0) { this.rageStepT = 0.34; this.camKick.shake = Math.max(this.camKick.shake, 0.12); }
+        if (!this.rageK) this.rageOff();
+    }
+
+    rageOff() {
+        for (const { m, color, k } of this.rageMats || []) { m.emissive.copy(color); m.emissiveIntensity = k; }
+        this.rageMats = null;
+        this.rageK = 0;
+        if (this.rageGlow) { this.rat?.remove(this.rageGlow); this.rageGlow.material.dispose(); this.rageGlow = null; }
+    }
+
+    // кортеж Саши: машины обгоняют героя по его полосе и сносят всё на пути. Без модели — просто расчищает
+    loadBrigade() {
+        const q = this.quirk;
+        if (!q.car || this.brigadeModel || this.brigadeLoading) return;
+        this.brigadeLoading = true;
+        loadModel(q.car, (gltf) => {
+            const m = gltf.scene, box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+            m.position.set(-c.x, -box.min.y, -c.z);
+            const g = new THREE.Group().add(m), k = q.carLen / (size.z || 1);
+            g.scale.set(q.carWidth / (size.x || 1), k, k);
+            this.brigadeModel = g;
+            this.world.warmQueue.push(g.clone());
+        }, () => { this.brigadeLoading = false; });
+    }
+
+    // кортеж едет впереди по полосе героя и сносит всё, что до него дошло; пока он в деле, герой неуязвим
+    sendBrigade() {
+        const q = this.quirk, x = this.world.lanes[this.lane], cars = [];
+        for (let i = 0; i < (this.brigadeModel ? q.cars : 0); i++) {
+            const c = this.brigadeModel.clone();
+            c.position.set(x, 0, 7 + i * (q.carLen + 1.5));
+            c.rotation.y = Math.PI; // нос модели смотрит на камеру, а едут вперёд
+            this.scene.add(c);
+            cars.push(c);
+        }
+        this.fx.safe = Math.max(this.fx.safe, q.time + 0.3);
+        this.brigadeRun = { cars, t: q.time };
+    }
+
+    brigadeStep(dt) {
+        const r = this.brigadeRun;
+        if (!r) return;
+        const q = HERO_QUIRKS.sasha, x = this.world.lanes[this.lane];
+        r.t -= dt;
+        r.cars.forEach((c, i) => {
+            const z = r.t > 0 ? -9 - i * (q.carLen + 2) : -120; // время вышло — кортеж уходит вперёд
+            c.position.z += (z - c.position.z) * Math.min(1, dt * (r.t > 0 ? 3.5 : 1.6));
+            c.position.x += (x - c.position.x) * Math.min(1, dt * 7);
+        });
+        if (r.t > 0) { // без моделей сносим по полосе героя у самого кортежа
+            const line = r.cars.length ? r.cars : [{ position: { x, z: -9 } }];
+            for (const o of this.world.obstacles) {
+                const d = o.userData;
+                if (d.type === "decor" || d.type === "answer" || d.blown) continue;
+                for (const c of line) {
+                    if (Math.abs(o.position.x - c.position.x) > 1.1 || o.position.z + (d.halfZ || 0.5) < c.position.z - q.carLen / 2 || o.position.z > 3) continue;
+                    this.blow(o, { power: 1.2 });
+                    this.world.flash(o.position.clone().setY(1.2), true);
+                    this.kick(0.12, 3);
+                    break;
+                }
+            }
+        } else if (!r.cars.length || r.cars[0].position.z < -90) this.dropBrigade();
+    }
+
+    dropBrigade() {
+        for (const c of this.brigadeRun?.cars || []) this.scene.remove(c);
+        this.brigadeRun = null;
+    }
+
+    investStep(dt) {
+        if (!this.invest || (this.invest.t -= dt) > 0) return;
+        const q = this.quirk, { sum } = this.invest, win = Math.random() < q.win, back = Math.round(sum * (win ? q.up : q.down));
+        this.invest = null;
+        this.usdt += back;
+        this.audio.play(win ? "chest" : "crash");
+        this.hub.toast(win ? `Рынок вырос: +${back} USDT` : `Рынок упал: вернулось ${back} USDT`);
+        this.renderQuirk();
+    }
+
+    // предмет в мешок. Банка — сразу немного USDT, помидор — в запас на бой, банан — кожура
+    addTrash(kind) {
+        if ((this.bag || 0) < NIKITA_BAG.max) this.bag = (this.bag || 0) + 1;
+        if (kind === "banana") this.peels = Math.min(NIKITA_PEEL.max, (this.peels || 0) + 1);
+        if (kind === "tomato") this.tomatoes = Math.min(NIKITA_BAG.tomatoes, (this.tomatoes || 0) + 1);
+        if (kind === "can") this.usdt += NIKITA_BAG.can * (this.boostLeft > 0 ? 2 : 1);
+    }
+
     pickTrash(c) {
-        this.bag++;
+        this.addTrash(c.userData.trash);
         this.world.flash(c.position, false);
         this.audio.play("coin");
         tg.haptic("light");
-        if (c.userData.trash === "banana") this.peels = Math.min(NIKITA_PEEL.max, (this.peels || 0) + 1); // банан — запас кожуры для броска
-        if (this.bag >= NIKITA_BAG.every) {
-            this.bag = 0;
-            if (Math.random() < NIKITA_BAG.rotten) { // подвох: тухлятина на весь экран
-                this.hecklers?.splat({ id: "tomato" });
-                this.audio.play("crash");
-                tg.haptic("warning");
-                this.hub.toast("Фу! Мешок лопнул тухлятиной");
-            } else {
-                this.usdt += NIKITA_BAG.loot;
-                this.audio.play("chest");
-                tg.haptic("success");
-                this.hub.toast(`Находка в мешке: +${NIKITA_BAG.loot} USDT`);
-            }
-        }
         this.renderBag();
         this.renderPeel();
+    }
+
+    // бак у дороги: пробежал по крайней полосе рядом с ним — несколько предметов разом. Каждый бак — один раз за проезд
+    lootBins() {
+        for (const o of this.world.nikitas || []) {
+            const u = o.userData, z = o.position.z;
+            if (z < -2 || z > 6) { u.looted = false; continue; }
+            if (u.looted || !o.visible || z > 1.5 || this.lane !== (u.side < 0 ? 0 : 2)) continue;
+            u.looted = true;
+            for (let i = 0; i < NIKITA_BAG.bin; i++) this.addTrash(NIKITA_BAG.items[Math.floor(Math.random() * NIKITA_BAG.items.length)]);
+            this.world.flash(o.position.clone().setY(1.2), false);
+            this.audio.play("chest");
+            tg.haptic("medium");
+            this.hub.toast(`Бак: +${NIKITA_BAG.bin} в мешок`);
+            this.renderBag();
+            this.renderPeel();
+        }
+    }
+
+    // сдать мешок: чем он полнее, тем больше USDT и тем выше шанс, что всё сгнило
+    cashBag() {
+        const n = this.bag || 0;
+        if (!this.perk.trash || this.state !== "playing" || n < NIKITA_BAG.min) return;
+        this.bag = 0;
+        if (Math.random() < bagRisk(n)) {
+            this.hecklers?.splat({ id: "tomato" });
+            this.audio.play("crash");
+            tg.haptic("warning");
+            this.hub.toast("Фу! Мешок сгнил, всё пропало");
+        } else {
+            const usdt = bagLoot(n);
+            this.usdt += usdt;
+            this.audio.play("chest");
+            tg.haptic("success");
+            this.hub.toast(`Сдал мешок: +${usdt} USDT`);
+        }
+        this.renderBag();
     }
 
     // телефон: муха один раз рисуется в картинку, дальше летают плоские спрайты (несколько треугольников вместо 37 тысяч)
@@ -4170,12 +4487,12 @@ class Game {
         const box = $("wall-q");
         const w = this.walls.find((x) => !x.answered); // в HUD — ближайшая неотвеченная
         const z = w ? w.plates[0].position.z : -1e9;
-        const show = !!w && z > -75 && z < 1;
+        const show = !!w && !w.arch && z > -75 && z < 1; // у профита карточки нет: всё видно на самих табличках
         if (show && (box.hidden || this.wqShown !== w)) {
             this.wqShown = w;
             // карточка — сообщение клиента: аватар с номером типа (у экзамена — Павел), имя, возражение, время
             const t = CLIENT_TYPES[w.type];
-            $("wq-type").textContent = w.boss ? `Павел Инаков · экзамен ${w.boss}/3` : w.arch ? "Профит · беги в золотую"
+            $("wq-type").textContent = w.boss ? `Павел Инаков · экзамен ${w.boss}/3`
                 : w.type.startsWith("fear") || w.type === "practice" ? t.name : `Клиент · ${t.name}`;
             $("wq-tag").textContent = w.boss ? "" : t.tag;
             $("wall-q").classList.toggle("boss", !!w.boss);
@@ -4234,6 +4551,7 @@ class Game {
             this.world.flash(o.position.clone().setY(1.2), gold);
             if (!gold) { this.wallStreak = 0; this.audio.play("coin"); return false; }
             this.wallStreak++;
+            this.dealBonus();
             this.audio.play("boost");
             tg.haptic("success");
             if (this.wallStreak % WALLS.streak === 0) {
@@ -4248,6 +4566,7 @@ class Game {
             st.ok++;
             this.storyHit();
             this.wallStreak++;
+            this.dealBonus();
             o.visible = false;
             o.userData.type = "decor";
             this.world.flash(o.position.clone().setY(1.2), true);
@@ -4305,6 +4624,21 @@ class Game {
                 if (d.passed) continue; // вошёл в неё под защитой: защита кончилась внутри — это не удар
                 const top = this.world.truckTop(o), ramp = top !== null && d.ramp && o.position.z + d.halfZ < d.ramp;
                 if (top === null || this.y >= top - (ramp ? RAMP_STEP : STEP_UP)) continue;
+            }
+            if (this.quirk.badge && d.type === "cop") { // Дима: удостоверение
+                d.type = "decor";
+                this.usdt += this.quirk.badge;
+                if (Math.random() < this.quirk.check) { this.slowLeft = BALANCE.stumbleSlow; this.hub.toast("Проверка документов…"); }
+                else this.hub.toast(`Свои! +${this.quirk.badge} USDT`);
+                continue;
+            }
+            if (this.fx.rage > 0 && d.type !== "truck") { // Горилла: сносит всё на пути
+                o.visible = false;
+                d.type = "decor";
+                this.usdt += this.quirk.smash;
+                this.world.flash(o.position.clone().setY(1.2), true);
+                this.kick(0.15, 5);
+                continue;
             }
             if (this.fromRoof && this.jumping && d.type !== "truck") continue; // падает с крыши: то, что внизу, бьёт только на земле
             if (d.top && this.y > d.top - 0.05) continue; // бак, ограждение — перепрыгнул
@@ -4367,6 +4701,8 @@ class Game {
                 this.coinCount++;
                 const bonus = this.perk.coinBonus && this.coinCount % this.perk.coinBonus === 0 ? 1 : 0; // Паша: +10%
                 this.usdt += (this.boostLeft > 0 ? 2 : 1) + bonus;
+                if (this.quirk.coins && !this.quirkLeft && ++this.rageCoins >= this.quirk.coins) { this.rageCoins = 0; this.quirkLeft = 1; this.hub.toast("Ярость готова!"); }
+                if (this.quirk.coins) this.renderQuirk();
                 this.audio.play("coin");
                 this.coinFx(c);
             }

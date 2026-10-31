@@ -432,6 +432,11 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); font: 700 16px/1.25 var(--font-body); text-align: center; /* крупнее: читается на бегу */
 }
 #toast.show { animation: toast 0.35s ease-out; }
+/* надпись над головой героя в забеге (Game.headText): внутренняя часть всплывает, внешнюю двигает игра */
+.head-text { position: fixed; left: 0; top: 0; z-index: 7; max-width: 62vw; width: max-content; padding: 3px 8px; border-radius: 8px; background: rgba(10, 10, 12, .62); color: #fff; font: 600 11px/1.2 var(--font-body); text-align: center; pointer-events: none; }
+.head-text[hidden] { display: none; }
+.head-text.show { animation: head-text 2.2s ease-out both; }
+@keyframes head-text { 0% { opacity: 0; margin-top: 10px; } 10% { opacity: 1; margin-top: 0; } 75% { opacity: 1; margin-top: -8px; } 100% { opacity: 0; margin-top: -18px; } }
 @keyframes toast { from { opacity: 0; transform: translate(-50%, -10px); } }
 
 /* ---- проигрыш: карточка всплывает, блоки въезжают по очереди (--i), счёт и плитки досчитываются в JS ---- */
@@ -614,6 +619,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
     text-shadow: 0 0 30px rgba(227, 52, 58, 0.8); pointer-events: none;
 }
 #countdown.pop { animation: pop 0.5s ease-out; }
+@media (max-width: 480px) { #countdown { font-size: 11vw; } } /* «ПОГНАЛИ!» — во всю ширину телефона, без обрезки */
 @keyframes pop { from { transform: scale(1.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* «Продолжить?» после удара: кольцо тает за --t секунд одним переходом stroke-dashoffset, кадр удара — под затемнением */
@@ -1425,6 +1431,17 @@ body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s;
 /* ---- рейтинг игроков ---- */
 .tile-rate { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; min-height: 48px; animation-delay: .35s; }
 .tile-rate .arr { margin-left: auto; color: var(--muted); }
+/* нижний ряд меню — три кнопки: Задания, Рейтинг, Карта. Рейтинг подсвечен золотом */
+#view-run .tile[data-go="rating"] { border-color: var(--gold); box-shadow: 0 0 16px rgba(233, 194, 90, .45), inset 0 0 14px rgba(233, 194, 90, .12); }
+#view-run .tile[data-go="rating"] .tile-name { color: var(--gold); }
+#view-run .tiles { grid-template-columns: repeat(6, 1fr); }
+#view-run .tile { grid-column: span 3; }
+#view-run .tile-run { grid-column: 1 / -1; }
+#view-run .tile-rate { grid-column: span 2; justify-content: center; text-align: center; padding-left: 6px; padding-right: 6px; }
+#view-run .tile-rate .arr, #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
+#view-run .tile-rate .tile-name { font-size: 13px; }
+#view-run .tile-rate .badge { top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+#view-run .tile-run .arr { flex: none; }
 .rate-cap { margin: 16px 0 8px; }
 .rate-left { color: #ffd65a; letter-spacing: .06em; }
 /* карточка «ты»: место, очки, сколько до следующего места, четыре счётчика */
@@ -1464,11 +1481,6 @@ body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s;
 .rate-gapline { margin: 0; text-align: center; color: var(--muted); line-height: 1; }
 .rate-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
 /* задания */
-.tasks-dot { position: relative; display: grid; place-items: center; width: 44px; height: 44px; margin-top: 10px; padding: 0; border-radius: 50%; background: rgba(10, 10, 12, .72); border: 1px solid rgba(255, 255, 255, .22); color: #fff; }
-.tasks-dot svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.tasks-dot b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); font-size: 11px; line-height: 18px; text-align: center; }
-.tasks-dot b[hidden] { display: none; }
-.tasks-dot:active { transform: scale(.92); }
 .quest-bar { display: block; height: 4px; margin-top: 2px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .12); }
 .quest-bar i { display: block; height: 100%; background: var(--gold); }
 .rate-task.ready { border-color: var(--gold); }
@@ -1691,6 +1703,10 @@ body.direct #vig { display: block; }
 .rate-row { content-visibility: auto; contain-intrinsic-size: auto 56px; }
 .bag { position: absolute; right: 16px; top: calc(128px + var(--tg-safe-top, 0px)); display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 12px; background: rgba(10, 10, 18, .72); font: 700 11px var(--font-display); color: #fff; pointer-events: none; }
 .bag[hidden] { display: none; }
+.bag small { font-size: 11px; color: #ffb0a0; white-space: nowrap; }
+#btn-quirk.long { margin-left: 18px; } /* длинная подпись не наезжает на соседнюю */
+.bst-bag { border-color: rgba(233, 194, 90, .9); box-shadow: 0 0 18px rgba(233, 194, 90, .4); }
+.bst-bag i { background: var(--gold); color: #2c1c02; min-width: 30px; right: -12px; }
 .bag em { display: block; width: 60px; height: 6px; overflow: hidden; border-radius: 3px; background: rgba(255, 255, 255, .18); }
 .bag i { display: block; height: 100%; background: #9ad14b; transform-origin: 0 50%; transform: scaleX(0); transition: transform .15s; }
 #lead { z-index: 31; } /* заявка открывается и поверх окна «Воронка пройдена» */
@@ -1848,8 +1864,7 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
     #view-run .tile-run .tile-name { font-size: 20px; }
     #view-run .tile-run .arr { width: 36px; height: 36px; font-size: 17px; }
     #view-run .tile-heroes .thumb { width: 48px; height: 48px; }
-    #view-run .tile-rate { grid-column: auto; min-height: 50px; gap: 6px; }
-    #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
+    #view-run .tile-rate { min-height: 50px; gap: 6px; }
     #view-run .tiles-note { display: none; }
 }
 /* обычный телефон: кнопки крупнее. На низких и узких экранах остаются компактными: иначе закроют героя и текст не влезет */
@@ -1859,10 +1874,11 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
     #view-run .tile-name { font-size: 17px; }
     #view-run .tile-sub { font-size: 12.5px; }
     #view-run .tile-run { min-height: 88px; }
-    #view-run .tile-run .tile-name { font-size: 21px; white-space: nowrap; }
+    #view-run .tile-run .tile-name { font-size: 20px; white-space: nowrap; }
     #view-run .tile-run .arr { width: 48px; height: 48px; font-size: 22px; }
     #view-run .tile-heroes .thumb { width: 60px; height: 60px; }
     #view-run .tile-rate { min-height: 60px; }
+    #view-run .tile-rate .tile-name { font-size: 13px; }
 }
 
 /* ---- кейсы: шкала удачи, ×5, «Ночная смена», промокоды ---- */
