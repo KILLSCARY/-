@@ -635,18 +635,18 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 #btn-cont small { display: flex; align-items: center; gap: 5px; font: 600 13px var(--font-body); text-transform: none; opacity: .9; }
 
 /* слово из букв на дороге: собранные горят золотом, новая один раз подпрыгивает; слово собрано — красным */
-.word {
+.road-word {
     position: fixed; left: 50%; top: calc(88px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); transform: translateX(-50%);
     z-index: 6; width: max-content; max-width: calc(100% - 24px); display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
     padding: 8px 10px 9px; border-radius: 14px; background: rgba(10, 10, 12, .84); pointer-events: none;
 }
-.word[hidden] { display: none; }
-.word:not([hidden]) { animation: fade .2s ease-out both; }
-.word i { width: 24px; height: 26px; display: grid; place-items: center; border-radius: 6px; background: #2a2c34; color: #6b6f7c; font: 700 13px var(--font-display); font-style: normal; }
-.word i.on { background: var(--gold); color: #3a2a06; }
-.word.done i.on { background: var(--red); color: #fff; }
-.word i.new { animation: letter-in .5s cubic-bezier(.3, 1.6, .5, 1); }
-.word b { flex-basis: 100%; text-align: center; font: 600 12px var(--font-body); color: var(--gold); }
+.road-word[hidden] { display: none; }
+.road-word:not([hidden]) { animation: fade .2s ease-out both; }
+.road-word i { width: 24px; height: 26px; display: grid; place-items: center; border-radius: 6px; background: #2a2c34; color: #6b6f7c; font: 700 13px var(--font-display); font-style: normal; }
+.road-word i.on { background: var(--gold); color: #3a2a06; }
+.road-word.done i.on { background: var(--red); color: #fff; }
+.road-word i.new { animation: letter-in .5s cubic-bezier(.3, 1.6, .5, 1); }
+.road-word b { flex-basis: 100%; text-align: center; font: 600 12px var(--font-body); color: var(--gold); }
 @keyframes letter-in { from { transform: translateY(-14px) scale(1.5); } }
 
 /* собранная монета летит в счётчик USDT (Game.coinFx); тряска при ударе — камерой, не холстом */
