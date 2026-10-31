@@ -362,9 +362,9 @@ export const SOUNDS = {
     heroMusic: { sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
     // громкость своей музыки героя относительно общей: «СаняБелый» сведена на ~3,6 дБ тише «Чикаго» — ×1,8 (+5 дБ)
     heroMusicGain: { sasha: 1.8 },
-    // музыка забега по биому (своя музыка героя важнее); зима пока на общей music.run. Ночной трек на ~2 дБ тише «Чикаго»
-    biomeMusic: { vietnam: ["audio/music_dubai.mp3"], street: ["audio/music_night.mp3"] },
-    biomeMusicGain: { street: 1.3 },
+    // музыка забега по биому (своя музыка героя важнее). Зимний и ночной треки на ~2 дБ тише «Чикаго»
+    biomeMusic: { vietnam: ["audio/music_dubai.mp3"], street: ["audio/music_night.mp3"], winter: ["audio/music_winter.mp3"] },
+    biomeMusicGain: { street: 1.3, winter: 1.2 },
     musicVolume: { menu: 0.6, run: 0.6, pause: 0.2 }, // меню 0.6: трек ENZRO на ~2,6 дБ тише прежнего (было 0.45)
     ambience: { url: "audio/ambience.mp3", volume: 0.25 }, // фоновый шум улицы во время забега
     sfx: {

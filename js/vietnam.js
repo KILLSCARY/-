@@ -1,6 +1,7 @@
 // Dubai at sunset. Keep the legacy Vietnam export/location ID for saved hero routes.
 // Five recycled blocks and one stationary skyline, batched by material. No extra lights.
 import * as THREE from './vendor/three.module.js';
+import { cartoonRoad } from './road-art.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { loadModel } from './models.js';
 import { billboardAtlas } from './dubai-art.js';
@@ -145,12 +146,7 @@ export class Vietnam {
         }
         leaf.computeVertexNormals();
         this.temp = new THREE.Object3D();
-        this.roadMap = texture(512, 1024, (g, w, h) => {
-            g.fillStyle = '#55515a'; g.fillRect(0, 0, w, h);
-            for (let i = 0; i < 18000; i++) { g.fillStyle = rand() > .5 ? '#ffffff0b' : '#00000013'; g.fillRect(rand() * w, rand() * h, 1, 2); }
-            g.fillStyle = '#ebdcb7'; for (const x of [w * .358, w * .642]) for (let y = 0; y < h; y += 256) g.fillRect(x, y, 5, 110);
-            g.fillStyle = '#e6c073'; for (const x of [6, w - 12]) g.fillRect(x, 0, 5, h);
-        });
+        this.roadMap = texture(1024, 2048, (g, W, H) => cartoonRoad(g, W, H, { base: "#5d6474", light: "rgba(170,178,200,.045)", dark: "rgba(40,44,62,.055)", track: "rgba(40,44,62,.18)", paint: "#fbf6e6", edge: "line", edgeColor: "#f0c25e" }));
         this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping; this.roadMap.repeat.set(1, 480 / 12);
         // 30.10: земля, дорога и вода идут и на 160 м за спину героя — в меню камера смотрит назад, там было пусто
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 520, 1, 70), new THREE.MeshStandardMaterial({ color: 0xd8b585, roughness: 1 }));
@@ -423,29 +419,9 @@ export class Vietnam {
     }
     async loadDetailArtwork() {
         const loader = new THREE.TextureLoader();
-        const [asphalt, normal, roughness, palm, boards] = await Promise.all([
-            loader.loadAsync('models/reserve/ambientcg/asphalt_Color.webp'),
-            loader.loadAsync('models/reserve/ambientcg/asphalt_NormalGL.webp'),
-            loader.loadAsync('models/reserve/ambientcg/asphalt_Roughness.webp'),
+        const [palm, boards] = await Promise.all([
             loader.loadAsync('textures/dubai/palm-frond-v1.webp'), billboardAtlas(),
         ]);
-        const g = this.roadMap.image.getContext('2d'), W = this.roadMap.image.width, H = this.roadMap.image.height;
-        const tile = document.createElement('canvas'); tile.width = tile.height = 128;
-        tile.getContext('2d').drawImage(asphalt.image, 0, 0, 128, 128);
-        g.fillStyle = g.createPattern(tile, 'repeat'); g.fillRect(0, 0, W, H);
-        // Subtle tyre wear, clean lane paint and amber edge lines baked into the asphalt.
-        for (const x of [63, 102, 236, 275, 409, 448]) {
-            const wear = g.createLinearGradient(x - 8, 0, x + 8, 0);
-            wear.addColorStop(0, '#17232a00'); wear.addColorStop(.5, '#17232a22'); wear.addColorStop(1, '#17232a00');
-            g.fillStyle = wear; g.fillRect(x - 8, 0, 16, H);
-        }
-        g.fillStyle = '#eee7d5';
-        for (const x of [W * .358, W * .642]) for (let y = 0; y < H; y += 256) g.fillRect(x, y, 5, 110);
-        g.fillStyle = '#c9ac64'; for (const x of [6, W - 12]) g.fillRect(x, 0, 5, H);
-        this.roadMap.needsUpdate = true; asphalt.dispose();
-        for (const map of [normal, roughness]) { map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(4, 320 * 8 / 12); map.anisotropy = 4; }
-        this.road.material.normalMap = normal; this.road.material.normalScale.set(.32, .32);
-        this.road.material.roughnessMap = roughness; this.road.material.roughness = .85; this.road.material.color.set(0x566b81); this.road.material.needsUpdate = true;
         const fallback = this.materials.leaves.map;
         palm.encoding = THREE.sRGBEncoding; palm.anisotropy = 4;
         this.materials.leaves.map = palm; this.materials.leaves.color.set(0xffffff);
@@ -493,7 +469,6 @@ export class Vietnam {
     update(dt, move) {
         if (!this.on) return;
         this.roadMap.offset.y = (this.roadMap.offset.y + move / 12) % 1;
-        for (const map of [this.road.material.normalMap, this.road.material.roughnessMap]) if (map) map.offset.y = (map.offset.y + move * 8 / 12) % 1;
         this.waterMap.offset.y = (this.waterMap.offset.y + dt * .006) % 1;
         this.sea.material.normalMap.offset.y = (this.sea.material.normalMap.offset.y + dt * .009) % 1;
         for (const chunk of this.chunks) { chunk.position.z += move; while (chunk.position.z > this.behind) chunk.position.z -= this.len; }

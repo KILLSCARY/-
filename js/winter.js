@@ -4,6 +4,7 @@
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
 import { curveShader } from './curve.js';
+import { cartoonRoad } from './road-art.js';
 import { loadModel } from './models.js';
 import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
@@ -230,23 +231,7 @@ export class Winter {
         this.stores = {}; // витрины: вид → { mat, aspect } (материал заводится, когда витрина встречается впервые)
         const add = o => { this.world.scene.add(o); this.items.push(o); return o; };
         // A matte, opaque road: lane paint and wheel tracks are baked into one repeating map.
-        this.roadMap = texture(512, 1024, (g, W, H) => {
-            g.fillStyle = '#29364b'; g.fillRect(0, 0, W, H);
-            const rand = random(111);
-            for (let i = 0; i < 35000; i++) {
-                g.fillStyle = rand() > .5 ? '#bec7df12' : '#111f3517';
-                g.fillRect(rand() * W, rand() * H, 1 + rand() * 2, 1 + rand() * 3);
-            }
-            for (const x of [65, 105, 235, 275, 405, 445]) {
-                g.fillStyle = '#22334a22'; g.fillRect(x, 0, 12, H);
-            }
-            g.fillStyle = '#c7d5de';
-            for (const x of [W * .358, W * .642]) for (let y = 0; y < H; y += 256) g.fillRect(x, y, 5, 112);
-            for (const x of [0, W - 14]) {
-                g.fillStyle = '#b0c6e7'; g.fillRect(x, 0, 14, H);
-                for (let y = 0; y < H; y += 7) { g.fillStyle = '#d7e2f0'; g.fillRect(x + rand() * 10, y, rand() * 10, 9); }
-            }
-        });
+        this.roadMap = texture(1024, 2048, (g, W, H) => cartoonRoad(g, W, H, { base: "#3d4a66", light: "rgba(120,136,176,.09)", dark: "rgba(24,32,58,.13)", track: "rgba(22,30,54,.2)", edge: "snow" }));
         this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping;
         this.roadMap.repeat.set(1, this.length / 12);
         // дорога и снег: 320 м вперёд и 160 м за спину — в меню камера смотрит назад, раньше там улица обрывалась в небо
@@ -765,20 +750,6 @@ export class Winter {
         }
         const groundMap = snow.clone(); groundMap.repeat.set(130 / 2, this.vistaLength / 2);
         this.ground.material.map = groundMap; this.ground.material.needsUpdate = true;
-        const g = this.roadMap.image.getContext('2d'), W = this.roadMap.image.width, H = this.roadMap.image.height;
-        // Asphalt sample is repeated at a plausible stone scale before adding lane paint and tyre wear.
-        const tile = document.createElement('canvas'); tile.width = tile.height = 96;
-        tile.getContext('2d').drawImage(surfaces.image, surfaces.image.width / 2, 0,
-            surfaces.image.width / 2, surfaces.image.height / 2, 0, 0, 96, 96);
-        g.fillStyle = g.createPattern(tile, 'repeat'); g.fillRect(0, 0, W, H);
-        g.fillStyle = 'rgba(26,37,57,.48)'; g.fillRect(0, 0, W, H);
-        for (const x of [65, 105, 235, 275, 405, 445]) {
-            g.fillStyle = '#12243926'; g.fillRect(x, 0, 12, H);
-        }
-        g.fillStyle = '#c7d5de';
-        for (const x of [W * .358, W * .642]) for (let y = 0; y < H; y += 256) g.fillRect(x, y, 5, 112);
-        for (const x of [0, W - 9]) { g.fillStyle = '#acbfdc'; g.fillRect(x, 0, 9, H); }
-        this.roadMap.needsUpdate = true;
         await this.loadParkedCars(snow);
         this.assetsReady = true;
     }

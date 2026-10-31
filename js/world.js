@@ -6,6 +6,7 @@ import { updateAmbientAnimation } from "./frame-timing.js";
 // гофрометалл и бетон цоколя — Poly Haven (CC0).
 
 import * as THREE from "./vendor/three.module.js";
+import { cartoonRoad } from "./road-art.js";
 import { Reflector } from "./vendor/jsm/Reflector.js";
 import { TEXTURES, BANKS, ATMS, MODELS, SPRITES, OBSTACLE_MIX, POWERUPS, POWERUP_SPAWN, POLICE_OFFICER, CLIENT_TYPES, LANE_LABELS, CHARACTERS, CHASER, NPCS, SKY, WIND, WIRES, LAMP_GLOW, CHASERS } from "./config.js";
 import { clone as cloneSkinned } from "./vendor/jsm/SkeletonUtils.js";
@@ -529,15 +530,13 @@ export class World {
         const s = this.scene;
         const centerZ = BEHIND_Z - STREET_LEN / 2;
 
-        // мокрый асфальт. Под ним зеркало (Reflector), сам асфальт полупрозрачен там,
-        // где текстура «мокрая» (низкая шероховатость) — через эти места видно отражения.
-        const roadTex = pbr(TEXTURES.road, [1, STREET_LEN / 6]);
-        this.roadMap = roadTex.map;
+        // мультяшный ночной асфальт: без разметки, она отдельным слоем ниже
+        this.roadMap = canvasTex(1024, 1024, (g, W, H) => cartoonRoad(g, W, H, { base: "#2c2a38", light: "rgba(150,140,180,.05)", dark: "rgba(14,12,24,.07)", track: "rgba(22,12,40,.2)", dashes: 0 }));
+        this.roadMap.wrapS = this.roadMap.wrapT = THREE.RepeatWrapping;
+        this.roadMap.anisotropy = 8;
         this.roadRepeat = STREET_LEN / 6;
-        this.roadMat = new THREE.MeshStandardMaterial({
-            ...roadTex, roughnessMap: null, transparent: false, opacity: 1,
-            color: 0x8c847a, roughness: 0.68, metalness: 0.18, normalScale: new THREE.Vector2(0.24, 0.24), envMapIntensity: 0.8,
-        });
+        this.roadMap.repeat.set(1, this.roadRepeat);
+        this.roadMat = new THREE.MeshStandardMaterial({ map: this.roadMap, roughness: 0.85, metalness: 0.05, envMapIntensity: 0.35 });
         const roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, STREET_LEN, 1, 40), this.roadMat);
         roadMesh.rotation.x = -Math.PI / 2;
         roadMesh.position.set(0, 0.002, centerZ);
@@ -688,9 +687,9 @@ export class World {
     wetSheen(on = this.sheenOn) {
         this.sheenOn = on;
         const day = (this.location || "street") === "vietnam"; // днём (Нячанг) яркое небо в отражении — асфальт блестел фольгой
-        this.roadMat.roughness = day ? 0.82 : 0.68;
-        this.roadMat.metalness = day ? 0.08 : 0.18;
-        this.roadMat.envMapIntensity = day ? 0.35 : 0.8;
+        this.roadMat.roughness = day ? 0.82 : 0.85;
+        this.roadMat.metalness = day ? 0.08 : 0.05;
+        this.roadMat.envMapIntensity = 0.35;
         // зеркало луж (хорошая графика) затемнено под ночь — днём лужи выходили чёрными «нефтяными» пятнами
         this.reflector?.material.uniforms.color.value.setRGB(...(day ? [0.55, 0.55, 0.58] : [0.42, 0.4, 0.4]));
     }
