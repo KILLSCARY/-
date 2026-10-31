@@ -37,6 +37,7 @@ function fakeRedis() {
             case "ZREVRANK": { const i = sorted(a[0]).findIndex(([id]) => id === a[1]); return i < 0 ? null : i; }
             case "ZREVRANGE": return sorted(a[0]).slice(Number(a[1]), Number(a[2]) + 1).flatMap(([id, sc]) => [id, String(sc)]);
             case "EVAL": return []; // перки за карты: в этих тестах купленных нет
+            case "SMEMBERS": return []; // в этих тестах приглашений нет
             default: throw new Error(`ERR unknown command '${c}'`);
         }
     };

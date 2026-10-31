@@ -7,7 +7,8 @@ import { META, weekOf, weekEnd } from "./meta-rules.mjs";
 import { metaApi } from "./meta-client.js";
 import { renderShift, renderPromos } from "./city.js";
 import { CityMap } from "./map.js";
-import { CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, BETA_TEST_BUTTONS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP, HERO_FIGHT, FIGHT } from "./config.js";
+import { questList, questClaim, questClaimBonus, questReady } from "./quests.mjs";
+import { DAILY_QUESTS, CHARACTERS, SOON_HEROES, HERO_PRICES, HERO_PERKS, BOOSTS, UPGRADES, CASES, RARITY, APPEAL_PRICE, CASE_ITEM_ART, USDT_TIERS, RARITY_TITLE, CHAPTERS, LINKS, CLIENT_TYPES, HERO_SKILLS, HERO_UNLOCKS, BETA_ALL_HEROES, BETA_TEST_BUTTONS, CHAPTER_BOSSES, DAILY, SETS, SET_RUNS, NS_STORE_URL, BOOST_LIMIT, GORILLA, FIGHTERS, STORIES, CARD_SHOP, HERO_FIGHT, FIGHT } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const SKILL_ICONS = { turbo: "⚡", magnet: "🧲", x2: "×2", ram: "🛡", dive: "🗑" }; // значок умения на обороте карточки героя
@@ -55,6 +56,7 @@ export class Hub {
             if ((e.key === "Escape" || e.key === "Backspace") && this.game.state === "menu" && this.current !== "run") this.back();
         });
         for (const b of document.querySelectorAll(".seg button")) b.onclick = () => { this.seg = b.dataset.seg; this.renderShop(); };
+        $("btn-tasks").onclick = () => this.tab("tasks");
         for (const t of document.querySelectorAll("#tiles [data-go]")) t.onclick = () => this.tab(t.dataset.go);
         this.focus = null; // герой в центре карусели «Героев»
         $("btn-case-ok").onclick = () => {
@@ -95,6 +97,7 @@ export class Hub {
         this.game.audio.play("swipe");
         this.render();
         if (name === "rating") this.showRating();
+        if (name === "tasks") { this.renderQuests(); this.showRating(); } // показывает и разовые задания, досылает их на сервер
     }
 
     back() {
@@ -106,8 +109,59 @@ export class Hub {
         if (this.current !== "run") this.tab("run");
     }
 
+    // кружок заданий в меню: сколько наград можно забрать
+    renderTasksDot() {
+        const n = questReady(this.p.data), el = $("tasks-badge");
+        el.hidden = !n;
+        el.textContent = n;
+    }
+
+    // ежедневные задания: прогресс и «забрать»; бонус — когда забраны все
+    renderQuests() {
+        const box = $("quest-list"), d = this.p.data;
+        box.innerHTML = "";
+        const list = questList(d), add = (cls, title, sub, btn, bar, go) => {
+            const b = document.createElement("button");
+            b.className = `rate-task ${cls}`;
+            b.innerHTML = `<span class="rt-t"><span></span><small></small>${bar === null ? "" : `<span class="quest-bar"><i style="width:${bar}%"></i></span>`}</span><b></b>`;
+            b.querySelector(".rt-t span").textContent = title;
+            b.querySelector("small").textContent = sub;
+            b.querySelector("b").textContent = btn;
+            if (go) b.onclick = go; else b.disabled = !cls.includes("idle");
+            box.append(b);
+        };
+        const take = (usdt) => { if (!usdt) return; this.p.gift(usdt); this.game.audio.play("chest"); this.toast(`+${fmt(usdt)} USDT`); this.renderQuests(); this.renderTasksDot(); this.render(); };
+        for (const q of list) {
+            if (q.claimed) add("done", q.text, "Награда получена", "✓", null);
+            else if (q.done) add("ready", q.text, `Награда ${fmt(q.usdt)} USDT`, "Забрать", null, () => take(questClaim(d, q.id)));
+            else add("idle", q.text, `${fmt(q.got)} из ${fmt(q.goal)} · награда ${fmt(q.usdt)} USDT`, `+${fmt(q.usdt)}`, Math.round(q.got / q.goal * 100));
+        }
+        const all = list.every((q) => q.claimed);
+        if (all && d.quests.bonus) add("done", "Все задания дня", "Новые задания — завтра", "✓", null);
+        else if (all) add("ready", "Все задания дня", `Бонус ${fmt(DAILY_QUESTS.bonus)} USDT`, "Забрать", null, () => take(questClaimBonus(d)));
+        else add("idle", "Все задания дня", `Бонус ${fmt(DAILY_QUESTS.bonus)} USDT`, `+${fmt(DAILY_QUESTS.bonus)}`, null);
+        const left = list.filter((q) => !q.done).length;
+        $("quest-left").textContent = left ? `· осталось ${left}` : "· все выполнены";
+    }
+
+    // друзья (кто тебя позвал и кого позвал ты) для подсказки на экране итогов: один раз за сессию
+    loadFriends() {
+        if (this.friendsAsked || !prize.online) return;
+        this.friendsAsked = true;
+        prize.top(50).then((r) => { if (r?.status === 200) this.rateData = r; });
+    }
+
+    // итоги забега: ближайший друг выше по рейтингу
+    friendHint(score) {
+        const el = $("over-friend"), meId = this.rateData?.me?.id;
+        const next = (this.rateData?.friends || []).filter((x) => x.id !== meId && x.score > score).sort((a, b) => a.score - b.score)[0];
+        el.hidden = !next;
+        if (next) el.textContent = `Обгони: ${next.name || "друг"} — ещё ${fmt(next.score - score + 1)} очков`;
+    }
+
     render() {
         const p = this.p;
+        this.renderTasksDot();
         // всё пройдено и сделано — бонусный герой Горилла в команде (проверка при каждом обновлении меню)
         if (p.bonusCheck() && !BETA_ALL_HEROES) { this.game.audio?.play("buy"); this.toast("Бонус за всё: Горилла в команде!"); }
         $("w-usdt").textContent = short(p.usdt);
@@ -295,7 +349,7 @@ export class Hub {
             if (got.length && !BETA_ALL_HEROES) { this.game.audio.play("buy"); this.toast(`${got.join(", ")} в команде!${r?.points ? ` +${r.points} в рейтинг` : ""}`); }
             else if (first && !quiet) this.toast(kind === "store" ? `Подписка есть!${r?.points ? ` +${r.points} в рейтинг` : ""}` : `Друг засчитан!${r?.points ? ` +${r.points} в рейтинг` : ""}`);
             this.render();
-            if (this.current === "rating") r?.points ? this.showRating() : this.renderRateTasks(); // очки пришли — обновить счёт
+            if (this.current === "rating" || this.current === "tasks") r?.points ? this.showRating() : this.renderRateTasks(); // очки пришли — обновить счёт
             return true;
         }
         if (quiet) return false;
@@ -433,20 +487,23 @@ export class Hub {
         $("rate-chips").innerHTML = `<span><b>${n(this.game.best)}</b>Рекорд на телефоне</span><span><b>${n(me.score)}</b>В таблице</span><span><b class="nss">${n(this.meta?.nss)}</b>NSS</span>`;
         $("tile-rate-sub").textContent = me.rank ? `Ты №${me.rank} · ${n(me.score)} очков` : "Лучший забег";
         const list = $("rate-list");
-        const race = r.race, racing = this.rateTab === "race" && !!race;
-        $("rate-tabs").innerHTML = race ? [["best", "Рекорды"], ["race", "Гонка NSS"]].map(([k, t]) => `<button data-rt="${k}" class="${(racing ? "race" : "best") === k ? "on" : ""}">${t}</button>`).join("") : "";
+        const race = r.race, racing = this.rateTab === "race" && !!race, friends = this.rateTab === "friends" && !!r.friends;
+        const tabs = [["best", "Рекорды"], ...(r.friends ? [["friends", "Друзья"]] : []), ...(race ? [["race", "Гонка NSS"]] : [])], tabNow = racing ? "race" : friends ? "friends" : "best";
+        $("rate-tabs").innerHTML = tabs.length > 1 ? tabs.map(([k, t]) => `<button data-rt="${k}" class="${tabNow === k ? "on" : ""}">${t}</button>`).join("") : "";
         for (const b of $("rate-tabs").querySelectorAll("button")) b.onclick = () => { this.rateTab = b.dataset.rt; this.renderRating(r); };
         $("rate-race").hidden = !racing;
         if (racing) $("rate-race").innerHTML = `<b>Гонка недели</b><span>Топ-${race.prizes} по NSS из забегов и смены получают промокод −${race.off}% на БАДы. До итогов: ${Math.max(1, Math.ceil((race.end - Date.now()) / 864e5))} дн.</span><span>Ты: ${race.me.rank ? `№${race.me.rank} · ` : ""}${n(race.me.nss)} NSS</span>`;
         const row = (x) => `<div class="rate-row p${x.rank}${x.id === me.id ? " me" : ""}"><span class="pl">${x.rank}</span><span class="av"></span>`
             + `<span class="nm"><b></b><span>${racing ? "NSS за неделю" : stats(x)}</span></span><span class="sc">${racing ? `<em class="nss">${n(x.nss)} NSS</em>` : `${n(x.score)}<em class="nss">${n(x.nss)} NSS</em>`}</span></div>`;
-        const base = racing ? race.top : top, rows = [...base];
+        const base = racing ? race.top : friends ? r.friends : top, rows = [...base];
         if (racing) { if (race.me.rank && !base.some((x) => x.id === me.id)) rows.push({ id: me.id, ...race.me, name: "Ты" }); }
-        else if (me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
-        const sig = JSON.stringify([racing, rows]); // таблица та же — не перестраиваем, аватары не мигают
+        else if (!friends && me.rank && !top.some((x) => x.id === me.id)) rows.push({ ...me, name: "Ты" }); // себя — внизу, если не в первой полусотне
+        const sig = JSON.stringify([racing, friends, rows]); // таблица та же — не перестраиваем, аватары не мигают
         if (sig === this.rateSig && list.querySelector(".rate-row")) return;
         this.rateSig = sig;
-        list.innerHTML = rows.length ? rows.map((x, i) => (i === base.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : `<p class="rate-empty">Пока никого — будь первым!</p>`;
+        const lonely = friends && !rows.some((x) => x.id !== me.id);
+        list.innerHTML = (lonely ? `<p class="rate-empty">Здесь те, кого ты позвал и кто позвал тебя. Позови друга и обгони его.</p><button class="btn btn-main rate-invite" id="rate-invite">Позвать друга</button>` : "") + (rows.length ? rows.map((x, i) => (i === base.length ? `<p class="rate-gapline">…</p>` : "") + row(x)).join("") : lonely ? "" : `<p class="rate-empty">Пока никого — будь первым!</p>`);
+        if ($("rate-invite")) $("rate-invite").onclick = () => this.startAction("invite");
         [...list.querySelectorAll(".rate-row")].forEach((el, i) => {
             const nm = rows[i].name || "Игрок";
             el.querySelector(".nm b").textContent = nm; // имя — текстом, не HTML

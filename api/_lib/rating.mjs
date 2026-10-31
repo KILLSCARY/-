@@ -55,6 +55,14 @@ export async function runScore(body, who, { store, now }) {
     return { status: 200, json: { ok: true, score: pts, best } };
 }
 
+// друзья — связи по приглашениям: кто позвал меня и кого позвал я. Контакты Telegram игре недоступны
+async function friendRows(store, id) {
+    const [inviter, invited] = await Promise.all([store.refOf(id), store.refList(id)]);
+    const ids = [...new Set([String(id), ...(inviter && inviter !== "0" ? [inviter] : []), ...invited])].slice(0, 31);
+    const rows = await store.lbRows(ids);
+    return visibleRows(rows.sort((a, b) => b.score - a.score), 31);
+}
+
 export async function handleRating(action, body, who, { store, now }) {
     if (action === "runscore") return runScore(body, who, { store, now });
     if (action === "task") {
@@ -70,7 +78,7 @@ export async function handleRating(action, body, who, { store, now }) {
         await store.lbName?.(who.id, nameOf(who.user), photoOf(who.user)); // имя и фото могли поменять в Telegram
         const [all, me, done] = await Promise.all([store.lbTop(n + HIDDEN_NAMES.length), store.lbMe(who.id), store.tasksDone ? store.tasksDone(who.id) : []]);
         const top = visibleRows(all, n);
-        return { status: 200, json: { top, me: { id: who.id, ...me, done: done.filter((t) => t in RATING.tasks) }, rules: { kind: "run" } } };
+        return { status: 200, json: { top, friends: await friendRows(store, who.id), me: { id: who.id, ...me, done: done.filter((t) => t in RATING.tasks) }, rules: { kind: "run" } } };
     }
     return null;
 }

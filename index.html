@@ -49,6 +49,7 @@
             <div class="view" id="view-run">
                 <div class="brand">
                     <h1 class="word">Покоритель <span class="brand-row"><span class="brand-plate">P2P 3.0</span><span class="brand-sub">Игра<span>к курсу</span></span></span></h1>
+                    <button id="btn-tasks" class="tasks-dot" aria-label="Задания"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M3.5 6l1.2 1.2L7 4.8M3.5 12l1.2 1.2L7 10.8M3.5 18l1.2 1.2L7 16.8"/></svg><b id="tasks-badge" hidden></b></button>
                 </div>
                 <div class="grow"></div>
                 <div class="tiles" id="tiles">
@@ -88,6 +89,13 @@
                 <div id="shop-list" class="cards"></div>
             </div>
             <!-- Рейтинг игроков: очки считает сервер (api/_lib/rating.mjs) -->
+            <div class="view sheet" id="view-tasks" hidden>
+                <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Задания</p></div>
+                <p class="label rate-cap">На сегодня <span class="rate-left" id="quest-left"></span></p>
+                <div class="rate-tasks" id="quest-list"></div>
+                <p class="label rate-cap">Разовые <span class="rate-left" id="rate-left"></span></p>
+                <div class="rate-tasks" id="rate-tasks"></div>
+            </div>
             <div class="view sheet" id="view-rating" hidden>
                 <div class="view-head"><button class="back" data-back aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><p class="label">Рейтинг игроков</p></div>
                 <div class="rate-hero">
@@ -101,8 +109,6 @@
                 <div class="rate-tabs" id="rate-tabs"></div>
                 <div class="rate-race" id="rate-race" hidden></div>
                 <div class="rate-list" id="rate-list"></div>
-                <p class="label rate-cap">Задания <span class="rate-left" id="rate-left"></span></p>
-                <div class="rate-tasks" id="rate-tasks"></div>
                 <details class="rate-rules"><summary>За что очки</summary><div class="rate-mine" id="rate-mine"></div><div id="rate-rules"></div></details>
             </div>
             <!-- Главы сюжета: пройденные, текущая с прогрессом, закрытые -->
@@ -364,6 +370,7 @@
                 <div class="st o-in" style="--i:3"><span class="n">02</span><b id="over-dist">0</b><span class="st-cap">метров</span></div>
             </div>
             <p id="over-wallet" class="wallet-line o-in" style="--i:5"></p>
+            <p id="over-friend" class="over-friend o-in" style="--i:5" hidden></p>
             <div id="over-phrase" class="phrase-card o-in" style="--i:5" hidden></div>
             <button id="btn-appeal" class="appeal o-in" style="--i:6" hidden>
                 <svg class="ico-usdt" aria-hidden="true"><use href="#ico-usdt"/></svg>

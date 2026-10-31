@@ -296,6 +296,7 @@ export class CardGirls {
         this.flying.push(card);
         this.got++;
         g.profile.addCards(1);
+        g.quest?.("cards");
         g.audio.play("boost");
         g.world.flash(pos, true);
         g.cardFx?.(pick(CARDS.lines), this.got);

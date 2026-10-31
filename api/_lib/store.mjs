@@ -142,6 +142,8 @@ export function memoryStore() {
             return true;
         },
         async refCount(id) { return refs.get(String(id))?.size || 0; },
+        async refList(id) { return [...(refs.get(String(id)) || [])]; },
+        async lbRows(ids) { return ids.filter((id) => lbr.has(id)).map((id) => ({ id, score: lbr.get(id), name: lbn.get(id) || "Игрок", photo: lbp.get(id) || "" })); },
     };
 }
 
@@ -279,6 +281,14 @@ export function redisStore(url, token, fetchImpl = fetch) {
             return true;
         },
         async refCount(id) { return Number((await cmd("SCARD", `p2p:refs:${id}`)) || 0); },
+        async refList(id) { return (await cmd("SMEMBERS", `p2p:refs:${id}`)) || []; },
+        async lbRows(ids) {
+            const rows = await Promise.all(ids.map(async (id) => {
+                const [score, name, photo] = await Promise.all([cmd("ZSCORE", "p2p:lbr", id), cmd("HGET", "p2p:lbn", id), cmd("HGET", "p2p:lbp", id)]);
+                return score == null ? null : { id, score: Number(score), name: name || "Игрок", photo: photo || "" };
+            }));
+            return rows.filter(Boolean);
+        },
     };
 }
 

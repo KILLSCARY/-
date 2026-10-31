@@ -514,6 +514,17 @@ export const GRANTS = [
 ];
 
 // Ежедневный вход (только USDT, shop_v6): награда за 1…7-й день подряд; 7-й — набор «Королевский Сон»
+// Ежедневные задания (js/quests.mjs): count на день из pool, награда USDT каждому, bonus — за все сразу
+export const DAILY_QUESTS = { count: 3, bonus: 300, pool: [
+    { id: "dist", text: "Пробеги 1 000 м за один забег", goal: 1000, usdt: 150 },
+    { id: "runs", text: "Сделай 3 забега", goal: 3, usdt: 100 },
+    { id: "usdt", text: "Собери 300 USDT в забегах", goal: 300, usdt: 150 },
+    { id: "cards", text: "Подбери 2 Карты", goal: 2, usdt: 250 },
+    { id: "roof", text: "Забеги на крышу фуры 3 раза", goal: 3, usdt: 200 },
+    { id: "jump", text: "Прыгни 40 раз", goal: 40, usdt: 100 },
+    { id: "slide", text: "Сделай 20 кувырков", goal: 20, usdt: 100 },
+] };
+
 export const DAILY = [
     { usdt: 100 }, { usdt: 200 }, { usdt: 300 }, { usdt: 400 }, { usdt: 600 }, { usdt: 800 }, { set: "son" },
 ];

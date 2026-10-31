@@ -1464,6 +1464,18 @@ body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s;
 .rate-gapline { margin: 0; text-align: center; color: var(--muted); line-height: 1; }
 .rate-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
 /* задания */
+.tasks-dot { position: relative; display: grid; place-items: center; width: 44px; height: 44px; margin-top: 10px; padding: 0; border-radius: 50%; background: rgba(10, 10, 12, .72); border: 1px solid rgba(255, 255, 255, .22); color: #fff; }
+.tasks-dot svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tasks-dot b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); font-size: 11px; line-height: 18px; text-align: center; }
+.tasks-dot b[hidden] { display: none; }
+.tasks-dot:active { transform: scale(.92); }
+.quest-bar { display: block; height: 4px; margin-top: 2px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .12); }
+.quest-bar i { display: block; height: 100%; background: var(--gold); }
+.rate-task.ready { border-color: var(--gold); }
+.rate-task.ready b { background: var(--gold); color: #2c1c02; }
+.over-friend { margin: 8px 0 0; text-align: center; font-size: 14px; color: var(--gold); }
+.over-friend[hidden] { display: none; }
+.rate-invite { width: 100%; margin-top: 8px; }
 .rate-tasks { display: grid; gap: 6px; }
 .rate-task { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px 12px 16px; border-radius: 16px; text-align: left;
     background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: #fff; font: 600 15px var(--font-body, inherit); }

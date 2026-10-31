@@ -1,7 +1,8 @@
 // «Покоритель P2P 3.0» — раннер: крыс бежит по ночному району, собирает USDT,
 // прыгает через баки, подкатывается под «блокировки» и объезжает тачки.
 
-import { BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
+import { questAdd } from "./quests.mjs";
+import { TRUCKS, BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
@@ -563,6 +564,8 @@ class Game {
         this.x = 0;
         this.y = 0;
         this.vy = 0;
+        this.questUsdt = 0;
+        this.roofCounted = false;
         this.floor = 0; // высота опоры под героем: асфальт или пандус и крыша фуры (floorAt)
         this.fromRoof = false;
         this.jumping = false;
@@ -730,6 +733,7 @@ class Game {
         setTimeout(() => { if (this.runId === run) cd.hidden = true; }, 700);
         if (!this.story?.chase && !this.heroCfg?.sick) this.introChase = INTRO_CHASE;
         this.applyBoosts(); // добавки тратятся, только когда забег точно начался
+        this.hub.loadFriends();
         const st = this.story;
         const nb = this.nextBoss();
         const ch2 = !st && this.questions && this.profile.chapter().index === 1; // глава 2: намёк «Горилла = Павел» (v2.7 §13.2)
@@ -915,6 +919,7 @@ class Game {
 
         const score = this.score();
         this.submitRun();
+        this.hub.friendHint(score);
         const isBest = score > this.best, prevBest = this.best;
         if (isBest) {
             this.best = score;
@@ -1029,8 +1034,19 @@ class Game {
 
     // Результат забега — в рейтинг: сервер проверит по своему времени старта (cardRunId) и оставит лучший результат.
     // Один забег можно прислать несколько раз (после апелляции очков больше) — в таблице всё равно максимум
+    // прогресс ежедневного задания; не сохраняем каждый прыжок — профиль пишется в конце забега
+    quest(id, n = 1, mode) {
+        questAdd(this.profile.data, id, n, mode);
+    }
+
     submitRun() {
         if (!(this.distance > 0)) return;
+        this.quest("dist", this.distance, "max");
+        this.quest("usdt", Math.max(0, this.usdt - (this.questUsdt || 0)));
+        this.questUsdt = this.usdt; // после апелляции забег тот же: считаем только новое
+        if (this.questRun !== this.runId) { this.questRun = this.runId; this.quest("runs"); }
+        this.profile.save();
+        this.hub.renderTasksDot();
         const got = (r) => { // NSS за забег: 1 за 200 м, начисляет сервер после проверки результата
             if (!r?.meta) return;
             this.hub.meta = r.meta;
@@ -1077,6 +1093,7 @@ class Game {
         this.vy = BALANCE.jumpPower * (this.fx.honey > 0 ? 1.3 : 1); // «Рывок» — прыжок выше
         this.camKick.dip = -0.16; // камера на миг приседает и догоняет героя
         this.squash = { t: 0, up: 1 };
+        this.quest("jump");
         this.audio.play("swipe");
         tg.haptic("medium");
     }
@@ -1089,6 +1106,7 @@ class Game {
         const roll = this.rat.userData.actions?.slide;
         if (this.slideLeft > 0 && this.rat.userData.current === "slide" && roll) roll.reset().play();
         this.slideLeft = BALANCE.slideTime * (this.perk.slide || 1);
+        this.quest("slide");
         this.world.splash(this.x, 0, 20, 1.2);
         this.world.ring(this.x, -0.2, 1.7, 0.5);
         this.audio.play("swipe");
@@ -2044,6 +2062,9 @@ class Game {
             else this.y = floor; // по пандусу вверх, по крыше ровно
         }
         this.fromRoof = floor > 0 || (this.fromRoof && this.jumping); // спрыгнул с фуры и ещё не приземлился на асфальт
+        const onRoof = floor >= TRUCKS.roof - 0.01;
+        if (onRoof && !this.roofCounted) this.quest("roof");
+        this.roofCounted = onRoof || (this.roofCounted && floor > 0);
         if (this.slideLeft > 0) {
             this.slideLeft -= dt;
             this.sprayIn = (this.sprayIn || 0) - dt;

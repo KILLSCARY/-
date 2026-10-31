@@ -349,3 +349,18 @@ test("второй раунд тестовых Карт: на сервере н�
     assert.equal(await mem.cardTestOnce("5", 1000), false);
     assert.equal(await mem.cardBalance("5"), 1000);
 });
+
+test("вкладка друзей: только связи по приглашениям, по очкам; без забега в таблицу не попадает", async () => {
+    const store = memoryStore();
+    await store.lbBest("201", 900, "Я");
+    await store.lbBest("202", 1500, "Позвал меня");
+    await store.lbBest("203", 300, "Позвал я");
+    await store.lbBest("204", 9000, "Чужой");
+    await store.refAdd("202", "201");
+    await store.refAdd("201", "203");
+    await store.refAdd("201", "205"); // ещё не бегал
+    const { friends, top } = (await run(store, "top", { initData: init(201) }, T0)).json;
+    assert.deepEqual(friends.map((x) => [x.id, x.score, x.rank]), [["202", 1500, 1], ["201", 900, 2], ["203", 300, 3]]);
+    assert.equal(top[0].id, "204");
+    assert.deepEqual((await run(store, "top", { initData: init(206) }, T0)).json.friends, []);
+});
