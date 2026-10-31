@@ -729,8 +729,7 @@ html.tg, html.tg body { background: #000; }
 .wall-q {
     position: absolute; left: 50%; top: calc(86px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px));
     transform: translateX(-50%); width: min(352px, calc(100% - 20px)); pointer-events: none;
-    padding: 7px 8px 8px; border-radius: 16px; background: rgba(18, 19, 24, .62); border: 1px solid rgba(255, 255, 255, .07);
-    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    padding: 7px 8px 8px; border-radius: 16px; background: rgba(18, 19, 24, .8); border: 1px solid rgba(255, 255, 255, .07);
     animation: wq-in .3s ease-out both;
 }
 .wq-head { display: flex; align-items: center; gap: 7px; }
@@ -1002,8 +1001,8 @@ body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s;
 /* ---- v3: босс главы, вопрос сделки, режим ---- */
 /* плашка босса — в общем потоке HUD, сразу под строкой добавок: не уезжает под кнопки Telegram и не закрывает плашки */
 .boss-hud { position: relative; display: flex; gap: 10px; align-items: center;
-    padding: 8px 12px; border-radius: 16px; background: linear-gradient(180deg, rgba(40, 8, 10, .78), rgba(10, 2, 3, .72));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 0 0 1px rgba(227, 52, 58, .55), 0 12px 30px rgba(0, 0, 0, .5); backdrop-filter: blur(8px); pointer-events: none; z-index: 5; }
+    padding: 8px 12px; border-radius: 16px; background: linear-gradient(180deg, rgba(40, 8, 10, .9), rgba(10, 2, 3, .86));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 0 0 1px rgba(227, 52, 58, .55), 0 12px 30px rgba(0, 0, 0, .5); pointer-events: none; z-index: 5; }
 .boss-hud .bh-ph { width: 46px; height: 46px; flex: none; border-radius: 12px; background: #2a0a0c center/cover; box-shadow: 0 0 0 2px #e3343a, 0 0 18px rgba(227, 52, 58, .6); }
 .boss-hud .bh-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .boss-hud #bh-name { font: 700 10px/1 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: #ff8a8e; }
@@ -1478,7 +1477,7 @@ body.in-fight #menu { display: none !important; }
 /* ---- онбординг-окна (редизайн 29.10): анкета Гориллы, финальный вопрос, выбор режима ----
    На телефоне — нижний лист (большой палец достаёт до ответов), на широком экране — карточка по центру.
    Вопрос обычным регистром, ответы — плитки с буквой, у анкеты — шаг и прогресс */
-.modal.ob { background: radial-gradient(120% 70% at 50% 100%, rgba(227, 52, 58, .16), rgba(0, 0, 0, .78) 60%); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal.ob { background: radial-gradient(120% 70% at 50% 100%, rgba(227, 52, 58, .16), rgba(0, 0, 0, .78) 60%); }
 .ob-card {
     position: relative; width: min(400px, 100%); box-sizing: border-box; padding: 18px 16px 16px; text-align: left; overflow: hidden;
     border-radius: 26px; border: 1px solid rgba(255, 255, 255, .09);

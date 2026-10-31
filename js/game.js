@@ -573,7 +573,7 @@ class Game {
         if (this.hub.guide.active) return;
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
         // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
-        if (this.questions && !this.profile.data.anketa && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
+        if (this.questions && (!this.profile.data.anketa || this.profile.data.anketaOpen) && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
         this.dropIntroStage();
         this.world.placeNikitas();
         const chapterStory = this.story;
@@ -1097,12 +1097,12 @@ class Game {
         }
     }
 
-    // HUD обновляется каждый кадр, а в DOM пишем, только когда значение поменялось: на телефоне каждая запись
-    // в textContent — пересчёт вёрстки
+    // В забеге HUD обновляется не чаще 10 раз в секунду (см. step), а в DOM пишем, только когда значение поменялось:
+    // на телефоне каждая запись в textContent — пересчёт вёрстки. Вместимость ячеек меряем, только когда число стало длиннее
     updateHud() {
         const c = (this.hudCache ||= {});
         let changed = false;
-        const text = (id, value) => { if (c[id] !== value) { $(id).textContent = c[id] = value; changed = true; } };
+        const text = (id, value) => { if (c[id] !== value) { if (String(c[id]).length !== String(value).length) changed = true; $(id).textContent = c[id] = value; } };
         text("hud-usdt", fmt(this.usdt));
         text("hud-cards", fmt(this.profile.cards));
         this.hudScore = Math.max(this.hudScore || 0, this.score()); // счёт на экране только растёт
@@ -1192,9 +1192,9 @@ class Game {
             ou.aspect.value = window.innerWidth / Math.max(1, window.innerHeight);
         } else ou.soft.value = softTo ? ou.soft.value : 0;
         this.frameStart = now; // для диагностики: время JS-кадра до отрисовки
-        // пауза и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
+        // пауза, окно поверх меню и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
         // (раньше рисовали те же кадры 12 раз в секунду — расход батареи и нагрев впустую)
-        const still = this.state === "paused" || (this.state === "over" && !this.arrest && this.t - (this.overAt || 0) > 3);
+        const still = this.state === "paused" || this.menuModal() || (this.state === "over" && !this.arrest && this.t - (this.overAt || 0) > 3);
         if (still && this.stillDrawn) return;
         this.stillDrawn = still;
 
@@ -1547,6 +1547,11 @@ class Game {
         return this.state === "menu" && ((this.hub?.current && this.hub.current !== "run") || !$("case-open").hidden);
     }
 
+    // поверх меню открыто окно (анкета, выбор режима, ежедневная награда)
+    menuModal() {
+        return this.state === "menu" && (this.modalEls ||= [...document.querySelectorAll(".modal")]).some((el) => !el.hidden);
+    }
+
     // Выбор персонажа: модель грузится один раз, клипы прыжка и подката подгоняются под их длительность
     // Стартовая загрузка: экран #boot (виден сразу из HTML) держим, пока не загружен герой и не затихли
     // загрузки моделей/текстур (DefaultLoadingManager), потом собираем шейдеры под ним — меню открывается без подлагиваний.
@@ -1858,7 +1863,8 @@ class Game {
         for (const k of ["magnet", "honey", "safe", "turbo", "ezhovik"]) if (this.fx[k] > 0) this.fx[k] -= dt;
         if (this.windCalm > 0) this.windCalm -= dt;
         this.collide(dt, move);
-        this.updateHud();
+        const hudNow = performance.now();
+        if (hudNow - (this.hudAt || 0) >= 100) { this.hudAt = hudNow; this.updateHud(); }
     }
 
     // Первый удар: врезался сбоку при перестроении — отлетаешь на свою полосу, спереди — препятствие сбито.
@@ -3086,9 +3092,11 @@ class Game {
     // Анкета Гориллы: вопросы по одному, ответы — в profile.data.anketa (уходят менеджеру в сообщении)
     showAnketa(list, then, title = "Анкета") {
         const d = this.profile.data, box = $("ak-a");
-        let i = 0;
+        const main = list === GORILLA.anketa;
+        // закрыл игру посреди анкеты — продолжаем с первого вопроса без ответа
+        let i = main && d.anketaOpen ? Math.max(0, list.findIndex((q) => !d.anketa?.[q.id])) : 0;
         const step = () => {
-            if (i >= list.length) { $("anketa").hidden = true; this.profile.save(); if (list === GORILLA.anketa) this.hub.task("anketa"); return then?.(); }
+            if (i >= list.length) { $("anketa").hidden = true; if (main) d.anketaOpen = false; this.profile.save(); if (main) this.hub.task("anketa"); return then?.(); }
             const q = list[i];
             $("ak-step").textContent = list.length > 1 ? `${title} · ${i + 1} из ${list.length}` : title;
             // прогресс — сегменты по шагам (у одного вопроса не нужен)
@@ -3107,6 +3115,7 @@ class Game {
                     box.dataset.busy = "1"; // выбор подсвечивается на миг, потом следующий вопрос
                     b.classList.add("pick");
                     (d.anketa ||= {})[q.id] = a;
+                    if (main && i < list.length - 1) { d.anketaOpen = true; this.profile.save(); }
                     setTimeout(() => { delete box.dataset.busy; i++; step(); }, 180);
                 };
                 box.append(b);
