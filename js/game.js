@@ -686,10 +686,10 @@ class Game {
         const chapterStory = this.story;
         if (chapterStory) {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
-            // район, выбранный на карте, важнее района главы
-            const picked = this.settings.location;
+            // Глава идёт в своём районе (1 — зимний, 2 и 3 — ночной): ролики и декорации (кордон, штаб) сделаны под него,
+            // а с районом с карты глава 2 шла на снегу. Выбор на карте — для свободного бега
             // смена района — тяжёлая: только под затемнением, иначе экран лагает на глазах перед роликом
-            const toLocation = () => this.setLocation(picked === "winter" || picked === "street" ? picked : ["winter", "street", "street"][chapterStory.id - 1]);
+            const toLocation = () => this.setLocation(["winter", "street", "street"][chapterStory.id - 1]);
             if (chapterStory.id === 1 && !this.profile.data.phoneSceneSeen) {
                 this.state = "storyintro";
                 this.rat.position.set(0, 0, 0);
@@ -1904,8 +1904,9 @@ class Game {
     // музыка забега: своя у героя (Саша, Ислам), иначе — биома, иначе — общая
     syncRunMusic() {
         const hero = SOUNDS.heroMusic[this.heroId];
-        if (hero) return this.audio.setRunTracks(hero, SOUNDS.heroMusicGain[this.heroId] || 1);
-        this.audio.setRunTracks(SOUNDS.biomeMusic[this.location] || SOUNDS.music.run, SOUNDS.biomeMusicGain[this.location] || 1);
+        const biome = { urls: SOUNDS.biomeMusic[this.location] || SOUNDS.music.run, gain: SOUNDS.biomeMusicGain[this.location] || 1 };
+        if (hero) return this.audio.setRunTracks(hero, SOUNDS.heroMusicGain[this.heroId] || 1, biome); // файла героя нет — музыка района
+        this.audio.setRunTracks(biome.urls, biome.gain);
     }
 
     heroLocation(id) {
@@ -2356,8 +2357,14 @@ class Game {
         const chip = $("hud-usdt").parentElement;
         const el = !this.calm && this.flyPool.find((e) => !e.busy);
         if (!el) return this.pulseChip(chip);
-        const v = (this.coinVec ||= new THREE.Vector3()).copy(c.position).project(this.camera);
-        const x0 = (v.x + 1) / 2 * window.innerWidth, y0 = (1 - v.y) / 2 * window.innerHeight;
+        // где монета на экране: так же, как её рисует шейдер (мир-шар гнёт всё дальше CURVE.near), и по настоящему
+        // холсту — window.inner* в Telegram отстаёт от него, и иконка вылетала в стороне от монеты
+        const v = c.getWorldPosition(this.coinVec ||= new THREE.Vector3()).applyMatrix4(this.camera.matrixWorldInverse);
+        const d = Math.max(0, -v.z - CURVE.near) ** 2;
+        v.y -= curveUniform.value * d; v.x += curveSide.value * d;
+        v.applyMatrix4(this.camera.projectionMatrix);
+        const cv = this.renderer.domElement.getBoundingClientRect();
+        const x0 = cv.left + (v.x + 1) / 2 * cv.width, y0 = cv.top + (1 - v.y) / 2 * cv.height;
         if (!this.hudCoin) { // где иконка USDT в счётчике — один раз (сбрасывается в onResize)
             const r = chip.querySelector("svg").getBoundingClientRect();
             this.hudCoin = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -2365,10 +2372,13 @@ class Game {
         const { x, y } = this.hudCoin;
         el.busy = true;
         el.style.display = "block";
+        // дугой, а не по прямой: сначала подскок вверх и в сторону от счётчика, потом разгон в счётчик
+        const mx = x0 + (x - x0) * 0.3 + (x0 < x ? -24 : 24), my = Math.min(y0, y) + (y0 - y) * 0.25 - 40;
         const a = el.animate([
-            { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.15)` },
+            { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.15)`, easing: "cubic-bezier(.2, .6, .4, 1)" },
+            { transform: `translate(${mx}px, ${my}px) translate(-50%, -50%) scale(1.25)`, offset: 0.35, easing: "cubic-bezier(.6, 0, .9, .6)" },
             { transform: `translate(${x}px, ${y}px) translate(-50%, -50%) scale(0.7)` },
-        ], { duration: 420, easing: "cubic-bezier(.55, 0, .75, .45)" });
+        ], { duration: 480 });
         a.onfinish = a.oncancel = () => { el.busy = false; el.style.display = "none"; this.pulseChip(chip); };
     }
 

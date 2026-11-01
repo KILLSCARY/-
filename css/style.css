@@ -1971,3 +1971,22 @@ body.direct.winter #vig { opacity: 1; background: radial-gradient(ellipse 85% 80
 .cs-buy .cs-open:disabled { background: rgba(255, 255, 255, .12); border-color: transparent; color: var(--muted); opacity: 1; }
 .cs-buy .cs-x5 { padding: 10px; font-size: 13px; background: none; border: 1px solid var(--line); color: var(--text); }
 .cs-buy .cs-x5:disabled { opacity: .4; }
+
+/* ---- ГС-отзывы героев в карточках (js/voice.js): голосовое как в Telegram на лице, расшифровка на обороте ---- */
+.hvoice { --p: 0; display: flex; align-items: center; gap: 7px; margin-top: 3px; padding: 5px 9px 5px 5px; border-radius: 999px;
+    background: rgba(20, 20, 22, .82); border: 1px solid rgba(233, 194, 90, .45); cursor: pointer; touch-action: pan-x; }
+.vm-play { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--gold); color: #1a1406; cursor: pointer; }
+.vm-play svg { width: 16px; height: 16px; fill: currentColor; }
+.vm-play:disabled { opacity: .35; cursor: default; }
+.vm-wave { flex: 1; min-width: 0; height: 18px; display: flex; align-items: center; gap: 2px; }
+/* прослушанная часть волны — золотая: --p (0…1) у голосового, --i — номер полосы, --n — сколько полос */
+.vm-wave i { flex: 1; min-width: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--gold) calc((var(--p) * var(--n) - var(--i, 0)) * 100%), rgba(255, 255, 255, .3) 0); }
+.vm-time { flex: none; min-width: 28px; text-align: right; color: #d6d6d6; font: 600 11px var(--font-body); font-variant-numeric: tabular-nums; }
+.hvoice.broken .vm-wave { opacity: .35; }
+.hvoice.broken .vm-time { color: var(--muted); }
+/* сбоку голосовое не нажимается само: тап выводит карточку в центр */
+.hcard:not(.active) .hvoice { opacity: .75; }
+.hb-voice { padding: 9px 10px; border-radius: 14px; border: 1px solid rgba(233, 194, 90, .45); background: rgba(233, 194, 90, .08); display: flex; flex-direction: column; gap: 4px; }
+.hb-voice span { font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.hb-voice p { margin: 0; font-size: 12px; line-height: 1.35; color: #e2e2e2; white-space: pre-line; }

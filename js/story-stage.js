@@ -12,13 +12,16 @@ const PROPS = {
         // внутри него карликом), инспектор — в рост перед ним, машина — за ограждением, а не в нём
         { url: 'models/story/cordon.glb?v=2', x: 3.6, z: 0, height: 1.15, rotation: -.25 },
         { url: 'models/obj/lite/patrol1.glb', x: 4.6, z: -5.2, height: 1.65, rotation: Math.PI / 2 },
-        { url: 'models/obj/lite/cop.glb', x: 2.9, z: 1.7, height: 1.8, clip: 'talk' },
+        // инспектор — ближе к камере, чем кордон: на телефоне камера у самого героя, и в 7 м от неё он был с ладонь
+        { url: 'models/obj/lite/cop.glb', x: 2.4, z: 4.6, height: 1.85, clip: 'talk' },
     ],
     // глава 1 пройдена: герой дошёл до станции, Горилла встречает его у обочины, перед оградой (за ней его не видно),
     // лицом к герою; подсвечен своей текстурой, как станция. arrivalSolo — бежишь за самого Гориллу: встречать некому
     arrival: [
         { url: 'models/story/station.glb?v=2', x: 6.1, z: 0, height: 3, rotation: -Math.PI / 2, sidewalk: true, glow: .75 },
-        { url: 'models/gorilla_hero.glb?v=6', x: 2.8, z: 2.4, height: 1.9, rotation: -Math.PI / 4, glow: .35, clip: 'cheer' },
+        // ближе к герою (в 5 м от камеры, а не в 7,5) и в полный рост гориллы: издалека он выходил втрое меньше героя.
+        // Стоит на краю дороги: ограда идёт по самому бордюру, и с x 2,3 и дальше перила резали ему ноги
+        { url: 'models/gorilla_hero.glb?v=6', x: 1.7, z: 5, height: 2.1, rotation: -Math.PI / 4, glow: .35, clip: 'cheer' },
     ],
     arrivalSolo: [
         { url: 'models/story/station.glb?v=2', x: 6.1, z: 0, height: 3, rotation: -Math.PI / 2, sidewalk: true, glow: .75 },

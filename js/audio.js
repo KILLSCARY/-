@@ -74,6 +74,8 @@ export class Audio {
             out.connect(this.master);
             const p = { el, gain, index: 0, urls };
             el.addEventListener("ended", () => this.nextTrack(p));
+            // трека героя ещё нет на сервере (или не открылся) — играем запасной, а не тишину
+            if (list === "run") el.addEventListener("error", () => { const f = this.runFallback; if (f && p.urls !== f.urls) { this.runFallback = null; this.setRunTracks(f.urls, f.gain); } });
             this.players[list] = p;
         }
 
@@ -140,8 +142,10 @@ export class Audio {
     // музыка забега под героя (SOUNDS.heroMusic: у Саши Белого и Ислама — своя), у остальных — общая.
     // Меняем плейлист плеера забега; выбор героя — касание, и iOS даёт запустить новый трек
     // gain — громкость трека относительно общей (тихо сведённая песня — громче; перегруз срезает limiter плеера)
-    setRunTracks(urls, gain = 1) {
+    // fallback — { urls, gain }: что играть, если этот трек не загрузится
+    setRunTracks(urls, gain = 1, fallback = null) {
         this.runUrls = urls;
+        this.runFallback = fallback;
         if (this.runGain !== gain) { this.runGain = gain; this.music(this.mode); }
         const p = this.players.run;
         if (!p || p.urls === urls) return;

@@ -391,7 +391,8 @@ export const SOUNDS = {
         run: ["audio/music_chicago.mp3"], // есть ещё audio/music_v2.mp3 — пока не играет
     },
     // своя музыка забега у героя (Диск, папка «Звуки»): «СаняБелый» и «Ислам песня» (23 с, по кругу); у остальных — music.run
-    heroMusic: { mouse: ["audio/music_speedy.aac"], sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"] },
+    // nikita — «Бомж» (Сектор Газа): файл audio/music_nikita.mp3 кладёт команда (права на трек — у неё); пока файла нет — музыка района
+    heroMusic: { mouse: ["audio/music_speedy.aac"], sasha: ["audio/music_sasha.mp3"], islam: ["audio/music_islam.mp3"], nikita: ["audio/music_nikita.mp3"] },
     // громкость своей музыки героя относительно общей: «СаняБелый» сведена на ~3,6 дБ тише «Чикаго» — ×1,8 (+5 дБ)
     heroMusicGain: { sasha: 1.8 },
     // музыка забега по биому (своя музыка героя важнее). Зимний и ночной треки на ~2 дБ тише «Чикаго»
@@ -503,6 +504,13 @@ export const VENT = { firstAt: 650, every: [480, 720], zone: 4, after: 3, warn: 
 export const BOSS = { pass: 2, portrait: "img/heroes/pavel.jpg" };
 
 // Реплики героев на старте забега (сценарий v2) и Мизулиной, когда выбегает за героем
+// ГС-отзывы героев о проекте — только настоящие голосовые самих ребят: file — запись (audio/voice/…, mp3/m4a/ogg),
+// text — дословная расшифровка их же слов, hero — id из CHARACTERS. Пустой список — кнопки «Голосовое» в «Героях» нет
+export const VOICE_REVIEWS = [
+    // { hero: "pavel", file: "audio/voice/pavel.m4a", text: "…" },
+    { hero: "nikita", file: "audio/voice/nikita.ogg" }, // голосовое из Telegram (Drive «озвучка игра»); расшифровки пока нет
+];
+
 export const HERO_LINES = {
     mouse: ["За Спиди! За Пашу! За НСС!", "За НСС!", "За Спиди! За Пашу! За НСС!", "Ариба! Кто думает, тот догоняет", "Быстрее, чем твоё «потом»"],
     denchik: ["Посчитал: стоять дороже, чем бежать", "+8% к монетам, потому что я всё посчитал"],

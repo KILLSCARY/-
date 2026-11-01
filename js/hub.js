@@ -2,6 +2,7 @@
 
 import { tg } from "./tg.js";
 import { GorillaGuide } from "./guide.js";
+import { HeroVoices, voiceBubble, voiceText } from "./voice.js";
 import { prize } from "./prize.js";
 import { META, weekOf, weekEnd } from "./meta-rules.mjs";
 import { metaApi } from "./meta-client.js";
@@ -49,6 +50,7 @@ export class Hub {
         this.current = "run";
         this.seg = "shift"; // вкладка NS Store
         this.guide = new GorillaGuide(this);
+        this.voices = new HeroVoices(this); // ГС-отзывы в карточках героев
         for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => this.back();
         $("btn-settings").onclick = () => this.tab("settings");
         // «назад» на компьютере — Esc или Backspace
@@ -71,6 +73,7 @@ export class Hub {
     }
 
     tab(name) {
+        if (name !== "heroes") this.voices?.stop(); // ушли из «Героев» — голосовое не играет за кадром
         this.current = name;
         document.querySelector(".hub").dataset.tab = name;
         if (name === "cases" || name === "rating" || name === "shop") this.loadMeta();
@@ -605,8 +608,9 @@ export class Hub {
                 const back = this.heroBack(c);
                 return `<div class="hcard st-${st}" data-id="${c.id}"><div class="hflip">
                     <div class="hface"><div class="ph" style="background-image:url('${c.portrait ?? ""}')"></div>
-                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3></div>${back ? `<span class="hhint">↻ Способности</span>` : ""}</div>${back}</div></div>`;
+                    <div class="meta"><span class="tag">${tag}</span><h3>${c.name}</h3>${voiceBubble(c.id)}</div>${back ? `<span class="hhint">↻ Способности</span>` : ""}</div>${back}</div></div>`;
             }).join("");
+            this.voices.bind(box);
             for (const el of box.querySelectorAll('.hcard')) {
                 el.onclick = () => {
                     if (this.sheetSwiped) { this.sheetSwiped = false; return; } // свайп уже открыл или закрыл способности
@@ -672,6 +676,7 @@ export class Hub {
                 <div><span class="tag">Способности</span><h4>${perk.title || c.name}</h4>${perk.title ? `<small>${c.name}</small>` : ""}</div></div>
             <ul class="hb-stats">${stats}</ul>
             <ul class="hb-perks">${list}</ul>
+            ${voiceText(c.id)}
             ${skill ? `<div class="hb-skill"><span>Умение · раз за забег</span><b>${SKILL_ICONS[skill.kind] || "⚡"} ${skill.name}</b><p>${skill.text}</p></div>` : ""}</div></div>`;
     }
 
@@ -739,6 +744,7 @@ export class Hub {
     setFocus(id, quiet) {
         if (!id || id === this.focus) return;
         this.focus = id;
+        this.voices.stop(); // пролистали — голосовое прошлой карточки замолкает
         for (const el of $("carousel").querySelectorAll(".hcard.open")) el.classList.remove("open", "flat"); // пролистали — оборот закрылся
         if (!quiet) this.game.audio.play("swipe");
         this.renderDetail();
