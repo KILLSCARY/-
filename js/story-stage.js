@@ -14,6 +14,15 @@ const PROPS = {
         { url: 'models/obj/lite/patrol1.glb', x: 4.6, z: -5.2, height: 1.65, rotation: Math.PI / 2 },
         { url: 'models/obj/lite/cop.glb', x: 2.9, z: 1.7, height: 1.8, clip: 'talk' },
     ],
+    // глава 1 пройдена: герой дошёл до станции, Горилла встречает его у обочины, перед оградой (за ней его не видно),
+    // лицом к герою; подсвечен своей текстурой, как станция. arrivalSolo — бежишь за самого Гориллу: встречать некому
+    arrival: [
+        { url: 'models/story/station.glb?v=2', x: 6.1, z: 0, height: 3, rotation: -Math.PI / 2, sidewalk: true, glow: .75 },
+        { url: 'models/gorilla_hero.glb?v=6', x: 2.8, z: 2.4, height: 1.9, rotation: -Math.PI / 4, glow: .35, clip: 'cheer' },
+    ],
+    arrivalSolo: [
+        { url: 'models/story/station.glb?v=2', x: 6.1, z: 0, height: 3, rotation: -Math.PI / 2, sidewalk: true, glow: .75 },
+    ],
     3: [
         { url: 'models/story/headquarters.glb?v=2', x: -6.3, z: 0, height: 5.4, rotation: Math.PI / 2, sidewalk: true, glow: .55 },
     ],
@@ -23,12 +32,14 @@ const SIGNS = {
     1: { title: 'ОБМЕН', sub: 'USDT · RUB · 24/7', x: 5.0, y: 3.15, z: 0, rotation: -Math.PI / 2, width: 2.4 },
     3: { title: 'ШТАБ', sub: 'ПОСЛЕДНИЙ ЭКЗАМЕН', x: -5.6, y: 4.05, z: .4, rotation: Math.PI / 2 - .6, width: 3.8 },
 };
+SIGNS.arrival = SIGNS.arrivalSolo = SIGNS[1];
 // план камеры: откуда (z — от центра сцены) и куда смотрит. Герой остаётся в кадре, сцена — рядом с ним
 const SHOTS = {
     1: { pos: [-.9, 3, 13], look: [2.3, 1.4, -1] },
     2: { pos: [-.9, 2.9, 13], look: [1.5, 1.1, -1] },
     3: { pos: [.9, 3, 13], look: [-2.6, 1.7, -1] },
 };
+SHOTS.arrival = SHOTS.arrivalSolo = SHOTS[1];
 
 export const preloadStoryStage = chapter => Promise.all((PROPS[chapter] || []).map(prop => preloadModel(prop.url)));
 

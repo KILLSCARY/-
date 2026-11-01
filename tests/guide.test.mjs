@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GUIDE_STEPS, guidePlacement } from '../js/guide.js';
+import { GUIDE_STEPS, TAB_TIPS, guidePlacement } from '../js/guide.js';
 
 const box = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height });
 const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
@@ -33,9 +33,10 @@ test('частично обрезанная кнопка не создаёт п�
     assert.equal(p.focus.left + p.focus.width, 187);
 });
 
-test('комикс объясняет каждый основной раздел и заканчивается управлением у кнопки забега', () => {
+test('до первого забега — короткий комикс, разделы объясняются при первом заходе', () => {
+    assert.ok(GUIDE_STEPS.filter(step => !step.notice).length <= 2, 'не больше двух кадров до забега');
     for (const tab of ['heroes', 'cases', 'shop', 'chapters', 'rating', 'map']) {
-        assert.ok(GUIDE_STEPS.some(step => step.target?.includes(`data-go="${tab}"`)));
+        assert.ok(TAB_TIPS[tab]?.title && TAB_TIPS[tab]?.text, tab);
     }
     const last = GUIDE_STEPS.at(-1);
     assert.equal(last.target, '#btn-play');

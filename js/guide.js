@@ -7,17 +7,20 @@ export const GUIDE_STEPS = [
         ['Добавки, БАДы и бусты', 'игровой ресурс: работают только в забеге. Это не описание настоящих товаров и не совет, что принимать.'],
         ['Настоящее', 'только промокоды на скидку в магазине и приз первой сотне. Условия написаны на их экранах.'],
     ] },
-    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла, покажу район! Сверху кошелёк. USDT идут на бусты и кейсы, NSS — на промокоды и гонку недели, Карты — на усиления забега и героев.' },
-    { target: '#btn-play', title: 'Главное — забег', text: 'Отсюда начинается всё: беги, собирай монеты и отвечай на вопросы. За забег получаешь USDT и NSS.' },
-    { target: '#tiles [data-go="heroes"]', title: 'Собери свою команду', text: 'Здесь выбираешь героя. У каждого свой навык, а условия открытия написаны на его карточке.' },
-    { target: '#tiles [data-go="cases"]', title: 'Забирай лут', text: 'В кейсах — награды за игровые USDT. Тут же бусты на следующий забег и наборы.' },
-    { target: '#tiles [data-go="shop"]', title: 'Забирай смену', text: 'Никита копит USDT и NSS, пока тебя нет: заходи и забирай. Здесь же промокоды: они дают настоящую скидку в магазине.' },
-    { target: '#tiles [data-go="chapters"]', title: 'Двигай сюжет', text: 'Пройди три главы: отвечай на вопросы в забеге и побеждай боссов. С боссом бьёшь тапом по экрану, слева — «Блок», «Уклон» и «Супер».' },
-    { target: '#tiles [data-go="rating"]', title: 'Покажи свой результат', text: 'Тут рейтинг и задания. Очки = USDT × 10 + метры.' },
-    { target: '#tiles [data-go="map"]', title: 'Смени район', text: 'На карте районы города: выбирай, где бежать.' },
-    { target: '#btn-play', title: 'Погнали!', text: 'Жми «Забег». Свайпай по экрану, собирай USDT и беги в табличку с верным ответом.', controls: true },
+    // до первого забега — только кошелёк и забег; про остальные разделы Горилла рассказывает при первом заходе (TAB_TIPS)
+    { target: '.hub-top .cur', title: 'На районе — со мной!', text: 'Я Горилла. Сверху кошелёк: USDT, NSS и Карты. Про остальные разделы расскажу, когда в них зайдёшь, — сейчас главное бежать.' },
+    { target: '#btn-play', title: 'Погнали!', text: 'Жми «Забег». Свайпай по экрану, собирай USDT и беги в табличку с верным ответом. Тебя ждут на станции «Обмен».', controls: true },
 ];
-const FRAMES = GUIDE_STEPS.filter((s) => !s.notice).length; // предупреждение — не кадр комикса
+// Совет Гориллы при первом заходе в раздел: один кадр, без подсветки (кнопка раздела уже позади)
+export const TAB_TIPS = {
+    heroes: { title: 'Собери свою команду', text: 'Здесь выбираешь героя. У каждого свой навык, а условия открытия написаны на его карточке.' },
+    cases: { title: 'Забирай лут', text: 'В кейсах — награды за игровые USDT. Тут же бусты на следующий забег и наборы.' },
+    shop: { title: 'Забирай смену', text: 'Никита копит USDT и NSS, пока тебя нет: заходи и забирай. Здесь же промокоды: они дают настоящую скидку в магазине.' },
+    chapters: { title: 'Двигай сюжет', text: 'Три главы: отвечай на вопросы в забеге и побеждай боссов. В бою бьёшь тапом по экрану, слева — «Блок», «Уклон» и «Супер».' },
+    rating: { title: 'Покажи свой результат', text: 'Тут рейтинг и задания. Очки = USDT × 10 + метры.' },
+    map: { title: 'Смени район', text: 'На карте районы города: выбирай, где бежать.' },
+};
+const frames = (steps) => steps.filter((s) => !s.notice).length; // предупреждение — не кадр комикса
 
 // Координаты в пределах доступной области, включая узкие телефоны и системные отступы Telegram.
 export function guidePlacement(target, panel, viewport) {
@@ -46,9 +49,9 @@ export class GorillaGuide {
         this.prev = document.getElementById('guide-prev');
         this.skip = document.getElementById('guide-skip');
         this.list = document.getElementById('guide-list');
-        this.root.querySelector('.guide-progress').innerHTML = '<i></i>'.repeat(FRAMES);
+        this.steps = GUIDE_STEPS;
         this.active = false;
-        this.next.onclick = () => this.index < GUIDE_STEPS.length - 1 ? this.show(this.index + 1) : this.finish();
+        this.next.onclick = () => this.index < this.steps.length - 1 ? this.show(this.index + 1) : this.finish();
         this.prev.onclick = () => this.show(this.index - 1);
         this.skip.onclick = () => this.finish();
         this.layout = () => this.place();
@@ -72,7 +75,7 @@ export class GorillaGuide {
         if (!this.active || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12) return; // прокрутка текста карточки — не тап
         const on = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6; };
         this.tapAt = performance.now();
-        if (GUIDE_STEPS[this.index].notice) { if (on(this.next)) this.next.onclick(); return; } // предупреждение случайным тапом не закрыть
+        if (this.steps[this.index].notice) { if (on(this.next)) this.next.onclick(); return; } // предупреждение случайным тапом не закрыть
         if (on(this.skip)) this.finish();
         else if (on(this.prev)) this.prev.onclick();
         else this.next.onclick();
@@ -80,10 +83,23 @@ export class GorillaGuide {
 
     get done() { return (this.hub.p.data.guideVersion || 0) >= GUIDE_VERSION; }
 
-    start({ replay = false, onFinish } = {}) {
+    // совет раздела (TAB_TIPS): один раз, только тем, кто прошёл короткое обучение; раздел не переключаем
+    tip(name) {
+        const seen = (this.hub.p.data.tips ||= {});
+        if (!TAB_TIPS[name] || seen[name] || !this.hub.p.data.tipsOn || !this.done) return false;
+        if (!this.start({ replay: true, steps: [TAB_TIPS[name]] })) return false;
+        seen[name] = 1;
+        this.hub.p.save();
+        return true;
+    }
+
+    start({ replay = false, onFinish, steps = GUIDE_STEPS } = {}) {
         if (this.active || this.hub.game.state !== 'menu' || (!replay && this.done)) return false;
         if (document.getElementById('boot') || document.querySelector('.modal:not([hidden]), #anketa:not([hidden]), #mode:not([hidden]), #case-open:not([hidden])')) return false;
         this.active = true;
+        this.steps = steps;
+        this.single = steps.length === 1;
+        this.root.querySelector('.guide-progress').innerHTML = this.single ? '' : '<i></i>'.repeat(frames(steps));
         this.onFinish = onFinish;
         this.returnTab = replay ? this.hub.current : 'run';
         this.oldFocus = document.activeElement;
@@ -91,7 +107,7 @@ export class GorillaGuide {
         this.scroll = this.menu.scrollTop;
         this.wasInert = this.menu.inert;
         document.body.classList.add('guide-running');
-        this.hub.tab('run');
+        if (!this.single) this.hub.tab('run');
         this.root.hidden = false;
         this.menu.inert = true;
         document.addEventListener('keydown', this.keys, true);
@@ -105,22 +121,23 @@ export class GorillaGuide {
     }
 
     show(index) {
-        this.index = Math.max(0, Math.min(GUIDE_STEPS.length - 1, index));
-        const step = GUIDE_STEPS[this.index];
-        const frame = GUIDE_STEPS.slice(0, this.index + 1).filter((x) => !x.notice).length;
-        document.getElementById('guide-count').textContent = step.notice ? 'ВАЖНО' : `КАДР ${String(frame).padStart(2, '0')} / ${String(FRAMES).padStart(2, '0')}`;
+        const steps = this.steps;
+        this.index = Math.max(0, Math.min(steps.length - 1, index));
+        const step = steps[this.index];
+        const frame = frames(steps.slice(0, this.index + 1));
+        document.getElementById('guide-count').textContent = step.notice ? 'ВАЖНО' : this.single ? 'СОВЕТ ГОРИЛЛЫ' : `КАДР ${String(frame).padStart(2, '0')} / ${String(frames(steps)).padStart(2, '0')}`;
         document.getElementById('guide-title').textContent = step.title;
         document.getElementById('guide-text').textContent = step.text;
         this.list.hidden = !step.notice;
         this.list.replaceChildren(...(step.items || []).map(([name, about]) => { const li = document.createElement('li'), b = document.createElement('b'); b.textContent = name; li.append(b, ` — ${about}`); return li; }));
-        this.skip.hidden = !!step.notice;
+        this.skip.hidden = !!step.notice || this.single;
         this.focus.classList.toggle('none', !step.target);
         document.getElementById('guide-controls').hidden = !step.controls;
         document.getElementById('guide-keyboard').hidden = !step.controls || !matchMedia('(pointer: fine)').matches;
         this.root.setAttribute('aria-describedby', ['guide-text', ...(!document.getElementById('guide-controls').hidden ? ['guide-controls'] : []), ...(!document.getElementById('guide-keyboard').hidden ? ['guide-keyboard'] : [])].join(' '));
         for (const [i, dot] of [...this.root.querySelectorAll('.guide-progress i')].entries()) dot.classList.toggle('on', i < frame);
         this.prev.hidden = this.index === 0;
-        this.next.textContent = step.notice ? 'Понятно' : this.index === GUIDE_STEPS.length - 1 ? 'Всё понятно!' : 'Дальше →';
+        this.next.textContent = step.notice || this.single ? 'Понятно' : this.index === steps.length - 1 ? 'Всё понятно!' : 'Дальше →';
         this.target = step.target ? document.querySelector(step.target) : null;
         // меню не дёргаем: прокручиваем, только если кнопка не видна целиком (на маленьких экранах), и плавно;
         // облачко само встаёт над кнопкой или под ней (guidePlacement)
@@ -161,7 +178,7 @@ export class GorillaGuide {
     keydown(e) {
         if (!this.active) return;
         e.stopImmediatePropagation(); // Enter и стрелки не запускают забег под обучением
-        if (e.key === 'Escape') { e.preventDefault(); if (!GUIDE_STEPS[this.index].notice) this.finish(); }
+        if (e.key === 'Escape') { e.preventDefault(); if (!this.steps[this.index].notice) this.finish(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); this.next.click(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); if (this.index) this.prev.click(); }
         else if (e.key === 'Tab') {
@@ -183,9 +200,12 @@ export class GorillaGuide {
         window.removeEventListener('resize', this.layout);
         window.visualViewport?.removeEventListener('resize', this.layout);
         this.menu.removeEventListener('scroll', this.layout);
-        this.hub.p.data.guideVersion = GUIDE_VERSION;
+        if (!this.single) { // обучение пройдено: дальше советы разделов при первом заходе
+            this.hub.p.data.guideVersion = GUIDE_VERSION;
+            this.hub.p.data.tipsOn = true;
+        }
         this.hub.p.save(); // тот же локальный/облачный профиль, что и игровой прогресс
-        this.hub.tab(this.returnTab);
+        if (!this.single) this.hub.tab(this.returnTab); // совет раздела: остаёмся там же, без повторного въезда
         this.menu.scrollTop = this.scroll;
         const fallback = document.getElementById(this.returnTab === 'settings' ? 'btn-replay-guide' : 'btn-play');
         (this.oldFocus?.isConnected && this.oldFocus !== document.body ? this.oldFocus : fallback)?.focus({ preventScroll: true });

@@ -681,8 +681,6 @@ class Game {
     async start() {
         if (this.hub.guide.active) return;
         if ((this.state !== "menu" && this.state !== "over") || this.heroLoading) return;
-        // перед первым забегом — анкета Гориллы (доход, опыт, капитал, цель)
-        if (this.questions && (!this.profile.data.anketa || this.profile.data.anketaOpen) && $("anketa").hidden) return this.showAnketa(GORILLA.anketa, () => this.start());
         this.dropIntroStage();
         this.world.placeNikitas();
         const chapterStory = this.story;
@@ -3408,7 +3406,33 @@ class Game {
         this.hub.toast("Бой не загрузился — попробуй ещё раз из забега");
     }
 
-    endStoryFight(win) {
+    // Глава 1 пройдена: герой доходит до станции «Обмен», у входа ждёт Горилла (ролик один раз, декорации — StoryStage)
+    async playArrival() {
+        const d = this.profile.data;
+        if ((d.chapterScenes || {}).arrival) return;
+        const key = this.heroId === "gorilla" ? "arrivalSolo" : "arrival"; // за Гориллу — встречать некому
+        this.state = "storyintro";
+        this.rat.position.set(0, 0, 0);
+        this.rat.rotation.set(0, 0, 0);
+        this.show("hud"); $("hud").hidden = true;
+        const stage = new StoryStage(this.scene, key, 0, this.storyModelLoader);
+        await this.underFade(async () => { for (let i = 0; i < 120 && !stage.ready; i++) await wait(50); this.initTextures(stage.root); });
+        if (this.state !== "storyintro") { stage.dispose(); return; }
+        await new Promise(resolve => { this.chapterScene = new ChapterScene(this, this.story || STORIES[0], resolve, stage, key); });
+        this.chapterScene = null;
+        (d.chapterScenes ||= {}).arrival = true;
+        this.profile.save();
+    }
+
+    // анкета Гориллы (доход, опыт, капитал, цель) — после победы над Мизулиной, а не до первого забега: к этому
+    // моменту игрок уже втянулся, а Горилла встретил его лично. Не заполнена — спросит, потом then
+    askAnketa(then) {
+        const d = this.profile.data;
+        if (this.questions && (!d.anketa || d.anketaOpen)) return this.showAnketa(GORILLA.anketa, then, "Знакомство");
+        then?.();
+    }
+
+    async endStoryFight(win) {
         this.submitRun();
         const s = this.story;
         this.fight = null;
@@ -3418,9 +3442,9 @@ class Game {
         if (du) this.profile.earn(du);
         tg.guardClose(false);
         if (s.free) return this.endFreeBoss(win, s);
-        this.profile.data.storyBoss = null; // бой окончен: дальше либо глава заново, либо следующая
-        this.profile.save();
-        if (!win) { // проиграл — сюжет с начала: снова забег и возражения
+        if (!win) { // проиграл — реванш сразу: storyBoss остаётся, следующий старт идёт прямо в бой, без табличек
+            this.profile.data.storyBoss = s.id;
+            this.profile.save();
             this.state = "menu";
             this.audio.music("menu");
             this.resetRun();
@@ -3428,8 +3452,9 @@ class Game {
             this.show("menu");
             const opp = FIGHTERS[s.opponent];
             $("sl-title").textContent = `${opp.name} ${opp.she ? "победила" : "победил"}`; // «Мизулина победила», «Полиция победила»
-            $("sl-text").textContent = s.exam ? `«${opp.lines.lose}» Вопросы перемешаются, пересдача бесплатная.`
-                : `«${opp.lines.lose}» ${s.name} начнётся заново: таблички и бой. Засчитанные заряды (${this.charges(s)}) остаются.`;
+            $("sl-text").textContent = s.exam ? `«${opp.lines.lose}» Пересдача — сразу, вопросы перемешаются.`
+                : `«${opp.lines.lose}» Реванш — сразу в бой, таблички заново проходить не нужно.${this.charges(s) ? ` Заряды (${this.charges(s)}) остаются.` : ""}`;
+            $("btn-sl-again").textContent = s.exam ? "Пересдать" : "Реванш";
             $("sl-ph").style.backgroundImage = `url(${opp.portrait})`;
             $("btn-sl-again").onclick = () => { $("story-lose").hidden = true; this.start(); };
             $("btn-sl-menu").onclick = () => ($("story-lose").hidden = true);
@@ -3437,6 +3462,7 @@ class Game {
             return;
         }
         const d = this.profile.data;
+        d.storyBoss = null; // бой выигран: дальше следующая глава
         d.story = (d.story || 0) + 1;
         if (s.final) d.exam = true;
         if (CHAPTERS[this.profile.chapter().index]?.boss === s.opponent) this.profile.beatBoss(); // глава босса засчитана
@@ -3453,9 +3479,10 @@ class Game {
         this.profile.save();
         tg.haptic("success");
         this.audio.play("boost");
-        this.state = "menu";
         this.audio.music("menu");
         this.resetRun();
+        if (s.id === 1) await this.playArrival();
+        this.state = "menu";
         this.renderMenu();
         this.show("menu");
         if (s.final) return this.showPrefinal();
@@ -3463,13 +3490,13 @@ class Game {
         $("sw-label").textContent = `${s.name} пройдена`;
         // род по бойцу: «Полиция повержена», «Мизулина повержена», «Павел Инаков повержен» (FIGHTERS[].she)
         $("sw-title").textContent = `${FIGHTERS[s.opponent].name} ${FIGHTERS[s.opponent].she ? "повержена" : "повержен"}!`;
-        $("sw-text").textContent = `${s.id === 1 ? "Горилла: «Первую преграду прошёл. Впереди ночной город — держи голову холодной»." : "Горилла: «Проверка позади. Готовься: впереди Павел и последнее испытание»."}${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} игровых USDT.`}`;
+        $("sw-text").textContent = `${s.id === 1 ? (this.questions && (!d.anketa || d.anketaOpen) ? "Горилла: «Станция твоя. Расскажи о себе — разберём твой старт, и в ночной город»." : "Горилла: «Станция твоя. Дальше ночной город — держи голову холодной».") : "Горилла: «Проверка позади. Впереди штаб и экзамен у Павла Инакова»."}${paid ? "" : ` Награда: +${fmt(s.reward.usdt)} игровых USDT.`}`;
         const next = STORIES[this.profile.data.story];
         $("sw-next").textContent = next ? `${next.name}: ${next.title}` : "";
         $("sw-next-text").textContent = next ? `${next.fear}. Верные ответы дадут преимущество в бою.` : "";
         $("btn-razbor").textContent = "Следующая глава →";
-        $("btn-razbor").onclick = () => { $("story-win").hidden = true; this.start(); };
-        $("btn-sw-menu").onclick = () => ($("story-win").hidden = true);
+        $("btn-razbor").onclick = () => { $("story-win").hidden = true; this.askAnketa(() => this.start()); };
+        $("btn-sw-menu").onclick = () => { $("story-win").hidden = true; this.askAnketa(); };
         $("story-win").hidden = false;
     }
 

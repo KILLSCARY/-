@@ -97,6 +97,7 @@ export class Hub {
         this.render();
         if (name === "rating") this.showRating();
         if (name === "tasks") { this.renderQuests(); this.showRating(); } // показывает и разовые задания, досылает их на сервер
+        if (name !== "run") this.guide?.tip(name); // первый заход в раздел — совет Гориллы
     }
 
     back() {

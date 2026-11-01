@@ -1,14 +1,42 @@
 import * as THREE from './vendor/three.module.js';
 import { StoryStage } from './story-stage.js';
 
+// Тексты роликов: у каждого перехода своя ставка — что впереди, чем рискуешь и ниточка «Горилла = Павел».
+// arrival — глава 1 пройдена, герой у станции «Обмен» (solo — бежишь за самого Гориллу, встречать некому)
+export const SCENE_TEXT = {
+    arrival: { label: 'ГЛАВА 1 · СТАНЦИЯ «ОБМЕН»', lines: [
+        'Станция «Обмен». У входа ждёт Горилла — живой, а не в телефоне.',
+        'Горилла: «Дошёл. Мизулину прошёл — значит, правила ты знаешь. Теперь проверят твои решения».',
+        '«Дальше ночной город. Там торопят и обещают лишнее. Я буду рядом… в каком-то смысле».',
+    ] },
+    arrivalSolo: { label: 'ГЛАВА 1 · СТАНЦИЯ «ОБМЕН»', lines: [
+        'Станция «Обмен». Дошёл — и Мизулина позади.',
+        'В телефоне новое сообщение: «Правила ты знаешь. Теперь проверят твои решения».',
+        '«Дальше ночной город. Там торопят и обещают лишнее. Не поддавайся».',
+    ] },
+    2: { label: 'ГЛАВА 2 · ГОРОД ПРОВЕРОК', lines: [
+        'Ночной город. Здесь каждое «быстро» стоит денег.',
+        'Горилла: «Тебя будут торопить: переведи сейчас, вне площадки, через чужой аккаунт. Каждое „да“ — минус кошелёк».',
+        '«На кордоне полиция. Проверка не страшна, когда у тебя всё чисто. Покажи, что чисто».',
+    ] },
+    3: { label: 'ГЛАВА 3 · ПОСЛЕДНИЙ ЭКЗАМЕН', lines: [
+        'Штаб. Сюда доходят немногие.',
+        'Горилла: «Экзамен принимает Павел Инаков, лично. Тут уже не угадаешь — тут надо знать».',
+        '«И ещё… не удивляйся, если его голос покажется знакомым».',
+    ] },
+};
+
+const LINE_TIME = 4.2; // секунд на строку: реплика Гориллы длиннее строки субтитров, за 3,5 с её не успевали дочитать
+
 // Сюжетные планы на существующей улице с возвратом камеры к герою.
 export class ChapterScene {
-    // stage — декорации, собранные и прогретые заранее (Game.underFade); нет — собираем сейчас
-    constructor(game, story, onDone, stage) {
-        this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
-        this.stage = stage || new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
+    // stage — декорации, собранные и прогретые заранее (Game.underFade); нет — собираем сейчас.
+    // key — какой ролик (SCENE_TEXT): по умолчанию вступление главы story.id
+    constructor(game, story, onDone, stage, key = story.id) {
+        this.game = game; this.story = story; this.onDone = onDone; this.time = 0; this.key = key;
+        this.stage = stage || new StoryStage(game.scene, key, 0, game.storyModelLoader);
         this.hiddenScenery = new Map();
-        if (story.id === 3) this.clearEntrance();
+        if (key === 3) this.clearEntrance();
         const road = game.world?.roadMat, reflector = game.world?.reflector;
         if (road && reflector?.visible) { // без зеркала менять нечего: лишняя пересборка шейдера дороги — фриз на телефоне
             this.roadState = { road, reflector, reflectorVisible: reflector?.visible,
@@ -23,16 +51,8 @@ export class ChapterScene {
         this.ui = document.getElementById('phone-cutscene');
         this.label = this.ui.querySelector('.phone-cutscene-top');
         this.caption = document.getElementById('phone-cutscene-text');
-        this.label.textContent = story.id === 2 ? 'ГЛАВА 2 · ГОРОД ПРОВЕРОК' : 'ГЛАВА 3 · ПОСЛЕДНИЙ ЭКЗАМЕН';
-        this.lines = story.id === 2 ? [
-            'Горилла: «Первую преграду прошёл. Но знание правил — только начало».',
-            '«В ночном городе каждое решение имеет цену. Проверяй условия и не поддавайся спешке».',
-            '«Впереди полиция. Собери силы и будь готов к бою».',
-        ] : [
-            'Горилла: «Ты выдержал проверку. Остался последний шаг».',
-            '«Вспомни всё, чему научился: риски, условия сделки и цену ошибки».',
-            '«В конце пути тебя ждёт Павел Инаков. Покажи ему, на что способен».',
-        ];
+        this.label.textContent = SCENE_TEXT[key].label;
+        this.lines = SCENE_TEXT[key].lines;
         this.caption.textContent = this.lines[0];
         this.ui.hidden = false;
         document.getElementById('phone-cutscene-skip').onclick = () => this.finish();
@@ -56,21 +76,26 @@ export class ChapterScene {
     update(dt) {
         this.time += dt;
         this.stage.update(dt);
-        if (this.story.id === 3) this.clearEntrance();
+        if (this.key === 3) this.clearEntrance();
         const camera = this.game.camera, portrait = camera.aspect < .8;
-        this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / 3.5))];
+        this.caption.textContent = this.lines[Math.min(this.lines.length - 1, Math.floor(this.time / LINE_TIME))];
         const pull = THREE.MathUtils.smoothstep(this.time, 5, 10.5);
-        if (this.story.id === 2) {
+        if (this.key === 'arrival' || this.key === 'arrivalSolo') { // станция справа: камера с другой стороны дороги, к концу — на героя
+            camera.position.set(-1.2 * (1 - pull), THREE.MathUtils.lerp(2.2, portrait ? 3.3 : 2.5, pull),
+                THREE.MathUtils.lerp(portrait ? 2.5 : .5, portrait ? 5 : 4.4, pull));
+            camera.lookAt(4.6 * (1 - pull), THREE.MathUtils.lerp(1.8, 1, pull), THREE.MathUtils.lerp(-6, -8, pull));
+        }
+        if (this.key === 2) {
             camera.position.set(-.3 * (1 - pull), THREE.MathUtils.lerp(2.4, portrait ? 3.3 : 2.5, pull),
                 THREE.MathUtils.lerp(portrait ? 2.6 : .5, portrait ? 5 : 4.4, pull));
             camera.lookAt(1.7 * (1 - pull), 1, THREE.MathUtils.lerp(-9, -8, pull));
         }
-        if (this.story.id === 3) {
+        if (this.key === 3) {
             camera.position.set(1.2 * (1 - pull), THREE.MathUtils.lerp(2.4, portrait ? 3.3 : 2.5, pull),
                 THREE.MathUtils.lerp(portrait ? 2.5 : .5, portrait ? 5 : 4.4, pull));
             camera.lookAt(-5.2 * (1 - pull), THREE.MathUtils.lerp(2.4, 1, pull), THREE.MathUtils.lerp(-7, -8, pull));
         }
-        if (this.time >= 10.5) this.finish();
+        if (this.time >= LINE_TIME * this.lines.length) this.finish();
     }
     finish() {
         if (this.done) return;
