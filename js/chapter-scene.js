@@ -3,9 +3,10 @@ import { StoryStage } from './story-stage.js';
 
 // Сюжетные планы на существующей улице с возвратом камеры к герою.
 export class ChapterScene {
-    constructor(game, story, onDone) {
+    // stage — декорации, собранные и прогретые заранее (Game.underFade); нет — собираем сейчас
+    constructor(game, story, onDone, stage) {
         this.game = game; this.story = story; this.onDone = onDone; this.time = 0;
-        this.stage = new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
+        this.stage = stage || new StoryStage(game.scene, story.id, 0, game.storyModelLoader);
         this.hiddenScenery = new Map();
         if (story.id === 3) this.clearEntrance();
         const road = game.world?.roadMat, reflector = game.world?.reflector;

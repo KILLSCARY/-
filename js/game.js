@@ -7,7 +7,7 @@ import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
 import { Fight } from "./fight.js";
-import { PhoneScene } from "./phone-scene.js";
+import { PhoneScene, PHONE_MODEL } from "./phone-scene.js";
 import { StoryStage } from "./story-stage.js";
 import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
@@ -691,6 +691,13 @@ class Game {
                 this.rat.rotation.set(0, 0, 0);
                 this.show("hud");
                 $("hud").hidden = true;
+                // телефон в руке — скачать, разобрать и прогреть до ролика (PhoneScene возьмёт готовый из phoneGltf)
+                await this.underFade(() => new Promise((ok) => this.storyModelLoader(PHONE_MODEL, (gltf) => {
+                    this.phoneGltf = gltf;
+                    this.world.warmQueue.push(gltf.scene);
+                    ok();
+                }, ok)));
+                if (this.state !== "storyintro") return;
                 await new Promise(resolve => { this.phoneScene = new PhoneScene(this, resolve); });
                 this.phoneScene = null;
                 if (this.state !== "storyintro") return;
@@ -703,7 +710,10 @@ class Game {
                 this.rat.position.set(0, 0, 0);
                 this.rat.rotation.set(0, 0, 0);
                 this.show("hud"); $("hud").hidden = true;
-                await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve); });
+                const stage = new StoryStage(this.scene, chapterStory.id, 0, this.storyModelLoader);
+                await this.underFade(async () => { for (let i = 0; i < 120 && !stage.ready; i++) await wait(50); this.initTextures(stage.root); });
+                if (this.state !== "storyintro") { stage.dispose(); return; }
+                await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve, stage); });
                 this.chapterScene = null;
                 if (this.state !== "storyintro") return;
                 (this.profile.data.storyIntros ||= {})[chapterStory.id] = true;
@@ -1678,13 +1688,29 @@ class Game {
         g.position.set(0, 0, -12);
         this.scene.add(g);
         this.renderer.compile(this.scene, this.camera);
-        g.traverse((o) => {
-            if (!o.material) return;
-            for (const m of [].concat(o.material)) {
+        this.initTextures(g);
+        this.scene.remove(g);
+    }
+
+    // текстуры моделей — в видеопамять сейчас, а не в кадре, где модель впервые появится
+    initTextures(root) {
+        root.traverse((o) => {
+            for (const m of [].concat(o.material || [])) {
                 for (const key of ["map", "normalMap", "roughnessMap", "emissiveMap", "metalnessMap"]) if (m[key]?.image) this.renderer.initTexture(m[key]);
             }
         });
-        this.scene.remove(g);
+    }
+
+    // Тяжёлое перед роликом — под затемнением: смена района, скачать и разобрать модели, шейдеры и текстуры.
+    // Раньше это шло в первые секунды ролика, и на телефоне он дёргался. Медленная сеть — ждём не больше 6 с
+    async underFade(prepare) {
+        const fade = $("fade");
+        fade.classList.add("on");
+        await wait(550); // затемнение доехало
+        await Promise.race([prepare(), wait(6000)]);
+        if (this.world.warmQueue.length) this.warmUp(); // модели района, догрузившиеся за это время
+        this.renderer.compile(this.scene, this.camera);
+        fade.classList.remove("on");
     }
 
     // Меряем кадры (в забеге, бою и меню): стабильно не успеваем — сначала меньше пикселей, потом графика на ступень ниже.
@@ -1714,14 +1740,11 @@ class Game {
             this.frameMeter.reset();
             return;
         }
-        // телефон: не тянет 60 — сразу ровные 30, а не мыло на пределе видеочипа. Вдвое меньше кадров заметно снижает нагрев
-        if (this.mobile && fps < 50 && (this.performanceFpsCap || 60) > 30) {
-            this.performanceFpsCap = 30;
-            this.frameMeter.reset();
-            return;
-        }
+        // 01.11: телефон больше не падает сразу на 30 кадров при fps < 50 — игра ощущалась как в 20 FPS. Сначала меньше
+        // пикселей и эффектов (ниже), 30 — только крайняя мера, когда и на нижней графике меньше 30
         // графику выбрал сам игрок — её не трогаем: ни разрешение, ни эффекты, ни уровень. Меняться может только частота кадров
         if (this.qualityLocked()) {
+            if (this.mobile && fps < 30) this.lowFpsCap(); // других рычагов нет: хотя бы ровные 30
             if (!this.qualityHinted) { this.qualityHinted = true; this.hub.toast("Телефон не тянет эту графику — в настройках поставь «Авто»"); }
             return;
         }
@@ -1738,18 +1761,18 @@ class Game {
             this.resScale = Math.max(this.resScale > 0.86 && effects ? 0.85 : resMin, Math.round((this.resScale - (fps < 30 ? 0.2 : 0.1)) * 100) / 100);
             this.onResize();
         } else if (this.quality !== "low") {
-            if (this.state === "fight") { // не пересобираем шейдеры посреди раунда
-                if (this.mobile && fps < 40) { this.performanceFpsCap = 30; this.frameMeter.reset(); }
-                return;
-            }
+            if (this.state === "fight") { if (this.mobile && fps < 30) this.lowFpsCap(); return; } // не пересобираем шейдеры посреди раунда
             this.resScale = 0.85;
             this.perfStep = 0;
             this.setQuality(this.quality === "high" ? "medium" : "low");
-        } else if (this.mobile && fps < 40 && (this.performanceFpsCap || 60) > 30) {
-            // Нижний уровень уже достигнут: стабильные 30 лучше постоянной попытки выжать 60.
-            this.performanceFpsCap = 30;
-            this.frameMeter.reset();
-        }
+        } else if (this.mobile && fps < 30) this.lowFpsCap(); // нижний уровень и минимум пикселей, а кадров всё равно меньше 30
+    }
+
+    // крайняя мера на телефоне: ровные 30 лучше рваных 20–28
+    lowFpsCap() {
+        if ((this.performanceFpsCap || 60) <= 30) return;
+        this.performanceFpsCap = 30;
+        this.frameMeter.reset();
     }
 
     qualityLocked() {
@@ -1757,8 +1780,10 @@ class Game {
     }
 
     // Выбранная частота не зависит от качества; реальный предел задают экран и браузер.
+    // По умолчанию — до 120 (экран 120 Гц и запас есть — 120; не тянет — measureFps вернёт 60). На iPhone в Telegram
+    // браузер сам не даёт больше 60. 60 — только если игрок выбрал сам
     frameRate() {
-        return this.settings.frameRate === 120 ? 120 : 60;
+        return this.settings.frameRate === 60 ? 60 : 120;
     }
 
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
@@ -3107,7 +3132,7 @@ class Game {
             if (!stage.ready) return void setTimeout(warm, 500);
             stage.root.visible = true;
             this.renderer.compile(this.scene, this.camera);
-            stage.root.traverse((o) => { for (const m of [].concat(o.material || [])) for (const key of ["map", "normalMap", "roughnessMap", "emissiveMap", "metalnessMap"]) if (m[key]?.image) this.renderer.initTexture(m[key]); });
+            this.initTextures(stage.root);
             if (this.preStage === stage) stage.root.visible = false;
         };
         warm();

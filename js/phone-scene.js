@@ -1,5 +1,8 @@
 import * as THREE from './vendor/three.module.js';
 
+// модель телефона в руке героя — Game скачивает её заранее, под затемнением перед роликом
+export const PHONE_MODEL = 'models/obj/phone.glb?v=1';
+
 // Экран телефона — настоящий чат: шапка с фото Гориллы, сообщение пузырём, поле ввода. Цвета — как у меню игры
 function phoneScreen(hero) {
     const W = 512, H = 1032, canvas = document.createElement('canvas');
@@ -83,8 +86,9 @@ export class PhoneScene {
         // Экран отдельно от корпуса: нет мерцания из-за совпадающих поверхностей.
         screen.position.z = .017; this.phone.add(screen);
         game.scene.add(this.phone);
-        // настоящая модель; пока грузится, виден простой корпус. Рисуется последней поверх очищенной глубины: рука не закрывает экран
-        game.storyModelLoader?.('models/obj/phone.glb?v=1', gltf => {
+        // настоящая модель: Game.underFade разбирает и прогревает её до ролика (game.phoneGltf), иначе грузим сейчас —
+        // пока грузится, виден простой корпус. Рисуется последней поверх очищенной глубины: рука не закрывает экран
+        const ready = game.phoneGltf, use = gltf => {
             if (this.done) return;
             const model = gltf.scene, h = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).y;
             model.scale.setScalar(.28 / h);
@@ -101,7 +105,9 @@ export class PhoneScene {
             this.screenGeo = screen.geometry = new THREE.PlaneGeometry(size.x * .89, size.y * .945);
             screen.position.z = size.z / 2 + .0006;
             this.screenMat.depthTest = true;
-        }, () => {});
+        };
+        game.phoneGltf = null; // модель одна на ролик: следующий (повтор) загрузит свою
+        if (ready) use(ready); else game.storyModelLoader?.(PHONE_MODEL, use, () => {});
         this.start = new THREE.Vector3(); this.pos = new THREE.Vector3();
         this.ui = document.getElementById('phone-cutscene');
         this.ui.querySelector('.phone-cutscene-top').textContent = 'ГЛАВА 1 · ВЫХОД ИЗ СИСТЕМЫ';

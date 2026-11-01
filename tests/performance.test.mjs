@@ -118,7 +118,8 @@ function gameMethod(name, prizeStub = {}) {
 }
 const measureFps = gameMethod('measureFps');
 const qualityLocked = gameMethod('qualityLocked');
-const sustainedSlow = g => { g.qualityLocked = qualityLocked; for (let i = 0; i < 3; i++) measureFps.call(g); };
+const lowFpsCap = gameMethod('lowFpsCap');
+const sustainedSlow = g => { g.qualityLocked = qualityLocked; g.lowFpsCap = lowFpsCap; for (let i = 0; i < 3; i++) measureFps.call(g); };
 
 test('вручную выбранная графика не снижается: меняется только лимит кадров', () => {
     const g = {
@@ -136,7 +137,9 @@ test('вручную выбранная графика не снижается: 
     assert.equal(g.perfStep, 0);
 });
 
-test('телефон при нехватке кадров сначала переходит на ровные 30, и только потом снижает графику', () => {
+// 01.11: на телефоне игра ощущалась как в 20 FPS — раньше при fps < 50 она сразу падала на 30 кадров.
+// Теперь сначала меньше пикселей и эффектов, затем графика ниже; 30 кадров — только на дне и при fps < 30
+test('телефон при нехватке кадров сначала снижает разрешение и графику, 30 кадров — только крайняя мера', () => {
     let fps = 36;
     const g = {
         state: 'playing', runTime: 10, measuredState: 'playing', mobile: true,
@@ -145,17 +148,14 @@ test('телефон при нехватке кадров сначала пер�
         setQuality(level) { this.quality = level; }, onResize() {},
     };
     sustainedSlow(g);
+    assert.equal(g.performanceFpsCap, undefined, 'кадры не режутся');
+    assert.ok(g.resScale < 1 || g.perfStep > 0, 'сначала разрешение или эффекты');
+    for (let i = 0; i < 12; i++) sustainedSlow(g); // 36 FPS держится — до нижней графики, но 30 не включается
+    assert.equal(g.quality, 'low');
+    assert.equal(g.performanceFpsCap, undefined, 'при 36 FPS кадры не режутся и на дне');
+    fps = 22; // не тянет и 30 на нижней графике — тогда ровные 30
+    sustainedSlow(g);
     assert.equal(g.performanceFpsCap, 30);
-    assert.equal(g.quality, 'medium', 'графика на месте');
-    assert.equal(g.resScale, 1, 'разрешение на месте');
-    g.frameBudget = () => 1000 / 30;
-    fps = 20; // не тянет и 30: только теперь разрешение
-    sustainedSlow(g);
-    assert.ok(g.resScale < 1 || g.perfStep > 0);
-    g.performanceFpsCap = 60;
-    g.frameBudget = () => 1000 / 60;
-    sustainedSlow(g);
-    assert.equal(g.performanceFpsCap, 30, 'после возврата со 120 к 60 можно снизить лимит дальше');
 });
 
 test('бой не пересобирает уровень графики во время раунда', () => {
@@ -186,12 +186,13 @@ test('повторный выбор того же качества восста�
     } finally { globalThis.localStorage = previous; }
 });
 
-test('высокая графика сохраняет выбранные 60 или 120 FPS на телефоне и ПК', () => {
+test('по умолчанию до 120 FPS; 60 — только если игрок выбрал сам', () => {
     const frameRate = gameMethod('frameRate');
     assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 120 } }), 120);
     assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 60 } }), 60);
     assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: { frameRate: 120 } }), 120);
-    assert.equal(frameRate.call({ mobile: false, quality: 'high', settings: {} }), 60);
+    assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: {} }), 120);
+    assert.equal(frameRate.call({ mobile: false, quality: 'high', settings: {} }), 120);
 });
 
 test('одиночные просадки не снижают качество; устойчивые сначала возвращают 60 FPS', () => {
