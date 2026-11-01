@@ -1412,6 +1412,7 @@ class Game {
         this.frameStart = now; // для диагностики: время JS-кадра до отрисовки
         // пауза, окно поверх меню и итог забега (после падения) — картинка стоит: рисуем один кадр и дальше не перерисовываем
         // (раньше рисовали те же кадры 12 раз в секунду — расход батареи и нагрев впустую)
+        if (this.state === "menu" && this.world.windLines?.visible) this.world.blowWind(null); // вышли из забега посреди порыва: штрихи ветра застывали над меню
         const still = this.state === "paused" || this.menuModal() || (this.state === "over" && !this.arrest && this.t - (this.overAt || 0) > 3);
         if (still && this.stillDrawn) return;
         this.stillDrawn = still;

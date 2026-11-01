@@ -15,6 +15,60 @@ function texture(w, h, draw) {
 }
 const rng = seed => () => ((seed = Math.imul(seed, 1664525) + 1013904223 >>> 0) / 4294967296);
 
+// Витрины бульвара: своя вывеска и свой товар. Свет уже в картинке, материал без расчёта света
+const DUBAI_SHOPS = [["GOLD SOUK", "#f4cf6a", "rings"], ["COFFEE", "#ffb98a", "cups"], ["PERFUME", "#f2a8d8", "bottles"], ["FASHION", "#f4f0e6", "people"],
+    ["EXCHANGE", "#6ff0c0", "board"], ["DATES", "#ffcf8a", "boxes"], ["SHISHA", "#b8a0ff", "pipes"], ["MARINA CLUB", "#8ad8ff", "lamps"]];
+function shopAtlas() {
+    const CW = 256, CH = 256, canvas = document.createElement('canvas');
+    canvas.width = CW * 4; canvas.height = CH * 2;
+    const c = canvas.getContext('2d');
+    DUBAI_SHOPS.forEach(([name, color, goods], i) => {
+        const x = i % 4 * CW, y = Math.floor(i / 4) * CH, top = 54;
+        const glow = c.createLinearGradient(0, y + top, 0, y + CH);
+        glow.addColorStop(0, '#e8a860'); glow.addColorStop(.55, '#a8683c'); glow.addColorStop(1, '#4e3028');
+        c.fillStyle = glow; c.fillRect(x, y + top, CW, CH - top);
+        c.fillStyle = '#1d1b24'; c.fillRect(x, y, CW, top); // чёрный мрамор с вывеской
+        c.fillStyle = '#c9a56a'; c.fillRect(x, y + top - 4, CW, 4);
+        c.save(); c.shadowColor = color; c.shadowBlur = 12; c.fillStyle = color; c.font = '800 30px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(name, x + CW / 2, y + top / 2 - 1, CW - 22); c.restore();
+        if (goods === 'board') { // табло курсов
+            c.fillStyle = '#10141c'; c.fillRect(x + 28, y + 76, CW - 56, 92);
+            c.fillStyle = '#6ff0c0'; c.font = '700 21px Arial, sans-serif'; c.textAlign = 'left';
+            c.fillText('USDT  3.67', x + 44, y + 106); c.fillText('USD   3.67', x + 44, y + 134); c.fillText('RUB   0.04', x + 44, y + 160);
+        }
+        c.fillStyle = 'rgba(255,255,255,.13)'; // блик
+        c.beginPath(); c.moveTo(x + 34, y + CH); c.lineTo(x + 94, y + top); c.lineTo(x + 130, y + top); c.lineTo(x + 70, y + CH); c.fill();
+    });
+    const map = new THREE.CanvasTexture(canvas);
+    map.encoding = THREE.sRGBEncoding; map.anisotropy = 4;
+    return map;
+}
+
+// Стекло небоскрёба на закате: синее сверху, розово-золотое снизу, панели разного оттенка и редкие горящие окна
+function glassFacade() {
+    const W = 512, H = 512, cols = 16, rows = 32, canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const c = canvas.getContext('2d');
+    let n = 4217;
+    const rand = () => (n = n * 16807 % 2147483647) / 2147483647;
+    const sky = c.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#3e5f8e'); sky.addColorStop(.5, '#6d80ac'); sky.addColorStop(.8, '#b08fa8'); sky.addColorStop(1, '#d8ab98');
+    c.fillStyle = sky; c.fillRect(0, 0, W, H);
+    const pw = W / cols, ph = H / rows;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        const r = rand();
+        c.fillStyle = r < .07 ? 'rgba(255,215,150,.8)' : r < .5 ? `rgba(255,255,255,${.02 + rand() * .05})` : `rgba(16,24,60,${.03 + rand() * .08})`;
+        c.fillRect(x * pw, y * ph, pw, ph);
+    }
+    c.fillStyle = 'rgba(255,255,255,.14)'; // косой блик
+    for (const [a, w] of [[60, 70], [300, 40]]) { c.beginPath(); c.moveTo(a, H); c.lineTo(a + 170, 0); c.lineTo(a + 170 + w, 0); c.lineTo(a + w, H); c.fill(); }
+    c.fillStyle = 'rgba(24,28,52,.55)'; // рамы
+    for (let x = 0; x <= cols; x++) c.fillRect(x * pw - 1.5, 0, 3, H);
+    c.fillStyle = 'rgba(232,226,214,.45)';
+    for (let y = 0; y <= rows; y++) c.fillRect(0, y * ph - 1, W, 2);
+    return new THREE.CanvasTexture(canvas);
+}
+
 export class Vietnam {
     constructor(world, { streetLen, behindZ }) {
         this.world = world; this.len = streetLen; this.behind = behindZ;
@@ -102,6 +156,7 @@ export class Vietnam {
             hull: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .35, metalness: .1 }),
             darkGlass: new THREE.MeshStandardMaterial({ color: 0x254652, roughness: .22, metalness: .5 }),
             banners: new THREE.MeshBasicMaterial({ color: 0xeee6da, toneMapped: false }),
+            shops: new THREE.MeshBasicMaterial({ map: shopAtlas() }),
         });
         this.materials.darkGlass.map = texture(256, 256, (g, w, h) => {
             const sky = g.createLinearGradient(0, 0, 0, h);
@@ -196,7 +251,7 @@ export class Vietnam {
                     this.part('box', 'glow', 0xefcd8b, side * 3.2, .028, z, .05, .025, .1);
                 }
             }
-            this.tower(16.5, -17, 28 + (i * 11 % 24), 12, 23, i);
+            this.tower(16.5, -17, 28 + (i * 11 % 24), 12, 23, i, true);
             this.entrance(9.3, -20);
             for (const dx of [-1.15, 1.15]) this.part('box', 'hull', 0xded8c9, 7.8 + dx, .247, -29, .06, .015, 5);
             this.part('box', 'hull', 0xded8c9, 7.8, .247, -31.5, 2.35, .015, .06);
@@ -251,8 +306,8 @@ export class Vietnam {
         }
         return group;
     }
-    tower(x, z, height, width, depth, style) {
-        const tint = [0xd6dbe0, 0xb8d2db, 0xe9c8a2][style % 3];
+    tower(x, z, height, width, depth, style, boulevard = false) {
+        const tint = [0xc8e4f4, 0x9fd8d8, 0xf2d0c4, 0xc4c8f8, 0xe8e4d0][style % 5];
         this.part('box', 'stone', 0xf0dfc9, x, 2, z, width + 2, 4, depth + 1);
         if (style % 3 === 0) {
             for (let tier = 0; tier < 4; tier++) {
@@ -279,12 +334,51 @@ export class Vietnam {
         this.part('box', 'glow', 0xffc982, x, 3.7, z + depth / 2 + .55, width + 1.5, .12, .12);
         // Recessed warm storefronts and a shade canopy along the boulevard.
         const front = x - Math.sign(x) * (width / 2 + 1.02);
-        for (let dz = -depth / 2 + 2; dz < depth / 2; dz += 4) {
-            this.part('box', 'glass', 0xf4d3a4, front, 1.8, z + dz, .08, 2.8, 2.8);
-            this.part('box', 'glow', 0xffcb88, front - Math.sign(x) * .05, 3.3, z + dz, .1, .1, 2.8);
+        const facing = -Math.sign(x);
+        for (let dz = -depth / 2 + 2, n = style * 3; dz < depth / 2; dz += 4, n++) {
+            if (!boulevard) { // дальние башни: витрин не разглядеть
+                this.part('box', 'glass', 0xf4d3a4, front, 1.8, z + dz, .08, 2.8, 2.8);
+                this.part('box', 'glow', 0xffcb88, front - Math.sign(x) * .05, 3.3, z + dz, .1, .1, 2.8);
+                continue;
+            }
+            const cell = n % DUBAI_SHOPS.length;
+            this.part('plane', 'shops', 0xffffff, front + facing * .06, 1.85, z + dz, 3.5, 3.1, 1, [0, facing * Math.PI / 2, 0]);
+            const uv = this.parts.shops[this.parts.shops.length - 1].attributes.uv;
+            for (let i = 0; i < uv.count; i++) uv.setXY(i, (cell % 4 + .004 + uv.getX(i) * .992) / 4, (1 - Math.floor(cell / 4) + .004 + uv.getY(i) * .992) / 2);
+            // объём: стойки рамы, цоколь и маленький козырёк в цвет вывески
+            for (const sd of [-1.86, 1.86]) this.part('box', 'stone', 0xf2e2c8, front + facing * .14, 1.85, z + dz + sd, .28, 3.3, .28);
+            this.part('box', 'metal', 0x2a2830, front + facing * .1, .3, z + dz, .2, .6, 3.5);
+            this.shopGoods(front + facing * .06, z + dz, facing, DUBAI_SHOPS[cell][2]);
+            this.part('box', 'glow', new THREE.Color(DUBAI_SHOPS[cell][1]).getHex(), front + facing * .4, 3.44, z + dz, .7, .05, 3.5);
         }
         this.part('box', 'metal', 0xd0b288, front, 3.5, z, 2, .15, depth);
         if (style % 2) this.part('cone', 'metal', 0xb9b8b0, x, height + 7, z, width * .35, 5, depth * .35);
+    }
+    // Объёмный товар витрины: полки и предметы выступают от стены к дороге. Цвет без расчёта света
+    shopGoods(x, z, facing, goods) {
+        if (goods === 'board') return; // у обменника табло на стене
+        const out = (d) => x + facing * d;
+        if (goods === 'people') { // манекены в полный рост
+            [[-1.05, 0xb03850], [0, 0x2c4a80], [1.05, 0xd8a040]].forEach(([dz, color]) => {
+                this.part('box', 'glow', color, out(.2), 1.2, z + dz, .28, 1.5, .55);
+                this.part('box', 'glow', 0xefe6d8, out(.2), 2.15, z + dz, .24, .32, .24);
+                this.part('box', 'glow', 0x3a2c28, out(.2), .55, z + dz, .3, .1, .5);
+            });
+            return;
+        }
+        const colors = { rings: [0xf4c84a, 0xffe08a], cups: [0xfff4e0, 0x8a5a3c], bottles: [0xe878b8, 0xa878e8, 0xf0c060], boxes: [0xa0502c, 0xd8a040, 0x7a3c2c], pipes: [0x7858c8, 0xc858a8], lamps: [0xfff0c0, 0xffd890] }[goods];
+        for (const y of [1.2, 1.95]) {
+            this.part('box', 'glow', 0x3a2620, out(.17), y, z, .34, .06, 3.3); // полка
+            for (let k = 0; k < 6; k++) {
+                const dz = -1.35 + k * .54, color = colors[k % colors.length], at = z + dz;
+                if (goods === 'boxes') this.part('box', 'glow', color, out(.17), y + .15, at, .26, .24, .36);
+                else if (goods === 'cups') { this.part('cylinder', 'glow', color, out(.17), y + .12, at, .09, .18, .09); this.part('cylinder', 'glow', 0xe8d8c0, out(.17), y + .04, at, .13, .02, .13); }
+                else if (goods === 'rings') { this.part('box', 'glow', 0x2a2024, out(.17), y + .08, at, .24, .1, .3); this.part('cylinder', 'glow', color, out(.17), y + .16, at, .08, .05, .08); }
+                else if (goods === 'bottles') { this.part('box', 'glow', color, out(.17), y + .16, at, .13, .26, .17); this.part('cylinder', 'glow', 0xe8d8a8, out(.17), y + .34, at, .03, .1, .03); }
+                else if (goods === 'pipes') { this.part('cylinder', 'glow', color, out(.17), y + .12, at, .1, .18, .1); this.part('cylinder', 'glow', 0xc8a860, out(.17), y + .36, at, .025, .32, .025); }
+                else if (goods === 'lamps') { this.part('cylinder', 'glow', 0x5a3c2e, out(.17), y + .15, at, .02, .24, .02); this.part('box', 'glow', color, out(.17), y + .36, at, .18, .18, .18); }
+            }
+        }
     }
     lamp(x, z) {
         this.part('cylinder', 'metal', 0x504c4b, x, 2.7, z, .06, 5.4, .06);
@@ -312,7 +406,9 @@ export class Vietnam {
         // за спиной героя (вид в меню): ряд башен вдоль бульвара, через марину — ещё башни, у причала — яхты и пальмы
         for (let i = 0; i < 6; i++) {
             const z = 66 + i * 26;
-            this.tower(16.5 + (i % 2) * 3, z, 24 + (i * 13 % 30), 11, 20, i + 1);
+            this.tower(16.5 + (i % 2) * 3, z, 24 + (i * 13 % 30), 11, 20, i + 1, true); // в меню эти витрины видно
+            this.tower(38 + (i % 2) * 6, z + 11, 34 + (i * 19 % 36), 10, 16, i + 3); // второй ряд: небо не пустое
+            this.tower(-58 - (i % 2) * 8, z - 6, 26 + (i * 23 % 40), 9, 13, i + 4); // за мариной
             this.tower(-34 - (i % 3) * 9, z + 8, 30 + (i * 17 % 34), 9, 14, i + 2);
             this.palm(6, z - 6, 6.4); this.palm(-6, z + 4, 6.8);
             if (i < 4) this.yacht(-13.4, z + 2, i % 2);
@@ -343,7 +439,7 @@ export class Vietnam {
         this.landmark = this.merge(true); this.add(this.landmark);
     }
     async loadArtwork() {
-        const map = await new THREE.TextureLoader().loadAsync('textures/dubai/facade-v1.webp');
+        const map = glassFacade(); // свет и отражение заката уже в картинке, башни различаются оттенком стекла
         map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.anisotropy = 4;
         const fallback = this.materials.glass.map;
         this.materials.glass.map = map; this.materials.glass.emissiveMap = map; this.materials.glass.needsUpdate = true;
@@ -395,9 +491,12 @@ export class Vietnam {
         for (const dx of [-width * .32, width * .32]) this.part('box', 'metal', 0x4c545a, x + dx, y / 2, z - .15, .18, y, .2);
         this.part('box', 'glow', 0xe5b974, x, y - height / 2 - .1, z + .19, width + .2, .05, .04);
         this.part('plane', 'banners', 0xffffff, x, y, z + .19, width, height, 1);
-        const uv = this.parts.banners[this.parts.banners.length - 1].attributes.uv;
-        for (let i = 0; i < uv.count; i++) uv.setXY(i, (index % 2 + .004 + uv.getX(i) * .992) / 2,
-            (1 - Math.floor(index / 2) + .004 + uv.getY(i) * .992) / 2);
+        this.part('plane', 'banners', 0xffffff, x, y, z - .19, width, height, 1, [0, Math.PI, 0]);
+        for (const piece of this.parts.banners.slice(-2)) {
+            const uv = piece.attributes.uv;
+            for (let i = 0; i < uv.count; i++) uv.setXY(i, (index % 2 + .004 + uv.getX(i) * .992) / 2,
+                (1 - Math.floor(index / 2) + .004 + uv.getY(i) * .992) / 2);
+        }
         this.billboardSites.push({ x, y, z, index });
     }
     yacht(x, z, style) {
