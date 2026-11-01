@@ -119,7 +119,9 @@ export class CatchScene {
         this.foot = new THREE.Vector3(this.x0, 0.13, FOOT_Z);
         this.prevHand = this.handTarget(0);
         this.ankleY = 0;
-        game.starsT = 0;
+        game.starsT = 0.7; // оглушило: звёзды, пока падает
+        game.world.flash(new THREE.Vector3(this.x0, 1.1, -0.3));
+        this.rig = game.rat.userData.rig;
         game.rat.userData.blob.visible = false;
         game.rat.rotation.set(0, 0, 0);
         game.rat.userData.rig.rotation.set(0, 0, 0);
@@ -152,7 +154,7 @@ export class CatchScene {
         let y = 0, x = 0;
         for (const b of WHIPS) {
             const u = (t - b) / WHIP;
-            if (u > 0 && u < 1) { const e = Math.sin(u * Math.PI); y += Math.sin(u * Math.PI * 4) * e * 0.17; x += Math.sin(u * Math.PI * 3) * e * 0.28; }
+            if (u > 0 && u < 1) { const e = Math.sin(u * Math.PI); y += Math.sin(u * Math.PI * 4) * e * 0.2; x += Math.sin(u * Math.PI * 3) * e * 0.32; }
         }
         return [x, y];
     }
@@ -240,7 +242,8 @@ export class CatchScene {
         const hand = wp(mb("RightHand"));
 
         // ---- герой
-        const rat = this.game.rat, fall = ss(t / 0.12), prone = ss((t - STAGGER) / 0.3);
+        const rat = this.game.rat, fall = ss(t / 0.12), prone = ss((t - STAGGER) / 0.3), squash = ss(t / 0.04) * (1 - ss((t - 0.05) / 0.16));
+        this.rig.scale.set(1 + squash * 0.12, 1 - squash * 0.14, 1 - squash * 0.3);
         this.hero.apply([["run", t, 1 - fall], ["stumble", t * 1.4, fall * (1 - prone)]]);
         const held = t > GRAB;
         // угол: 0 — стоит, -90° — лежит лицом вниз, -180° — вниз головой; голова на асфальте, пока рука не подняла тело
@@ -278,7 +281,7 @@ export class CatchScene {
             aimMix(hb("RightLeg"), hb("RightFoot"), down.clone().add(S.clone().multiplyScalar(0.45)).add(new THREE.Vector3(0, lag * 0.14, 0)), hang);
             this.curl(hand.y - wp(hb("LeftFoot")).y, S, hang * free); // до рук: они висят уже от согнутого корпуса
             for (const [sd, sg, ph] of [["Left", -1, 0], ["Right", 1, 1.7]]) {
-                const fl = Math.sin(t * 11 + ph) * 0.28 * (1 - 0.4 * Math.min(1, Math.abs(lag)));
+                const fl = Math.sin(t * 13 + ph) * 0.42 * (1 - 0.3 * Math.min(1, Math.abs(lag)));
                 aimMix(hb(sd + "Arm"), hb(sd + "ForeArm"), down.clone().add(S.clone().multiplyScalar(sg * 1.05 + fl)).add(F.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, lag * 0.3, 0)), hang);
                 aimMix(hb(sd + "ForeArm"), hb(sd + "Hand"), down.clone().multiplyScalar(0.45).add(S.clone().multiplyScalar(sg * 0.8 - fl)).add(new THREE.Vector3(0, lag * 0.5, 0)), hang);
             }
@@ -328,5 +331,6 @@ export class CatchScene {
         const rat = this.game.rat;
         rat.quaternion.identity();
         rat.position.set(this.x0, 0, 0);
+        this.rig.scale.set(1, 1, 1);
     }
 }

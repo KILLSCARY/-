@@ -2230,7 +2230,7 @@ class Game {
         const side = this.sideHit(o);
         this.introChase = 0; // погоня со старта сменяется настоящей
         if (side) this.lane = this.prevLane;
-        else { o.visible = false; o.userData.type = "decor"; }
+        else if (o.isObject3D) { this.blow(o, { power: 0.8 }); o.userData.type = "decor"; this.world.flash(o.position.clone().setY(1.1)); } // сбитое отлетает, а не исчезает
         this.stumble = BALANCE.stumbleTime * (this.quirk.chase || 1); // время погони одно; «из принципа» — Мизулина бежит быстрее (chase)
         this.starsT = 2.2; // звёздочки над головой — «оглушило»
         this.trip = TRIP; // клип «споткнулся» (у кого есть), потом снова бег
