@@ -186,12 +186,12 @@ test('повторный выбор того же качества восста�
     } finally { globalThis.localStorage = previous; }
 });
 
-test('по умолчанию до 120 FPS; 60 — только если игрок выбрал сам', () => {
+test('по умолчанию телефон — 60 FPS (120 греет), компьютер — до 120; выбор игрока важнее', () => {
     const frameRate = gameMethod('frameRate');
     assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 120 } }), 120);
     assert.equal(frameRate.call({ mobile: true, quality: 'high', settings: { frameRate: 60 } }), 60);
     assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: { frameRate: 120 } }), 120);
-    assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: {} }), 120);
+    assert.equal(frameRate.call({ mobile: true, quality: 'medium', settings: {} }), 60);
     assert.equal(frameRate.call({ mobile: false, quality: 'high', settings: {} }), 120);
 });
 

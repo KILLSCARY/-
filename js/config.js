@@ -193,7 +193,7 @@ export const QUALITY_TIERS = {
         // Не тянет — measureFps сам снизит разрешение, затем снимет тень
         // 01.11: «сглаживание» — края лесенкой: плотность ×1,5 (на iPhone сглаживание MSAA почти бесплатно, дорого — пиксели;
         // не тянет — measureFps снизит разрешение сам), дальние прохожие — 20 Гц вместо 12: не дёргаются
-        phone: { ratio: 1.5, runFar: 100, animationHz: 30, animationFarHz: 20, animationFar: 55, rain: 130, aniso: 8, lite: true, noEnv: true, lights: 1 } },
+        phone: { ratio: 1.35, runFar: 100, animationHz: 30, animationFarHz: 20, animationFar: 55, rain: 90, aniso: 8, lite: true, noEnv: true, lights: 1 } },
     // low: минимум эффектов; активную частоту выбирает настройка кадров, меню ограничено 30 FPS
     low:    { direct: true, animationHz: 20, aa: "fxaa", cine: 0, blob: 0, aniso: 2, ratio: 1.0,  reflections: false, shadows: false, bloom: 0, lights: 1, police: false, rain: 110, fps: [120, 30], lite: true,  far: 62,  runFar: 100, npc: 0.4, heat: true,
         phone: { ratio: 1.3, animationHz: 24, rain: 60, noEnv: true } }, // самый слабый телефон: важнее ровные кадры, чем чёткость

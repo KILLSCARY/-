@@ -312,8 +312,9 @@ export class CatchScene {
     aim(cam, target) {
         const t = this.t, o = ss(t / 0.85), lifted = ss((t - GRAB) / YANK), mid = lerp(this.chaser.position.z, FOOT_Z - lerp(1.15, 0.5, lifted), 0.5);
         const push = Math.min(0.45, Math.max(0, (t - GRAB) * 0.14));
-        cam.position.lerp(new THREE.Vector3(this.x0 + this.side * (3.45 - push), 1.3, mid - 0.7), o);
-        target.lerp(new THREE.Vector3(this.x0, lerp(0.55, 1.02, lifted), mid), ss(t / 0.45));
+        // поднятый герой и голова Мизулины должны войти в узкий кадр телефона: камера отъезжает (не за ограждение) и смотрит выше
+        cam.position.lerp(new THREE.Vector3(this.x0 + this.side * (lerp(3.45, Math.min(5.2, 3.7 + Math.abs(this.x0)), lifted) - push), 1.5, mid - 0.7), o);
+        target.lerp(new THREE.Vector3(this.x0, lerp(0.55, 1.45, lifted), mid), ss(t / 0.45));
         target.y -= ss((t - CATCH_END + 0.2) / 0.5) * 1.15; // открылась шторка итога: герои поднимаются в свободную часть экрана
         const shake = Math.max(0, 1 - Math.abs(t - GRAB - 0.25) / 0.12) * 0.04 + Math.abs(this.whip(t)[1]) * 0.09;
         cam.position.x += Math.sin(t * 43) * shake;

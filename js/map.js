@@ -155,14 +155,12 @@ export class CityMap {
             : st === "hero" ? `Открывается только у героев: ${this.heroNames(d.heroes)}.`
                 : st === "fixed" ? `${hero} бегает только в своём районе. Чтобы бежать здесь — выбери другого героя.`
                     : st === "here" ? "Здесь проходит твой забег." : "Открыт — можно бежать здесь.";
-        // в сюжетном забеге район задаёт глава (Game.story), выбор на карте действует в свободной игре
-        const storyNote = this.game.story && !d.soon ? "В сюжетном забеге район задаётся главой; выбор карты действует в свободной игре." : "";
         const action = st === "open" ? `<button class="btn btn-main" id="map-go">Бежать здесь</button>`
             : st === "hero" || st === "fixed" ? `<button class="btn btn-ghost map-btn-line" id="map-heroes">К героям</button>`
                 : st === "here" ? `<button class="btn btn-main" id="map-run">Забег</button>` : "";
         el.dataset.state = st;
         el.innerHTML = `<div class="card-main"><div class="map-card-head"><h3>${esc(d.name)}</h3><span class="map-chip">${this.chip(d, st)}</span></div>
-            <p class="map-text">${esc(d.text || "")}</p><p>${esc(note)}</p>${storyNote ? `<p>${esc(storyNote)}</p>` : ""}${action}</div>`;
+            <p class="map-text">${esc(d.text || "")}</p><p>${esc(note)}</p>${action}</div>`;
         el.querySelector("#map-go")?.addEventListener("click", () => {
             this.game.setSetting("location", d.loc);
             this.selected = null;

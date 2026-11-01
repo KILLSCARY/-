@@ -243,7 +243,7 @@ export class Hub {
         // на время теста: сразу в бой с любым боссом, все герои; и «пройти всё заново»
         // карточка «Для теста» — пунктирная (служебная): боссы плитками с портретом и главой, герои — второстепенной кнопкой
         // боссы и сброс сюжета: на бета-тесте у всех (BETA_TEST_BUTTONS), иначе — только в тестовом запуске (?test=1 или startapp=test)
-        const testing = BETA_TEST_BUTTONS || /[?&]test=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "test";
+        const testing = tg.dev || BETA_TEST_BUTTONS || /[?&]test=1/.test(location.search) || (tg.startParam || "").toLowerCase() === "test";
         const allOwned = CHARACTERS.every((c) => this.p.owns(c.id));
         box.insertAdjacentHTML("beforeend", `${testing ? `<div class="card set-row set-q set-test"><div class="card-main"><h3>Для теста</h3><p>Сразу в бой с боссом — после короткого разгона.</p>
             <div class="test-bosses">${STORIES.map((st, i) => { const f = FIGHTERS[st.opponent];

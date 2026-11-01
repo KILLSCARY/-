@@ -258,6 +258,7 @@ export class Profile {
     }
 
     owns(heroId) {
+        if (tg.dev) return true;
         if ((BETA_ALL_HEROES && !HERO_UNLOCKS[heroId]?.exclusive) || this.trialHero() === heroId) return true; // эксклюзивы — только покупкой
         return !(heroId in HERO_UNLOCKS) || this.data.heroes.includes(heroId);
     }

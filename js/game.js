@@ -684,7 +684,9 @@ class Game {
         const chapterStory = this.story;
         if (chapterStory) {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
-            this.setLocation(["winter", "street", "street"][chapterStory.id - 1]);
+            // район, выбранный на карте, важнее района главы
+            const picked = this.settings.location;
+            this.setLocation(picked === "winter" || picked === "street" ? picked : ["winter", "street", "street"][chapterStory.id - 1]);
             if (chapterStory.id === 1 && !this.profile.data.phoneSceneSeen) {
                 this.state = "storyintro";
                 this.rat.position.set(0, 0, 0);
@@ -721,6 +723,10 @@ class Game {
                 this.profile.save();
                 this.state = "menu";
             }
+            this.state = "storyintro"; // декорации босса греем под затемнением: посреди забега это был рывок на 0,7 с
+            await this.underFade(() => this.prepareStage(chapterStory.id));
+            if (this.state !== "storyintro") return;
+            this.state = "menu";
         } else this.setLocation(this.heroLocation(this.heroId));
         this.endArrest();
         const run = this.runId = (this.runId || 0) + 1;
@@ -1118,7 +1124,10 @@ class Game {
     move(dir) {
         if (this.state !== "playing") return;
         const lane = Math.max(0, Math.min(2, this.lane + dir));
-        if (lane === this.lane) return;
+        if (lane === this.lane) { // уже на крайней полосе: свайп в её сторону — выбор таблички, в которую и так бежим
+            if (this.slowmo) this.chooseAnswer(this.walls.find((x) => !x.answered && !x.arch), lane);
+            return;
+        }
         this.prevLane = this.lane;
         this.lane = lane;
         if (this.quirk.grab && this.t >= (this.grabAt || 0)) { this.grabAt = this.t + this.quirk.grabEvery; this.fx.magnet = Math.max(this.fx.magnet, this.quirk.grab); } // Спиди: перехват
@@ -1780,10 +1789,9 @@ class Game {
     }
 
     // Выбранная частота не зависит от качества; реальный предел задают экран и браузер.
-    // По умолчанию — до 120 (экран 120 Гц и запас есть — 120; не тянет — measureFps вернёт 60). На iPhone в Telegram
-    // браузер сам не даёт больше 60. 60 — только если игрок выбрал сам
+    // По умолчанию: телефон — 60 (120 кадров сильно греют), компьютер — до 120 (не тянет — measureFps вернёт 60)
     frameRate() {
-        return this.settings.frameRate === 60 ? 60 : 120;
+        return this.settings.frameRate === 60 || this.settings.frameRate === 120 ? this.settings.frameRate : this.mobile ? 60 : 120;
     }
 
     // До 120 FPS в активной игре; меню и неподвижные экраны берегут батарею.
@@ -3123,19 +3131,23 @@ class Game {
     // камера плавно отъезжает на общий план, потом Мизулина ловит или затемнение к заставке босса
     // В начале забега главы: декорации грузятся и скрыто прогреваются (шейдеры, текстуры), пока игрок на отсчёте
     prepareStage(id) {
-        if (this.preStage?.chapter === id) return;
+        if (this.preStage?.chapter === id) return this.preStage.warmed;
         this.preStage?.dispose();
         const stage = this.preStage = new StoryStage(this.scene, id, 0, undefined, -40);
         stage.root.visible = false;
-        const warm = () => {
-            if (this.preStage !== stage) return;
-            if (!stage.ready) return void setTimeout(warm, 500);
-            stage.root.visible = true;
-            this.renderer.compile(this.scene, this.camera);
-            this.initTextures(stage.root);
-            if (this.preStage === stage) stage.root.visible = false;
-        };
-        warm();
+        stage.warmed = new Promise((done) => {
+            const warm = () => {
+                if (this.preStage !== stage) return done();
+                if (!stage.ready) return void setTimeout(warm, 500);
+                stage.root.visible = true;
+                this.renderer.compile(this.scene, this.camera);
+                this.initTextures(stage.root);
+                if (this.preStage === stage) stage.root.visible = false;
+                done();
+            };
+            warm();
+        });
+        return stage.warmed;
     }
 
     async showStoryStage(s) {
@@ -4575,6 +4587,9 @@ class Game {
             const ok = o ? !!o.userData.correct : null;
             if (o) { o.userData.type = "decor"; if (ok) { o.visible = false; this.world.flash(o.position.clone().setY(1.2), true); this.world.splash(this.x, 0, 18, 1.1); } }
             this.storyAnswer(w.story, ok, w.storyOf);
+            if (!o || ok || w.story === w.storyOf?.practice || this.fx.safe > 0) return false; // неверная — удар, как на обычной стене; разминка без удара
+            if (this.stumble > 0) { if (this.spareLife(o)) return false; this.gameOver("wall"); return true; }
+            this.hitOnce(o);
             return false;
         }
         if (!o) return false;
