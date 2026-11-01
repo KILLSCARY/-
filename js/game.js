@@ -1695,6 +1695,7 @@ class Game {
         this.renderer.compile(this.scene, this.camera);
         this.initTextures(g);
         this.scene.remove(g);
+        this.world.winter?.bakeHouses(this.renderer);
     }
 
     // текстуры моделей — в видеопамять сейчас, а не в кадре, где модель впервые появится
@@ -2064,6 +2065,7 @@ class Game {
             // в зоне стены (до неё и после) ряд не ставим — даже если стену отодвинул полёт или скорость выросла;
             // и ряд, который доедет до героя, пока на экране реплика (talkCalm)
             const talking = this.talkCalm > 0 && -this.nextRowZ < this.talkCalm * this.speed;
+            this.world.noTrucks = !!(this.bossFight || this.bossCalm);
             if (!this.nearWall(this.nextRowZ) && !talking) this.world.spawnRow(this.nextRowZ, difficulty, this.speed);
             // в Нячанге (свободный бег Димы и Саши, без стен) ряды чаще — VIETNAM.rowGap; зимой свои интервалы — WINTER.rowGap
             const [gapStart, gapMin] = this.location === "winter" ? WINTER.rowGap : [BALANCE.rowGapStart, BALANCE.rowGapMin];

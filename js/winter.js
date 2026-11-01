@@ -3,7 +3,7 @@
 // No snowfall, mirror render, per-window lights or animated scenery on the mobile GPU.
 import * as THREE from './vendor/three.module.js';
 import { mergeBufferGeometries } from './vendor/jsm/BufferGeometryUtils.js';
-import { curveShader } from './curve.js';
+import { curveShader, curveUniform, curveSide } from './curve.js';
 import { cartoonRoad } from './road-art.js';
 import { cartoonModel } from './toon-tex.js';
 import { loadModel } from './models.js';
@@ -11,6 +11,8 @@ import { BANKS, ATMS, POLICE_OFFICER } from './config.js';
 
 // Existing lightweight Corvette is used until the newly supplied high-resolution model is available.
 const PARKED_CAR = 'models/obj/lite/car1.glb?v=3'; // красный Corvette C8 (30.10, с Диска «для кодекса»)
+// сказочные дома вдоль улицы: настоящие модели, по две с каждой стороны секции; свет и цвет уже в текстуре
+const HOUSES = ['cabin', 'purple', 'cozy'], HOUSE_WIDTH = 14, HOUSE_FRONT = 8.7, HOUSE_SLOTS = [-9.2, 9.2];
 
 export const WINTER = {
     fog: 0xa98ac4, near: 60, far: 245, viewFar: 285,
@@ -193,6 +195,7 @@ export class Winter {
         this.items = []; this.chunks = []; this.carSites = []; this.hidden = new Map(); this.on = false;
         this.build(); this.set(false);
         this.ready = this.loadArtwork().catch(error => { console.warn('[winter] Texture loading failed', error); });
+        this.loadHouses();
     }
 
     build() {
@@ -204,11 +207,12 @@ export class Winter {
             snow: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, envMapIntensity: .1 }),
             surface: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9, envMapIntensity: .15 }),
             foliage: new THREE.MeshStandardMaterial({ map: texture(1, 1, g => g.clearRect(0, 0, 1, 1)),
-                alphaTest: .45, side: THREE.DoubleSide, roughness: 1, envMapIntensity: .1 }),
+                alphaTest: .45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 1, envMapIntensity: .1 }), // края хвои сглаживает MSAA: иначе на бегу рябят
             facade: new THREE.MeshStandardMaterial({ vertexColors: true, map: facadeTexture(), emissiveMap: facadeTexture(true),
                 emissive: 0xffffff, emissiveIntensity: .63, roughness: 1 }),
             shop: new THREE.MeshBasicMaterial({ map: shopTexture(), color: 0xffe5c8 }),
             glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+            flatSnow: new THREE.MeshBasicMaterial({ vertexColors: true }), // ровный белый снег у домов: освещённый на телефоне выходил серым
             soft: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide,
                 map: texture(64, 64, (g, w, h) => {
                     const fade = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
@@ -245,14 +249,21 @@ export class Winter {
         road.receiveShadow = true; add(road);
         const ground = this.ground = new THREE.Mesh(new THREE.PlaneGeometry(130, vistaLength, 1, 60),
             new THREE.MeshStandardMaterial({ color: colours.snowShade, roughness: 1 }));
-        ground.rotation.x = -Math.PI / 2; ground.position.set(0, -.04, road.position.z); add(ground);
+        // заметно ниже снега: снег гнётся вместе с миром реже, чем земля, и на изгибе она вылезала сквозь него и мерцала
+        ground.rotation.x = -Math.PI / 2; ground.position.set(0, -2.5, road.position.z); add(ground);
 
         for (let index = 0; index < this.length / 32; index++) {
             this.chunkIndex = index;
             this.parts = {}; this.rand = random(170 + index * 337);
             for (const side of [-1, 1]) {
                 this.building(side, 0, index);
-                this.box(colours.snow, side * 6.1, .12, 0, 4.6, .27, 32);
+                this.part('box', 0xe4ecfb, side * 6.1, .1, 0, 4.6, .22, 32, null, 'flatSnow'); // ниже верха бровки: иначе поверхности совпадают и мерцают
+                this.part('box', 0xe4ecfb, side * 26, .09, 0, 36, .18, 32, null, 'flatSnow'); // за забором всё под снегом: между домами и за ними
+                // за домами — снежные холмы и ели: в просветах не видно пустоты и края мира
+                for (const dz of [-16, 0, 16]) this.part('ball', colours.snowShade, side * 27, 0, dz, 11, 10 + (index + (dz > 0 ? 1 : 0)) % 2 * 2, 13);
+                this.pine(side * 13, .5, 7);
+                this.pine(side * 12.5, 15.8, 6.4);
+                for (const [dx, dz, r] of [[3.4, 15.5, 3], [8, 15.8, 4.2], [14, 0, 4.5], [20, 15, 5]]) this.part('ball', colours.snow, side * (8.4 + dx), .25, dz, r, .9 + r * .12, r * .8); // сугробы в просветах
                 this.snowbank(side, index);
                 for (const z of [-12, -4, 4, 12]) {
                     if (side < 0 && z === -12 && POST_CHUNKS.includes(index)) continue; // проём под патрульную машину
@@ -265,7 +276,6 @@ export class Winter {
                 if (!this.world.tier.lite || index % 2) this.pine(side * 8, side < 0 ? -12 : 5, 5.8 + index % 2);
                 if (!this.world.tier.lite) { this.bench(side * 5.5, side < 0 ? 2 : 14); this.bin(side * 5, side < 0 ? -14 : 8); }
             }
-            if (index % 2 === 0) this.kiosk(-6.3, -8);
             if (index % 2 === 0) { this.playground(7, -15); this.car(6.5, -6); }
             else this.car(6.5, -4);
             if (index === 2) this.bridge(-7);
@@ -296,14 +306,9 @@ export class Winter {
         const c = this.colours;
         // dir −1 — впереди (вид в забеге), +1 — за спиной героя (вид в меню): там улица кончалась пустым небом
         for (const dir of [-1, 1]) for (let row = 0; row < (dir < 0 ? 5 : 4); row++) for (const side of [-1, 1]) {
-            const z = dir < 0 ? -124 - row * 29 : 75 + row * 29, height = 12 + (row * 3 + (side > 0 ? 2 : 0) + (dir > 0 ? 4 : 0)) % 9;
-            const x = side * (14 + row * .35), front = x - side * 4;
-            this.box(0x657392, x, height / 2, z, 8, height, 26);
-            this.part('plane', 0xc4cee1, front - side * .015, height / 2, z, 26, height, 1,
-                [0, -side * Math.PI / 2, 0], 'facade');
-            this.part('plane', 0xc4cee1, x, height / 2, z - dir * 13.015, 8, height, 1, dir > 0 ? [0, Math.PI, 0] : null, 'facade');
-            this.box(c.snow, x, height + .15, z, 8.4, .3, 26.4);
+            const z = dir < 0 ? -124 - row * 29 : 75 + row * 29;
             this.box(c.snowShade, side * 6.25, .1, z, 6.5, .2, 29);
+            this.box(c.snow, side * 26, .13, z, 36, .26, 29);
             this.lamp(side * 4.1, z + 4);
             // Snowy tree crowns need only eighteen foliage cards at this distance.
             for (let tier = 0; tier < 3; tier++) for (let spoke = 0; spoke < 6; spoke++) {
@@ -327,7 +332,7 @@ export class Winter {
         this.box(c.dark, .43, 22.5, -212.34, .95, .12, .08);
         this.chapel = new THREE.Group();
         this.mergeDistantParts(this.chapel, true);
-        group.add(this.chapel);
+        // часовню-панельку в конце улицы не показываем: в конце улицы — только небо и маленькие дома
         add(group);
     }
 
@@ -408,45 +413,96 @@ export class Winter {
         (this.parts.snow ||= []).push(geo);
     }
 
+    // Участок у дороги: сами дома — модели (loadHouses). Витрину и банкомат держит маленький павильон в просвете между домами
     building(side, z, index) {
-        const c = this.colours, x = side * 13, height = 13.5 + ((index + (side > 0 ? 1 : 0)) % 3) * 1.3;
-        const tint = [0xc6cadb, 0xd8c8b1, 0xb4c7d7][(index + (side > 0 ? 1 : 0)) % 3];
-        this.box([0x8694a9, 0x9e9cad, 0x9cabb8][index % 3], x, height / 2, z, 9, height, 28);
-        this.part('plane', tint, side * 8.48, height / 2 + .2, z, 28, height - .4, 1,
-            [0, -side * Math.PI / 2, 0], 'facade');
-        this.part('plane', tint, x, height / 2 + .2, z + 14.015, 9, height - .4, 1, null, 'facade');
-        this.box(0x5c6d85, side * 8.42, .5, z, .28, 1, 28.1);
-        for (let floor = 1; floor < 5; floor++) {
-            this.box(0x889bb7, side * 8.3, floor * (height / 5), z, .35, .13, 28.2);
-            this.box(c.snow, side * 8.28, floor * (height / 5) + .1, z, .4, .09, 28.3);
+        const c = this.colours, kind = STORE_ORDER[(index * 2 + (side > 0 ? 1 : 0)) % STORE_ORDER.length];
+        for (const dz of HOUSE_SLOTS) this.part('ball', c.snow, side * (HOUSE_FRONT + .3), .2, z + dz, 1.5, .62, 7.4); // сугроб вдоль фасада: дом стоит в снегу
+        if (kind) {
+            this.box(c.wood, side * 9.7, 1.75, z - .5, 2.8, 3.5, 6.4);
+            this.box(0x5a3a2c, side * 8.28, 3.35, z - .5, .1, .3, 6.5); // доска над витриной
+            this.part('box', 0xf1f5ff, side * 9.7, 3.68, z - .5, 3.2, .36, 6.8, null, 'flatSnow');
+            this.part('ball', c.snow, side * 9.7, 3.86, z - .5, 1.5, .55, 3.2); // снежная шапка
+            this.storefront(side, z - .5, kind, index);
+            this.part('plane', 0x0d1630, side * 8, .225, z - .5, 2.6, 8, 1, [-Math.PI / 2, 0, 0], 'soft');
+            for (const dz of [-3.7, 2.7]) this.part('ball', c.snow, side * 8.7, .18, z + dz, 1, .42, 1.1); // сугробы у углов
+            this.part('box', 0xe4ecfb, side * 8.12, .24, z - .5, .16, .12, 6.5, null, 'flatSnow'); // снег вдоль низа витрины
         }
-        this.box(c.snow, x, height + .08, z, 9.5, .35, 28.5);
-        this.box(c.dark, x, height + .48, z, 8.6, .55, 27.6);
-        this.box(c.snow, x, height + .8, z, 8.9, .2, 27.9);
-        for (const dz of [-8, 7]) {
-            this.box(0x69768c, x, height + 1.3, dz, 1.2, 1.2, .9);
-            this.box(c.snow, x, height + 1.95, dz, 1.4, .15, 1.1);
-        }
-        // Entry porches, awnings and drainpipes provide actual depth in front of the facade.
-        for (const dz of [-8, 7]) {
-            this.box(0x304154, side * 8.24, 1.2, dz, .2, 2.4, 1.5);
-            this.box(0xa6b7cc, side * 7.85, 2.55, dz, 1.35, .18, 2.2);
-            this.box(c.snow, side * 7.84, 2.7, dz, 1.4, .16, 2.3);
-            this.box(0x75849e, side * 7.95, .2, dz, 1.1, .35, 1.8);
-        }
-        for (const dz of [-13.5, 13.5]) this.part('cylinder', c.iron, side * 8.25, height / 2, dz, .065, height, .065);
-        for (const dz of [-5.3, 5.3]) for (const floor of [2, 3, 4]) {
-            const y = floor * height / 5 - .5;
-            this.box(0x596a80, side * 8.04, y, dz, .95, .16, 2.2);
-            this.box(c.snow, side * 8.04, y + .12, dz, 1.04, .12, 2.3);
-            this.box(0x62728a, side * 7.58, y + .57, dz, .07, .77, 2.1);
-            this.box(c.snow, side * 7.58, y + 1, dz, .13, .08, 2.2);
-            for (const d of [-1.03, 1.03]) this.box(0x6c7f97, side * 8, y + .57, dz + d, .85, .77, .065);
-        }
-        this.part('plane', 0x233958, side * 7.4, .273, z, 3, 28, 1, [-Math.PI / 2, 0, 0], 'soft');
-        const kind = STORE_ORDER[(index * 2 + (side > 0 ? 1 : 0)) % STORE_ORDER.length];
-        if (kind) this.storefront(side, z - .5, kind, index);
         this.atm(side, z + (side < 0 ? 4.3 : -5.2), /* справа на +4 стоит ель */(index * 2 + (side > 0 ? 1 : 0)) % ATMS.length);
+    }
+
+    loadHouses() {
+        const dir = this.world.tier.lite ? 'models/winter/lite/' : 'models/winter/';
+        this.houses = [];
+        HOUSES.forEach((name, n) => loadModel(`${dir}house_${name}.glb?v=6`, (gltf) => {
+            const model = gltf.scene;
+            model.traverse((o) => { if (o.isMesh) o.material = new THREE.MeshBasicMaterial({ map: o.material.map, side: THREE.DoubleSide }); }); // сетка генератора не замкнута: с одной стороны сквозь дом видно насквозь
+            const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3()), k = HOUSE_WIDTH / size.x;
+            // земля — там, где стоит основная масса дома, а не самая нижняя точка: иначе корни ёлок и край крыльца приподнимают дом
+            const ys = [], p = new THREE.Vector3();
+            model.updateMatrixWorld(true);
+            model.traverse((o) => { if (!o.isMesh) return; const a = o.geometry.attributes.position; for (let i = 0; i < a.count; i += 3) ys.push(p.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld).y); });
+            ys.sort((a, b) => a - b);
+            const floor = ys[Math.floor(ys.length * .06)] + size.y * .012; // чуть в снег
+            model.position.set(-centre.x, -floor, -centre.z);
+            const house = new THREE.Group().add(model);
+            house.scale.setScalar(k);
+            this.houses[n] = { house, width: HOUSE_WIDTH, height: size.y * k, depth: size.z * k };
+            this.world.warmQueue.push(house.clone());
+        }, () => {}));
+    }
+
+    // Вдоль улицы стоят настоящие модели. Только ряды вдали (за 120 м, в дымке) — снимки моделей: плоскость всегда лицом
+    // к смотрящему вдоль улицы, поэтому ребром она не видна. Вызывает Game, когда есть renderer
+    bakeHouses(renderer) {
+        if (this.baked || HOUSES.some((_, n) => !this.houses?.[n])) return;
+        this.baked = true;
+        const cell = 512, rt = new THREE.WebGLRenderTarget(cell * HOUSES.length, cell, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter });
+        const was = { target: renderer.getRenderTarget(), auto: renderer.autoClear, alpha: renderer.getClearAlpha(), colour: renderer.getClearColor(new THREE.Color()), curve: curveUniform.value, side: curveSide.value };
+        curveUniform.value = 0; curveSide.value = 0;
+        renderer.setClearColor(0x4a4560, 0); // цвет прозрачного поля: без светлой каймы на краю силуэта
+        renderer.setRenderTarget(rt); renderer.clear();
+        renderer.autoClear = false;
+        rt.scissorTest = true;
+        this.houses.forEach((h, col) => {
+            const scene = new THREE.Scene(), S = h.frame = Math.max(h.width, h.height, h.depth) * 1.02;
+            scene.add(h.house);
+            const cam = new THREE.OrthographicCamera(-S / 2, S / 2, S / 2, -S / 2, .1, 200);
+            rt.viewport.set(col * cell, 0, cell, cell); rt.scissor.set(col * cell, 0, cell, cell);
+            renderer.setRenderTarget(rt);
+            cam.position.set(0, S / 2, 80); cam.lookAt(0, S / 2, 0); cam.updateMatrixWorld();
+            renderer.render(scene, cam);
+            scene.remove(h.house);
+        });
+        rt.scissorTest = false;
+        renderer.setRenderTarget(was.target); renderer.autoClear = was.auto; renderer.setClearColor(was.colour, was.alpha);
+        curveUniform.value = was.curve; curveSide.value = was.side;
+        rt.texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        const material = this.materials.houseCard = new THREE.MeshBasicMaterial({ map: rt.texture, alphaTest: .5, side: THREE.DoubleSide });
+        this.chunks.forEach((chunk, index) => {
+            for (const side of [-1, 1]) HOUSE_SLOTS.forEach((dz, slot) => {
+                const pick = (index * 2 + (side > 0 ? 1 : 0) + slot * 2 + (slot ? index : 0)) % HOUSES.length, copy = this.houses[pick].house.clone();
+                copy.rotation.y = -side * Math.PI / 2; // модели смотрят в +Z: лицом к дороге
+                copy.position.set(side * (HOUSE_FRONT + this.houses[pick].depth / 2), 0, dz);
+                chunk.add(copy);
+            });
+        });
+        const far = [];
+        for (const dir of [-1, 1]) for (let row = 0; row < (dir < 0 ? 5 : 4); row++) for (const side of [-1, 1]) {
+            const z = dir < 0 ? -124 - row * 29 : 75 + row * 29;
+            for (const [dx, dz] of [[0, -7], [3, 7]]) {
+                const n = (row + (dz > 0 ? 1 : 0) + (side > 0 ? 1 : 0)) % HOUSES.length, S = this.houses[n].frame, geo = new THREE.PlaneGeometry(S, S), uv = geo.attributes.uv;
+                for (let i = 0; i < uv.count; i++) uv.setX(i, (n + uv.getX(i)) / HOUSES.length);
+                if (dir > 0) geo.rotateY(Math.PI); // за спиной: лицом к камере меню
+                geo.translate(side * (HOUSE_FRONT + S / 2 + dx), S / 2, z + dz);
+                far.push(geo);
+            }
+        }
+        const geo = mergeBufferGeometries(far);
+        geo.computeBoundingSphere();
+        for (const piece of far) piece.dispose();
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.matrixAutoUpdate = false;
+        this.distant.add(mesh);
     }
 
     // Банкомат у стены между витриной и подъездом: корпус, лицевая панель (фото ATMS по-зимнему), снег на крыше, отсвет
@@ -456,6 +512,8 @@ export class Winter {
         this.box(0x2b3445, side * 7.75, h / 2, z, .7, h, w + .12);
         this.part('plane', 0xffffff, side * 7.39, h / 2, z, w, h, 1, [0, -side * Math.PI / 2, 0], id);
         this.box(c.snow, side * 7.73, h + .07, z, .8, .14, w + .22);
+        this.part('plane', 0x0d1630, side * 7.3, .225, z, 1.7, w + 1.2, 1, [-Math.PI / 2, 0, 0], 'soft');
+        this.part('ball', c.snow, side * 7.75, .16, z, .75, .3, w * .85); // снег у основания
         this.part('plane', cfg.light, side * 6.9, .31, z, 1.6, w + .9, 1, [-Math.PI / 2, 0, 0], 'halo');
     }
 
@@ -529,7 +587,7 @@ export class Winter {
             const chunk = this.chunks[i];
             if (!chunk) continue;
             const car = new THREE.Group();
-            car.position.set(-5.05, .27, -12); // вдоль дороги в проёме ограды, на расчищенной обочине
+            car.position.set(-5.05, .19, -12); // вдоль дороги в проёме ограды, на расчищенной обочине
             const flashers = [0xff2020, 0x2050ff].map((color, k) => {
                 const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: w.glowTex, color: new THREE.Color(color).multiplyScalar(3),
                     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -567,16 +625,14 @@ export class Winter {
     }
 
     fence(x, z, length) {
-        const c = this.colours;
-        this.box(c.iron, x, .6, z, .055, .055, length);
-        this.box(c.iron, x, 1.02, z, .075, .08, length);
-        this.box(c.snow, x, 1.08, z, .11, .055, length);
-        for (let d = -length / 2; d <= length / 2; d += this.world.tier.lite ? 1.5 : .75) {
-            this.box(c.iron, x, .64, z + d, .06, .88, .06);
-            this.part('ball', c.snow, x, 1.1, z + d, .08, .055, .08);
-        }
+        // забор толще и мягче по цвету: тонкие тёмные линии на белом снегу на бегу дрожат и мерцают
+        const c = this.colours, iron = 0x4d5f80;
+        this.box(iron, x, .6, z, .12, .12, length);
+        this.box(iron, x, 1.02, z, .15, .14, length);
+        this.box(c.snow, x, 1.12, z, .2, .08, length);
+        for (let d = -length / 2; d <= length / 2; d += 1.5) this.box(iron, x, .64, z + d, .12, .88, .12);
         for (const d of [-length / 2, length / 2]) {
-            this.box(c.iron, x, .64, z + d, .13, 1.05, .13);
+            this.box(iron, x, .64, z + d, .18, 1.05, .18);
             this.part('ball', c.snow, x, 1.22, z + d, .15, .09, .15);
         }
     }
@@ -588,17 +644,15 @@ export class Winter {
         this.box(c.iron, x, 4.02, z, .5, .12, .5);
         this.part('box', new THREE.Color(2.5, 1.4, .45), x, 4.34, z, .38, .53, .38, null, 'glow');
         for (const dx of [-.21, .21]) for (const dz of [-.21, .21]) this.box(c.iron, x + dx, 4.32, z + dz, .045, .62, .045);
-        this.part('plane', 0xffb050, x, 4.34, z, 3.8, 3.8, 1, null, 'halo'); // жёлтое свечение вокруг фонаря: без постобработки, поэтому и на телефоне
+        this.part('plane', 0xb57d3a, x, 4.34, z, 2.6, 2.6, 1, null, 'halo'); // жёлтое свечение вокруг фонаря: без постобработки, поэтому и на телефоне
         this.part('cone', c.iron, x, 4.73, z, .43, .35, .43, [0, Math.PI / 4, 0]);
         this.part('cone', c.snow, x, 4.79, z, .4, .31, .4, [0, Math.PI / 4, 0]);
         this.part('ball', c.iron, x, 5, z, .07, .12, .07);
         // Warm light painted on snow, as opaque geometry, no extra light/shader pass.
         // 30.10: пятна света на снегу и на дороге в 2–2,5 раза тусклее: на хорошей графике свечение (bloom) раздувало их
         // в жёлтые кляксы с цветными крапинами асфальта посреди полосы
-        this.part('plane', 0x8a5a2a, x, .3, z, 4.2, 5.4, 1, [-Math.PI / 2, 0, 0], 'halo');
-        this.part('plane', 0xffb75e, x, 4.35, z + .25, 2.5, 2.9, 1, null, 'halo');
-        this.part('plane', 0xffbb6a, x, 4.35, z, 2.5, 2.9, 1, [0, Math.PI / 2, 0], 'halo');
-        this.part('plane', 0x5a3a1c, Math.sign(x) * 2.5, .027, z + 1, 3.8, 6, 1, [-Math.PI / 2, 0, 0], 'halo');
+        // пятно света — только на ровном снегу за забором: на сугробе у дороги плоскость врезалась в него и мерцала рваными кусками
+        this.part('plane', 0x6a4520, Math.sign(x) * 6.3, .27, z, 3.4, 5.4, 1, [-Math.PI / 2, 0, 0], 'halo');
     }
 
     birch(x, z, height) {
@@ -609,14 +663,8 @@ export class Winter {
             const angle = i * 2.4, y = height * (.35 + i * .052), reach = (1.4 + this.rand() * .8) * (1 - i * .035);
             const a = [x + .15, y, z], b = [x + Math.cos(angle) * reach, y + .65, z + Math.sin(angle) * reach];
             const mid = [(a[0] + b[0]) / 2, y + .18, (a[2] + b[2]) / 2];
-            this.rod(c.bark, a, mid, .05); this.rod(c.dark, mid, b, .027);
+            this.rod(c.bark, a, mid, .07); this.rod(c.bark, mid, b, .05); // без тонких веточек: толщиной в доли пикселя они мерцали на бегу
             if (i % 2 === 0) this.rod(c.snow, [a[0], a[1] + .035, a[2]], [mid[0], mid[1] + .035, mid[2]], .047);
-            for (let j = this.world.tier.lite ? 1 : 0; j < (this.world.tier.lite ? 2 : 3); j++) { // на слабых устройствах по одной ветке
-                const turn = (j - 1) * .55;
-                const twig = [b[0] + Math.cos(angle + turn) * .65, b[1] + .4 + this.rand() * .3, b[2] + Math.sin(angle + turn) * .65];
-                this.rod(c.dark, b, twig, .014);
-                this.rod(c.dark, twig, [twig[0] + Math.cos(angle + turn) * .35, twig[1] + .45, twig[2] + Math.sin(angle + turn) * .35], .007);
-            }
         }
         this.part('ball', c.snow, x, .25, z, .55, .25, .65);
         this.part('plane', 0x24395b, x, .275, z, 2.5, 3.6, 1, [-Math.PI / 2, 0, 0], 'soft');
@@ -696,20 +744,40 @@ export class Winter {
 
     car(x, z) {
         this.carSites.push({ chunk: this.chunkIndex, x, z });
-        this.part('plane', 0x1c2b46, x, .278, z, 2.8, 5.4, 1, [-Math.PI / 2, 0, 0], 'soft');
+        this.part('plane', 0x0d1630, x, .225, z, 3.4, 6.2, 1, [-Math.PI / 2, 0, 0], 'soft');
     }
 
+    // сказочный мостик под стать домам: кирпичные опоры со снежными шапками, деревянный настил, распорки и гирлянда
     bridge(z) {
-        const c = this.colours;
+        const c = this.colours, brick = 0x8a4238, wood = 0x6e4432, trim = 0xc99a6b;
         // низ настила на 7,4 м: в полёте макушка героя на 6,2 м, камера на 5,9 м, обоим проходить под мостом
-        const up = 2.65;
-        for (const x of [-7.3, 7.3]) this.box(0x8998ad, x, (4.8 + up) / 2, z, .6, 4.8 + up, 1.5);
-        this.box(c.dark, 0, 4.9 + up, z, 15.5, .32, 2);
-        this.box(c.snow, 0, 5.1 + up, z, 15.7, .15, 2.1);
+        const up = 2.65, deck = 4.9 + up;
+        for (const sx of [-1, 1]) {
+            const x = sx * 7.3;
+            this.box(0x5e3a38, x, .45, z, 1.3, .9, 1.9); // цоколь
+            this.box(brick, x, deck / 2, z, .85, deck, 1.4);
+            for (const y of [2.4, 4.6]) this.box(trim, x, y, z, .95, .12, 1.5); // пояса
+            this.box(trim, x, deck - .3, z, 1.1, .22, 1.7);
+            this.box(c.snow, x, 8.55, z, 1.2, .3, 1.8); // снег на опоре, поверх перил
+            this.box(wood, x, 8.25, z, .9, .35, 1.5);
+            // ступенчатые распорки у опор: настил не лежит плоской доской
+            this.box(wood, sx * 6.3, deck - .42, z, 1.3, .5, 1.5);
+            this.box(wood, sx * 5.2, deck - .27, z, 1, .22, 1.5);
+        }
+        this.box(wood, 0, deck, z, 15.5, .32, 2);
+        this.box(trim, 0, deck - .2, z + 1.02, 15.5, .1, .06); // кант вдоль настила
+        this.box(trim, 0, deck - .2, z - 1.02, 15.5, .1, .06);
+        this.box(c.snow, 0, deck + .22, z, 15.7, .15, 2.1);
         for (const dz of [-.9, .9]) {
-            this.box(c.iron, 0, 6 + up, z + dz, 15.5, .07, .07);
-            this.box(c.snow, 0, 6.06 + up, z + dz, 15.5, .06, .11);
-            for (let x = -7.5; x <= 7.5; x += .55) this.box(c.iron, x, 5.55 + up, z + dz, .045, .9, .045);
+            this.box(wood, 0, deck + 1.1, z + dz, 14.2, .09, .09);
+            this.box(c.snow, 0, deck + 1.17, z + dz, 14.2, .07, .13);
+            for (let x = -6.6; x <= 6.6; x += 1.1) this.box(wood, x, deck + .65, z + dz, .08, .9, .08);
+        }
+        // гирлянда под настилом со стороны бегущего: лампочки по провисающей линии
+        const lights = [0xffd27a, 0xff6a5a, 0x8fd8ff];
+        for (let i = 0; i <= 18; i++) {
+            const x = -6.3 + i * .7, y = deck - .28 - Math.abs(Math.sin(i / 6 * Math.PI)) * .28;
+            this.part('bulb', lights[i % 3], x, y, z + 1.1, .075, .075, .075, null, 'glow');
         }
     }
 
@@ -743,7 +811,6 @@ export class Winter {
             g.fillStyle = 'rgba(228,237,252,.3)'; g.fillRect(0, 0, W, H);
         });
         snow.wrapS = snow.wrapT = THREE.RepeatWrapping;
-        this.materials.snow.map = snow; this.materials.snow.needsUpdate = true;
         this.materials.surface.map = surfaces; this.materials.surface.needsUpdate = true;
         for (const mesh of this.chapel.children) {
             mesh.material.copy(this.materials[mesh.userData.winterMaterial]);
@@ -783,7 +850,7 @@ export class Winter {
         });
         for (const site of this.carSites) {
             const root = new THREE.Group(); root.add(model.clone(true));
-            root.position.set(site.x, .255, site.z); root.userData.parkedCar = true;
+            root.position.set(site.x, .19, site.z); root.userData.parkedCar = true;
             this.chunks[site.chunk].add(root);
         }
         this.carModel = PARKED_CAR;

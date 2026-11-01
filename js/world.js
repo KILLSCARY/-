@@ -149,6 +149,64 @@ function mergeStatic(g) {
     }
 }
 
+// Нарисованные фасады ночного района: крупные формы, одна палитра, свет уже в картинке. ?facades=photo — прежние снимки
+const PAINTED_FACADES = !(typeof location !== "undefined" && /[?&]facades=photo/.test(location.search));
+const FACADE_PX = 40; // точек на метр
+const FACADE_WALLS = [
+    { wall: "#43365a", trim: "#6d5e8a", base: "#2a2338" },
+    { wall: "#2f3a5e", trim: "#56648f", base: "#1f2740" },
+    { wall: "#54324d", trim: "#83567a", base: "#33202f" },
+    { wall: "#39395a", trim: "#62628c", base: "#25253c" },
+];
+const FACADE_LIGHTS = [["#ffd98a", "#f29c3f"], ["#ffc27a", "#e8783a"], ["#ffe6ad", "#f5b45a"]];
+
+function paintFacade(c, w, h, { floors, ground, scheme, seed }) {
+    const m = FACADE_PX, pal = FACADE_WALLS[scheme], floor = FLOOR_H * m, base = 3.2 * m;
+    let n = seed * 7919 + 13;
+    const rand = () => (n = n * 16807 % 2147483647) / 2147483647;
+    c.fillStyle = pal.wall; c.fillRect(0, 0, w, h);
+    const halos = [];
+    for (let i = 1; i < floors; i++) {
+        const top = h - base - i * floor + floor * 0.0;
+        c.fillStyle = pal.trim; c.fillRect(0, top + floor - 5, w, 5); // межэтажный пояс
+        c.fillStyle = "rgba(10, 6, 20, .35)"; c.fillRect(0, top + floor, w, 4);
+        const ww = 1.35 * m, wh = 1.75 * m, wy = top + 0.5 * m, step = 2.7 * m, cols = Math.floor(w / step), x0 = (w - cols * step) / 2 + (step - ww) / 2;
+        for (let k = 0; k < cols; k++) {
+            const x = x0 + k * step, lit = rand() < 0.32;
+            c.fillStyle = pal.trim; c.fillRect(x - 4, wy - 4, ww + 8, wh + 8); // наличник
+            c.fillRect(x - 7, wy + wh + 4, ww + 14, 5); // подоконник
+            const g = c.createLinearGradient(0, wy, 0, wy + wh);
+            if (lit) { const l = FACADE_LIGHTS[Math.floor(rand() * FACADE_LIGHTS.length)]; g.addColorStop(0, l[0]); g.addColorStop(1, l[1]); halos.push([x + ww / 2, wy + wh / 2]); }
+            else { g.addColorStop(0, "#2a3558"); g.addColorStop(1, "#131829"); }
+            c.fillStyle = g; c.fillRect(x, wy, ww, wh);
+            c.fillStyle = pal.base; c.fillRect(x + ww / 2 - 2, wy, 4, wh); c.fillRect(x, wy + wh * 0.36 - 2, ww, 4); // переплёт
+        }
+    }
+    // запечённый свет: ореол у горящих окон, луна сверху, тёплые фонари снизу
+    c.globalCompositeOperation = "lighter";
+    for (const [x, y] of halos) {
+        const g = c.createRadialGradient(x, y, m * 0.6, x, y, m * 2.2);
+        g.addColorStop(0, "rgba(255, 170, 90, .16)"); g.addColorStop(1, "rgba(255, 170, 90, 0)");
+        c.fillStyle = g; c.fillRect(x - m * 2.2, y - m * 2.2, m * 4.4, m * 4.4);
+    }
+    const low = c.createLinearGradient(0, h - base - floor * 1.4, 0, h - base);
+    low.addColorStop(0, "rgba(255, 130, 70, 0)"); low.addColorStop(1, "rgba(255, 130, 70, .14)");
+    c.fillStyle = low; c.fillRect(0, h - base - floor * 1.4, w, floor * 1.4);
+    c.globalCompositeOperation = "source-over";
+    const top = c.createLinearGradient(0, 0, 0, h * 0.5);
+    top.addColorStop(0, "rgba(12, 10, 34, .42)"); top.addColorStop(1, "rgba(12, 10, 34, 0)");
+    c.fillStyle = top; c.fillRect(0, 0, w, h * 0.5);
+    // первый этаж: камень и рольставни; у домов с поясом его закрывает бетон (makeBuilding)
+    c.fillStyle = pal.base; c.fillRect(0, h - base, w, base);
+    c.fillStyle = pal.trim; c.fillRect(0, h - base - 6, w, 6);
+    if (ground) for (let x = 0.5 * m; x < w - 2.5 * m; x += 3.4 * m) {
+        c.fillStyle = pal.trim; c.fillRect(x - 3, h - base + 0.6 * m - 3, 2.6 * m + 6, base);
+        c.fillStyle = "#4a4458"; c.fillRect(x, h - base + 0.6 * m, 2.6 * m, base);
+        c.fillStyle = "#2f2a3c";
+        for (let y = h - base + 0.6 * m + 6; y < h; y += 8) c.fillRect(x, y, 2.6 * m, 2);
+    }
+}
+
 // Случайный фасад с учётом weight
 function pickFacade() {
     const list = TEXTURES.facades;
@@ -863,6 +921,11 @@ export class World {
         if (this.mat.facades[key]) return this.mat.facades[key];
         const f = TEXTURES.facades[index];
         const h = f.floors * FLOOR_H + 0.8;
+        if (PAINTED_FACADES) { // цвет и свет уже в картинке: материал без расчёта света, а размер текстуры — под размер дома
+            const scheme = (index + variant) % FACADE_WALLS.length, map = canvasTex(Math.round(len * FACADE_PX), Math.round(h * FACADE_PX), (c, w, H) => paintFacade(c, w, H, { floors: f.floors, ground: f.ground, scheme, seed: index * 5 + variant + 1 }));
+            map.anisotropy = 4;
+            return this.mat.facades[key] = new THREE.MeshBasicMaterial({ map });
+        }
         const share = Math.min(1, len / (h * f.aspect)); // какая доля ширины картинки помещается на дом
         // мультяшные дома: темнота поднята в сиреневый, стены читаются; окна светятся своей картой
         const maps = pbr(f.name, [share, 1], ["glow"], { size: 2048, smooth: 1.5, sat: 1, gain: 1.15, lift: [14, 12, 24] });
@@ -2648,7 +2711,8 @@ export class World {
 
         // фура вместо обычного препятствия: с надписью — только на крайних полосах (иначе её не видно, см. TRUCKS), иногда сразу две
         const T = TRUCKS, trucks = new Set(), sides = this.truckCfg().logo ? blocked.filter((l) => l !== 1) : blocked;
-        if (T.locations.includes(this.location || "street") && !this.noCars && sides.length
+        // стоящей фуре стены не мешают: ряды у стен и так не ставятся (Game.nearWall); нельзя только в бою с боссом
+        if (T.locations.includes(this.location || "street") && !this.noTrucks && sides.length
             && Math.random() < T.chance[0] + (T.chance[1] - T.chance[0]) * difficulty) {
             trucks.add(sides[0]);
             if (sides[1] !== undefined && Math.random() < T.twin) trucks.add(sides[1]);
