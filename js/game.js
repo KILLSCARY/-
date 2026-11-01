@@ -1447,8 +1447,6 @@ class Game {
         curveUniform.value = CURVE.strength * this.curveMix * this.curveMix * (3 - 2 * this.curveMix);
         // скруглённый мир: дальше runFar даже верхушки домов уже за горизонтом, рисовать их незачем (без скругления, в меню — вся улица)
         const far = Math.round(Math.min(this.baseFar, this.baseFar + ((this.tier.runFar || this.baseFar) - this.baseFar) * this.curveMix));
-        const lightMenu = this.mobile && this.state === "menu"; // дождь в меню на телефоне: лишняя запись в видеопамять каждый кадр
-        if (this.world.rain && this.world.rain.visible === lightMenu) this.world.rain.visible = !lightMenu;
         if (far !== this.camera.far) {
             this.camera.far = far;
             this.scene.fog.far = Math.min(this.baseFog, far - 4);

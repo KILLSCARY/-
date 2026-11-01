@@ -1372,7 +1372,7 @@ export class World {
     }
 
     buildRain() {
-        const n = this.tier.rain;
+        const n = 0; // дождь убран (02.11): лишняя нагрузка, а штрихи и круги на дороге рябили
         const pos = new Float32Array(n * 6);
         this.rainSpeed = new Float32Array(n);
         for (let i = 0; i < n; i++) {
@@ -1383,6 +1383,7 @@ export class World {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
         this.rain = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xc89090, transparent: true, opacity: 0.16 }));
+        this.rain.visible = false;
         this.scene.add(this.rain);
     }
 
@@ -1406,7 +1407,8 @@ export class World {
         this.rippleBase = new THREE.Color(0xb4acec); // светлее асфальта: на пёстрой мокрой дороге тусклые кольца терялись
         const c = new THREE.Color(0);
         for (let i = 0; i < RIPPLES; i++) this.ripples.setColorAt(i, c);
-        this.ripples.count = Math.min(RIPPLES, Math.round(this.tier.rain / 10));
+        this.ripples.count = 0;
+        this.ripples.visible = false;
         this.scene.add(this.ripples);
     }
 
@@ -2032,7 +2034,6 @@ export class World {
         this.tier = tier;
         this.rainCount = Math.min(this.rainSpeed.length, tier.rain);
         this.rain.geometry.setDrawRange(0, this.rainCount * 2);
-        this.ripples.count = Math.min(RIPPLES, Math.round(tier.rain / 10));
         this.mat.blob.opacity = tier.blob ?? 0.5;
         this.mat.blob.visible = this.mat.blob.opacity > 0;
         const keep = (list, total) => { const n = this.npcLimit(total); list.forEach((o, i) => { o.visible = i < n; }); };
