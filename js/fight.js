@@ -11,7 +11,7 @@ import { loadModel, upgradeTextures } from "./models.js";
 import { FIGHT, FIGHT_CLIPS, FIGHTERS, MASK_SCENE, NIKITA_ITEMS, NIKITA_BAG } from "./config.js";
 import { MaskScene } from "./maskscene.js";
 import { tg } from "./tg.js";
-import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
+import { canBlock, raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "./fightrules.js";
 
 const $ = (id) => document.getElementById(id);
 const smooth = (k) => { k = Math.min(1, Math.max(0, k)); return k * k * (3 - 2 * k); };
@@ -367,11 +367,10 @@ export class Fight {
         const tap = (cmd) => (e) => { e.preventDefault(); e.stopPropagation(); this.input(cmd); };
         on("fb-dodge", "pointerdown", tap("dodge"));
         on("fb-super", "pointerdown", tap("super"));
-        on("fb-block", "pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); this.holdBlock = true; this.input("block"); });
+        on("fb-block", "pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} this.holdBlock = true; this.input("block"); });
         const release = () => { this.holdBlock = false; };
         on("fb-block", "pointerup", release);
         on("fb-block", "pointercancel", release);
-        on("fb-block", "pointerleave", release);
         // удар — тап по экрану (кнопки «Удар» нет, 30.10): по пустому месту — в корпус, по сопернику — по зоне;
         // свайп вниз — блок, в сторону — уклон, вверх — супер
         let s = null;
@@ -417,7 +416,8 @@ export class Fight {
             this.act(h, "low", 0.7);
             h.cd = FIGHT.punchCd;
         } else if (cmd === "block") {
-            if (h.act === "idle") this.act(h, "block", FIGHT.blockTime);
+            if (canBlock(h)) this.act(h, "block", FIGHT.blockTime);
+            else if (!again && h.act !== "block") this.buf = { cmd, t: this.t }; // нажал чуть раньше — закроется, как только сможет
         } else if (cmd === "dodge") {
             if (!free || h.cd > 0) return;
             this.act(h, "dodge", FIGHT.dodgeTime);
@@ -812,7 +812,7 @@ export class Fight {
         } else if (this.phase === "fight") {
             this.timeLeft -= dt;
             if (this.exam) this.examStep(dt); else this.think(dt);
-            if (this.holdBlock && h.act === "idle") this.act(h, "block", FIGHT.blockTime);
+            if (this.holdBlock && canBlock(h)) this.act(h, "block", FIGHT.blockTime);
             if (h.act === "block" && this.holdBlock) h.t = Math.min(h.t, h.dur * 0.5); // держит, пока палец на кнопке
             for (const [a, d] of [[h, o], [o, h]]) {
                 a.cd = Math.max(0, a.cd - dt);
@@ -862,6 +862,7 @@ export class Fight {
         if (this.buf) { // отложенное нажатие: боец освободился — выполняем, устарело — забываем
             const b = this.buf;
             if (this.t - b.t > FIGHT.buffer) this.buf = null;
+            else if (b.cmd === "block") { if (canBlock(h)) { this.buf = null; this.input("block", true); } }
             else if ((h.act === "idle" || h.act === "block") && h.cd <= 0) { this.buf = null; this.input(b.cmd, true); }
         }
         if (this.cineOn && h.act !== "super" && h.act !== "superFin") this.cine(false);

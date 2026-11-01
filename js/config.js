@@ -1021,6 +1021,7 @@ export const FIGHT = {
     stun: { jab: 0.2, cross: 0.24, hook: 0.38, heavy: 0.5, super: 0.65, low: 0.3 }, recoilTime: 0.42, whiffTime: 0.75, counter: 1.5, koHold: 0.85, contact: 0.42, heavyTime: 0.5, superTime: 1.25, blockCut: 0.8, superMax: 100, superPerHit: 4, superPerHurt: 3, superPerAnswer: 10, hpPerAnswer: 3,
     // парирование: блок, поднятый за window с до удара, отражает его; бьющий открыт stun с; между подъёмами блока — rearm с
     parry: { window: 0.3, rearm: 0.6, stun: 0.8, super: 12 },
+    blockFrom: { hit: 0.1, recoil: 0.18, punch: 0.3 }, // с какого момента блок прерывает оглушение и отдачу (с), до какой доли свой удар
     // вторая фаза соперника ниже доли at здоровья (раз за раунд): атаки чаще в speed раз, замах короче (×tele), тяжёлых +heavy
     phase2: { at: 0.5, speed: 1.25, tele: 0.85, heavy: 0.06 },
     // урон по зоне тапа (кнопка удара бьёт в корпус)

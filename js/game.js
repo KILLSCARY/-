@@ -384,10 +384,13 @@ class Game {
         this.composer.addPass(this.fxaa);
 
         window.addEventListener("resize", () => this.onResize());
+        // Telegram разворачивает окно без события resize: холст растягивался стилями, а камера и буфер оставались под старый размер — картинка сплющена и размыта
+        if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { const el = this.renderer.domElement; if (el.clientWidth !== this.drawnW || el.clientHeight !== this.drawnH) this.onResize(); }).observe(this.renderer.domElement);
     }
 
     onResize() {
-        const w = window.innerWidth, h = window.innerHeight;
+        const el = this.renderer.domElement, w = el.clientWidth || window.innerWidth, h = el.clientHeight || window.innerHeight; // настоящий размер холста: window.inner* в Telegram отстаёт
+        this.drawnW = el.clientWidth; this.drawnH = el.clientHeight;
         if (!w || !h) return; // окно ещё не развернулось (Telegram, фоновая вкладка): буферы нулевого размера — ошибки WebGL
         // адаптация и тепловой ограничитель перемножаются (было 0,85 × 0,68 = 0,58: 450 пикселей в ширину — мыло, а кадров почти не прибавляло),
         // поэтому на телефоне вместе они не опускают плотность ниже ×1,3 (на слабой графике — её собственной)

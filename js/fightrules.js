@@ -4,6 +4,16 @@ import { FIGHT } from "./config.js";
 
 // Парирование: блок, поднятый не раньше чем за FIGHT.parry.window с до удара, отражает его целиком.
 // Чтобы окно не ловили частыми нажатиями блока, между подъёмами блока нужна пауза FIGHT.parry.rearm с.
+// Когда можно закрыться: из стойки; из оглушения и отдачи — чуть погодя (иначе серия соперника не блокируется вообще:
+// оглушение дольше паузы между его ударами); свой удар отменяется, пока он не долетел.
+export function canBlock(f) {
+    if (f.act === "idle") return true;
+    if (f.act === "hit") return f.t >= FIGHT.blockFrom.hit;
+    if (f.act === "recoil") return f.t >= FIGHT.blockFrom.recoil;
+    if (f.act === "punch") return !f.hitDone && f.t < f.dur * FIGHT.blockFrom.punch;
+    return false;
+}
+
 export function raiseBlock(f, now) {
     f.parryAt = now - (f.blockUpAt ?? -99) >= FIGHT.parry.rearm ? now : null;
     f.blockUpAt = now;

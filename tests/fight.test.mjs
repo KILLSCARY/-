@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FIGHT, FIGHTERS } from "../js/config.js";
-import { raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "../js/fightrules.js";
+import { canBlock, raiseBlock, isParry, phase2Of, inPhase2, zoneDamage } from "../js/fightrules.js";
 
 const blocker = (now) => { const f = { act: "block" }; raiseBlock(f, now); return f; };
 
@@ -71,4 +71,17 @@ test("боссы свободного забега сильнее обычных
         assert.ok(free.ai.every[0][0] < base.ai.every[0][0], id);
         assert.ok(free.lines.lose && free.portrait && free.moves, id);
     }
+});
+
+test('блок прерывает оглушение и отдачу не сразу, а свой удар — пока он не долетел', () => {
+    const { hit, recoil, punch } = FIGHT.blockFrom;
+    assert.equal(canBlock({ act: 'idle', t: 0 }), true);
+    assert.equal(canBlock({ act: 'hit', t: hit - 0.01 }), false);
+    assert.equal(canBlock({ act: 'hit', t: hit }), true);
+    assert.equal(canBlock({ act: 'recoil', t: recoil - 0.01 }), false);
+    assert.equal(canBlock({ act: 'recoil', t: recoil }), true);
+    assert.equal(canBlock({ act: 'punch', t: 0, dur: 1, hitDone: false }), true);
+    assert.equal(canBlock({ act: 'punch', t: punch, dur: 1, hitDone: false }), false);
+    assert.equal(canBlock({ act: 'punch', t: 0, dur: 1, hitDone: true }), false);
+    assert.equal(canBlock({ act: 'super', t: 0 }), false);
 });
