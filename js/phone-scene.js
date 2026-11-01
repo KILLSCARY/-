@@ -1,7 +1,15 @@
 import * as THREE from './vendor/three.module.js';
 
-// модель телефона в руке героя — Game скачивает её заранее, под затемнением перед роликом
-export const PHONE_MODEL = 'models/obj/phone.glb?v=1';
+// контур телефона со скруглёнными углами, центр — в нуле
+function roundedRect(w, h, r) {
+    const x = -w / 2, y = -h / 2, shape = new THREE.Shape();
+    shape.moveTo(x + r, y);
+    shape.lineTo(x + w - r, y); shape.absarc(x + w - r, y + r, r, -Math.PI / 2, 0);
+    shape.lineTo(x + w, y + h - r); shape.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2);
+    shape.lineTo(x + r, y + h); shape.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI);
+    shape.lineTo(x, y + r); shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5);
+    return shape;
+}
 
 // Экран телефона — настоящий чат: шапка с фото Гориллы, сообщение пузырём, поле ввода. Цвета — как у меню игры
 function phoneScreen(hero) {
@@ -70,44 +78,22 @@ export class PhoneScene {
         });
         this.rest = [this.arm, this.forearm].filter(Boolean).map(b => [b, b.quaternion.clone()]);
         this.phone = new THREE.Group();
-        this.bodyGeo = new THREE.BoxGeometry(.15, .28, .022);
-        this.screenGeo = new THREE.PlaneGeometry(.125, .235);
-        this.bodyMat = new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: .55 });
+        // Телефон построен из точных контуров: сгенерированная модель была кривой, а её загрузка лагала перед роликом.
+        // Пропорции экрана — как у холста, иначе текст растянут. Рисуется поверх всего: рука не закрывает экран
+        const SW = .125, SH = SW * 1032 / 512, EDGE = .005;
+        this.bodyGeo = new THREE.ExtrudeGeometry(roundedRect(SW + EDGE * 2, SH + EDGE * 2, .019), { depth: .012, bevelEnabled: true, bevelThickness: .0015, bevelSize: .0012, bevelSegments: 2, curveSegments: 10 });
+        this.bodyGeo.center();
+        this.bezelGeo = new THREE.ShapeGeometry(roundedRect(SW + EDGE, SH + EDGE, .017), 10);
+        this.screenGeo = new THREE.PlaneGeometry(SW, SH);
+        this.bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a3844, roughness: .4, metalness: .3, transparent: true, depthTest: false });
+        this.bezelMat = new THREE.MeshBasicMaterial({ color: 0x050507, transparent: true, depthTest: false });
         this.screenTexture = phoneScreen(game.heroShort?.()); // сообщение — лично герою
-        // прозрачный: углы скруглены, и рисуется после модели, а не под ней
-        this.screenMat = new THREE.MeshBasicMaterial({ map: this.screenTexture, toneMapped: false, transparent: true });
-        this.bodyMat.depthTest = false;
-        this.screenMat.depthTest = false;
-        const body = new THREE.Mesh(this.bodyGeo, this.bodyMat);
-        body.renderOrder = 1000; // поверх бликов фонарей: они рисуются после непрозрачного
-        this.phone.add(body);
-        const screen = new THREE.Mesh(this.screenGeo, this.screenMat);
-        screen.renderOrder = 1001;
-        // Экран отдельно от корпуса: нет мерцания из-за совпадающих поверхностей.
-        screen.position.z = .017; this.phone.add(screen);
+        this.screenMat = new THREE.MeshBasicMaterial({ map: this.screenTexture, toneMapped: false, transparent: true, depthTest: false });
+        const body = new THREE.Mesh(this.bodyGeo, this.bodyMat), bezel = new THREE.Mesh(this.bezelGeo, this.bezelMat), screen = new THREE.Mesh(this.screenGeo, this.screenMat);
+        body.renderOrder = 1000; bezel.renderOrder = 1001; screen.renderOrder = 1002;
+        bezel.position.z = .0078; screen.position.z = .0082; // зазор между слоями: без мерцания, когда телефон падает на землю
+        this.phone.add(body, bezel, screen);
         game.scene.add(this.phone);
-        // настоящая модель: Game.underFade разбирает и прогревает её до ролика (game.phoneGltf), иначе грузим сейчас —
-        // пока грузится, виден простой корпус. Рисуется последней поверх очищенной глубины: рука не закрывает экран
-        const ready = game.phoneGltf, use = gltf => {
-            if (this.done) return;
-            const model = gltf.scene, h = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).y;
-            model.scale.setScalar(.28 / h);
-            const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3());
-            model.position.sub(box.getCenter(new THREE.Vector3())); // по центру группы: экран и камера стоят ровно по телефону
-            this.modelMeshes = [];
-            model.traverse(o => { if (o.isMesh) { o.material.transparent = true; o.renderOrder = 1000; o.frustumCulled = false; this.modelMeshes.push(o); } });
-            if (this.modelMeshes[0] && !this.released) this.modelMeshes[0].onBeforeRender = r => { r.state.buffers.depth.setMask(true); r.clearDepth(); }; // без маски очистка не сработает после прозрачных
-            this.model = model;
-            body.visible = false;
-            this.phone.add(model);
-            // экран — по стеклу модели, а не по размеру заглушки
-            this.screenGeo.dispose();
-            this.screenGeo = screen.geometry = new THREE.PlaneGeometry(size.x * .89, size.y * .945);
-            screen.position.z = size.z / 2 + .0006;
-            this.screenMat.depthTest = true;
-        };
-        game.phoneGltf = null; // модель одна на ролик: следующий (повтор) загрузит свою
-        if (ready) use(ready); else game.storyModelLoader?.(PHONE_MODEL, use, () => {});
         this.start = new THREE.Vector3(); this.pos = new THREE.Vector3();
         this.ui = document.getElementById('phone-cutscene');
         this.ui.querySelector('.phone-cutscene-top').textContent = 'ГЛАВА 1 · ВЫХОД ИЗ СИСТЕМЫ';
@@ -148,8 +134,7 @@ export class PhoneScene {
                 this.released = true;
                 this.start.copy(this.phone.position);
                 // На земле телефон снова перекрывается окружающими объектами как обычная 3D-модель.
-                this.bodyMat.depthTest = this.screenMat.depthTest = true;
-                for (const m of this.modelMeshes || []) { m.onBeforeRender = () => {}; m.renderOrder = 0; m.material.transparent = false; m.material.needsUpdate = true; }
+                this.bodyMat.depthTest = this.bezelMat.depthTest = this.screenMat.depthTest = true;
                 this.caption.textContent = 'Горилла: «Встретимся на станции. Первая преграда уже ждёт». ';
             }
         } else {
@@ -180,8 +165,7 @@ export class PhoneScene {
         if (this.done) return;
         this.done = true; this.restorePose();
         this.game.scene.remove(this.phone);
-        if (this.model) this.model.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.normalMap?.dispose(); o.material.dispose(); } });
-        this.bodyGeo.dispose(); this.screenGeo.dispose(); this.bodyMat.dispose(); this.screenMat.dispose(); this.screenTexture.dispose();
+        for (const x of [this.bodyGeo, this.bezelGeo, this.screenGeo, this.bodyMat, this.bezelMat, this.screenMat, this.screenTexture]) x.dispose();
         this.game.camMix = 1;
         this.ui.hidden = true;
         document.getElementById('phone-cutscene-skip').onclick = null;

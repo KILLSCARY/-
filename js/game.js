@@ -7,7 +7,7 @@ import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
 import { CatchScene, CATCH_END } from "./catch-scene.js";
 import { Fight } from "./fight.js";
-import { PhoneScene, PHONE_MODEL } from "./phone-scene.js";
+import { PhoneScene } from "./phone-scene.js";
 import { StoryStage } from "./story-stage.js";
 import { ChapterScene } from "./chapter-scene.js";
 import { PerfHud } from "./perf.js";
@@ -686,19 +686,15 @@ class Game {
             // Каждая глава использует уже существующий район — без дополнительных постоянных источников света.
             // район, выбранный на карте, важнее района главы
             const picked = this.settings.location;
-            this.setLocation(picked === "winter" || picked === "street" ? picked : ["winter", "street", "street"][chapterStory.id - 1]);
+            // смена района — тяжёлая: только под затемнением, иначе экран лагает на глазах перед роликом
+            const toLocation = () => this.setLocation(picked === "winter" || picked === "street" ? picked : ["winter", "street", "street"][chapterStory.id - 1]);
             if (chapterStory.id === 1 && !this.profile.data.phoneSceneSeen) {
                 this.state = "storyintro";
                 this.rat.position.set(0, 0, 0);
                 this.rat.rotation.set(0, 0, 0);
                 this.show("hud");
                 $("hud").hidden = true;
-                // телефон в руке — скачать, разобрать и прогреть до ролика (PhoneScene возьмёт готовый из phoneGltf)
-                await this.underFade(() => new Promise((ok) => this.storyModelLoader(PHONE_MODEL, (gltf) => {
-                    this.phoneGltf = gltf;
-                    this.world.warmQueue.push(gltf.scene);
-                    ok();
-                }, ok)));
+                await this.underFade(async () => toLocation());
                 if (this.state !== "storyintro") return;
                 await new Promise(resolve => { this.phoneScene = new PhoneScene(this, resolve); });
                 this.phoneScene = null;
@@ -713,7 +709,7 @@ class Game {
                 this.rat.rotation.set(0, 0, 0);
                 this.show("hud"); $("hud").hidden = true;
                 const stage = new StoryStage(this.scene, chapterStory.id, 0, this.storyModelLoader);
-                await this.underFade(async () => { for (let i = 0; i < 120 && !stage.ready; i++) await wait(50); this.initTextures(stage.root); });
+                await this.underFade(async () => { toLocation(); for (let i = 0; i < 120 && !stage.ready; i++) await wait(50); this.initTextures(stage.root); });
                 if (this.state !== "storyintro") { stage.dispose(); return; }
                 await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve, stage); });
                 this.chapterScene = null;
@@ -724,7 +720,7 @@ class Game {
                 this.state = "menu";
             }
             this.state = "storyintro"; // декорации босса греем под затемнением: посреди забега это был рывок на 0,7 с
-            await this.underFade(() => this.prepareStage(chapterStory.id));
+            await this.underFade(() => { toLocation(); return this.prepareStage(chapterStory.id); });
             if (this.state !== "storyintro") return;
             this.state = "menu";
         } else this.setLocation(this.heroLocation(this.heroId));
