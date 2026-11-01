@@ -39,6 +39,7 @@ function liftDark(root, k) {
         }
     });
 }
+const NIKITA_CLEAR = 6; // м от патрульной машины
 const NIKITA_X = { street: 3.9, winter: 3.25, vietnam: 4.4 }; // где у района край дороги: в зимнем сразу за ней сугроб и ограда
 const BEHIND_Z = 45;   // улица тянется и за спину крыса — её видно с камеры меню
 const FLOOR_H = 2.9;
@@ -153,58 +154,132 @@ function mergeStatic(g) {
 const PAINTED_FACADES = !(typeof location !== "undefined" && /[?&]facades=photo/.test(location.search));
 const FACADE_PX = 40; // точек на метр
 const FACADE_WALLS = [
-    { wall: "#43365a", trim: "#6d5e8a", base: "#2a2338" },
-    { wall: "#2f3a5e", trim: "#56648f", base: "#1f2740" },
-    { wall: "#54324d", trim: "#83567a", base: "#33202f" },
-    { wall: "#39395a", trim: "#62628c", base: "#25253c" },
+    { wall: "#4a3a5e", brick: "rgba(18,10,30,.2)", trim: "#7a6896", base: "#2a2338" },
+    { wall: "#30406a", brick: "rgba(8,12,34,.2)", trim: "#5d6e9c", base: "#1c2440" },
+    { wall: "#633448", brick: "rgba(30,8,22,.22)", trim: "#94607c", base: "#34202e" },
+    { wall: "#3c4560", brick: "rgba(12,14,30,.18)", trim: "#6c7798", base: "#232a3e" },
+    { wall: "#5a3f3a", brick: "rgba(26,12,10,.22)", trim: "#8d6c62", base: "#2f2220" },
 ];
-const FACADE_LIGHTS = [["#ffd98a", "#f29c3f"], ["#ffc27a", "#e8783a"], ["#ffe6ad", "#f5b45a"]];
+const FACADE_LIGHTS = [["#ffe0a0", "#f29c3f"], ["#ffc88a", "#e8703a"], ["#fff0c4", "#f5b45a"], ["#ffd0e0", "#e0608a"], ["#c8ecff", "#5aa8e0"]];
+const SHOP_SIGNS = [["СБЕРБАНК", "#2fe06a"], ["АЛЬФА-БАНК", "#ff4a3a"], ["ОБМЕН 24/7", "#35f0a8"], ["ШАУРМА", "#ffb03a"], ["АПТЕКА", "#44e07a"], ["ЛОМБАРД", "#ffd84a"], ["КАФЕ", "#ff6a8a"], ["ЦВЕТЫ", "#ff7ad8"], ["РЕМОНТ", "#5ac8ff"], ["24 ЧАСА", "#ff5a4a"]];
 
-function paintFacade(c, w, h, { floors, ground, scheme, seed }) {
+function paintWindow(c, x, y, w, h, pal, rand, m) {
+    const lit = rand() < 0.34, ac = !lit && rand() < 0.14;
+    c.fillStyle = pal.trim; c.fillRect(x - 4, y - 4, w + 8, h + 8);
+    c.fillRect(x - 7, y + h + 4, w + 14, 5);
+    const g = c.createLinearGradient(0, y, 0, y + h);
+    const light = lit && FACADE_LIGHTS[Math.floor(rand() * FACADE_LIGHTS.length)];
+    if (light) { g.addColorStop(0, light[0]); g.addColorStop(1, light[1]); } else { g.addColorStop(0, "#33426c"); g.addColorStop(1, "#131829"); }
+    c.fillStyle = g; c.fillRect(x, y, w, h);
+    if (light) {
+        const kind = rand();
+        c.fillStyle = "rgba(90,30,40,.32)";
+        if (kind < 0.45) { c.fillRect(x, y, w * 0.24, h); c.fillRect(x + w * 0.76, y, w * 0.24, h); } // шторы
+        else if (kind < 0.7) { // силуэт цветка на подоконнике
+            c.fillStyle = "rgba(30,18,30,.7)";
+            c.beginPath(); c.arc(x + w * 0.72, y + h * 0.8, m * 0.2, 0, 7); c.fill();
+            c.fillRect(x + w * 0.64, y + h * 0.84, w * 0.17, h * 0.16);
+        } else if (kind < 0.85) { // кто-то стоит у окна
+            c.fillStyle = "rgba(30,18,30,.65)";
+            c.beginPath(); c.arc(x + w * 0.35, y + h * 0.5, m * 0.14, 0, 7); c.fill();
+            c.fillRect(x + w * 0.35 - m * 0.2, y + h * 0.6, m * 0.4, h * 0.4);
+        }
+    } else { // отблеск луны
+        c.fillStyle = "rgba(190,210,255,.16)";
+        c.beginPath(); c.moveTo(x + w * 0.1, y + h); c.lineTo(x + w * 0.55, y); c.lineTo(x + w * 0.85, y); c.lineTo(x + w * 0.4, y + h); c.fill();
+    }
+    c.fillStyle = pal.base; c.fillRect(x + w / 2 - 2, y, 4, h); c.fillRect(x, y + h * 0.36 - 2, w, 4);
+    c.fillStyle = "rgba(8,5,16,.42)"; c.fillRect(x, y, w, h * 0.09); c.fillRect(x, y, w * 0.06, h); // окно утоплено: тень от откосов
+    if (ac) { // кондиционер под окном
+        c.fillStyle = "#9aa0b4"; c.fillRect(x + w * 0.2, y + h + 9, w * 0.6, m * 0.5);
+        c.fillStyle = "#585e74"; for (let i = 0; i < 4; i++) c.fillRect(x + w * 0.24, y + h + 13 + i * 4, w * 0.52, 2);
+    }
+    return light ? [x + w / 2, y + h / 2] : null;
+}
+
+function paintFacade(c, w, h, { floors, scheme, seed }) {
     const m = FACADE_PX, pal = FACADE_WALLS[scheme], floor = FLOOR_H * m, base = 3.2 * m;
     let n = seed * 7919 + 13;
     const rand = () => (n = n * 16807 % 2147483647) / 2147483647;
     c.fillStyle = pal.wall; c.fillRect(0, 0, w, h);
+    c.fillStyle = pal.brick; // кирпич
+    for (let y = 0, row = 0; y < h; y += 7, row++) { c.fillRect(0, y, w, 1); for (let x = row % 2 * 8; x < w; x += 16) c.fillRect(x, y, 1, 7); }
+    for (let i = 0; i < 26; i++) { // пятна старой штукатурки
+        c.fillStyle = rand() < 0.5 ? "rgba(255,255,255,.035)" : "rgba(10,6,20,.08)";
+        c.fillRect(rand() * w, rand() * h, m * (0.8 + rand() * 2.5), m * (0.4 + rand() * 1.2));
+    }
     const halos = [];
     for (let i = 1; i < floors; i++) {
-        const top = h - base - i * floor + floor * 0.0;
-        c.fillStyle = pal.trim; c.fillRect(0, top + floor - 5, w, 5); // межэтажный пояс
-        c.fillStyle = "rgba(10, 6, 20, .35)"; c.fillRect(0, top + floor, w, 4);
+        const top = h - base - i * floor;
+        c.fillStyle = pal.trim; c.fillRect(0, top + floor - 5, w, 5);
+        c.fillStyle = "rgba(10,6,20,.35)"; c.fillRect(0, top + floor, w, 4);
         const ww = 1.35 * m, wh = 1.75 * m, wy = top + 0.5 * m, step = 2.7 * m, cols = Math.floor(w / step), x0 = (w - cols * step) / 2 + (step - ww) / 2;
-        for (let k = 0; k < cols; k++) {
-            const x = x0 + k * step, lit = rand() < 0.32;
-            c.fillStyle = pal.trim; c.fillRect(x - 4, wy - 4, ww + 8, wh + 8); // наличник
-            c.fillRect(x - 7, wy + wh + 4, ww + 14, 5); // подоконник
-            const g = c.createLinearGradient(0, wy, 0, wy + wh);
-            if (lit) { const l = FACADE_LIGHTS[Math.floor(rand() * FACADE_LIGHTS.length)]; g.addColorStop(0, l[0]); g.addColorStop(1, l[1]); halos.push([x + ww / 2, wy + wh / 2]); }
-            else { g.addColorStop(0, "#2a3558"); g.addColorStop(1, "#131829"); }
-            c.fillStyle = g; c.fillRect(x, wy, ww, wh);
-            c.fillStyle = pal.base; c.fillRect(x + ww / 2 - 2, wy, 4, wh); c.fillRect(x, wy + wh * 0.36 - 2, ww, 4); // переплёт
-        }
+        for (let k = 0; k < cols; k++) { const halo = paintWindow(c, x0 + k * step, wy, ww, wh, pal, rand, m); if (halo) halos.push(halo); }
     }
-    // запечённый свет: ореол у горящих окон, луна сверху, тёплые фонари снизу
+    // запечённый свет: ореол у окон, луна сверху, тёплый отсвет витрин снизу
     c.globalCompositeOperation = "lighter";
     for (const [x, y] of halos) {
         const g = c.createRadialGradient(x, y, m * 0.6, x, y, m * 2.2);
-        g.addColorStop(0, "rgba(255, 170, 90, .16)"); g.addColorStop(1, "rgba(255, 170, 90, 0)");
+        g.addColorStop(0, "rgba(255,170,90,.16)"); g.addColorStop(1, "rgba(255,170,90,0)");
         c.fillStyle = g; c.fillRect(x - m * 2.2, y - m * 2.2, m * 4.4, m * 4.4);
     }
-    const low = c.createLinearGradient(0, h - base - floor * 1.4, 0, h - base);
-    low.addColorStop(0, "rgba(255, 130, 70, 0)"); low.addColorStop(1, "rgba(255, 130, 70, .14)");
-    c.fillStyle = low; c.fillRect(0, h - base - floor * 1.4, w, floor * 1.4);
+    const low = c.createLinearGradient(0, h - base - floor * 1.3, 0, h - base);
+    low.addColorStop(0, "rgba(255,120,80,0)"); low.addColorStop(1, "rgba(255,120,80,.2)");
+    c.fillStyle = low; c.fillRect(0, h - base - floor * 1.3, w, floor * 1.3);
     c.globalCompositeOperation = "source-over";
-    const top = c.createLinearGradient(0, 0, 0, h * 0.5);
-    top.addColorStop(0, "rgba(12, 10, 34, .42)"); top.addColorStop(1, "rgba(12, 10, 34, 0)");
-    c.fillStyle = top; c.fillRect(0, 0, w, h * 0.5);
-    // первый этаж: камень и рольставни; у домов с поясом его закрывает бетон (makeBuilding)
+    const top = c.createLinearGradient(0, 0, 0, h * 0.45);
+    top.addColorStop(0, "rgba(10,8,30,.45)"); top.addColorStop(1, "rgba(10,8,30,0)");
+    c.fillStyle = top; c.fillRect(0, 0, w, h * 0.45);
+    // первый этаж: витрины с неоном, подъезд, рольставни
     c.fillStyle = pal.base; c.fillRect(0, h - base, w, base);
     c.fillStyle = pal.trim; c.fillRect(0, h - base - 6, w, 6);
-    if (ground) for (let x = 0.5 * m; x < w - 2.5 * m; x += 3.4 * m) {
-        c.fillStyle = pal.trim; c.fillRect(x - 3, h - base + 0.6 * m - 3, 2.6 * m + 6, base);
-        c.fillStyle = "#4a4458"; c.fillRect(x, h - base + 0.6 * m, 2.6 * m, base);
-        c.fillStyle = "#2f2a3c";
-        for (let y = h - base + 0.6 * m + 6; y < h; y += 8) c.fillRect(x, y, 2.6 * m, 2);
+    const y0 = h - base + 0.1 * m, unit = 5 * m, count = Math.max(2, Math.floor(w / unit)), units = [];
+    for (let i = 0; i < count; i++) {
+        const uw = w / count, x = i * uw + 0.25 * m, sw = uw - 0.5 * m, kind = rand();
+        if (kind < 0.55) { // витрина
+            const [word, neon] = SHOP_SIGNS[Math.floor(rand() * SHOP_SIGNS.length)], winY = y0 + 0.85 * m;
+            units.push({ kind: "shop", neon });
+            const g = c.createLinearGradient(0, winY, 0, h);
+            g.addColorStop(0, "#f2c27a"); g.addColorStop(0.55, "#b8703f"); g.addColorStop(1, "#6e3c2c"); // тёплый зал, к полу темнее
+            c.fillStyle = g; c.fillRect(x, winY, sw, h - winY - 0.25 * m);
+            const shelves = 3, sh = (h - winY - 0.9 * m) / shelves;
+            for (let r = 0; r < shelves; r++) { // полки с мелким товаром
+                const sy = winY + 0.12 * m + r * sh;
+                for (let k = 4; k < sw - 8; k += 6 + rand() * 7) {
+                    const bw = 4 + rand() * 4, bh = sh * (0.4 + rand() * 0.42);
+                    c.fillStyle = ["#a8483f", "#3f62a0", "#4a8c54", "#c08e36", "#724c98", "#d8d0c0"][Math.floor(rand() * 6)];
+                    c.fillRect(x + k, sy + sh - bh - 4, bw, bh);
+                }
+                c.fillStyle = "#3a2420"; c.fillRect(x, sy + sh - 4, sw, 4);
+            }
+            c.fillStyle = "rgba(255,255,255,.1)"; // блик на стекле
+            c.beginPath(); c.moveTo(x + sw * 0.1, h); c.lineTo(x + sw * 0.32, winY); c.lineTo(x + sw * 0.45, winY); c.lineTo(x + sw * 0.23, h); c.fill();
+            c.fillStyle = pal.base; for (let k = 1; k < 3; k++) c.fillRect(x + sw * k / 3 - 2, winY, 4, h - winY);
+            c.fillStyle = "#14101e"; c.fillRect(x, y0, sw, 0.72 * m); // вывеска
+            c.shadowColor = neon; c.shadowBlur = 14; c.fillStyle = neon;
+            c.font = `900 ${Math.round(0.5 * m)}px Arial Black, Arial, sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
+            c.fillText(word, x + sw / 2, y0 + 0.37 * m, sw - 10);
+            c.shadowBlur = 0;
+        } else if (kind < 0.75) { // подъезд с красной лампой
+            units.push({ kind: "door" });
+            const dw = 1.5 * m, dx = x + sw / 2 - dw / 2, dy = y0 + 0.75 * m;
+            c.fillStyle = "#16111f"; c.fillRect(x, y0, sw, h - y0);
+            c.fillStyle = pal.trim; c.fillRect(dx - 5, dy - 5, dw + 10, h - dy);
+            c.fillStyle = "#4c3040"; c.fillRect(dx, dy, dw, h - dy);
+            const g = c.createRadialGradient(dx + dw / 2, dy - 12, 2, dx + dw / 2, dy - 12, m);
+            g.addColorStop(0, "rgba(255,70,50,.95)"); g.addColorStop(1, "rgba(255,50,40,0)");
+            c.fillStyle = g; c.fillRect(dx - m, dy - m - 12, dw + 2 * m, m * 2);
+        } else { // рольставни с граффити
+            units.push({ kind: "shutter" });
+            c.fillStyle = "#4a4458"; c.fillRect(x, y0 + 0.4 * m, sw, h - y0 - 0.4 * m);
+            c.fillStyle = "#2f2a3c"; for (let y = y0 + 0.5 * m; y < h; y += 8) c.fillRect(x, y, sw, 2);
+            c.strokeStyle = ["#ff5a9a", "#5ae0ff", "#ffd84a"][Math.floor(rand() * 3)]; c.lineWidth = 5; c.lineCap = "round";
+            c.beginPath(); const gx = x + sw * 0.2, gy = h - 1.1 * m;
+            c.moveTo(gx, gy); for (let k = 1; k < 7; k++) c.quadraticCurveTo(gx + k * m * 0.3 - 8, gy - 26 * (k % 2 ? 1 : -1), gx + k * m * 0.3, gy + (k % 2 ? -8 : 10));
+            c.stroke();
+        }
     }
+    return units;
 }
 
 // Случайный фасад с учётом weight
@@ -922,9 +997,12 @@ export class World {
         const f = TEXTURES.facades[index];
         const h = f.floors * FLOOR_H + 0.8;
         if (PAINTED_FACADES) { // цвет и свет уже в картинке: материал без расчёта света, а размер текстуры — под размер дома
-            const scheme = (index + variant) % FACADE_WALLS.length, map = canvasTex(Math.round(len * FACADE_PX), Math.round(h * FACADE_PX), (c, w, H) => paintFacade(c, w, H, { floors: f.floors, ground: f.ground, scheme, seed: index * 5 + variant + 1 }));
+            let units = [];
+            const scheme = (index * 2 + variant) % FACADE_WALLS.length, map = canvasTex(Math.round(len * FACADE_PX), Math.round(h * FACADE_PX), (c, w, H) => { units = paintFacade(c, w, H, { floors: f.floors, scheme, seed: index * 5 + variant + 1 }); });
             map.anisotropy = 4;
-            return this.mat.facades[key] = new THREE.MeshBasicMaterial({ map });
+            const painted = this.mat.facades[key] = new THREE.MeshBasicMaterial({ map });
+            painted.userData.units = units; painted.userData.scheme = scheme;
+            return painted;
         }
         const share = Math.min(1, len / (h * f.aspect)); // какая доля ширины картинки помещается на дом
         // мультяшные дома: темнота поднята в сиреневый, стены читаются; окна светятся своей картой
@@ -938,12 +1016,85 @@ export class World {
         return m;
     }
 
+    // Объём нарисованного фасада: карнизы, колонны, откосы окон, балконы, навесы витрин и парапет. Всё из коробок одной
+    // сеткой на дом: одна отрисовка без расчёта света. Тень запечена в цвет граней: низ выступа тёмный, верх светлый
+    addFacadeRelief(g, { face, out, len, h, floors, material, depth }) {
+        const pal = FACADE_WALLS[material.userData.scheme], parts = [], m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+        const trim = new THREE.Color(pal.trim), base = new THREE.Color(pal.base), wall = new THREE.Color(pal.wall);
+        const box = (x, y, z, sx, sy, sz, color, tilt = 0) => {
+            const geo = this.geo.box.index ? this.geo.box.toNonIndexed() : this.geo.box.clone();
+            m.compose(new THREE.Vector3(x, y, z), q.setFromEuler(e.set(0, 0, tilt)), new THREE.Vector3(sx, sy, sz));
+            geo.applyMatrix4(m);
+            const n = geo.attributes.normal, c = new Float32Array(n.count * 3);
+            for (let i = 0; i < n.count; i++) {
+                const k = n.getY(i) > 0.5 ? 1.18 : n.getY(i) < -0.5 ? 0.42 : Math.abs(n.getZ(i)) > 0.5 ? 0.72 : 1;
+                c[i * 3] = color.r * k; c[i * 3 + 1] = color.g * k; c[i * 3 + 2] = color.b * k;
+            }
+            geo.setAttribute("color", new THREE.BufferAttribute(c, 3));
+            geo.deleteAttribute("uv");
+            parts.push(geo);
+        };
+        const at = (d) => face + out * d; // d — на сколько выступает от стены
+        const pz = (tx) => out * (len / 2 - tx); // метр по картинке → z дома (грань смотрит в сторону out)
+        // колонны по углам и парапет с карнизом
+        for (const z of [-len / 2 + 0.3, len / 2 - 0.3]) box(at(0.14), h / 2, z, 0.28, h, 0.6, trim);
+        box(at(0.24), h - 0.15, 0, 0.48, 0.3, len + 0.2, trim);
+        box(at(0.12), h + 0.5, 0, 0.24, 0.7, len, wall);
+        box(-face, h + 0.5, 0, 0.24, 0.7, len, wall);
+        for (const z of [-len / 2, len / 2]) box(0, h + 0.5, z, depth, 0.7, 0.24, wall);
+        // межэтажные карнизы и окна: положения те же, что на рисунке (paintFacade)
+        const ww = 1.35, step = 2.7, cols = Math.floor(len / step), x0 = (len - cols * step) / 2 + (step - ww) / 2;
+        for (let i = 1; i < floors; i++) {
+            const bottom = 0.95 + i * FLOOR_H, top = bottom + 1.75;
+            box(at(0.09), 3.25 + (i - 1) * FLOOR_H, 0, 0.18, 0.12, len, trim);
+            for (let k = 0; k < cols; k++) {
+                const z = pz(x0 + k * step + ww / 2);
+                box(at(0.08), top + 0.1, z, 0.16, 0.14, ww + 0.34, trim); // сандрик над окном
+                if (Math.random() < 0.16) { // балкон
+                    const d = 0.85, wide = ww + 0.7;
+                    box(at(d / 2), bottom - 0.14, z, d, 0.14, wide, trim);
+                    box(at(d), bottom + 0.35, z, 0.05, 0.85, wide, base);
+                    box(at(d), bottom + 0.8, z, 0.09, 0.07, wide + 0.05, trim);
+                    for (const sd of [-1, 1]) box(at(d / 2), bottom + 0.35, z + sd * wide / 2, d, 0.85, 0.05, base);
+                } else box(at(0.11), bottom - 0.08, z, 0.22, 0.1, ww + 0.26, trim); // подоконник
+            }
+        }
+        // первый этаж: цоколь и выступы над витринами и подъездами
+        box(at(0.05), 0.12, 0, 0.1, 0.24, len, base);
+        box(at(0.16), 3.18, 0, 0.32, 0.16, len + 0.1, trim);
+        const units = material.userData.units || [], uw = len / Math.max(1, units.length);
+        units.forEach((u, i) => {
+            const z = pz((i + 0.5) * uw), sw = uw - 0.5;
+            if (u.kind === "shop") {
+                const neon = new THREE.Color(u.neon);
+                box(at(0.07), 3.08, z, 0.14, 0.08, sw, neon); // неоновая рамка вывески
+                box(at(0.07), 2.34, z, 0.14, 0.06, sw, neon);
+                box(at(0.55), 2.2, z, 1.15, 0.09, sw, neon.clone().multiplyScalar(0.55), -out * 0.22); // навес
+                // лёгкий объём витрины: рама, цоколь с полкой и товар на ней
+                for (let k = 0; k <= 3; k++) box(at(0.09), 1.4, z - sw / 2 + sw * k / 3, 0.18, 1.9, k % 3 ? 0.09 : 0.14, base);
+                box(at(0.2), 0.3, z, 0.4, 0.6, sw + 0.1, base); // цоколь под стеклом
+                box(at(0.26), 0.63, z, 0.52, 0.06, sw + 0.16, trim); // полка
+                for (const y of [1.15, 1.7]) box(at(0.05), y, z, 0.1, 0.05, sw - 0.2, new THREE.Color("#3a2420")); // полки внутри
+                const goods = ["#c0504a", "#4a78c0", "#58a860", "#d8a040", "#8a58b0", "#e0d8c8"];
+                for (let k = 0; k < 6; k++) { const gh = 0.16 + Math.random() * 0.2; box(at(0.28), 0.66 + gh / 2, z - sw / 2 + 0.35 + (sw - 0.7) * k / 5, 0.22, gh, 0.24, new THREE.Color(goods[k])); }
+            } else if (u.kind === "door") {
+                box(at(0.5), 2.5, z, 1, 0.12, 2.1, trim); // козырёк
+                box(at(0.28), 0.1, z, 0.56, 0.2, 2, trim); // ступень
+            }
+        });
+        const merged = mergeBufferGeometries(parts);
+        for (const p of parts) p.dispose();
+        const relief = new THREE.Mesh(merged, this.mat.facadeRelief ||= new THREE.MeshBasicMaterial({ vertexColors: true }));
+        relief.matrixAutoUpdate = false;
+        g.add(relief);
+    }
+
     // Панелька: фасад-текстура с окнами, карниз, водосток, кондиционеры;
     // первый этаж — магазины: подъезд с красной лампой, рольставни, иногда неон.
     makeBuilding(side, z, slot) {
         const g = new THREE.Group();
         const fi = pickFacade();
-        const f = TEXTURES.facades[fi];
+        const source = TEXTURES.facades[fi], f = PAINTED_FACADES ? { ...source, ground: true } : source;
         const floors = f.floors;
         const h = floors * FLOOR_H + 0.8;
         const len = slot - 1.2;
@@ -951,7 +1102,8 @@ export class World {
         const face = -side * depth / 2; // x фасада, смотрящего на дорогу (в координатах группы)
         const out = -side;              // направление «наружу», к дороге
 
-        const wall = new THREE.Mesh(this.geo.box, this.facadeMaterial(fi, len, Math.floor(Math.random() * 3)));
+        const wallMat = this.facadeMaterial(fi, len, Math.floor(Math.random() * 3));
+        const wall = new THREE.Mesh(this.geo.box, wallMat);
         wall.scale.set(depth, h, len);
         wall.position.y = h / 2;
         wall.receiveShadow = true;
@@ -961,6 +1113,12 @@ export class World {
         roof.scale.set(depth + 0.4, 0.35, len + 0.4);
         roof.position.y = h + 0.17;
         g.add(roof);
+        if (PAINTED_FACADES) for (let i = 0; i < 3; i++) { // рваный силуэт крыши: вентиляция и лифтовые будки
+            const box = new THREE.Mesh(this.geo.box, this.mat.trim), bh = rnd(0.8, 2.4);
+            box.scale.set(rnd(1, 2.6), bh, rnd(1.2, 3.4));
+            box.position.set(rnd(-2.6, 2.6), h + 0.35 + bh / 2, rnd(-len / 2 + 2, len / 2 - 2));
+            g.add(box);
+        }
         if (!f.ground) { // первый этаж: бетонный пояс магазинов поверх окон (у домов со своими подъездами — не нужен)
             const band = new THREE.Mesh(this.geo.box, this.mat.plinth);
             band.scale.set(0.3, 3.2, len + 0.02);
@@ -984,20 +1142,22 @@ export class World {
         const front = face + out * 0.3; // лицевая плоскость пояса первого этажа
         if (!f.ground) this.addEntrance(g, front, out, len);
         mergeStatic(g);
+        if (PAINTED_FACADES) this.addFacadeRelief(g, { face, out, len, h, floors, material: wallMat, depth });
 
         g.position.set(side * 11, 0, z);
         g.userData.loop = STREET_LEN;
         g.userData.city = true; // в Дубае (js/vietnam.js) вместо хрущёвок — небоскрёбы
         this.scene.add(g);
         // отделение банка: павильон Сбера/Альфы перед домом (дом отодвигается назад)
-        if (Math.random() < BANKS.chance) {
+        // у нарисованных фасадов банк и обмен — вывески на самом доме (SHOP_SIGNS), отдельные павильоны не нужны
+        if (!PAINTED_FACADES && Math.random() < BANKS.chance) {
             const bank = new THREE.Group();
             bank.userData = { side, house: g, front, out };
             this.registerSwap("bank", bank);
             g.add(bank);
         }
         // неоновая вывеска «ОБМЕН 24/7» над подъездом — лицом к дороге
-        if (Math.random() < 0.3) {
+        if (!PAINTED_FACADES && Math.random() < 0.3) {
             const sign = new THREE.Group();
             sign.position.set(front + out * 0.12, f.ground ? 3.4 : 3.15, 0);
             sign.userData.faceY = out * Math.PI / 2;
@@ -2001,7 +2161,16 @@ export class World {
     // в начале забега и в меню баки снова на своих местах. Первый — в кадре меню справа от героя: камера меню повёрнута,
     // дальше по улице бак уходит за спину героя, а на другой стороне — за край узкого экрана телефона
     placeNikitas() {
-        (this.nikitas || []).forEach((o, i, all) => { o.position.z = 6 - i * (STREET_LEN / all.length); });
+        (this.nikitas || []).forEach((o, i, all) => {
+            o.position.z = 6 - i * (STREET_LEN / all.length);
+            // бак с Никитой не ставим внутрь машин и прочего, что стоит на тротуаре. Всё едет по кругу вместе, поэтому хватает одной проверки
+            const x = o.userData.side * NIKITA_X[this.location || "street"], winter = (this.location || "street") === "winter";
+            const near = (z, at) => { const d = Math.abs(z - at) % STREET_LEN; return Math.min(d, STREET_LEN - d); };
+            const clash = (z) => winter
+                ? o.userData.side < 0 && (this.winter?.posts || []).some((p) => near(z, p.chunk.position.z + p.car.position.z) < NIKITA_CLEAR)
+                : this.scenery.some((p) => { const f = p.userData.foot; return f && f.hx > 0.5 && Math.abs(p.position.x - x) < f.hx + 1 && near(z, p.position.z) < f.hz + 1.6; });
+            for (let n = 0; n < 12 && clash(o.position.z); n++) o.position.z -= 3;
+        });
     }
 
     // женские трусы: сетка с вырезанным по текстуре силуэтом, чтобы ткань мялась (Nikita rubPants двигает вершины)

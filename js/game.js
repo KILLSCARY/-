@@ -3119,11 +3119,11 @@ class Game {
     clearStageSidewalk(stage) {
         const side = stage.chapter === 1 ? 1 : stage.chapter === 3 ? -1 : 0, z = stage.root.position.z;
         if (!side) return;
-        const list = [...(this.world.scenery || []), ...(this.world.swaps?.bank || [])], p = new THREE.Vector3();
+        const list = [...(this.world.scenery || []), ...(this.world.swaps?.bank || []), ...(this.world.nikitas || [])], p = new THREE.Vector3();
         this.stageHidden = list.filter((o) => {
             if (!o?.visible || !o.getWorldPosition) return false;
             o.getWorldPosition(p);
-            return p.x * side > 3.4 && p.x * side < 9 && p.z - z > -10 && p.z - z < 14; // и то, что стоит между камерой и декорацией: столб перечёркивал вывеску
+            return p.x * side > 3 && p.x * side < 9 && p.z - z > -10 && p.z - z < 14; // и то, что стоит между камерой и декорацией: столб перечёркивал вывеску
         });
         for (const o of this.stageHidden) o.visible = false;
     }
