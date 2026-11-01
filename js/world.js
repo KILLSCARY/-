@@ -783,6 +783,25 @@ export class World {
             }
         }
 
+        // улица за спиной: в меню камера смотрит назад, а круг кончается у BEHIND_Z — там была пустота. Стоит на месте, в забеге не видна
+        const backLen = 150, backZ = BEHIND_Z + backLen / 2 - 0.5;
+        const backRoad = new THREE.Mesh(new THREE.PlaneGeometry(6, backLen), this.roadMat);
+        backRoad.rotation.x = -Math.PI / 2;
+        backRoad.position.set(0, 0.002, backZ);
+        s.add(backRoad);
+        for (const side of [-1, 1]) {
+            const w = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, backLen), walkMat), curb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, backLen), this.mat.trim);
+            w.position.set(side * 5, 0.09, backZ);
+            curb.position.set(side * 3.05, 0.12, backZ);
+            s.add(w, curb);
+            for (let i = 0; i < backLen / slot; i++) s.add(this.makeBuilding(side, BEHIND_Z + slot / 2 + i * slot, slot));
+            for (let i = 0; i < 4; i++) {
+                const pole = this.makeStreetLamp(side);
+                pole.position.set(side * 3.5, 0, BEHIND_Z + 12 + i * 34 + (side > 0 ? 17 : 0));
+                s.add(pole);
+            }
+        }
+
         // банкоматы на тротуарах
         for (let i = 0; i < 5; i++) {
             const atm = this.makeAtm();
