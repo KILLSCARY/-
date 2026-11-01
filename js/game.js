@@ -5,7 +5,7 @@ import { questAdd } from "./quests.mjs";
 import { HERO_QUIRKS, TRUCKS, BOOST_TIME, NPCS, STORY_HERO_LINES, FREE_BOSS, NIKITA_BAG, bagLoot, bagRisk, NIKITA_PEEL, BALANCE, LINKS, DEATH_TEXT, TIPS, BOOT_TIPS, CHARACTERS, VIETNAM,QUALITY, QUALITY_TIERS, HERO_PERKS, UPGRADES, APPEAL_PRICE, APPEAL_ENABLED, CHAPTERS, POWERUPS, WALLS, QUESTIONS, CLIENT_TYPES, LANE_LABELS, WIND, VENT, HERO_SKILLS, BOSS, CHAPTER_BOSSES, BOSS_FIGHT, ARCHES, POLICE_OFFICER, CHASER, SKY, HERO_LINES, CHASER_LINES, BOOSTS, BOOST_LIMIT, STORIES, FIGHT, FIGHTERS, CHARGES, GORILLA, EXAM, CHASE_GRUDGE, MASK_SCENE, LOOK2, HEAT_AFTER, CINE, SOUNDS, CHASERS, heroFighter, GORILLA_HINT_CH2, CARDS, CARD_SHOP, CARD_DASH, LETTERS, CONTINUE_TIME, INTRO_CHASE } from "./config.js";
 import { CURVE, curveUniform, curveSide } from "./curve.js";
 import { RecordScreen } from "./record-screen.js";
-import { CatchScene, CATCH_END } from "./catch-scene.js";
+import { CatchScene, CATCH_END, aim as aimBone } from "./catch-scene.js";
 import { Fight } from "./fight.js";
 import { PhoneScene } from "./phone-scene.js";
 import { StoryStage } from "./story-stage.js";
@@ -150,6 +150,7 @@ material.specularF90 = 0.0;
 }
 
 const RAGE_RED = new THREE.Color(0xff1a00);
+const DIVE_TOP = 1.26; // на этой высоте таз Никиты: сидит на крышке (бак — 1,05 м, таз у модели ниже кости), ноги свисают перед баком
 const LANE_SPRING = 26, LANE_LEAN = 0.02, LANE_YAW = 0.018; // перестроение: жёсткость пружины, наклон и доворот от скорости
 // фура: насколько сбоку от её оси ещё держит крыша (соседние крыши перекрываются — между ними не проваливаешься),
 // на сколько выше себя герой встаёт на крышу и на пандус за кадр (дальше — это удар в борт)
@@ -1462,6 +1463,7 @@ class Game {
 
         const pose = this.state === "over" ? (this.cause === "caught" || this.cause === "cop" ? "fall" : "dead")
             : this.flight ? "fly"
+            : this.diving > 0 ? "run" // на баке клипы подката и прыжка не играют: кувырок крутил его прямо на крышке
             : this.state === "menu" ? "idle" // спокойная стойка: быстрый танец при 30 кадрах в меню выглядел рвано
             : this.slideLeft > 0 ? "slide"
             : this.jumping ? "jump"
@@ -1473,6 +1475,7 @@ class Game {
         if (this.trip > 0) this.trip -= dt;
         this.phoneScene?.restorePose();
         if (!this.arrest?.scene) animateRat(this.rat, pose, this.t, this.phase, dt, this.speed);
+        if (this.diving > 0) this.rideBin();
         this.throwPose();
         this.updateStars(dt);
         this.updateFlies();
@@ -3685,8 +3688,8 @@ class Game {
     loadDiveBin() {
         if (this.diveBin || this.diveBinLoading) return;
         this.diveBinLoading = true;
-        loadModel(this.world.lite(NPCS.nikita.bin), (gltf) => {
-            const m = gltf.scene, k = 1.25 / (new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y || 1);
+        loadModel(this.world.lite("models/obj/ride_bin.glb?v=1"), (gltf) => {
+            const m = gltf.scene, k = 1.05 / (new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y || 1);
             m.scale.setScalar(k);
             this.diveBin = new THREE.Group().add(m);
             this.diveBin.visible = false;
@@ -3701,7 +3704,36 @@ class Game {
         this.diveBin.position.set(this.x, this.y, 0);
         this.diveBin.visible = true;
         this.binDuck = 1;
-        this.rat.visible = false;
+    }
+
+    // Никита едет на баке: поза на костях поверх клипа бега, сидит на крышке, ноги болтаются спереди, руками держится за края
+    rideBin() {
+        const bin = this.diveBin, rat = this.rat;
+        if (!bin?.visible) return;
+        const bones = this.rideBones ||= (() => { const b = {}; rat.traverse((o) => { if (o.isBone) b[o.name.replace(/^mixamorig:?/, "")] = o; }); return b; })();
+        const V = (x, y, z) => this.rideV.set(x, y, z), kick = Math.sin(this.t * 11) * 0.22;
+        this.rideV ||= new THREE.Vector3();
+        // ноги: бёдра вперёд, голени вниз, болтаются в противофазе (вперёд — к −Z, туда же смотрит герой)
+        for (const [side, sg, ph] of [["Left", -1, 0], ["Right", 1, Math.PI]]) {
+            const swing = Math.sin(this.t * 11 + ph) * 0.3;
+            if (bones[side + "UpLeg"] && bones[side + "Leg"]) aimBone(bones[side + "UpLeg"], bones[side + "Leg"], V(sg * 0.28, -0.08, -1));
+            if (bones[side + "Leg"] && bones[side + "Foot"]) aimBone(bones[side + "Leg"], bones[side + "Foot"], V(sg * 0.1, -1, -0.25 + swing));
+            // руки держатся за края бака, на ходу чуть подрагивают
+            if (bones[side + "Arm"] && bones[side + "ForeArm"]) aimBone(bones[side + "Arm"], bones[side + "ForeArm"], V(sg * 0.55, -0.8, -0.1));
+            if (bones[side + "ForeArm"] && bones[side + "Hand"]) aimBone(bones[side + "ForeArm"], bones[side + "Hand"], V(sg * 0.25, -0.95, -0.3 + kick * 0.1));
+        }
+        rat.updateMatrixWorld(true);
+        // таз ставим на кромку бака: высота бака с учётом прыжка, тряски и приседа
+        const hips = bones.Hips;
+        if (hips) {
+            // подкат: прячется в бак и выныривает обратно, бак при этом приседает
+            this.rideHide = (this.rideHide || 0) + ((this.slideLeft > 0 ? 1 : 0) - (this.rideHide || 0)) * Math.min(1, (this.dtS || 0.016) * 16);
+            const top = bin.position.y + DIVE_TOP * bin.scale.y - this.rideHide * 1.1;
+            rat.position.y += top - hips.getWorldPosition(this.rideV).y;
+            rat.visible = this.rideHide < 0.2; // сразу: ноги свисают перед баком и иначе торчали бы из него
+        }
+        rat.position.z = -0.1;
+        rat.rotation.z += bin.rotation.z;
     }
 
     // нырок: что впереди на своей полосе в ближайшие 0,2 с — низкая преграда (top: бак, капот, тележка) или блокировка
@@ -3728,7 +3760,8 @@ class Game {
         if (!this.diving && !reward) { if (this.diveBin) this.diveBin.visible = false; return; }
         this.diving = 0;
         if (this.diveBin) this.diveBin.visible = false;
-        if (this.rat) this.rat.visible = true;
+        this.rideHide = 0;
+        if (this.rat) { this.rat.visible = true; this.rat.position.z = 0; }
         if (!reward) return;
         const s = HERO_SKILLS.nikita;
         this.usdt += s.usdt;

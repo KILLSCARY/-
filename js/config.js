@@ -666,7 +666,7 @@ export const HERO_SKILLS = {
     islam: { name: "Попутный ветер", text: "5 с ускорение и защита", kind: "turbo", time: 5 },
     sasha: { name: "Таран", text: "3 стены подряд — без ответа", kind: "ram", charges: 3 },
     pavel: { name: "Напор", text: "4 с быстрее и неуязвим", kind: "turbo", time: 4 },
-    nikita: { name: "Нырок в бак", text: "8 с неуязвим в баке и куча монет", kind: "dive", time: 8, usdt: 30 },
+    nikita: { name: "Гонка на баке", text: "8 с неуязвим верхом на баке и куча монет", kind: "dive", time: 8, usdt: 30 },
 };
 
 // «НЕ СУЩИЙ STORE» (каталог shop_v4_bady): бусты на один забег — только за монеты (price, игровой кошелёк),
