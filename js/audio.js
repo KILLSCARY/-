@@ -3,6 +3,8 @@
 
 import { SOUNDS } from "./config.js";
 
+const MUSIC_DUCK = 0.12; // музыка под голосовым — восьмая часть обычной громкости: едва слышна, голос не перекрывает
+
 export class Audio {
     constructor() {
         this.ctx = null;
@@ -131,12 +133,25 @@ export class Audio {
         const list = this.listFor(mode);
         // новый забег — трек забега с начала
         if (list === "run" && this.listFor(prev) !== "run") this.players.run.el.currentTime = 0;
-        for (const [name, p] of Object.entries(this.players)) {
-            const vol = name === list && this.musicOn ? (SOUNDS.musicVolume[mode] ?? 0) * (name === "run" ? this.runGain ?? 1 : 1) : 0;
-            p.gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.3);
-        }
+        this.musicGains(0.3);
         this.syncTrack();
         this.syncAmbience();
+    }
+
+    // громкость плееров под режим; tau — как быстро доезжает (setTargetAtTime: ~95% за 3·tau)
+    musicGains(tau) {
+        const list = this.listFor(this.mode);
+        for (const [name, p] of Object.entries(this.players)) {
+            const vol = name === list && this.musicOn ? (SOUNDS.musicVolume[this.mode] ?? 0) * (name === "run" ? this.runGain ?? 1 : 1) * (this.ducked ? MUSIC_DUCK : 1) : 0;
+            p.gain.gain.setTargetAtTime(vol, this.ctx.currentTime, tau);
+        }
+    }
+
+    // голосовое героя поверх музыки: музыка не обрывается, а мягко стихает (~0,7 с) и так же мягко возвращается (~2 с)
+    duck(on) {
+        if (this.ducked === on) return;
+        this.ducked = on;
+        if (this.ctx) this.musicGains(on ? 0.25 : 0.7);
     }
 
     // музыка забега под героя (SOUNDS.heroMusic: у Саши Белого и Ислама — своя), у остальных — общая.

@@ -713,8 +713,11 @@ class Game {
                 const stage = new StoryStage(this.scene, chapterStory.id, 0, this.storyModelLoader);
                 await this.underFade(async () => { toLocation(); for (let i = 0; i < 120 && !stage.ready; i++) await wait(50); this.initTextures(stage.root); });
                 if (this.state !== "storyintro") { stage.dispose(); return; }
+                this.clearStageSidewalk(stage); // Никита на баке и банкомат у края кадра — на время ролика прячем (на ПК его резало краем экрана)
                 await new Promise(resolve => { this.chapterScene = new ChapterScene(this, chapterStory, resolve, stage); });
                 this.chapterScene = null;
+                for (const o of this.stageHidden || []) o.visible = true;
+                this.stageHidden = null;
                 if (this.state !== "storyintro") return;
                 (this.profile.data.storyIntros ||= {})[chapterStory.id] = true;
                 (this.profile.data.chapterScenes ||= {})[chapterStory.id] = true;
@@ -722,7 +725,10 @@ class Game {
                 this.state = "menu";
             }
             this.state = "storyintro"; // декорации босса греем под затемнением: посреди забега это был рывок на 0,7 с
-            await this.underFade(() => { toLocation(); return this.prepareStage(chapterStory.id); });
+            // 02.11: продолжение сразу с босса (storyBoss, реванш) — декорации забега не нужны, бой начнётся сразу. Их загрузка
+            // держала чёрный экран до 6 с перед заставкой «БОСС»
+            const toBoss = this.profile.data.storyBoss === chapterStory.id;
+            await this.underFade(() => { toLocation(); return toBoss ? null : this.prepareStage(chapterStory.id); });
             if (this.state !== "storyintro") return;
             this.state = "menu";
         } else this.setLocation(this.heroLocation(this.heroId));
@@ -734,7 +740,7 @@ class Game {
         // бойцы босса главы — скачиваем в фоне, пока бежим (через 6 с: сначала препятствия и витрины)
         // сюжет — запомнить сейчас: через 6 с его уже может не быть (вышли в меню, глава сменилась) — раньше тут падало «null.opponent»
         const st0 = this.story;
-        if (st0) this.prepareStage(st0.id);
+        if (st0 && this.profile.data.storyBoss !== st0.id) this.prepareStage(st0.id); // сразу в бой — декорации не нужны (их сборка дёргала бы бой)
         if (st0) setTimeout(() => { for (const id of [heroFighter(this.heroId), st0.opponent]) preloadModel(FIGHTERS[id]?.model); if ((st0.exam || this.storyMask(st0)) && MASK_SCENE.on) preloadModel(MASK_SCENE.model); }, 6000);
         this.cardRunId = null; // «Карта»: сервер засекает старт забега и сам считает лимит карт
         prize.cardRun().then((r) => {
@@ -1566,7 +1572,12 @@ class Game {
     render() {
         this.world?.coinBatch?.sync(this.tier.far);
         if (this.direct) this.renderer.render(this.scene, this.camera);
-        else this.composer.render();
+        else {
+            // сцена рисуется в readBuffer, а проходов с обменом буферов бывает нечётно — она ложилась бы то в первый
+            // буфер, то во второй. Держим её всегда в renderTarget1: сглаживание MSAA нужно только ему
+            if (this.composer.readBuffer !== this.composer.renderTarget1) this.composer.swapBuffers();
+            this.composer.render();
+        }
     }
 
     // Яркость кадра под локацию. С постобработкой экспозиция идёт прямо в ACES (×1,45), без неё — через тонмаппинг
@@ -1624,10 +1635,11 @@ class Game {
             this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
         }
         this.applyLook(); // сила свечения и экспозиция — под уровень графики и локацию
-        // сглаживание: msaa — 4 выборки в буферах постобработки (WebGL2, сильные устройства), fxaa — дешёвый проход в конце
+        // сглаживание: msaa — выборки в буфере сцены (WebGL2, сильные устройства), fxaa — дешёвый проход в конце.
+        // 02.11: второй буфер постобработки — без MSAA: сцена в него не рисуется (render), а видеопамяти он ел ×4
         const samples = this.tier.aa === "msaa" && this.renderer.capabilities.isWebGL2
             ? Math.min(this.tier.samples || 4, this.renderer.capabilities.maxSamples) : 0;
-        for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) if (rt.samples !== samples) { rt.samples = samples; rt.dispose(); }
+        for (const [rt, n] of [[this.composer.renderTarget1, samples], [this.composer.renderTarget2, 0]]) if (rt.samples !== n) { rt.samples = n; rt.dispose(); }
         this.fxaa.enabled = this.tier.aa === "fxaa" || (this.tier.aa === "msaa" && !samples);
         // «кино»: на слабой графике выключено (лишние выборки текстуры), зерно — в последнем проходе (FXAA, если он есть)
         const k = this.tier.cine || 0, u = this.output.uniforms;

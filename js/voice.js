@@ -1,7 +1,7 @@
 import { VOICE_REVIEWS } from "./config.js";
 
 // ГС-отзывы героев прямо в карточке (раздел «Герои»): на лице — голосовое, как в Telegram (кнопка, волна, время),
-// на обороте — расшифровка. Записи настоящие (VOICE_REVIEWS). Играет одно за раз, музыка меню на это время стихает
+// на обороте — расшифровка. Записи настоящие (VOICE_REVIEWS). Играет одно за раз, музыка меню на это время мягко приглушается
 const BARS = 26; // столько полос в волне
 const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
 const time = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "—:—");
@@ -101,8 +101,7 @@ export class HeroVoices {
     play(p) {
         this.stop();
         this.playing = p;
-        this.music = this.hub.game.audio.mode;
-        this.hub.game.audio.music("off"); // голос важнее музыки меню
+        this.hub.game.audio.duck(true); // голос важнее музыки меню: она мягко стихает, но не обрывается
         p.el.classList.add("on");
         p.btn.setAttribute("aria-label", "Пауза");
         p.btn.firstElementChild.innerHTML = PAUSE;
@@ -119,7 +118,7 @@ export class HeroVoices {
         p.btn.setAttribute("aria-label", "Слушать голосовое");
         p.btn.firstElementChild.innerHTML = PLAY;
         if (p.audio.ended) { p.audio.currentTime = 0; p.el.style.setProperty("--p", 0); }
-        this.hub.game.audio.music(this.music || "menu");
+        this.hub.game.audio.duck(false);
     }
 
     release() {

@@ -344,6 +344,7 @@ h2 { margin: 0 0 16px; font-size: 24px; }
 .tile-name { display: block; font: 700 15px/1.05 var(--font-display); text-transform: uppercase; }
 .tile-sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .badge { position: absolute; top: 9px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--red); font-size: 11px; display: grid; place-items: center; }
+.tile .badge:not([hidden]) ~ .n { display: none; } /* значок в том же углу, что номер плитки: «1» ложилась поверх красного «04» */
 .tile-heroes { padding-right: 56px; }
 .tile-heroes .n { display: none; } /* в углу — портрет героя */
 .tile-heroes .thumb { position: absolute; right: -8px; bottom: -8px; width: 60px; height: 60px; border-radius: 50%; background: #222 center 18% / cover; border: 1px solid var(--line); }
@@ -1447,7 +1448,7 @@ body.arresting #hud { opacity: 0; pointer-events: none; transition: opacity .2s;
 #view-run .tile-rate { grid-column: span 2; justify-content: center; text-align: center; padding-left: 6px; padding-right: 6px; }
 #view-run .tile-rate .arr, #view-run .tile-rate .n, #view-run .tile-rate .tile-sub { display: none; }
 #view-run .tile-rate .tile-name { font-size: 13px; }
-#view-run .tile-rate .badge { top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+#view-run .tile-rate .badge { top: 7px; right: 8px; /* было 3 px — значок ложился на скруглённый край плитки, рамка резала круг */ min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
 #view-run .tile-run .arr { flex: none; }
 .rate-cap { margin: 16px 0 8px; }
 .rate-left { color: #ffd65a; letter-spacing: .06em; }

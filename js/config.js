@@ -178,10 +178,14 @@ export const CINE = { shadow: [0.78, 0.96, 1.1], light: [1.2, 1.03, 0.82], grade
 // blob — сила пятна-тени под машинами, баками и урнами (World.groundBlob; 0 — нет): на хорошей графике слабее —
 // там есть настоящие тени, на слабой выключено (лишние отрисовки)
 export const QUALITY_TIERS = {
-    high:   { aa: "msaa", samples: 4, cine: .5, fx: false, blob: 0.3, aniso: 16, hd: "webp", ratio: 2, reflections: false, shadows: true, shadowSize: 2048, bloom: 2, bloomStrength: .35, lights: 4, police: true, rain: 700, fps: [120, 40], lite: false, far: 100, runFar: 170, npc: 1, animationHz: 30,
+    high:   { aa: "msaa", samples: 2, cine: .5, fx: false, blob: 0.3, aniso: 16, hd: "webp", ratio: 1.75, reflections: false, shadows: true, shadowSize: 2048, bloom: 3, bloomStrength: .35, lights: 4, police: true, rain: 700, fps: [120, 40], lite: false, far: 100, runFar: 170, npc: 1, animationHz: 30,
         // Чёткий кадр без зерна/размытия; 2× MSAA вместо полного прохода FXAA.
         // Разрешение не падает по таймеру: адаптация реагирует на устойчивые просадки FPS.
-        phone: { samples: 2, ratio: 2, aniso: 8, bloom: 4, shadowSize: 1024 } },
+        // 02.11: «лагает везде»: всё в кадре растёт с числом пикселей, и MSAA ×4 съедал четверть видеокарты, свечение в
+        // половину экрана — ещё седьмую часть. Теперь MSAA ×2 (края ровные), свечение в трети экрана, плотность до ×1,75
+        // вместо ×2 — чётко, а пикселей на четверть меньше. На телефоне мигалки — без настоящего света: это два
+        // источника, которые считались в каждом пикселе
+        phone: { samples: 2, aniso: 8, bloom: 4, shadowSize: 1024, police: false } },
     medium: { direct: true, animationHz: 30, aa: "fxaa", cine: 0, blob: 0.32, aniso: 4, hd: "ktx2", ratio: 1.15, reflections: false, shadows: false, bloom: 0, lights: 2, police: false, rain: 220, fps: [120, 30], lite: true,  far: 80,  runFar: 130, npc: 0.6, heat: true,
         // телефон по умолчанию (30.10): плотный экран ×2–3 — в 1,15 пикселя картинка была мылом. Пикселей ×1,75 (рисуем без
         // постобработки — это дёшево), герой и ближние NPC — 60 Гц, дальние NPC — 30 Гц. Не тянет — measureFps
@@ -971,7 +975,8 @@ export const FIGHTERS = {
             blockIn: "Не положено!", blockHold: ["Жду документы…", "Я подожду", "Всё фиксирую"], blockOut: "Так, продолжим проверку!",
             roundWon: "Вот и закон.", roundLost: "Не может быть… Ещё раунд.", lose: "Заблокировано! Приходи с документами.",
             intro2: "P2P запретить. Мужчин — на проверку.", spam: "Хулиганство! Протокол!", rage: "Блокирую! Всё блокирую!", ko: "Это ещё не конец…" } },
-    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=76", height: 1.6, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, splash: { h: 62, fx: 0.49, fy: 0.2 },
+    // gap 1.35 (02.11): без своего gap стояла на общих 1,0 м — фуражка входила в сомбреро Спиди
+    cop: { name: "Полиция", short: "Полиция", she: true, model: "models/cop_fight.glb?v=76", height: 1.6, foot: 0.06, portrait: "img/heroes/cop.webp", hp: 90, gap: 1.35, splash: { h: 62, fx: 0.49, fy: 0.2 },
         // клипы — тот же набор Meshy, что у Павла (jab, combo5, kick, hkick, knee, g_block/g_dodge/g_hit…, victory). Было null —
         // с моделью 28.10 клипов не было, позы собирались поворотами костей, и на новой модели (29.10) руки выкручивало
         moves: MESHY_MOVES,

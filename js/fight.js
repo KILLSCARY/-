@@ -136,8 +136,16 @@ export class Fight {
         rimB.position.set(-1.8, 1.8, -2.0);
         // Каждый точечный свет считается для всей улицы (и пересобирает её шейдеры), поэтому контровые — только на
         // высокой графике. На средней и слабой ключевым светом служит подсветка героя из забега (герой в бою скрыт).
-        if (game.tier.lights >= 4) this.group.add(key, rimR, rimB);
-        else if (game.rim) {
+        // 02.11: новые три источника меняли число света в сцене — на входе в бой пересобирались все шейдеры улицы,
+        // и кадр вставал на 2–4 с. Теперь на время боя светят три фонаря улицы (world.lights): в бою она стоит
+        const lamps = game.world?.lights || [];
+        if (game.tier.lights >= 4 && lamps.length >= 3) {
+            this.lampsWas = [key, rimR, rimB].map((l, i) => {
+                const s = lamps[i], was = { s, pos: s.position.clone(), color: s.color.getHex(), i: s.intensity, d: s.distance, decay: s.decay };
+                s.position.copy(l.position); s.color.copy(l.color); s.intensity = l.intensity; s.distance = l.distance; s.decay = l.decay;
+                return was;
+            });
+        } else if (game.rim) {
             this.rimWas = { pos: game.rim.position.clone(), color: game.rim.color.getHex(), i: game.rim.intensity, d: game.rim.distance };
             game.rim.position.set(-1.6, 2.0, 0.6); game.rim.color.setHex(0xffd2b0); game.rim.intensity = 1.1; game.rim.distance = 7;
         }
@@ -149,6 +157,13 @@ export class Fight {
             bb.setFromObject(o);
             if (bb.isEmpty() || bb.max.x - bb.min.x > 12 || bb.max.z - bb.min.z > 12) continue; // дома и дорога — большие, их не трогаем
             if (bb.intersectsBox(corridor)) { o.visible = false; this.hidden.push(o); }
+        }
+        // инспектор у патрульной машины на тротуаре за бойцами стоял прямо в ринге, будто третий участник (02.11)
+        const p = new THREE.Vector3();
+        for (const o of game.world?.officers || []) {
+            if (!o.visible) continue;
+            o.getWorldPosition(p);
+            if (p.x > -1 && Math.abs(p.z) < 6) { o.visible = false; this.hidden.push(o); }
         }
         // бойцы в паре метров от камеры: дальний конец улицы не нужен — меньше домов в кадре
         this.farWas = game.camera.far; game.camera.far = 34; game.camera.updateProjectionMatrix();
@@ -289,7 +304,13 @@ export class Fight {
         clearTimeout(this.loadFailT);
         const go = () => {
             if (this.disposed) return; // бой уже закрыли
+            // искра и волна от удара собирали свои шейдеры на первом ударе — посреди раунда кадр вставал на ~0,2 с.
+            // Собираем вместе со всем боем, под экраном загрузки; пустышки остаются в группе скрытыми — иначе шейдеры выгрузятся
+            const warm = [new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTexture(), transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false })),
+                new THREE.Mesh(this.ringGeo ||= new THREE.RingGeometry(0.7, 1, 40), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }))];
+            for (const w of warm) { w.scale.setScalar(1e-4); this.group.add(w); }
             try { this.g.renderer.compile(this.g.scene, this.g.camera); } catch {}
+            for (const w of warm) w.visible = false;
             this.phase = "intro";
             if (this.maskOn && this.f[1].model) { // сцена «Маска» — до баннера «ЭКЗАМЕН»
                 this.phase = "cut"; this.masked = true;
@@ -958,6 +979,7 @@ export class Fight {
         if (this.farWas) this.g.camera.far = this.farWas;
         this.g.camera.updateProjectionMatrix();
         if (this.rimWas) { const r = this.g.rim; r.position.copy(this.rimWas.pos); r.color.setHex(this.rimWas.color); r.intensity = this.rimWas.i; r.distance = this.rimWas.d; }
+        for (const w of this.lampsWas || []) { w.s.position.copy(w.pos); w.s.color.setHex(w.color); w.s.intensity = w.i; w.s.distance = w.d; w.s.decay = w.decay; }
         $("fb").classList.remove("off");
         for (const u of this.unbind || []) u();
         clearTimeout(this.sayT);

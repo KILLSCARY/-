@@ -226,7 +226,7 @@ test('высокая графика сохраняет чёткость без �
     const phone = { ...QUALITY_TIERS.high, ...QUALITY_TIERS.high.phone };
     assert.equal(phone.heat, undefined);
     assert.equal(phone.fx, false);
-    assert.ok(phone.ratio >= 2);
+    assert.ok(phone.ratio >= 1.75); // 02.11: ×2 лагало везде; ×1,75 с MSAA — ещё чётко (на «Средней» ×1,35)
     assert.ok(phone.shadowSize >= 1024);
 });
 
